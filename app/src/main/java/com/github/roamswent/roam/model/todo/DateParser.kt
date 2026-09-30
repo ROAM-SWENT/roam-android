@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.model.todo
+package com.github.roamswent.roam.model.todo
 
 import java.text.SimpleDateFormat
 import java.util.Date

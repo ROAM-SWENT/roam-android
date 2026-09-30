@@ -1,7 +1,7 @@
-package com.github.se.bootcamp.model.todo
+package com.github.roamswent.roam.model.todo
 
 import android.util.Log
-import com.github.se.bootcamp.model.map.Location
+import com.github.roamswent.roam.model.map.Location
 import com.google.android.gms.tasks.Task
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth

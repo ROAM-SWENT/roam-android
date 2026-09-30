@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.map
+package com.github.roamswent.roam.ui.map
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -12,12 +12,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.se.bootcamp.ui.map.MapScreenTestTags.getTestTagForTodoMarker
-import com.github.se.bootcamp.ui.navigation.BottomNavigationMenu
-import com.github.se.bootcamp.ui.navigation.NavigationActions
-import com.github.se.bootcamp.ui.navigation.NavigationTestTags
-import com.github.se.bootcamp.ui.navigation.Screen
-import com.github.se.bootcamp.ui.navigation.Tab
+import com.github.roamswent.roam.ui.map.MapScreenTestTags.getTestTagForTodoMarker
+import com.github.roamswent.roam.ui.navigation.BottomNavigationMenu
+import com.github.roamswent.roam.ui.navigation.NavigationActions
+import com.github.roamswent.roam.ui.navigation.NavigationTestTags
+import com.github.roamswent.roam.ui.navigation.Screen
+import com.github.roamswent.roam.ui.navigation.Tab
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap

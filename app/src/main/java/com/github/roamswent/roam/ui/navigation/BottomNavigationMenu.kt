@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.navigation
+package com.github.roamswent.roam.ui.navigation
 
 //noinspection UsingMaterialAndMaterial3Libraries
 //noinspection UsingMaterialAndMaterial3Libraries

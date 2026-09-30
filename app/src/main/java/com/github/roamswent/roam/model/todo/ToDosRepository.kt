@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.model.todo
+package com.github.roamswent.roam.model.todo
 
 /** Represents a repository that manages ToDo items. */
 interface ToDosRepository {

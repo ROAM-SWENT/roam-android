@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.theme
+package com.github.roamswent.roam.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.model.map
+package com.github.roamswent.roam.model.map
 
 import android.util.Log
 import java.io.IOException

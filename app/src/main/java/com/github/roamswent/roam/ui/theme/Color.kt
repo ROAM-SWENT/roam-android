@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.theme
+package com.github.roamswent.roam.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

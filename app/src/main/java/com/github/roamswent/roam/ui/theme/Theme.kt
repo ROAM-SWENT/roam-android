@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.theme
+package com.github.roamswent.roam.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme

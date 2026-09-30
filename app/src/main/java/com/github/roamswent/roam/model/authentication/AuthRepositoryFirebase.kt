@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.model.authentication
+package com.github.roamswent.roam.model.authentication
 
 import androidx.credentials.Credential
 import androidx.credentials.CredentialManager

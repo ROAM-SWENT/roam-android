@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.overview
+package com.github.roamswent.roam.ui.overview
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -32,8 +32,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.se.bootcamp.ui.navigation.NavigationTestTags
-import com.github.se.bootcamp.ui.navigation.Screen
+import com.github.roamswent.roam.ui.navigation.NavigationTestTags
+import com.github.roamswent.roam.ui.navigation.Screen
 
 object AddToDoScreenTestTags {
   const val INPUT_TODO_TITLE = "inputTodoTitle"

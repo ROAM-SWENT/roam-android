@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.model.authentication
+package com.github.roamswent.roam.model.authentication
 
 import android.os.Bundle
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential

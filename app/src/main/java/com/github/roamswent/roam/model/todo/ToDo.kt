@@ -1,6 +1,6 @@
-package com.github.se.bootcamp.model.todo
+package com.github.roamswent.roam.model.todo
 
-import com.github.se.bootcamp.model.map.Location
+import com.github.roamswent.roam.model.map.Location
 import com.google.firebase.Timestamp
 import java.util.Locale
 

@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "com.github.se.bootcamp"
+    namespace = "com.github.roamswent.roam"
     compileSdk = 34
 
 
@@ -26,7 +26,7 @@ android {
 
 
     defaultConfig {
-        applicationId = "com.github.se.bootcamp"
+        applicationId = "com.github.roamswent.roam"
         minSdk = 29
         versionCode = 1
         versionName = "1.0"

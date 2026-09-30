@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.navigation
+package com.github.roamswent.roam.ui.navigation
 
 import androidx.navigation.NavHostController
 

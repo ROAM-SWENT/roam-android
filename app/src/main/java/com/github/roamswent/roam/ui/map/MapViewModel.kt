@@ -1,11 +1,11 @@
-package com.github.se.bootcamp.ui.map
+package com.github.roamswent.roam.ui.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.github.se.bootcamp.model.map.Location
-import com.github.se.bootcamp.model.todo.ToDo
-import com.github.se.bootcamp.model.todo.ToDosRepository
-import com.github.se.bootcamp.model.todo.ToDosRepositoryProvider
+import com.github.roamswent.roam.model.map.Location
+import com.github.roamswent.roam.model.todo.ToDo
+import com.github.roamswent.roam.model.todo.ToDosRepository
+import com.github.roamswent.roam.model.todo.ToDosRepositoryProvider
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth

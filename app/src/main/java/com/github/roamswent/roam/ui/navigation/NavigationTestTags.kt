@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.navigation
+package com.github.roamswent.roam.ui.navigation
 
 object NavigationTestTags {
   const val BOTTOM_NAVIGATION_MENU = "BottomNavigationMenu"

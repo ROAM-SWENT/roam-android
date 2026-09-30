@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui
+package com.github.roamswent.roam.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -81,13 +81,13 @@ fun GreetingScreen() {
 
 /*
 The main activity should look like this :
-package com.github.se.bootcamp
+package com.github.roamswent.roam
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import com.github.se.bootcamp.ui.GreetingScreen
-import com.github.se.bootcamp.ui.theme.BootcampTheme
+import com.github.roamswent.roam.ui.GreetingScreen
+import com.github.roamswent.roam.ui.theme.BootcampTheme
 
 class MainActivity : ComponentActivity() {
 

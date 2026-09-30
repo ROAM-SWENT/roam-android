@@ -1,17 +1,17 @@
-package com.github.se.bootcamp.ui.overview
+package com.github.roamswent.roam.ui.overview
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.github.se.bootcamp.HttpClientProvider
-import com.github.se.bootcamp.model.map.Location
-import com.github.se.bootcamp.model.map.LocationRepository
-import com.github.se.bootcamp.model.map.NominatimLocationRepository
-import com.github.se.bootcamp.model.todo.DateParser
-import com.github.se.bootcamp.model.todo.ToDo
-import com.github.se.bootcamp.model.todo.ToDoStatus
-import com.github.se.bootcamp.model.todo.ToDosRepository
-import com.github.se.bootcamp.model.todo.ToDosRepositoryProvider
+import com.github.roamswent.roam.HttpClientProvider
+import com.github.roamswent.roam.model.map.Location
+import com.github.roamswent.roam.model.map.LocationRepository
+import com.github.roamswent.roam.model.map.NominatimLocationRepository
+import com.github.roamswent.roam.model.todo.DateParser
+import com.github.roamswent.roam.model.todo.ToDo
+import com.github.roamswent.roam.model.todo.ToDoStatus
+import com.github.roamswent.roam.model.todo.ToDosRepository
+import com.github.roamswent.roam.model.todo.ToDosRepositoryProvider
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth

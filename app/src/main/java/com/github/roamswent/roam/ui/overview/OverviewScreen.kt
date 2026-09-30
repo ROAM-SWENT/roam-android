@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.overview
+package com.github.roamswent.roam.ui.overview
 
 import android.icu.text.SimpleDateFormat
 import android.widget.Toast
@@ -38,12 +38,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.se.bootcamp.model.todo.ToDo
-import com.github.se.bootcamp.model.todo.ToDoStatus
-import com.github.se.bootcamp.ui.navigation.BottomNavigationMenu
-import com.github.se.bootcamp.ui.navigation.NavigationActions
-import com.github.se.bootcamp.ui.navigation.NavigationTestTags
-import com.github.se.bootcamp.ui.navigation.Tab
+import com.github.roamswent.roam.model.todo.ToDo
+import com.github.roamswent.roam.model.todo.ToDoStatus
+import com.github.roamswent.roam.ui.navigation.BottomNavigationMenu
+import com.github.roamswent.roam.ui.navigation.NavigationActions
+import com.github.roamswent.roam.ui.navigation.NavigationTestTags
+import com.github.roamswent.roam.ui.navigation.Tab
 import java.util.Locale
 
 object OverviewScreenTestTags {

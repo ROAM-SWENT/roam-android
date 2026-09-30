@@ -1,4 +1,4 @@
-package com.github.se.bootcamp
+package com.github.roamswent.roam
 
 import android.content.Context
 import android.os.Bundle
@@ -16,15 +16,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
-import com.github.se.bootcamp.model.authentication.AuthRepository
-import com.github.se.bootcamp.ui.authentication.SignInScreen
-import com.github.se.bootcamp.ui.map.MapScreen
-import com.github.se.bootcamp.ui.navigation.NavigationActions
-import com.github.se.bootcamp.ui.navigation.Screen
-import com.github.se.bootcamp.ui.overview.AddTodoScreen
-import com.github.se.bootcamp.ui.overview.EditToDoScreen
-import com.github.se.bootcamp.ui.overview.OverviewScreen
-import com.github.se.bootcamp.ui.theme.BootcampTheme
+import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.ui.authentication.SignInScreen
+import com.github.roamswent.roam.ui.map.MapScreen
+import com.github.roamswent.roam.ui.navigation.NavigationActions
+import com.github.roamswent.roam.ui.navigation.Screen
+import com.github.roamswent.roam.ui.overview.AddTodoScreen
+import com.github.roamswent.roam.ui.overview.EditToDoScreen
+import com.github.roamswent.roam.ui.overview.OverviewScreen
+import com.github.roamswent.roam.ui.theme.BootcampTheme
 import com.google.firebase.auth.FirebaseAuth
 import okhttp3.OkHttpClient
 

@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.authentication
+package com.github.roamswent.roam.ui.authentication
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.se.bootcamp.R
+import com.github.roamswent.roam.R
 
 object SignInScreenTestTags {
   const val APP_LOGO = "appLogo"

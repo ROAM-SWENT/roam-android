@@ -1,15 +1,15 @@
-package com.github.se.bootcamp.ui.overview
+package com.github.roamswent.roam.ui.overview
 
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.github.se.bootcamp.model.authentication.AuthRepository
-import com.github.se.bootcamp.model.authentication.AuthRepositoryFirebase
-import com.github.se.bootcamp.model.todo.ToDo
-import com.github.se.bootcamp.model.todo.ToDosRepository
-import com.github.se.bootcamp.model.todo.ToDosRepositoryProvider
+import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
+import com.github.roamswent.roam.model.todo.ToDo
+import com.github.roamswent.roam.model.todo.ToDosRepository
+import com.github.roamswent.roam.model.todo.ToDosRepositoryProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

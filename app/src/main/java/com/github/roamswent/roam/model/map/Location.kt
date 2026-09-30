@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.model.map
+package com.github.roamswent.roam.model.map
 
 data class Location(
     val latitude: Double,

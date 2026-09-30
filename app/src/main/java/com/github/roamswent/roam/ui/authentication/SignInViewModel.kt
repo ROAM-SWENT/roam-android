@@ -1,4 +1,4 @@
-package com.github.se.bootcamp.ui.authentication
+package com.github.roamswent.roam.ui.authentication
 
 import android.content.Context
 import android.credentials.GetCredentialException
@@ -7,8 +7,8 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.github.se.bootcamp.model.authentication.AuthRepository
-import com.github.se.bootcamp.model.authentication.AuthRepositoryFirebase
+import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +50,7 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
   private fun getSignInOptions(context: Context) =
       GetSignInWithGoogleOption.Builder(
               serverClientId =
-                  context.getString(com.github.se.bootcamp.R.string.default_web_client_id))
+                  context.getString(com.github.roamswent.roam.R.string.default_web_client_id))
           .build()
 
   private fun signInRequest(signInOptions: GetSignInWithGoogleOption) =
