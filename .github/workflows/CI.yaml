@@ -1,0 +1,362 @@
+name: Bootcamp CI - Test Runner
+
+# Run the workflow when commits are pushed on main or when a PR is modified
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  bootcamp-ci:
+    name: CI-Bootcamp
+    # Execute the CI on the course's runners
+    runs-on:
+      group: runners_v1
+
+    env:
+      app_name: BootcampDebug
+
+    defaults:
+      run:
+        working-directory: ./${{ env.base_folder }}
+
+    steps:
+      # First step : Checkout the repository on the runner
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis (if we use Sonar Later)
+
+      # This step removes the current gradle cache to avoid any caching issues
+      - name: Remove current gradle cache
+        run: rm -rf ~/.gradle
+
+      # Kernel-based Virtual Machine (KVM) is an open source virtualization technology built into Linux. Enabling it allows the Android emulator to run faster.
+      #
+      # For the bootcamp, the runners already have KVM enabled, so this step is commented out. But for your projects, you will need to uncomment it.
+      #- name: Enable KVM group perms
+      #  run: |
+      #    echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+      #    sudo udevadm control --reload-rules
+      #    sudo udevadm trigger --name-match=kvm
+
+      - name: Setup JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+
+      # Caching is a very useful part of a CI, as a workflow is executed in a clean environement every time,
+      # this means that one would need to re-download and re-process gradle files for every run. Which is very time consuming.
+      #
+      # To avoid that, we cache the the gradle folder to reuse it later.
+      - name: Retrieve gradle cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      # Load google-services.json and local.properties from the secrets
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          else
+            echo "::warning::GOOGLE_SERVICES secret is not set. google-services.json will not be created. Should be present after B2"
+          fi
+          
+          if [ -n "$LOCAL_PROPERTIES" ]; then
+            echo "$LOCAL_PROPERTIES" | base64 --decode > ./local.properties
+          else
+            echo "::warning::LOCAL_PROPERTIES secret is not set. local.properties will not be created. Should be present after B3"
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: |
+          chmod +x ./gradlew
+
+      # Install NodeJS
+      - name: Setup NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Install Firebase CLI
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Firestore Security Rules tests
+        run: |
+          if [ ! -e "firebase.json" ]; then # Check if firebase.json exists
+            echo "(B2 Warning): 'firebase.json' file is missing. Use 'firebase emulators:init'. Emulators are setup in B2"
+            exit 0
+          fi
+          jq -e '.emulators' firebase.json >/dev/null || { # Check if emulators are configured
+            echo "'firebase.json' is missing 'emulators'. Run 'firebase emulators:init'."
+            exit 1
+          }
+          for e in auth firestore; do # Check if auth and firestore emulators are configured
+            jq -e ".emulators.$e" firebase.json >/dev/null || {
+              echo "'firebase.json' is missing 'emulators.$e'. Run 'firebase emulators:init'."
+              exit 1
+            }
+          done
+          if [ -e "firebase/firestore/firestore.rules" ]; then # Check if firestore.rules exists
+            # Check if firestore.rules is referenced in firebase.json
+            jq -e '.firestore.rules' firebase.json >/dev/null || {
+              echo "'firebase.json' is missing 'firestore.rules'."
+              exit 1
+            }
+            (cd firebase/firestore/test 2>/dev/null && npm install && npm test) || exit $?
+          else
+            echo "(B3 Warning): Firestore rules file not found in firebase/firestore. Rules are setup in B3, you can ignore this warning in B2."
+          fi
+
+      - name: KTFmt Check
+        run: |
+          # To run the CI with debug informations, add --info
+          ./gradlew ktfmtCheck
+
+      # This step runs gradle commands to build the application
+      - name: Assemble
+        run: |
+          # To run the CI with debug information, add --info
+          ./gradlew assembleDebug lint --parallel --build-cache
+
+      - name: Run tests
+        run: |
+          # To run the CI with debug information, add --info
+          ./gradlew check --parallel --build-cache
+
+      # Start Firebase emulators for instrumentation tests
+      - name: Start Firebase emulators
+        run: |
+          if [ -e "firebase.json" ] && jq -e '.emulators' firebase.json >/dev/null; then
+            echo "Starting Firebase emulators for instrumentation tests..."
+            firebase emulators:start --only auth,firestore --project demo-project &
+            echo "Firebase emulators started"
+          else
+            echo "Firebase emulators not configured, skipping emulator startup..."
+          fi
+
+      - name: Run instrumentation tests
+        timeout-minutes: 25
+        # This action assumes that Android sdk is already present in the runner. Which is true for the bootcamp, but won't be for your own project.
+        # If you want to use this CI for your project, replace the following line with: uses: reactivecircus/android-emulator-runner@v2
+        uses: RandyLutcavich/android-emulator-runner-without-sdk-setup@v1.0.3
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          avd-name: github
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x2400
+          disable-animations: true
+          script: ./gradlew connectedCheck --parallel --build-cache
+
+      # This step generates the coverage report which will be used later in the semster for monitoring purposes
+      - name: Generate coverage
+        run: |
+          ./gradlew jacocoTestReport
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coverage report
+          path: app/build/reports/jacoco/jacocoTestReport
+
+  user-stories:
+    name: User stories
+    # Execute the CI on the course's runners
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        working-directory: ./${{ env.base_folder }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Check that userStories.txt exists
+        run: stat userStories.txt
+
+      # Couting non-empty lines https://stackoverflow.com/a/114861
+      - name: Check that userStories.txt has two lines
+        run: '[ $(grep -cve "^\s*$" userStories.txt) -eq "2" ]' 
+
+  time-recording:
+    name: Time tracking files
+    # Execute the CI on the course's runners
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        working-directory: ./${{ env.base_folder }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Check that B1 file exists
+      run: stat actualTimeB1.csv
+
+    - name: Check that B1 file has been filled
+      run: |
+        python3 <<EOF
+        import csv
+        with open('actualTimeB1.csv', newline='') as f:
+          reader = csv.DictReader(f)
+          values = []
+          for row in reader:
+            value = row['Actual time (minutes)'].strip()
+            if not value.isdigit():
+              print(f"Error: Value '{value}' in 'Actual time (minutes)' is not an integer.")
+              exit(1)
+            values.append(int(value))
+          for value in values:
+            if value == 0:
+              print("Error: At least one value in 'Actual time (minutes)' is zero.")
+              exit(1)
+        EOF
+    - name: Check that B2 file exists
+      run: stat actualTimeB2.csv
+
+    - name: Check that B2 file has been filled
+      run: |
+        python3 <<EOF
+        import csv
+        with open('actualTimeB2.csv', newline='') as f:
+          reader = csv.DictReader(f)
+          values = []
+          for row in reader:
+            value = row['Actual time (minutes)'].strip()
+            if not value.isdigit():
+              print(f"Error: Value '{value}' in 'Actual time (minutes)' is not an integer.")
+              exit(1)
+            values.append(int(value))
+          for value in values:
+            if value == 0:
+              print("Error: At least one value in 'Actual time (minutes)' is zero.")
+              exit(1)
+        EOF
+
+    - name: Check that B3 file exists  
+      run: stat actualTimeB3.csv
+
+    - name: Check that B3 file has been filled
+      run: |
+        python3 <<EOF
+        import csv
+        with open('actualTimeB3.csv', newline='') as f:
+          reader = csv.DictReader(f)
+          values = []
+          for row in reader:
+            value = row['Actual time (minutes)'].strip()
+            if not value.isdigit():
+              print(f"Error: Value '{value}' in 'Actual time (minutes)' is not an integer.")
+              exit(1)
+            values.append(int(value))
+          for value in values:
+            if value == 0:
+              print("Error: At least one value in 'Actual time (minutes)' is zero.")
+              exit(1)
+        EOF
+
+  mcq-check:
+    name: PR Review MCQ Check
+    runs-on: self-hosted
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Check MCQ formatting
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "Checking PR Review MCQ formatting..."
+
+        # File must exist
+        if [[ ! -f "prReviewMCQ.md" ]]; then
+          echo "❌ prReviewMCQ.md file not found!"
+          exit 1
+        fi
+
+        # Count total questions (lines starting with **Q<num>:)
+        total_questions=$(grep -Ec '^\*\*Q[0-9]+:' prReviewMCQ.md || true)
+        if [[ "$total_questions" -eq 0 ]]; then
+          echo "❌ No questions found (expected lines like '**Q1:' at column 0)."
+          exit 1
+        fi
+        echo "Found $total_questions questions"
+
+        # Count answers ONLY inside question blocks 
+        answered_questions=$(awk '
+          /^\*\*Q[0-9]+:/ { if (seen) total += x; seen=1; x=0 }  # start new block
+          seen && /\[X\]/ { x++ }                                 # count [X] only within blocks
+          END { if (seen) total += x; print total+0 }
+        ' prReviewMCQ.md)
+        echo "Found $answered_questions answered marks inside question blocks"
+
+        if [[ "$answered_questions" -ne "$total_questions" ]]; then
+          echo "❌ Not all questions are answered exactly once (by total count)."
+          echo "Expected: $total_questions"
+          echo "Found:    $answered_questions"
+          total_mismatch=1
+        else
+          total_mismatch=0
+        fi
+
+        echo "Checking that each question has exactly one [X]…"
+
+        failed=0
+        # Per-question validation: exactly one [X] per block
+        while read -r question x_count; do
+          if [[ "$x_count" -ne 1 ]]; then
+            echo "❌ $question has $x_count [X] marks (should have exactly 1)"
+            failed=1
+          else
+            echo "✅ $question correctly answered"
+          fi
+        done < <(awk '
+          /^\*\*Q[0-9]+:/ {
+            if (qnum > 0) { print "Q" qnum, x }
+            qnum++
+            x=0
+            next
+          }
+          qnum > 0 && /\[X\]/ { x++ }
+          END {
+            if (qnum > 0) { print "Q" qnum, x }
+          }
+        ' prReviewMCQ.md)
+
+        if [[ "$failed" -ne 0 || "$total_mismatch" -ne 0 ]]; then
+          echo "❌ MCQ formatting check failed."
+          exit 1
+        fi
+
+        echo "✅ All $total_questions questions are properly answered with correct formatting!"

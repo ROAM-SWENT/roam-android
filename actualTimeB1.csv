@@ -1,0 +1,8 @@
+Step description                                   ,Estimated time (minutes),Actual time (minutes)
+1. Environment Setup                               ,60                      ,60
+2. Create your first app: Greeting                 ,150                     ,160
+3. First feature of the Todo App: TodoList screen  ,180                     ,180
+4. Set up the Navigation                           ,120                     ,120
+5. Set up Continuous Integration on GitHub         ,15                      ,15
+6. Build the APK                                   ,15                      ,15
+7. Write user stories for the Todo app             ,30                      ,30

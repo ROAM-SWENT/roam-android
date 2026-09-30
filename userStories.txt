@@ -1,0 +1,2 @@
+As a user, I want to set recurring tasks so that I don’t have to manually create the same task every day/week/month.
+As a user, I want to attach files or notes to a task so that I have all the necessary information in one place.

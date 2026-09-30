@@ -1,0 +1,10 @@
+Step description                                   ,Estimated time (minutes),Actual time (minutes)
+1. Review Collaborative Development theory         ,10                      ,10
+2. Code-review a PR                                ,60                      ,60
+3. Implement Authentication user story             ,180                     ,180
+4. Implement Access Control user story             ,60                      ,60
+5. Implement Reverse geocoding user story          ,150                     ,150
+6. Implement Maps user story                       ,60                      ,60
+7. Review Unit Testing and Android Testing         ,60                      ,60
+8. Test your implementation                        ,180                     ,180
+
