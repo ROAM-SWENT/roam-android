@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-  namespace = "com.android.sample"
+  namespace = "com.github.roamswent.roam"
   compileSdk = 37
 
   defaultConfig {
-    applicationId = "com.android.sample"
+    applicationId = "com.github.roamswent.roam"
     minSdk = 28
     targetSdk = 34
     versionCode = 1
