@@ -1,4 +1,4 @@
-name: Roam CI 
+name: Roam CI
 
 on:
   push:
@@ -122,7 +122,9 @@ jobs:
       - name: Run unit tests
         run: |
           ./gradlew testDebugUnitTest --parallel --build-cache
-        
+      - name: Generate coverage report
+        run: |
+          ./gradlew jacocoTestReport
       - name: SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
