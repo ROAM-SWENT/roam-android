@@ -1,4 +1,4 @@
-package com.android.roam
+package com.github.roamswent.roam
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

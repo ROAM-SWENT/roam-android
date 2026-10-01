@@ -1,7 +1,7 @@
-package com.android.roam.screen
+package com.github.roamswent.roam.screen
 
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
-import com.android.roam.resources.C
+import com.github.roamswent.roam.resources.C
 import io.github.kakaocup.compose.node.element.ComposeScreen
 import io.github.kakaocup.compose.node.element.KNode
 

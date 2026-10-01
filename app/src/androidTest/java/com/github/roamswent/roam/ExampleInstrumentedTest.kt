@@ -1,8 +1,8 @@
-package com.android.roam
+package com.github.roamswent.roam
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.roam.screen.MainScreen
+import com.github.roamswent.roam.screen.MainScreen
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import io.github.kakaocup.compose.node.element.ComposeScreen
 import org.junit.Rule

@@ -1,4 +1,4 @@
-package com.android.roam.resources
+package com.github.roamswent.roam.resources
 
 // Like R, but C
 object C {

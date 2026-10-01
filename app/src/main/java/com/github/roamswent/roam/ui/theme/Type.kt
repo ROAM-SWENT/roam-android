@@ -1,4 +1,4 @@
-package com.android.roam.ui.theme
+package com.github.roamswent.roam.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

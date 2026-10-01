@@ -1,4 +1,4 @@
-package com.android.roam
+package com.github.roamswent.roam
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,20 +12,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
-import com.android.roam.resources.C
-import com.android.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.SampleAppTheme
 
-class SecondActivity : ComponentActivity() {
+class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContent {
       SampleAppTheme {
         // A surface container using the 'background' color from the theme
         Surface(
-            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.second_screen_container },
+            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
             color = MaterialTheme.colorScheme.background,
         ) {
-          GreetingRobo("Robolectric")
+          Greeting("Android")
         }
       }
     }
@@ -33,12 +33,12 @@ class SecondActivity : ComponentActivity() {
 }
 
 @Composable
-fun GreetingRobo(name: String, modifier: Modifier = Modifier) {
-  Text(text = "Hello $name!", modifier = modifier.semantics { testTag = C.Tag.greeting_robo })
+fun Greeting(name: String, modifier: Modifier = Modifier) {
+  Text(text = "Hello $name!", modifier = modifier.semantics { testTag = C.Tag.greeting })
 }
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview2() {
-  SampleAppTheme { GreetingRobo("Robolectric") }
+fun GreetingPreview() {
+  SampleAppTheme { Greeting("Android") }
 }
