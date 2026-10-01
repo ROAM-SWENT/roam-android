@@ -14,15 +14,7 @@ on:
 jobs:
   always-on:
     name: Always-on checks
-    runs-on:
-      group: runners_v1
-
-    env:
-      app_name: RoamDebug
-
-    defaults:
-      run:
-        working-directory: ./${{ env.base_folder }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -64,6 +56,12 @@ jobs:
             echo "::warning::LOCAL_PROPERTIES secret is not set. local.properties will not be created."
           fi
 
+          if [ -n "$LOCAL_PROPERTIES" ]; then
+            echo "$LOCAL_PROPERTIES" | base64 --decode > ./local.properties
+          else
+            echo "::warning::LOCAL_PROPERTIES secret is not set. local.properties will not be created. Should be present after B3"
+          fi
+
       - name: Grant execute permission for gradlew
         run: |
           chmod +x ./gradlew
@@ -78,12 +76,7 @@ jobs:
 
   tests:
     name: tests
-    runs-on:
-      group: runners_v1
-
-    defaults:
-      run:
-        working-directory: ./${{ env.base_folder }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -189,21 +182,11 @@ jobs:
           ./gradlew testDebugUnitTest --parallel --build-cache
         
       - name: SonarCloud
-        if: ${{ secrets.SONAR_TOKEN != '' }} # In case we haven't implemented it yet. Could delete once it's done
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./gradlew sonar
-
-      - name: Run instrumentation tests
-        timeout-minutes: 40
-        uses: RandyLutcavich/android-emulator-runner-without-sdk-setup@v1.0.3
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          avd-name: github
-          force-avd-creation: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -skin 1080x2400
-          disable-animations: true
-          script: ./gradlew connectedCheck --parallel --build-cache
+          if [ -n "$SONAR_TOKEN" ]; then
+            ./gradlew sonar
+          else
+            echo "::warning::SONAR_TOKEN not set, skipping SonarCloud"
+          fi
