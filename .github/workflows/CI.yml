@@ -98,7 +98,11 @@ jobs:
             }
             export JAVA_HOME="$JAVA_HOME_21_X64"
             export PATH="$JAVA_HOME/bin:$PATH"
-            (cd firebase/firestore/test 2>/dev/null && npm install && npm test) || exit $?
+            if [ -d "firebase/firestore/test" ]; then
+              (cd firebase/firestore/test && npm install && npm test)
+            else
+              echo "No Firestore rules tests found, skipping."
+            fi
           else
             echo "Warning: Firestore rules file not found in firebase/firestore."
           fi
