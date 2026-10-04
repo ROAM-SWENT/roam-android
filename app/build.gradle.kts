@@ -133,6 +133,7 @@ dependencies {
   implementation(libs.compose.ui)
   implementation(libs.compose.ui.graphics)
   // Material Design 3
+  implementation(libs.compose.icons.extended)
   implementation(libs.compose.material3)
   // Integration with activities
   implementation(libs.compose.activity)
