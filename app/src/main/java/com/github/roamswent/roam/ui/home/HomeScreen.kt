@@ -32,6 +32,8 @@ import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
 fun HomeScreen(onScanClicked: () -> Unit) {
+  val haloSize = 72.dp
+
   Box(
       modifier =
           Modifier.fillMaxSize().background(ScreenBackground).semantics {
@@ -40,7 +42,8 @@ fun HomeScreen(onScanClicked: () -> Unit) {
   ) {
     Box(modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) {
       Surface(
-          modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(top = 36.dp),
+          modifier =
+              Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(top = haloSize / 2),
           color = Color.White,
       ) {
         Column(
@@ -63,7 +66,7 @@ fun HomeScreen(onScanClicked: () -> Unit) {
       Box(
           modifier =
               Modifier.align(Alignment.TopCenter)
-                  .size(72.dp)
+                  .size(haloSize)
                   .background(color = Color.White, shape = CircleShape),
           contentAlignment = Alignment.Center,
       ) {
