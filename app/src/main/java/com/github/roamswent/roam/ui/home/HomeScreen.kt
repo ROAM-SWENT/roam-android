@@ -1,14 +1,12 @@
 package com.github.roamswent.roam.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -26,7 +24,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -41,44 +38,49 @@ fun HomeScreen(onScanClicked: () -> Unit) {
             testTag = C.Tag.home_screen_container
           }
   ) {
-    Surface(
-        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-        color = Color.White,
-    ) {
-      Column(
-          modifier = Modifier.navigationBarsPadding(),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.Center,
+    Box(modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) {
+      Surface(
+          modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(top = 36.dp),
+          color = Color.White,
       ) {
-        Box(
+        Column(
             modifier =
-                Modifier.size(72.dp)
-                    .offset { IntOffset(0, -24.dp.roundToPx()) }
-                    .background(Color.White, CircleShape),
-            contentAlignment = Alignment.Center,
+                Modifier.fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(top = 44.dp, bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-          IconButton(
-              onClick = onScanClicked,
-              modifier =
-                  Modifier.size(60.dp).background(ScanTeal, CircleShape).semantics {
-                    testTag = C.Tag.home_scan_button
-                  },
-          ) {
-            Icon(
-                imageVector = Icons.Default.CenterFocusStrong,
-                contentDescription = "Scan a monument",
-                tint = Color.White,
-            )
-          }
+          Text(
+              text = "Scan a monument",
+              color = ScanTeal,
+              style = MaterialTheme.typography.labelMedium,
+              fontWeight = FontWeight.SemiBold,
+              modifier = Modifier.semantics { testTag = C.Tag.home_scan_label },
+          )
         }
-        Spacer(modifier = Modifier.size(8.dp))
-        Text(
-            text = "Scan a monument",
-            modifier = Modifier.semantics { testTag = C.Tag.home_scan_label },
-            color = ScanTeal,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
+      }
+
+      Box(
+          modifier =
+              Modifier.align(Alignment.TopCenter)
+                  .size(72.dp)
+                  .background(color = Color.White, shape = CircleShape),
+          contentAlignment = Alignment.Center,
+      ) {
+        IconButton(
+            onClick = onScanClicked,
+            modifier =
+                Modifier.size(56.dp).background(color = ScanTeal, shape = CircleShape).semantics {
+                  testTag = C.Tag.home_scan_button
+                },
+        ) {
+          Icon(
+              imageVector = Icons.Default.CenterFocusStrong,
+              contentDescription = "Scan a monument",
+              tint = Color.White,
+              modifier = Modifier.size(28.dp),
+          )
+        }
       }
     }
   }
