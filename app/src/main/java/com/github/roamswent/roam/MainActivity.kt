@@ -23,6 +23,7 @@ import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
+import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
     setContent {
       SampleAppTheme {
         val navController = rememberNavController()
+        val cameraAvailable = rememberCameraAvailability()
         var showPermissionDialog by remember { mutableStateOf(false) }
         val permissionController = rememberCameraPermissionController { granted ->
           if (granted) {
@@ -47,7 +49,10 @@ class MainActivity : ComponentActivity() {
         ) {
           NavHost(navController = navController, startDestination = Routes.Home) {
             composable(Routes.Home) {
-              HomeScreen(onScanClicked = { permissionController.requestPermission() })
+              HomeScreen(
+                  onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
+                  cameraAvailable = cameraAvailable,
+              )
             }
             composable(Routes.Scan) {
               Box(Modifier.fillMaxSize().semantics { testTag = C.Tag.scan_root_stub })
