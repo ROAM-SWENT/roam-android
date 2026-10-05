@@ -3,6 +3,7 @@ package com.github.roamswent.roam
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -10,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.resources.C
+import org.junit.Assert.assertNotSame
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -46,7 +48,7 @@ class MainActivityNavigationTest {
   fun denyShowsPermissionDialogWithoutNavigating() {
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
-    dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
+    dispatchCameraPermissionResult()
 
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
     waitForGone(C.Tag.scan_root_stub)
@@ -57,7 +59,7 @@ class MainActivityNavigationTest {
   fun dismissingPermissionDialogLeavesHomeDisplayed() {
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
-    dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
+    dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
 
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_dismiss_button).performClick()
@@ -71,26 +73,40 @@ class MainActivityNavigationTest {
   fun denialAfterDismissShowsDialogAgain() {
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
-    dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
+    val firstPermissionRequest = dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
+    waitForGone(C.Tag.scan_root_stub)
 
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_dismiss_button).performClick()
     waitForGone(C.Tag.camera_permission_dialog)
+    composeTestRule.onAllNodesWithTag(C.Tag.camera_permission_dialog).assertCountEquals(0)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    waitForGone(C.Tag.scan_root_stub)
+
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
-    dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
+    val secondPermissionRequest = permissionRequest()
+    assertNotSame(firstPermissionRequest, secondPermissionRequest)
+    dispatchCameraPermissionResult(secondPermissionRequest)
 
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
     waitForGone(C.Tag.scan_root_stub)
   }
 
-  private fun dispatchCameraPermissionResult(result: Int) {
-    val permissionRequest = shadowOf(composeTestRule.activity).lastRequestedPermission
-    checkNotNull(permissionRequest)
+  private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
+    return checkNotNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+  }
+
+  private fun dispatchCameraPermissionResult() = dispatchCameraPermissionResult(permissionRequest())
+
+  private fun dispatchCameraPermissionResult(
+      permissionRequest: org.robolectric.shadows.ShadowActivity.PermissionsRequest
+  ): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
     composeTestRule.activity.onRequestPermissionsResult(
         permissionRequest.requestCode,
         arrayOf(Manifest.permission.CAMERA),
-        intArrayOf(result),
+        intArrayOf(PackageManager.PERMISSION_DENIED),
     )
+    return permissionRequest
   }
 
   private fun waitAndAssertDisplayed(tag: String) {
