@@ -53,14 +53,8 @@ class MainActivity : ComponentActivity() {
               Box(Modifier.fillMaxSize().semantics { testTag = C.Tag.scan_root_stub })
             }
           }
-          val deniedState = permissionState as? CameraPermissionState.Denied
-          if (showPermissionDialog && deniedState != null) {
+          if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
             CameraPermissionDialog(
-                state = deniedState,
-                onRetry = {
-                  showPermissionDialog = false
-                  permissionController.requestPermission()
-                },
                 onOpenSettings = {
                   showPermissionDialog = false
                   permissionController.openAppSettings()

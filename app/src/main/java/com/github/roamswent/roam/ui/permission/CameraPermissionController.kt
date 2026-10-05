@@ -1,7 +1,6 @@
 package com.github.roamswent.roam.ui.permission
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -14,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,13 +43,7 @@ fun rememberCameraPermissionController(
             if (granted) {
               CameraPermissionState.Granted
             } else {
-              CameraPermissionState.Denied(
-                  showRationale =
-                      ActivityCompat.shouldShowRequestPermissionRationale(
-                          context as Activity,
-                          Manifest.permission.CAMERA,
-                      )
-              )
+              CameraPermissionState.Denied
             }
         permissionState.value = state
         currentOnPermissionResult(granted)

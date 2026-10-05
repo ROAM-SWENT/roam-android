@@ -5,5 +5,5 @@ sealed interface CameraPermissionState {
 
   data object Granted : CameraPermissionState
 
-  data class Denied(val showRationale: Boolean) : CameraPermissionState
+  data object Denied : CameraPermissionState
 }

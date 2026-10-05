@@ -11,38 +11,19 @@ import com.github.roamswent.roam.resources.C
 
 @Composable
 fun CameraPermissionDialog(
-    state: CameraPermissionState.Denied,
-    onRetry: () -> Unit,
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
   AlertDialog(
       onDismissRequest = onDismiss,
       title = { Text("Camera permission required") },
-      text = {
-        Text(
-            if (state.showRationale) {
-              "Camera access is needed to scan monuments."
-            } else {
-              "Allow camera access in Settings to scan monuments."
-            }
-        )
-      },
+      text = { Text("Allow camera access in Settings to scan monuments.") },
       confirmButton = {
-        if (state.showRationale) {
-          TextButton(
-              onClick = onRetry,
-              modifier = Modifier.semantics { testTag = C.Tag.camera_permission_retry_button },
-          ) {
-            Text("Retry")
-          }
-        } else {
-          TextButton(
-              onClick = onOpenSettings,
-              modifier = Modifier.semantics { testTag = C.Tag.camera_permission_settings_button },
-          ) {
-            Text("Open Settings")
-          }
+        TextButton(
+            onClick = onOpenSettings,
+            modifier = Modifier.semantics { testTag = C.Tag.camera_permission_settings_button },
+        ) {
+          Text("Open Settings")
         }
       },
       dismissButton = {
