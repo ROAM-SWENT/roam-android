@@ -20,13 +20,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.annotation.Config
-import org.robolectric.annotation.Implementation
-import org.robolectric.annotation.Implements
-import org.robolectric.shadows.ShadowActivity
 
 @RunWith(RobolectricTestRunner::class)
-@Config(shadows = [CameraPermissionActivityShadow::class])
 class CameraPermissionControllerTest {
   @get:Rule val composeTestRule = createComposeRule()
 
@@ -68,25 +63,17 @@ class CameraPermissionControllerTest {
 
   @Test
   fun grantResultUpdatesStateAndCallsBack() {
-    dispatchPermissionResult(PackageManager.PERMISSION_GRANTED, showRationale = false)
+    dispatchPermissionResult(PackageManager.PERMISSION_GRANTED)
 
     assertEquals(CameraPermissionState.Granted, controller.state.value)
     assertEquals(listOf(true), permissionResults)
   }
 
   @Test
-  fun denyWithRationaleUpdatesDeniedState() {
-    dispatchPermissionResult(PackageManager.PERMISSION_DENIED, showRationale = true)
+  fun denyResultUpdatesStateAndCallsBack() {
+    dispatchPermissionResult(PackageManager.PERMISSION_DENIED)
 
-    assertEquals(CameraPermissionState.Denied(showRationale = true), controller.state.value)
-    assertEquals(listOf(false), permissionResults)
-  }
-
-  @Test
-  fun denyWithoutRationaleUpdatesDeniedState() {
-    dispatchPermissionResult(PackageManager.PERMISSION_DENIED, showRationale = false)
-
-    assertEquals(CameraPermissionState.Denied(showRationale = false), controller.state.value)
+    assertEquals(CameraPermissionState.Denied, controller.state.value)
     assertEquals(listOf(false), permissionResults)
   }
 
@@ -99,8 +86,7 @@ class CameraPermissionControllerTest {
     assertEquals(activity.packageName, intent.data?.schemeSpecificPart)
   }
 
-  private fun dispatchPermissionResult(result: Int, showRationale: Boolean) {
-    CameraPermissionActivityShadow.showRationale = showRationale
+  private fun dispatchPermissionResult(result: Int) {
     controller.requestPermission()
     val permissionRequest = shadowOf(activity).lastRequestedPermission
     assertNotNull(permissionRequest)
@@ -109,15 +95,5 @@ class CameraPermissionControllerTest {
         arrayOf(Manifest.permission.CAMERA),
         intArrayOf(result),
     )
-  }
-}
-
-@Implements(Activity::class)
-class CameraPermissionActivityShadow : ShadowActivity() {
-  @Implementation
-  fun shouldShowRequestPermissionRationale(permission: String): Boolean = showRationale
-
-  companion object {
-    var showRationale = false
   }
 }

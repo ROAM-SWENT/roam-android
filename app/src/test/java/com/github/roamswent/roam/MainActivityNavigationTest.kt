@@ -3,7 +3,6 @@ package com.github.roamswent.roam
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -30,8 +29,7 @@ class MainActivityNavigationTest {
 
   @Test
   fun startsAtHome() {
-    waitFor(C.Tag.home_screen_container)
-    composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
 
   @Test
@@ -40,9 +38,8 @@ class MainActivityNavigationTest {
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
 
-    waitFor(C.Tag.scan_root_stub)
-    composeTestRule.onNodeWithTag(C.Tag.scan_root_stub).assertIsDisplayed()
-    composeTestRule.onAllNodesWithTag(C.Tag.home_screen_container).assertCountEquals(0)
+    waitAndAssertDisplayed(C.Tag.scan_root_stub)
+    waitForGone(C.Tag.home_screen_container)
   }
 
   @Test
@@ -51,9 +48,9 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
     dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
 
-    waitFor(C.Tag.camera_permission_dialog)
-    composeTestRule.onNodeWithTag(C.Tag.camera_permission_dialog).assertIsDisplayed()
-    composeTestRule.onAllNodesWithTag(C.Tag.scan_root_stub).assertCountEquals(0)
+    waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
+    waitForGone(C.Tag.scan_root_stub)
+    composeTestRule.onNodeWithTag(C.Tag.camera_permission_settings_button).assertIsDisplayed()
   }
 
   @Test
@@ -61,13 +58,29 @@ class MainActivityNavigationTest {
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
     dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
-    waitFor(C.Tag.camera_permission_dialog)
+    waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
 
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_dismiss_button).performClick()
 
-    composeTestRule.onAllNodesWithTag(C.Tag.camera_permission_dialog).assertCountEquals(0)
-    composeTestRule.onAllNodesWithTag(C.Tag.scan_root_stub).assertCountEquals(0)
-    composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
+    waitForGone(C.Tag.camera_permission_dialog)
+    waitForGone(C.Tag.scan_root_stub)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+  }
+
+  @Test
+  fun denialAfterDismissShowsDialogAgain() {
+    waitFor(C.Tag.home_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
+    waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
+
+    composeTestRule.onNodeWithTag(C.Tag.camera_permission_dismiss_button).performClick()
+    waitForGone(C.Tag.camera_permission_dialog)
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    dispatchCameraPermissionResult(PackageManager.PERMISSION_DENIED)
+
+    waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
+    waitForGone(C.Tag.scan_root_stub)
   }
 
   private fun dispatchCameraPermissionResult(result: Int) {
@@ -80,9 +93,20 @@ class MainActivityNavigationTest {
     )
   }
 
+  private fun waitAndAssertDisplayed(tag: String) {
+    waitFor(tag)
+    composeTestRule.onNodeWithTag(tag).assertIsDisplayed()
+  }
+
   private fun waitFor(tag: String) {
     composeTestRule.waitUntil {
       composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    }
+  }
+
+  private fun waitForGone(tag: String) {
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()
     }
   }
 }
