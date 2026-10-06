@@ -9,14 +9,15 @@ enum class ImageFormat(val mimeType: String) {
 
 /**
  * Cheap checks on the raw bytes, run before anything is decoded: size, the real format from the
- * magic bytes, and the declared MIME type. Dimensions, animation and pixel validity are checked
- * when the image is decoded, in ImagePreparer.
+ * magic bytes, the declared MIME type, and that a JPEG is not cut off. Dimensions, animation and
+ * pixel validity are checked when the image is decoded, in ImagePreparer.
  */
 object ImageValidator {
 
   const val MAX_BYTES = 20 * 1024 * 1024
 
   private val JPEG_SIGNATURE = bytesOf(0xFF, 0xD8, 0xFF)
+  private val JPEG_END_OF_IMAGE = bytesOf(0xFF, 0xD9)
   private val PNG_SIGNATURE = bytesOf(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
   private val RIFF = "RIFF".toByteArray(Charsets.US_ASCII)
   private val WEBP = "WEBP".toByteArray(Charsets.US_ASCII)
@@ -33,6 +34,11 @@ object ImageValidator {
     val format = detectFormat(bytes) ?: reject(RejectionReason.UnsupportedFormat)
     if (declaredMimeType != null && formatOf(declaredMimeType) != format) {
       reject(RejectionReason.MimeMismatch)
+    }
+    // A cut-off JPEG decodes partly, so the end-of-image marker must be present. Data appended
+    // after it (for example a motion-photo video) is allowed: re-encoding drops it.
+    if (format == ImageFormat.JPEG && !bytes.containsSequence(JPEG_END_OF_IMAGE)) {
+      reject(RejectionReason.Undecodable)
     }
     return format
   }
@@ -55,6 +61,9 @@ object ImageValidator {
 
   private fun ByteArray.matchesAt(offset: Int, expected: ByteArray): Boolean =
       size >= offset + expected.size && expected.indices.all { this[offset + it] == expected[it] }
+
+  private fun ByteArray.containsSequence(sequence: ByteArray): Boolean =
+      (0..size - sequence.size).any { matchesAt(it, sequence) }
 
   private fun bytesOf(vararg values: Int): ByteArray =
       ByteArray(values.size) { values[it].toByte() }

@@ -7,7 +7,7 @@ import org.junit.Test
 /** Uses only the magic bytes: these checks never look past the first bytes of the file. */
 class ImageValidatorTest {
 
-  private val jpeg = bytes(0xFF, 0xD8, 0xFF, 0xE0) + ByteArray(16)
+  private val jpeg = bytes(0xFF, 0xD8, 0xFF, 0xE0) + ByteArray(16) + bytes(0xFF, 0xD9)
   private val png = bytes(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) + ByteArray(16)
   private val webp =
       "RIFF".toByteArray(Charsets.US_ASCII) +
@@ -56,6 +56,17 @@ class ImageValidatorTest {
   fun rejectsUnsupportedFormat() {
     val gif = "GIF89a".toByteArray(Charsets.US_ASCII) + ByteArray(20)
     assertRejected(RejectionReason.UnsupportedFormat) { ImageValidator.validate(gif) }
+  }
+
+  @Test
+  fun acceptsJpegWithDataAppendedAfterEndOfImage() {
+    assertEquals(ImageFormat.JPEG, ImageValidator.validate(jpeg + "MOTION".toByteArray()))
+  }
+
+  @Test
+  fun rejectsJpegWithoutEndOfImageMarker() {
+    val truncated = bytes(0xFF, 0xD8, 0xFF, 0xE0) + ByteArray(16)
+    assertRejected(RejectionReason.Undecodable) { ImageValidator.validate(truncated) }
   }
 
   @Test
