@@ -120,6 +120,7 @@ dependencies {
   implementation(libs.androidx.appcompat)
   implementation(libs.material)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.kotlinx.serialization.json)
   implementation(platform(libs.compose.bom))
   testImplementation(libs.junit)
   globalTestImplementation(libs.androidx.junit)
