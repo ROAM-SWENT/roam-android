@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -16,6 +21,9 @@ import androidx.navigation.compose.rememberNavController
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
+import com.github.roamswent.roam.ui.permission.CameraPermissionState
+import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -24,17 +32,35 @@ class MainActivity : ComponentActivity() {
     setContent {
       SampleAppTheme {
         val navController = rememberNavController()
+        var showPermissionDialog by remember { mutableStateOf(false) }
+        val permissionController = rememberCameraPermissionController { granted ->
+          if (granted) {
+            navController.navigate(Routes.Scan)
+          } else {
+            showPermissionDialog = true
+          }
+        }
+        val permissionState by permissionController.state.collectAsState()
         Surface(
             modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
             color = MaterialTheme.colorScheme.background,
         ) {
           NavHost(navController = navController, startDestination = Routes.Home) {
             composable(Routes.Home) {
-              HomeScreen(onScanClicked = { navController.navigate(Routes.Scan) })
+              HomeScreen(onScanClicked = { permissionController.requestPermission() })
             }
             composable(Routes.Scan) {
               Box(Modifier.fillMaxSize().semantics { testTag = C.Tag.scan_root_stub })
             }
+          }
+          if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
+            CameraPermissionDialog(
+                onOpenSettings = {
+                  showPermissionDialog = false
+                  permissionController.openAppSettings()
+                },
+                onDismiss = { showPermissionDialog = false },
+            )
           }
         }
       }
