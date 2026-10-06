@@ -2,7 +2,7 @@ package com.github.roamswent.roam.model.ai
 
 import com.github.roamswent.roam.model.location.Coordinates
 
-/** Prepared image bytes (already validated and re-encoded), with their MIME type. */
+/** Image bytes with their MIME type. In a [DiscoveryRequest] these are the raw capture. */
 class ImagePayload(val bytes: ByteArray, val mimeType: String)
 
 /** Traveler settings that shape the guide. Only the response language for now. */
