@@ -129,18 +129,18 @@ jobs:
 
       - name: Run unit tests
         run: |
-          ./gradlew testDebugUnitTest --parallel --build-cache
+          ./gradlew testDebugUnitTest --parallel --build-cache --configuration-cache
 
       - name: Generate coverage report
         run: |
-          ./gradlew jacocoTestReport
+          ./gradlew jacocoTestReport --configuration-cache
 
       - name: SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           if [ -n "$SONAR_TOKEN" ]; then
-            ./gradlew sonar
+            ./gradlew sonar --configuration-cache
           else
             echo "::warning::SONAR_TOKEN not set, skipping SonarCloud"
           fi
