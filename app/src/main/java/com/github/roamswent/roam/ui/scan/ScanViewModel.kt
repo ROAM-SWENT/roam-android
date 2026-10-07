@@ -6,12 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.repository.CapturedImageManager
 import com.github.roamswent.roam.ui.camera.CameraController
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -31,14 +31,16 @@ sealed interface ScanNavigationEvent {
 
 class ScanViewModel(
     private val capturedImageManager: CapturedImageManager,
-    private val cameraController: CameraController,
+    cameraController: CameraController,
     private val dispatcher: CoroutineDispatcher,
 ) : ViewModel() {
+  private var cameraController = cameraController
+
   private val _state = MutableStateFlow<ScanUiState>(ScanUiState.Streaming)
   val state: StateFlow<ScanUiState> = _state.asStateFlow()
 
-  private val _navigationEvents = MutableSharedFlow<ScanNavigationEvent>(extraBufferCapacity = 1)
-  val navigationEvents: SharedFlow<ScanNavigationEvent> = _navigationEvents.asSharedFlow()
+  private val _navigationEvents = Channel<ScanNavigationEvent>(Channel.BUFFERED)
+  val navigationEvents: Flow<ScanNavigationEvent> = _navigationEvents.receiveAsFlow()
 
   fun onCapture() {
     if (_state.value != ScanUiState.Streaming) {
@@ -58,7 +60,7 @@ class ScanViewModel(
           onSaved = {
             _state.value = ScanUiState.Captured
             viewModelScope.launch {
-              _navigationEvents.emit(ScanNavigationEvent.NavigateToReview(uri))
+              _navigationEvents.send(ScanNavigationEvent.NavigateToReview(uri))
             }
           },
           onError = { viewModelScope.launch { _state.value = ScanUiState.Streaming } },
@@ -70,6 +72,13 @@ class ScanViewModel(
     if (_state.value != ScanUiState.Revoked) {
       cameraController.stop()
       _state.value = ScanUiState.Revoked
+    }
+  }
+
+  fun onCameraActive(cameraController: CameraController) {
+    this.cameraController = cameraController
+    if (_state.value == ScanUiState.Captured) {
+      _state.value = ScanUiState.Streaming
     }
   }
 }
