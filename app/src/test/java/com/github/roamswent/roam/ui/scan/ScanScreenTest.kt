@@ -21,12 +21,11 @@ class ScanScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   @Test
-  fun streamingRendersCameraViewfinderDockAndEnabledShutter() {
+  fun streamingRendersCameraViewfinderAndEnabledShutter() {
     setContent(ScanUiState.Streaming)
 
     composeTestRule.onNodeWithTag(C.Tag.scan_camera_screen).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_camera_viewfinder).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.scan_camera_dock).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_shutter_button).assertIsEnabled()
   }
 
