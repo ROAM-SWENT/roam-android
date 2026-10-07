@@ -24,6 +24,7 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
+import com.github.roamswent.roam.ui.scan.ScanReviewScreen
 import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 
@@ -55,11 +56,7 @@ class MainActivity : ComponentActivity() {
               )
             }
             composable(Routes.Scan) { ScanRoute(navController) }
-            composable("${Routes.ScanReview}?uri={uri}") {
-              androidx.compose.foundation.layout.Box(
-                  Modifier.fillMaxSize().semantics { testTag = C.Tag.scan_review_placeholder }
-              )
-            }
+            composable("${Routes.ScanReview}?uri={uri}") { ScanReviewScreen() }
           }
           if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
             CameraPermissionDialog(
