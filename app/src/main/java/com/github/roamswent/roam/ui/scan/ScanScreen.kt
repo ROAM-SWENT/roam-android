@@ -57,17 +57,22 @@ fun ScanScreen(
                     .background(CameraDockScrim)
                     .navigationBarsPadding()
                     .semantics { testTag = C.Tag.scan_camera_dock },
-            contentAlignment = Alignment.Center,
         ) {
-          Box(
-              modifier =
-                  Modifier.size(76.dp)
-                      .border(3.dp, ShutterWhite, CircleShape)
-                      .clickable(enabled = shutterEnabled, onClick = onCapture)
-                      .semantics { testTag = C.Tag.scan_shutter_button },
-              contentAlignment = Alignment.Center,
+          Column(
+              modifier = Modifier.fillMaxSize(),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.Center,
           ) {
-            Box(Modifier.size(58.dp).background(ShutterWhite, CircleShape))
+            Box(
+                modifier =
+                    Modifier.size(76.dp)
+                        .border(3.dp, ShutterWhite, CircleShape)
+                        .clickable(enabled = shutterEnabled, onClick = onCapture)
+                        .semantics { testTag = C.Tag.scan_shutter_button },
+                contentAlignment = Alignment.Center,
+            ) {
+              Box(Modifier.size(58.dp).background(ShutterWhite, CircleShape))
+            }
           }
         }
         if (!shutterEnabled) {
