@@ -153,6 +153,7 @@ dependencies {
   // Material Design 3
   implementation(libs.compose.icons.extended)
   implementation(libs.compose.material3)
+  implementation(libs.coil.compose)
   // Integration with activities
   implementation(libs.compose.activity)
   // Integration with ViewModels
