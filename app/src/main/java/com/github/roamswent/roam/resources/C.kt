@@ -13,7 +13,6 @@ object C {
     const val home_scan_label = "home_scan_label"
     const val scan_camera_screen = "scan_camera_screen"
     const val scan_camera_viewfinder = "scan_camera_viewfinder"
-    const val scan_camera_dock = "scan_camera_dock"
     const val scan_shutter_button = "scan_shutter_button"
     const val scan_camera_revoked_container = "scan_camera_revoked_container"
     const val scan_camera_revoked_back = "scan_camera_revoked_back"
