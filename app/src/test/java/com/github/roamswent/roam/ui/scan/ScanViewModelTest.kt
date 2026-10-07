@@ -8,6 +8,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -120,6 +121,29 @@ class ScanViewModelTest {
         viewModel.onCapture()
         advanceUntilIdle()
         coVerify(exactly = 2) { capturedImageManager.newCaptureUri() }
+        collection.cancel()
+      }
+
+  @Test
+  fun storageFailureRestoresStreamingWithoutNavigation() =
+      runTest(dispatcher) {
+        val uri = Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
+        coEvery { capturedImageManager.newCaptureUri() } throws IOException("storage full")
+        val viewModel = viewModel()
+        val events = mutableListOf<ScanNavigationEvent>()
+        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Streaming, viewModel.state.value)
+        assertTrue(events.isEmpty())
+        verify(exactly = 0) { cameraController.captureTo(any(), any(), any()) }
+        coEvery { capturedImageManager.newCaptureUri() } returns uri
+        viewModel.onCapture()
+        advanceUntilIdle()
+
+        verify(exactly = 1) { cameraController.captureTo(uri, any(), any()) }
         collection.cancel()
       }
 
