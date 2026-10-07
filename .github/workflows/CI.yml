@@ -60,6 +60,14 @@ jobs:
         run: |
           chmod +x ./gradlew
 
+      - name: KTFmt Check
+        run: |
+          ./gradlew ktfmtCheck --configuration-cache
+
+      - name: Assemble and Lint
+        run: |
+          ./gradlew assembleDebug lintDebug --parallel --build-cache --configuration-cache
+
       - name: Setup NodeJS
         uses: actions/setup-node@v5
         with:
@@ -122,12 +130,11 @@ jobs:
       - name: Run unit tests
         run: |
           ./gradlew testDebugUnitTest --parallel --build-cache
+
       - name: Generate coverage report
         run: |
           ./gradlew jacocoTestReport
-      - name: Run Android Lint
-        run: |
-          ./gradlew lintDebug
+
       - name: SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
