@@ -5,6 +5,7 @@ plugins {
   alias(libs.plugins.kotlinCompose)
   alias(libs.plugins.ktfmt)
   alias(libs.plugins.sonar)
+  alias(libs.plugins.gms)
   id("jacoco")
 }
 
@@ -125,6 +126,15 @@ dependencies {
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
 
+  // ---------- Firebase Authentication ----------
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.auth)
+
+  // ---------- Google Sign-In / Credential Manager ----------
+  implementation(libs.credentials)
+  implementation(libs.credentials.play.services.auth)
+  implementation(libs.googleid)
+
   // ------------- Jetpack Compose ------------------
   val composeBom = platform(libs.compose.bom)
   implementation(composeBom)
@@ -153,6 +163,11 @@ dependencies {
 
   // ----------       Robolectric     ------------
   testImplementation(libs.robolectric)
+
+  // ---------- Unit Testing ----------
+  testImplementation(libs.mockito.core)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.kotlinx.coroutines.test)
 }
 
 tasks.withType<Test> {
