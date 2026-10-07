@@ -64,7 +64,9 @@ class ScanViewModel(
   }
 
   fun onPermissionRevoked() {
-    cameraController.stop()
-    _state.value = ScanUiState.Revoked
+    if (_state.value != ScanUiState.Revoked) {
+      cameraController.stop()
+      _state.value = ScanUiState.Revoked
+    }
   }
 }
