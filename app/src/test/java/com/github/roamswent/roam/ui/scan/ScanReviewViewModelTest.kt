@@ -214,6 +214,56 @@ class ScanReviewViewModelTest {
       }
 
   @Test
+  fun sendExceptionRestoresReviewingWithoutNavigation() =
+      runTest(dispatcher) {
+        coEvery { captureSender.send(uri) } throws IllegalStateException("sender crashed")
+        val viewModel = viewModel()
+        val events = collectEvents(viewModel)
+        viewModel.setUri(uri)
+
+        viewModel.onSend()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { captureSender.send(uri) }
+        assertEquals(ScanReviewUiState.Reviewing(uri), viewModel.state.value)
+        assertTrue(events.isEmpty())
+        coEvery { captureSender.send(uri) } returns Result.success(Unit)
+        viewModel.onSend()
+        advanceUntilIdle()
+
+        assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
+      }
+
+  @Test
+  fun setUriIsIgnoredWhenStateIsAlreadySet() =
+      runTest(dispatcher) {
+        val otherUri = Uri.parse("content://example/other.jpg")
+        val viewModel = viewModel()
+        val events = collectEvents(viewModel)
+        viewModel.setUri(uri)
+
+        viewModel.setUri(otherUri)
+        advanceUntilIdle()
+
+        assertEquals(ScanReviewUiState.Reviewing(uri), viewModel.state.value)
+        assertTrue(events.isEmpty())
+      }
+
+  @Test
+  fun cancelRetakeIsIgnoredWhenNotConfirmingRetake() =
+      runTest(dispatcher) {
+        val viewModel = viewModel()
+        val events = collectEvents(viewModel)
+        viewModel.setUri(uri)
+
+        viewModel.cancelRetake()
+        advanceUntilIdle()
+
+        assertEquals(ScanReviewUiState.Reviewing(uri), viewModel.state.value)
+        assertTrue(events.isEmpty())
+      }
+
+  @Test
   fun confirmRetakeIsIdempotent() =
       runTest(dispatcher) {
         coEvery { capturedImageManager.deleteCapture(uri) } returns true
