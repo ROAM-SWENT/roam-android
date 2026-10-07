@@ -12,8 +12,8 @@ on:
       - reopened
 
 jobs:
-  always-on:
-    name: Always-on checks
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
 
     steps:
@@ -37,24 +37,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-
-      - name: Decode secrets
-        env:
-          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
-          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
-        run: |
-          if [ -n "$GOOGLE_SERVICES" ]; then
-            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
-          else
-            echo "::warning::GOOGLE_SERVICES secret is not set. google-services.json will not be created."
-          fi
-
-          if [ -n "$LOCAL_PROPERTIES" ]; then
-            echo "$LOCAL_PROPERTIES" | base64 --decode > ./local.properties
-          else
-            echo "::warning::LOCAL_PROPERTIES secret is not set. local.properties will not be created."
-          fi
+            .gradle/configuration-cache
+          key: gradle-${{ runner.os }}-quality-${{ hashFiles('**/*.gradle*', '**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle.properties') }}
 
       - name: Grant execute permission for gradlew
         run: |
@@ -64,14 +48,129 @@ jobs:
         run: |
           ./gradlew ktfmtCheck --configuration-cache
 
-      - name: Assemble and Lint
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
-          ./gradlew assembleDebug lintDebug --parallel --build-cache --configuration-cache
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          fi
+          
+          if [ -n "$LOCAL_PROPERTIES" ]; then
+            echo "$LOCAL_PROPERTIES" | base64 --decode > ./local.properties
+          fi
+
+      - name: Lint Check
+        run: |
+          ./gradlew lintDebug --parallel --build-cache --configuration-cache
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: |
+            21
+            17
+
+      - name: Retrieve gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            .gradle/configuration-cache
+          key: gradle-${{ runner.os }}-build-${{ hashFiles('**/*.gradle*', '**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle.properties') }}
+
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          fi
+          
+          if [ -n "$LOCAL_PROPERTIES" ]; then
+            echo "$LOCAL_PROPERTIES" | base64 --decode > ./local.properties
+          fi
+
+      - name: Assemble
+        run: |
+          ./gradlew assembleDebug --parallel --build-cache --configuration-cache
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            17
+
+      - name: Retrieve Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            .gradle/configuration-cache
+          key: gradle-${{ runner.os }}-tests-${{ hashFiles('**/*.gradle*', '**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle.properties') }}
+
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          fi
+          
+          if [ -n "$LOCAL_PROPERTIES" ]; then
+            echo "$LOCAL_PROPERTIES" | base64 --decode > ./local.properties
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: |
+          chmod +x ./gradlew
 
       - name: Setup NodeJS
         uses: actions/setup-node@v5
         with:
           node-version: 22
+          # These next lines are useful to optimize Firestore security Rules tests by caching
+          # npm dependencies and using 'npm ci' instead of 'npm install'.
+          # This is ~2x faster in local tests, but requires a package-lock.json.
+          # Uncomment and use 'npm ci' in the test step once the file is present.
+
+          # cache: npm
+          # cache-dependency-path: firebase/firestore/test/package-lock.json
+
+      - name: Cache Firebase emulators
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
@@ -99,15 +198,24 @@ jobs:
             echo "Warning: 'firebase.json' file is missing. Use 'firebase emulators:init'."
             exit 0
           fi
+          
           if [ -e "firebase/firestore/firestore.rules" ]; then
             jq -e '.firestore.rules' firebase.json >/dev/null || {
               echo "'firebase.json' is missing 'firestore.rules'."
               exit 1
             }
+          
             export JAVA_HOME="$JAVA_HOME_21_X64"
             export PATH="$JAVA_HOME/bin:$PATH"
+          
             if [ -d "firebase/firestore/test" ]; then
-              (cd firebase/firestore/test && npm install && npm test)
+              cd firebase/firestore/test
+          
+              # Use 'npm ci' and enable npm caching once package-lock.json is added. 
+              # See Setup NodeJS step for more details.
+              npm install
+              npm test
+          
             else
               echo "No Firestore rules tests found, skipping."
             fi
