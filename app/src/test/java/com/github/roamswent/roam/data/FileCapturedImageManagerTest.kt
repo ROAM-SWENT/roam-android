@@ -68,7 +68,7 @@ class FileCapturedImageManagerTest {
   }
 
   @Test
-  fun deleteCaptureRejectsUriWithForeignPathAndAuthority() = runTest {
+  fun deleteCaptureRejectsUriWithForeignAuthority() = runTest {
     manager().newCaptureUri()
     val foreignUri = android.net.Uri.parse("content://foreign.example/other.jpg")
 
@@ -83,6 +83,28 @@ class FileCapturedImageManagerTest {
 
     assertFalse(manager().deleteCapture(foreignAuthorityUri))
     assertTrue(captureFile.exists())
+  }
+
+  @Test
+  fun deleteCaptureRejectsCorrectAuthorityWithWrongPathSuffix() = runTest {
+    val target = manager().newCaptureUri()
+    captureFile.writeText("capture image")
+    val wrongPathUri = target.buildUpon().path("/captures/other.jpg").build()
+
+    assertFalse(manager().deleteCapture(wrongPathUri))
+    assertTrue(captureFile.exists())
+    assertEquals("capture image", captureFile.readText())
+  }
+
+  @Test
+  fun deleteCaptureRejectsCorrectAuthorityWithNullPath() = runTest {
+    val target = manager().newCaptureUri()
+    captureFile.writeText("capture image")
+    val nullPathUri = target.buildUpon().path(null).build()
+
+    assertFalse(manager().deleteCapture(nullPathUri))
+    assertTrue(captureFile.exists())
+    assertEquals("capture image", captureFile.readText())
   }
 
   @Test
