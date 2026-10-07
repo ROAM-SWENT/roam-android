@@ -77,6 +77,15 @@ class FileCapturedImageManagerTest {
   }
 
   @Test
+  fun deleteCaptureRejectsForeignAuthorityUri() = runTest {
+    val target = manager().newCaptureUri()
+    val foreignAuthorityUri = target.buildUpon().authority("foreign.example").build()
+
+    assertFalse(manager().deleteCapture(foreignAuthorityUri))
+    assertTrue(captureFile.exists())
+  }
+
+  @Test
   fun deleteCaptureReturnsFalseWhenFileWasAlreadyRemoved() = runTest {
     val uri = manager().newCaptureUri()
     assertTrue(captureFile.delete())
