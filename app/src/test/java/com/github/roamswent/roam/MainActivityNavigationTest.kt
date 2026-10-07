@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.pm.PackageManager
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.resources.C
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -24,9 +26,11 @@ class MainActivityNavigationTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
   @Before
-  fun revokeCameraPermission() {
+  fun configureCameraAvailability() {
     val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, true)
     shadowOf(application).denyPermissions(Manifest.permission.CAMERA)
+    composeTestRule.activity.recreate()
   }
 
   @Test
@@ -90,6 +94,30 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
     waitForGone(C.Tag.scan_root_stub)
+  }
+
+  @Test
+  fun unavailableCameraDoesNotRequestPermissionOrNavigate() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
+    composeTestRule.activity.recreate()
+    waitFor(C.Tag.home_scan_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+
+    waitForGone(C.Tag.camera_permission_dialog)
+    waitForGone(C.Tag.scan_root_stub)
+    assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+  }
+
+  @Test
+  fun unavailableCameraDisablesScanButton() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
+    composeTestRule.activity.recreate()
+    waitFor(C.Tag.home_scan_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
   }
 
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {

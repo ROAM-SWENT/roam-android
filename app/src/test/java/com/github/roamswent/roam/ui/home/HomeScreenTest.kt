@@ -1,6 +1,8 @@
 package com.github.roamswent.roam.ui.home
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -35,5 +37,18 @@ class HomeScreenTest {
     assertEquals(1, clicks)
     button.performClick()
     assertEquals(2, clicks)
+  }
+
+  @Test
+  fun unavailableCameraDisablesScanEntryAndShowsUnavailableLabel() {
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, cameraAvailable = false) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_scan_label, useUnmergedTree = true)
+        .assertIsDisplayed()
+        .assertTextEquals("No camera detected on this device")
   }
 }
