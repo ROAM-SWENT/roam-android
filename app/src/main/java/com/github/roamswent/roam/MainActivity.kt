@@ -3,7 +3,6 @@ package com.github.roamswent.roam
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,6 +24,7 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
+import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -54,8 +54,11 @@ class MainActivity : ComponentActivity() {
                   cameraAvailable = cameraAvailable,
               )
             }
-            composable(Routes.Scan) {
-              Box(Modifier.fillMaxSize().semantics { testTag = C.Tag.scan_root_stub })
+            composable(Routes.Scan) { ScanRoute(navController) }
+            composable("${Routes.ScanReview}?uri={uri}") {
+              androidx.compose.foundation.layout.Box(
+                  Modifier.fillMaxSize().semantics { testTag = C.Tag.scan_review_placeholder }
+              )
             }
           }
           if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
