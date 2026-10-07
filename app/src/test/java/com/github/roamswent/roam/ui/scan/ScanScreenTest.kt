@@ -38,6 +38,13 @@ class ScanScreenTest {
   }
 
   @Test
+  fun capturedDisablesShutter() {
+    setContent(ScanUiState.Captured)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_shutter_button).assertIsNotEnabled()
+  }
+
+  @Test
   fun streamingShutterInvokesCapture() {
     var captures = 0
     setContent(ScanUiState.Streaming, onCapture = { captures++ })
