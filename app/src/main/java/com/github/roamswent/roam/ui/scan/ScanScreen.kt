@@ -7,9 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.CameraCaptureOverlay
-import com.github.roamswent.roam.ui.theme.CameraDockBlack
+import com.github.roamswent.roam.ui.theme.CameraDockScrim
 import com.github.roamswent.roam.ui.theme.ShutterWhite
 
 @Composable
@@ -51,9 +51,9 @@ fun ScanScreen(
         Box(
             modifier =
                 Modifier.fillMaxWidth()
-                    .fillMaxHeight(0.3f)
+                    .height(120.dp)
                     .align(Alignment.BottomCenter)
-                    .background(CameraDockBlack)
+                    .background(CameraDockScrim)
                     .navigationBarsPadding()
                     .semantics { testTag = C.Tag.scan_camera_dock },
             contentAlignment = Alignment.Center,
