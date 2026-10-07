@@ -1,8 +1,8 @@
 package com.github.roamswent.roam.ui.camera
 
-import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -11,6 +11,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import java.io.FileOutputStream
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
 
@@ -83,18 +84,34 @@ internal class CameraXEngine : CameraEngine {
             ?: return onError(IllegalStateException("Camera engine is not bound"))
     val mainExecutor =
         executor ?: return onError(IllegalStateException("Camera engine is not bound"))
+    val parcelFileDescriptor =
+        try {
+          contentResolver.openFileDescriptor(uri, "rw")
+        } catch (exception: Exception) {
+          return onError(exception)
+        } ?: return onError(IllegalStateException("Unable to open capture URI"))
     capture.takePicture(
-        ImageCapture.OutputFileOptions.Builder(contentResolver, uri, ContentValues()).build(),
+        ImageCapture.OutputFileOptions.Builder(
+                FileOutputStream(parcelFileDescriptor.fileDescriptor)
+            )
+            .build(),
         mainExecutor,
         object : ImageCapture.OnImageSavedCallback {
           override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+            parcelFileDescriptor.close()
             onSaved()
           }
 
           override fun onError(exception: ImageCaptureException) {
+            parcelFileDescriptor.close()
+            Log.e(TAG, "Camera capture failed", exception)
             onError(exception)
           }
         },
     )
+  }
+
+  private companion object {
+    const val TAG = "CameraXEngine"
   }
 }
