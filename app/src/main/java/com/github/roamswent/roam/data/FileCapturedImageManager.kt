@@ -24,7 +24,10 @@ class FileCapturedImageManager(
 
   override suspend fun deleteCapture(uri: Uri): Boolean =
       withContext(ioDispatcher) {
-        if (uri.path?.endsWith(CAPTURE_FILE_NAME) != true) {
+        if (
+            uri.authority != "${context.packageName}$FILE_PROVIDER_SUFFIX" ||
+                uri.path?.endsWith(CAPTURE_FILE_NAME) != true
+        ) {
           return@withContext false
         }
         File(context.cacheDir, "$CAPTURES_DIRECTORY/$CAPTURE_FILE_NAME").delete()
