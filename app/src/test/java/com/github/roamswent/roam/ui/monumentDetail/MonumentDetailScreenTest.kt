@@ -5,6 +5,9 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import com.github.roamswent.roam.resources.C
 import org.junit.Rule
 import org.junit.Test
@@ -44,5 +47,10 @@ class MonumentDetailScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_picture).assertIsDisplayed()
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_text).assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_drag_handle).performTouchInput {
+      swipeUp()
+      swipeDown()
+    }
   }
 }

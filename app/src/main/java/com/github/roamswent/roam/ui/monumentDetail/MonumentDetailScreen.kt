@@ -60,13 +60,16 @@ fun MonumentDetailScreen(image: Painter, text: String) {
       Column(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier =
-                Modifier.fillMaxWidth().height(48.dp).pointerInput(Unit) {
-                  detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    val dragFraction = dragAmount / totalHeightPx
-                    textFraction = (textFraction - dragFraction).coerceIn(0.2f, 0.85f)
-                  }
-                },
+                Modifier.fillMaxWidth()
+                    .height(48.dp)
+                    .semantics { testTag = C.Tag.monument_detail_drag_handle }
+                    .pointerInput(Unit) {
+                      detectVerticalDragGestures { change, dragAmount ->
+                        change.consume()
+                        val dragFraction = dragAmount / totalHeightPx
+                        textFraction = (textFraction - dragFraction).coerceIn(0.2f, 0.85f)
+                      }
+                    },
             contentAlignment = Alignment.Center,
         ) {
           Box(
