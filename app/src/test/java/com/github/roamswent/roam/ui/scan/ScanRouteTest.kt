@@ -9,11 +9,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.github.roamswent.roam.repository.CapturedImageManager
+import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.camera.CameraController
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import io.mockk.mockk
@@ -65,7 +69,40 @@ class ScanRouteTest {
     assertTrue(controllers.first().stopCount >= 1)
   }
 
-  private class FakeCameraController : CameraController {
+  @Test
+  fun resumeWithoutPermissionRevokesCameraAndNeverStartsIt() {
+    val events = mutableListOf<String>()
+    val controllers = mutableListOf<FakeCameraController>()
+    val imageManager = mockk<CapturedImageManager>(relaxed = true)
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        val navController = rememberNavController()
+        NavHost(navController = navController, startDestination = "scan") {
+          composable("scan") {
+            ScanRoute(
+                navController = navController,
+                cameraControllerFactory = { _, _ ->
+                  FakeCameraController(events).also { controllers += it }
+                },
+                capturedImageManagerFactory = { imageManager },
+            )
+          }
+        }
+      }
+    }
+
+    composeTestRule.waitUntil { controllers.size == 1 }
+    assertEquals(0, controllers.single().startCount)
+
+    composeTestRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+    composeTestRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_camera_revoked_container).assertIsDisplayed()
+    assertEquals(listOf("stop"), events)
+  }
+
+  private class FakeCameraController(private val events: MutableList<String> = mutableListOf()) :
+      CameraController {
     var startCount = 0
     var stopCount = 0
 
@@ -73,10 +110,12 @@ class ScanRouteTest {
 
     override fun start(previewView: PreviewView) {
       startCount++
+      events += "start"
     }
 
     override fun stop() {
       stopCount++
+      events += "stop"
     }
 
     override fun captureTo(uri: Uri, onSaved: () -> Unit, onError: (Throwable) -> Unit) = Unit
