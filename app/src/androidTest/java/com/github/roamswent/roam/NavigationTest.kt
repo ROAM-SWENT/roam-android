@@ -25,8 +25,8 @@ class NavigationTest {
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
 
-    waitFor(C.Tag.scan_root_stub)
-    composeTestRule.onNodeWithTag(C.Tag.scan_root_stub).assertIsDisplayed()
+    waitFor(C.Tag.scan_camera_screen)
+    composeTestRule.onNodeWithTag(C.Tag.scan_camera_screen).assertIsDisplayed()
     pressBack()
     waitFor(C.Tag.home_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
