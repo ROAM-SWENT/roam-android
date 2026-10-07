@@ -38,7 +38,8 @@ fun ScanScreen(
 ) {
   when (state) {
     ScanUiState.Streaming,
-    ScanUiState.Capturing -> {
+    ScanUiState.Capturing,
+    ScanUiState.Captured -> {
       val shutterEnabled = state == ScanUiState.Streaming
       Box(modifier = modifier.fillMaxSize().semantics { testTag = C.Tag.scan_camera_screen }) {
         if (previewView != null) {

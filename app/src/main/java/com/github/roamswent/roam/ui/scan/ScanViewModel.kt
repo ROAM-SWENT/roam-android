@@ -20,6 +20,8 @@ sealed interface ScanUiState {
 
   data object Capturing : ScanUiState
 
+  data object Captured : ScanUiState
+
   data object Revoked : ScanUiState
 }
 
@@ -54,6 +56,7 @@ class ScanViewModel(
       cameraController.captureTo(
           uri = uri,
           onSaved = {
+            _state.value = ScanUiState.Captured
             viewModelScope.launch {
               _navigationEvents.emit(ScanNavigationEvent.NavigateToReview(uri))
             }
