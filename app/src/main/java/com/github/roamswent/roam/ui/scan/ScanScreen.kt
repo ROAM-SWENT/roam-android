@@ -52,10 +52,10 @@ fun ScanScreen(
         Box(
             modifier =
                 Modifier.fillMaxWidth()
+                    .navigationBarsPadding()
                     .height(120.dp)
                     .align(Alignment.BottomCenter)
                     .background(CameraDockScrim)
-                    .navigationBarsPadding()
                     .semantics { testTag = C.Tag.scan_camera_dock },
         ) {
           Column(
