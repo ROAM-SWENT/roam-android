@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.CameraCaptureOverlay
-import com.github.roamswent.roam.ui.theme.CameraDockScrim
+import com.github.roamswent.roam.ui.theme.ShutterHalo
 import com.github.roamswent.roam.ui.theme.ShutterWhite
 
 @Composable
@@ -51,29 +49,16 @@ fun ScanScreen(
         }
         Box(
             modifier =
-                Modifier.fillMaxWidth()
+                Modifier.align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .height(120.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(CameraDockScrim)
-                    .semantics { testTag = C.Tag.scan_camera_dock },
+                    .padding(bottom = 24.dp)
+                    .size(80.dp)
+                    .border(2.dp, ShutterHalo, CircleShape)
+                    .clickable(enabled = shutterEnabled, onClick = onCapture)
+                    .semantics { testTag = C.Tag.scan_shutter_button },
+            contentAlignment = Alignment.Center,
         ) {
-          Column(
-              modifier = Modifier.fillMaxSize(),
-              horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.Center,
-          ) {
-            Box(
-                modifier =
-                    Modifier.size(76.dp)
-                        .border(3.dp, ShutterWhite, CircleShape)
-                        .clickable(enabled = shutterEnabled, onClick = onCapture)
-                        .semantics { testTag = C.Tag.scan_shutter_button },
-                contentAlignment = Alignment.Center,
-            ) {
-              Box(Modifier.size(58.dp).background(ShutterWhite, CircleShape))
-            }
-          }
+          Box(Modifier.size(58.dp).background(ShutterWhite, CircleShape))
         }
         if (!shutterEnabled) {
           Box(modifier = Modifier.fillMaxSize().background(CameraCaptureOverlay))

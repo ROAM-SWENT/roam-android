@@ -12,6 +12,6 @@ val Pink40 = Color(0xFF7D5260)
 
 val ScanTeal = Color(0xFF2A9D8F)
 val ScreenBackground = Color(0xFFF2F4F3)
-val CameraDockScrim = Color(0x99000000)
+val ShutterHalo = Color(0x99000000)
 val ShutterWhite = Color.White
 val CameraCaptureOverlay = Color.Black.copy(alpha = 0.35f)
