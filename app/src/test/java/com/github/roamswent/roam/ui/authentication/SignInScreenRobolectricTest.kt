@@ -1,16 +1,21 @@
 /*
  * Portions of this code were generated and/or refined with the help of ChatGPT.
  * Portions of this code were generated with the help of GitHub Copilot.
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
 
 package com.github.roamswent.roam.ui.authentication
 
+import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.credentials.CredentialManager
+import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -28,6 +33,9 @@ class SignInScreenRobolectricTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
+  private val context: Context
+    get() = ApplicationProvider.getApplicationContext()
+
   /**
    * Verifies that the Google sign-in button is displayed in the initial state and that clicking it
    * triggers the ViewModel's sign-in function.
@@ -41,8 +49,27 @@ class SignInScreenRobolectricTest {
       SignInScreen(authViewModel = viewModel, credentialManager = mock<CredentialManager>())
     }
 
-    composeTestRule.onNodeWithText("Sign in with Google").assertIsDisplayed().performClick()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.sign_in_google_button))
+        .assertIsDisplayed()
+        .performClick()
     verify(viewModel).signIn(any(), any())
+  }
+
+  /** Verifies that the sign-in screen displays its branding and supporting copy. */
+  @Test
+  fun initialState_displaysBrandingAndTerms() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+
+    composeTestRule
+        .onNodeWithContentDescription(context.getString(R.string.sign_in_logo_description))
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText(context.getString(R.string.sign_in_title)).assertIsDisplayed()
+    composeTestRule.onNodeWithText(context.getString(R.string.sign_in_tagline)).assertIsDisplayed()
+    composeTestRule.onNodeWithText(context.getString(R.string.sign_in_terms)).assertIsDisplayed()
   }
 
   /**
@@ -56,7 +83,10 @@ class SignInScreenRobolectricTest {
     composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
 
     assertTrue(
-        composeTestRule.onAllNodesWithText("Sign in with Google").fetchSemanticsNodes().isEmpty()
+        composeTestRule
+            .onAllNodesWithText(context.getString(R.string.sign_in_google_button))
+            .fetchSemanticsNodes()
+            .isEmpty()
     )
   }
 
@@ -120,7 +150,10 @@ class SignInScreenRobolectricTest {
     verify(viewModel).clearErrorMsg()
     assertEquals(1, navigationCount)
     assertTrue(
-        composeTestRule.onAllNodesWithText("Sign in with Google").fetchSemanticsNodes().isEmpty()
+        composeTestRule
+            .onAllNodesWithText(context.getString(R.string.sign_in_google_button))
+            .fetchSemanticsNodes()
+            .isEmpty()
     )
   }
 }
