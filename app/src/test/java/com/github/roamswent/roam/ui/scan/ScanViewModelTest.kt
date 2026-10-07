@@ -64,7 +64,18 @@ class ScanViewModelTest {
         every { cameraController.captureTo(any(), any(), any()) } answers { onSaved = secondArg() }
         val viewModel = viewModel()
         val events = mutableListOf<ScanNavigationEvent>()
-        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+        val ordering = mutableListOf<String>()
+        val stateCollection = launch {
+          viewModel.state.collect { state ->
+            if (state == ScanUiState.Captured) ordering += "captured"
+          }
+        }
+        val eventCollection = launch {
+          viewModel.navigationEvents.collect {
+            ordering += "navigate"
+            events += it
+          }
+        }
 
         viewModel.onCapture()
 
@@ -78,30 +89,75 @@ class ScanViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
-        assertEquals(ScanUiState.Capturing, viewModel.state.value)
-        collection.cancel()
+        assertEquals(ScanUiState.Captured, viewModel.state.value)
+        assertEquals(listOf("captured", "navigate"), ordering)
+        stateCollection.cancel()
+        eventCollection.cancel()
       }
 
   @Test
   fun captureErrorReturnsToStreamingWithoutNavigationOrDeletion() =
       runTest(dispatcher) {
-        lateinit var onError: (Throwable) -> Unit
+        val callbacks = mutableListOf<(Throwable) -> Unit>()
         coEvery { capturedImageManager.newCaptureUri() } returns
             Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
-        every { cameraController.captureTo(any(), any(), any()) } answers { onError = thirdArg() }
+        every { cameraController.captureTo(any(), any(), any()) } answers
+            {
+              callbacks += thirdArg<(Throwable) -> Unit>()
+            }
         val viewModel = viewModel()
         val events = mutableListOf<ScanNavigationEvent>()
         val collection = launch { viewModel.navigationEvents.collect { events += it } }
 
         viewModel.onCapture()
         advanceUntilIdle()
-        onError.invoke(IllegalStateException("capture failed"))
+        callbacks.single().invoke(IllegalStateException("capture failed"))
         advanceUntilIdle()
 
         assertEquals(ScanUiState.Streaming, viewModel.state.value)
         assertTrue(events.isEmpty())
         coVerify(exactly = 0) { capturedImageManager.deleteCapture(any()) }
+        viewModel.onCapture()
+        advanceUntilIdle()
+        coVerify(exactly = 2) { capturedImageManager.newCaptureUri() }
         collection.cancel()
+      }
+
+  @Test
+  fun captureAfterSavedIsIgnoredAndDoesNotNavigateAgain() =
+      runTest(dispatcher) {
+        val uri = Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
+        lateinit var onSaved: () -> Unit
+        coEvery { capturedImageManager.newCaptureUri() } returns uri
+        every { cameraController.captureTo(any(), any(), any()) } answers { onSaved = secondArg() }
+        val viewModel = viewModel()
+        val events = mutableListOf<ScanNavigationEvent>()
+        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+        onSaved.invoke()
+        advanceUntilIdle()
+        viewModel.onCapture()
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Captured, viewModel.state.value)
+        coVerify(exactly = 1) { capturedImageManager.newCaptureUri() }
+        assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
+        collection.cancel()
+      }
+
+  @Test
+  fun captureWhileRevokedIsIgnored() =
+      runTest(dispatcher) {
+        val viewModel = viewModel()
+
+        viewModel.onPermissionRevoked()
+        viewModel.onCapture()
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Revoked, viewModel.state.value)
+        coVerify(exactly = 0) { capturedImageManager.newCaptureUri() }
       }
 
   @Test
