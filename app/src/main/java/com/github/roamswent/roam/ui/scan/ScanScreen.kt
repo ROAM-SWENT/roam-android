@@ -60,6 +60,9 @@ fun ScanScreen(
                   Modifier.fillMaxSize().semantics { testTag = C.Tag.scan_camera_viewfinder },
           )
         }
+        if (!shutterEnabled) {
+          Box(modifier = Modifier.fillMaxSize().background(CameraCaptureOverlay))
+        }
         Box(
             modifier =
                 Modifier.align(Alignment.BottomCenter)
@@ -69,9 +72,6 @@ fun ScanScreen(
             contentAlignment = Alignment.Center,
         ) {
           ExpressiveShutterButton(onClick = onCapture, enabled = shutterEnabled)
-        }
-        if (!shutterEnabled) {
-          Box(modifier = Modifier.fillMaxSize().background(CameraCaptureOverlay))
         }
       }
     }
