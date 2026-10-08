@@ -40,9 +40,11 @@ class FileCapturedImageManagerTest {
   @Test
   fun newCaptureUriPointsToExistingFileWithExpectedAuthority() = runTest {
     val uri = manager().newCaptureUri()
+    val path =
+        uri.path?.replace(File.separatorChar, '/')?.let { if (!it.startsWith("/")) "/$it" else it }
 
     assertEquals("${context.packageName}.fileprovider", uri.authority)
-    assertTrue(uri.path?.endsWith("captures/capture.jpg") == true)
+    assertTrue(path?.endsWith("captures/capture.jpg") == true)
     assertTrue(captureFile.exists())
   }
 
