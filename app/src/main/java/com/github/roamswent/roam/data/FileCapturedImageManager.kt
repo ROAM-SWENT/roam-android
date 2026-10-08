@@ -12,12 +12,12 @@ class FileCapturedImageManager(
     private val context: Context,
     private val ioDispatcher: CoroutineDispatcher,
     private val uriFactory: (Context, File) -> Uri = { ctx, file ->
-        FileProvider.getUriForFile(
-            ctx,
-            "${ctx.packageName}.fileprovider",
-            file
-        )
-    }
+      FileProvider.getUriForFile(
+          ctx,
+          "${ctx.packageName}.fileprovider",
+          file,
+      )
+    },
 ) : CapturedImageManager {
   override suspend fun newCaptureUri(): Uri =
       withContext(ioDispatcher) {
