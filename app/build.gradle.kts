@@ -107,6 +107,10 @@ sonar {
         "sonar.coverage.jacoco.xmlReportPaths",
         "${project.layout.buildDirectory.get()}/reports/jacoco/jacocoTestReport/jacocoTestReport.xml",
     )
+    property(
+        "sonar.coverage.exclusions",
+        "app/src/main/java/com/github/roamswent/roam/ui/camera/CameraXEngine.kt",
+    )
   }
 }
 
@@ -121,6 +125,10 @@ dependencies {
   implementation(libs.androidx.appcompat)
   implementation(libs.material)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.camera.core)
+  implementation(libs.androidx.camera.camera2)
+  implementation(libs.androidx.camera.lifecycle)
+  implementation(libs.androidx.camera.view)
   implementation(platform(libs.compose.bom))
   testImplementation(libs.junit)
   globalTestImplementation(libs.androidx.junit)
@@ -163,6 +171,7 @@ dependencies {
 
   // ----------       Robolectric     ------------
   testImplementation(libs.robolectric)
+  testImplementation(libs.mockk)
 
   // ---------- Unit Testing ----------
   testImplementation(libs.mockito.core)
