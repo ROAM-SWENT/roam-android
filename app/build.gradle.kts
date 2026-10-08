@@ -109,7 +109,7 @@ sonar {
     )
     property(
         "sonar.coverage.exclusions",
-        "app/src/main/java/com/github/roamswent/roam/ui/camera/CameraXEngine.kt",
+        "src/main/java/com/github/roamswent/roam/ui/camera/CameraXEngine.kt",
     )
   }
 }
