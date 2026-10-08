@@ -25,8 +25,9 @@ class FileCapturedImageManager(
   override suspend fun deleteCapture(uri: Uri): Boolean =
       withContext(ioDispatcher) {
         if (
-            uri.authority != "${context.packageName}$FILE_PROVIDER_SUFFIX" ||
-                uri.path?.endsWith(CAPTURE_FILE_NAME) != true
+            uri.scheme != "content" ||
+                uri.authority != "${context.packageName}$FILE_PROVIDER_SUFFIX" ||
+                uri.path != CAPTURE_PATH
         ) {
           return@withContext false
         }
@@ -36,6 +37,7 @@ class FileCapturedImageManager(
   private companion object {
     const val CAPTURES_DIRECTORY = "captures"
     const val CAPTURE_FILE_NAME = "capture.jpg"
+    const val CAPTURE_PATH = "/$CAPTURES_DIRECTORY/$CAPTURE_FILE_NAME"
     const val FILE_PROVIDER_SUFFIX = ".fileprovider"
   }
 }
