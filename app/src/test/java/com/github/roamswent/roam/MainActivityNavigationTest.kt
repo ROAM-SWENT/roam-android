@@ -44,7 +44,7 @@ class MainActivityNavigationTest {
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
 
-    waitAndAssertDisplayed(C.Tag.scan_root_stub)
+    waitAndAssertDisplayed(C.Tag.scan_camera_screen)
     waitForGone(C.Tag.home_screen_container)
   }
 
@@ -55,7 +55,7 @@ class MainActivityNavigationTest {
     dispatchCameraPermissionResult()
 
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
-    waitForGone(C.Tag.scan_root_stub)
+    waitForGone(C.Tag.scan_camera_screen)
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_settings_button).assertIsDisplayed()
   }
 
@@ -69,7 +69,7 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_dismiss_button).performClick()
 
     waitForGone(C.Tag.camera_permission_dialog)
-    waitForGone(C.Tag.scan_root_stub)
+    waitForGone(C.Tag.scan_camera_screen)
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
 
@@ -79,13 +79,13 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
     val firstPermissionRequest = dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
-    waitForGone(C.Tag.scan_root_stub)
+    waitForGone(C.Tag.scan_camera_screen)
 
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_dismiss_button).performClick()
     waitForGone(C.Tag.camera_permission_dialog)
     composeTestRule.onAllNodesWithTag(C.Tag.camera_permission_dialog).assertCountEquals(0)
     waitAndAssertDisplayed(C.Tag.home_screen_container)
-    waitForGone(C.Tag.scan_root_stub)
+    waitForGone(C.Tag.scan_camera_screen)
 
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
     val secondPermissionRequest = permissionRequest()
@@ -93,7 +93,7 @@ class MainActivityNavigationTest {
     dispatchCameraPermissionResult(secondPermissionRequest)
 
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
-    waitForGone(C.Tag.scan_root_stub)
+    waitForGone(C.Tag.scan_camera_screen)
   }
 
   @Test
@@ -106,7 +106,7 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
 
     waitForGone(C.Tag.camera_permission_dialog)
-    waitForGone(C.Tag.scan_root_stub)
+    waitForGone(C.Tag.scan_camera_screen)
     assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
 
