@@ -1,8 +1,9 @@
 package com.github.roamswent.roam.data
 
 import android.content.Context
-import androidx.core.content.FileProvider
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.CoroutineDispatcher
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -28,7 +29,6 @@ class FileCapturedImageManagerTest {
 
   @Before
   fun setUp() {
-    clearFileProviderCache()
     deleteRecursively(capturesDirectory)
   }
 
@@ -141,7 +141,7 @@ class FileCapturedImageManagerTest {
   @Test
   fun newCaptureUriRunsOnInjectedDispatcher() = runTest {
     val dispatcher = StandardTestDispatcher(testScheduler)
-    val result = async { FileCapturedImageManager(context, dispatcher).newCaptureUri() }
+    val result = async { manager(dispatcher).newCaptureUri() }
 
     assertFalse(result.isCompleted)
     advanceUntilIdle()
@@ -149,13 +149,15 @@ class FileCapturedImageManagerTest {
     assertTrue(result.await().path?.endsWith("capture.jpg") == true)
   }
 
-  private fun manager() = FileCapturedImageManager(context, UnconfinedTestDispatcher())
-
-  @Suppress("UNCHECKED_CAST")
-  private fun clearFileProviderCache() {
-    val cacheField = FileProvider::class.java.getDeclaredField("sCache")
-    cacheField.isAccessible = true
-    (cacheField.get(null) as MutableMap<Any, Any>).clear()
+  private fun manager(
+    dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
+  ) = FileCapturedImageManager(context, dispatcher) { ctx, file ->
+    Uri.Builder()
+      .scheme("content")
+      .authority("${ctx.packageName}.fileprovider")
+      .appendPath("captures")
+      .appendPath(file.name)
+      .build()
   }
 
   private fun deleteRecursively(file: File) {

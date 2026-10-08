@@ -11,6 +11,13 @@ import kotlinx.coroutines.withContext
 class FileCapturedImageManager(
     private val context: Context,
     private val ioDispatcher: CoroutineDispatcher,
+    private val uriFactory: (Context, File) -> Uri = { ctx, file ->
+        FileProvider.getUriForFile(
+            ctx,
+            "${ctx.packageName}.fileprovider",
+            file
+        )
+    }
 ) : CapturedImageManager {
   override suspend fun newCaptureUri(): Uri =
       withContext(ioDispatcher) {
@@ -19,7 +26,7 @@ class FileCapturedImageManager(
         file.delete()
         directory.mkdirs()
         file.createNewFile()
-        FileProvider.getUriForFile(context, "${context.packageName}$FILE_PROVIDER_SUFFIX", file)
+        uriFactory(context, file)
       }
 
   override suspend fun deleteCapture(uri: Uri): Boolean =
