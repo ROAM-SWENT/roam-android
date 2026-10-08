@@ -11,11 +11,15 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import com.google.common.util.concurrent.ListenableFuture
 import java.io.FileOutputStream
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
 
-internal class CameraXEngine : CameraEngine {
+internal class CameraXEngine(
+    private val providerFactory: (Context) -> ListenableFuture<ProcessCameraProvider> =
+        ProcessCameraProvider::getInstance,
+) : CameraEngine {
   private var cameraProvider: ProcessCameraProvider? = null
   private var imageCapture: ImageCapture? = null
   private var appContext: Context? = null
@@ -33,7 +37,7 @@ internal class CameraXEngine : CameraEngine {
     val generation = ++bindGeneration
     val mainExecutor = ContextCompat.getMainExecutor(context)
     executor = mainExecutor
-    val providerFuture = ProcessCameraProvider.getInstance(context)
+    val providerFuture = providerFactory(context)
     providerFuture.addListener(
         {
           if (generation != bindGeneration) {
