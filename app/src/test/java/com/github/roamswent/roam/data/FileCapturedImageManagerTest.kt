@@ -2,6 +2,7 @@ package com.github.roamswent.roam.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
@@ -147,6 +148,43 @@ class FileCapturedImageManagerTest {
     advanceUntilIdle()
 
     assertTrue(result.await().path?.endsWith("capture.jpg") == true)
+  }
+
+  @Test
+  fun defaultUriFactoryDelegatesToFileProvider() = runTest {
+    val expectedFile = File(capturesDirectory, "capture.jpg")
+    val expectedUri =
+        Uri.parse("content://${context.packageName}.fileprovider/captures/capture.jpg")
+
+    org.mockito.Mockito.mockStatic(FileProvider::class.java).use { mocked ->
+      mocked
+          .`when`<Uri> {
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                expectedFile,
+            )
+          }
+          .thenReturn(expectedUri)
+
+      val manager =
+          FileCapturedImageManager(
+              context,
+              UnconfinedTestDispatcher(),
+          )
+
+      val result = manager.newCaptureUri()
+
+      assertEquals(expectedUri, result)
+
+      mocked.verify {
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            expectedFile,
+        )
+      }
+    }
   }
 
   private fun manager(dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()) =
