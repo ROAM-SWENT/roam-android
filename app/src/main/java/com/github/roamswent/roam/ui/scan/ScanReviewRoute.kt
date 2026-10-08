@@ -47,6 +47,8 @@ fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
         onRetake = viewModel::onRetake,
         onRetakeConfirm = viewModel::confirmRetake,
         onRetakeCancel = viewModel::cancelRetake,
+        onRetryDelete = viewModel::onRetryDelete,
+        onDismissDeleteError = viewModel::onDismissDeleteError,
         onSend = viewModel::onSend,
     )
   }

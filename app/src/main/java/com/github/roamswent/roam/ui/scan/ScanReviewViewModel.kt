@@ -23,6 +23,8 @@ sealed interface ScanReviewUiState {
 
   data class Deleting(val uri: Uri) : ScanReviewUiState
 
+  data class DeleteFailed(val uri: Uri) : ScanReviewUiState
+
   data class Sending(val uri: Uri) : ScanReviewUiState
 }
 
@@ -60,14 +62,38 @@ class ScanReviewViewModel(
     if (currentState !is ScanReviewUiState.ConfirmRetake) {
       return
     }
-    _state.value = ScanReviewUiState.Deleting(currentState.uri)
+    deleteCapture(currentState.uri)
+  }
+
+  private fun deleteCapture(uri: Uri) {
+    _state.value = ScanReviewUiState.Deleting(uri)
     viewModelScope.launch {
-      try {
-        withContext(dispatcher) { capturedImageManager.deleteCapture(currentState.uri) }
-      } catch (exception: Throwable) {
-        Log.e(TAG, "Failed to delete captured image", exception)
+      val deleted =
+          try {
+            withContext(dispatcher) { capturedImageManager.deleteCapture(uri) }
+          } catch (exception: Throwable) {
+            Log.e(TAG, "Failed to delete captured image", exception)
+            false
+          }
+      if (deleted) {
+        _navigationEvents.emit(ScanReviewNavigationEvent.BackToCapture)
+      } else {
+        _state.value = ScanReviewUiState.DeleteFailed(uri)
       }
-      _navigationEvents.emit(ScanReviewNavigationEvent.BackToCapture)
+    }
+  }
+
+  fun onRetryDelete() {
+    val currentState = _state.value
+    if (currentState is ScanReviewUiState.DeleteFailed) {
+      deleteCapture(currentState.uri)
+    }
+  }
+
+  fun onDismissDeleteError() {
+    val currentState = _state.value
+    if (currentState is ScanReviewUiState.DeleteFailed) {
+      _state.value = ScanReviewUiState.Reviewing(currentState.uri)
     }
   }
 

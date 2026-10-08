@@ -37,6 +37,8 @@ fun ScanReviewScreen(
     onRetake: () -> Unit,
     onRetakeConfirm: () -> Unit,
     onRetakeCancel: () -> Unit,
+    onRetryDelete: () -> Unit = {},
+    onDismissDeleteError: () -> Unit = {},
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -46,9 +48,13 @@ fun ScanReviewScreen(
         is ScanReviewUiState.Reviewing -> state.uri
         is ScanReviewUiState.ConfirmRetake -> state.uri
         is ScanReviewUiState.Deleting -> state.uri
+        is ScanReviewUiState.DeleteFailed -> state.uri
         is ScanReviewUiState.Sending -> state.uri
       }
-  val locked = state is ScanReviewUiState.Deleting || state is ScanReviewUiState.Sending
+  val locked =
+      state is ScanReviewUiState.Deleting ||
+          state is ScanReviewUiState.DeleteFailed ||
+          state is ScanReviewUiState.Sending
   Box(modifier.fillMaxSize().semantics { testTag = C.Tag.scan_review_screen }) {
     AsyncImage(
         model =
@@ -90,9 +96,38 @@ fun ScanReviewScreen(
   if (state is ScanReviewUiState.ConfirmRetake) {
     RetakeWarningDialog(onConfirm = onRetakeConfirm, onCancel = onRetakeCancel)
   }
+  if (state is ScanReviewUiState.DeleteFailed) {
+    DeleteFailedDialog(onRetry = onRetryDelete, onStay = onDismissDeleteError)
+  }
   if (state is ScanReviewUiState.Sending) {
     SendingDialog()
   }
+}
+
+@Composable
+private fun DeleteFailedDialog(onRetry: () -> Unit, onStay: () -> Unit) {
+  AlertDialog(
+      onDismissRequest = onStay,
+      title = { Text("Delete failed") },
+      text = { Text("The photo could not be deleted and is still on the device.") },
+      confirmButton = {
+        TextButton(
+            onClick = onRetry,
+            modifier = Modifier.semantics { testTag = C.Tag.scan_retake_delete_retry },
+        ) {
+          Text("Retry")
+        }
+      },
+      dismissButton = {
+        TextButton(
+            onClick = onStay,
+            modifier = Modifier.semantics { testTag = C.Tag.scan_retake_delete_stay },
+        ) {
+          Text("Stay")
+        }
+      },
+      modifier = Modifier.semantics { testTag = C.Tag.scan_retake_delete_failed_dialog },
+  )
 }
 
 @Composable
