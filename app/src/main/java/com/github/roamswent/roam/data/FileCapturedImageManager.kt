@@ -24,10 +24,14 @@ class FileCapturedImageManager(
 
   override suspend fun deleteCapture(uri: Uri): Boolean =
       withContext(ioDispatcher) {
+        val path =
+            uri.path?.replace(File.separatorChar, '/')?.let {
+              if (!it.startsWith("/")) "/$it" else it
+            }
         if (
             uri.scheme != "content" ||
                 uri.authority != "${context.packageName}$FILE_PROVIDER_SUFFIX" ||
-                uri.path != CAPTURE_PATH
+                path != CAPTURE_PATH
         ) {
           return@withContext false
         }
