@@ -1,5 +1,6 @@
 package com.github.roamswent.roam
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,7 +25,7 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
-import com.github.roamswent.roam.ui.scan.ScanReviewScreen
+import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 
@@ -56,7 +57,12 @@ class MainActivity : ComponentActivity() {
               )
             }
             composable(Routes.Scan) { ScanRoute(navController) }
-            composable("${Routes.ScanReview}?uri={uri}") { ScanReviewScreen() }
+            composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
+              val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
+              if (uri != null) {
+                ScanReviewRoute(navController, uri)
+              }
+            }
           }
           if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
             CameraPermissionDialog(
