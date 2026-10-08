@@ -16,6 +16,8 @@ navigationCompose = "2.10.2"
 kaspresso = "1.6.1"
 robolectric = "4.16.1"
 sonar = "7.5.0.8588"
+camerax = "1.4.2"
+mockk = "1.13.13"
 
 # Testing Unit
 mockitoCore = "5.20.0"
@@ -58,6 +60,11 @@ kaspresso = { group = "com.kaspersky.android-components", name = "kaspresso", ve
 kaspresso-compose = { group = "com.kaspersky.android-components", name = "kaspresso-compose-support", version.ref = "kaspresso" }
 
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
