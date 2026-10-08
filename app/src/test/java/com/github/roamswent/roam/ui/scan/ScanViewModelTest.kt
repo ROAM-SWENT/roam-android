@@ -417,5 +417,85 @@ class ScanViewModelTest {
         coVerify(exactly = 1) { capturedImageManager.newCaptureUri() }
       }
 
+  @Test
+  fun revocationDuringInFlightCaptureIgnoresSavedCallback() =
+      runTest(dispatcher) {
+        val uri = Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
+        lateinit var onSaved: () -> Unit
+        coEvery { capturedImageManager.newCaptureUri() } returns uri
+        every { cameraController.captureTo(any(), any(), any()) } answers { onSaved = secondArg() }
+        val viewModel = viewModel()
+        val events = mutableListOf<ScanNavigationEvent>()
+        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+        viewModel.onPermissionRevoked()
+        onSaved.invoke()
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Revoked, viewModel.state.value)
+        assertTrue(events.isEmpty())
+        collection.cancel()
+      }
+
+  @Test
+  fun revocationDuringInFlightCaptureIgnoresErrorCallback() =
+      runTest(dispatcher) {
+        val callbacks = mutableListOf<(Throwable) -> Unit>()
+        coEvery { capturedImageManager.newCaptureUri() } returns
+            Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
+        every { cameraController.captureTo(any(), any(), any()) } answers
+            {
+              callbacks += thirdArg<(Throwable) -> Unit>()
+            }
+        val viewModel = viewModel()
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+        viewModel.onPermissionRevoked()
+        callbacks.single().invoke(IllegalStateException("capture failed"))
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Revoked, viewModel.state.value)
+      }
+
+  @Test
+  fun revocationDuringUriCreationSkipsCapture() =
+      runTest(dispatcher) {
+        val uri = Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
+        coEvery { capturedImageManager.newCaptureUri() } returns uri
+        every { cameraController.captureTo(any(), any(), any()) } answers {}
+        val viewModel = viewModel()
+
+        viewModel.onCapture()
+        viewModel.onPermissionRevoked()
+        advanceUntilIdle()
+
+        verify(exactly = 0) { cameraController.captureTo(any(), any(), any()) }
+        assertEquals(ScanUiState.Revoked, viewModel.state.value)
+      }
+
+  @Test
+  fun captureSucceedsWhenPermissionHeld() =
+      runTest(dispatcher) {
+        val uri = Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
+        lateinit var onSaved: () -> Unit
+        coEvery { capturedImageManager.newCaptureUri() } returns uri
+        every { cameraController.captureTo(any(), any(), any()) } answers { onSaved = secondArg() }
+        val viewModel = viewModel()
+        val events = mutableListOf<ScanNavigationEvent>()
+        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+        onSaved.invoke()
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Captured, viewModel.state.value)
+        assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
+        collection.cancel()
+      }
+
   private fun viewModel() = ScanViewModel(capturedImageManager, cameraController, dispatcher)
 }

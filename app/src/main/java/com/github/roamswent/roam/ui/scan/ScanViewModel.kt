@@ -42,33 +42,48 @@ class ScanViewModel(
   private val _navigationEvents = Channel<ScanNavigationEvent>(Channel.BUFFERED)
   val navigationEvents: Flow<ScanNavigationEvent> = _navigationEvents.receiveAsFlow()
 
+  private var captureGeneration = 0
+
   fun onCapture() {
     if (_state.value != ScanUiState.Streaming) {
       return
     }
     _state.value = ScanUiState.Capturing
+    val generation = ++captureGeneration
     viewModelScope.launch {
       val uri =
           try {
             withContext(dispatcher) { capturedImageManager.newCaptureUri() }
           } catch (_: Throwable) {
-            _state.value = ScanUiState.Streaming
+            if (generation == captureGeneration) {
+              _state.value = ScanUiState.Streaming
+            }
             return@launch
           }
+      if (generation != captureGeneration) {
+        return@launch
+      }
       cameraController.captureTo(
           uri = uri,
           onSaved = {
-            _state.value = ScanUiState.Captured
-            viewModelScope.launch {
-              _navigationEvents.send(ScanNavigationEvent.NavigateToReview(uri))
+            if (generation == captureGeneration) {
+              _state.value = ScanUiState.Captured
+              viewModelScope.launch {
+                _navigationEvents.send(ScanNavigationEvent.NavigateToReview(uri))
+              }
             }
           },
-          onError = { viewModelScope.launch { _state.value = ScanUiState.Streaming } },
+          onError = {
+            if (generation == captureGeneration) {
+              viewModelScope.launch { _state.value = ScanUiState.Streaming }
+            }
+          },
       )
     }
   }
 
   fun onPermissionRevoked() {
+    captureGeneration++
     if (_state.value != ScanUiState.Revoked) {
       cameraController.stop()
       _state.value = ScanUiState.Revoked
