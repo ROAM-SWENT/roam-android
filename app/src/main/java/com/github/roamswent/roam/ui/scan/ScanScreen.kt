@@ -2,8 +2,6 @@ package com.github.roamswent.roam.ui.scan
 
 import android.view.View
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +20,8 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.CameraCaptureOverlay
-import com.github.roamswent.roam.ui.theme.ShutterHalo
 import com.github.roamswent.roam.ui.theme.ShutterWhite
 
 @Composable
@@ -50,16 +48,15 @@ fun ScanScreen(
         if (!shutterEnabled) {
           Box(modifier = Modifier.fillMaxSize().background(CameraCaptureOverlay))
         }
-        Box(
+        ExpressiveFloatingButton(
+            onClick = onCapture,
+            enabled = shutterEnabled,
             modifier =
                 Modifier.align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(bottom = 24.dp)
                     .size(80.dp)
-                    .border(2.dp, ShutterHalo, CircleShape)
-                    .clickable(enabled = shutterEnabled, onClick = onCapture)
                     .semantics { testTag = C.Tag.scan_shutter_button },
-            contentAlignment = Alignment.Center,
         ) {
           Box(Modifier.size(58.dp).background(ShutterWhite, CircleShape))
         }
