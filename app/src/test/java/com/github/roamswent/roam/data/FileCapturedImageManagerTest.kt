@@ -3,8 +3,8 @@ package com.github.roamswent.roam.data
 import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
-import kotlinx.coroutines.CoroutineDispatcher
 import java.io.File
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -149,16 +149,15 @@ class FileCapturedImageManagerTest {
     assertTrue(result.await().path?.endsWith("capture.jpg") == true)
   }
 
-  private fun manager(
-    dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
-  ) = FileCapturedImageManager(context, dispatcher) { ctx, file ->
-    Uri.Builder()
-      .scheme("content")
-      .authority("${ctx.packageName}.fileprovider")
-      .appendPath("captures")
-      .appendPath(file.name)
-      .build()
-  }
+  private fun manager(dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()) =
+      FileCapturedImageManager(context, dispatcher) { ctx, file ->
+        Uri.Builder()
+            .scheme("content")
+            .authority("${ctx.packageName}.fileprovider")
+            .appendPath("captures")
+            .appendPath(file.name)
+            .build()
+      }
 
   private fun deleteRecursively(file: File) {
     if (file.isDirectory) {
