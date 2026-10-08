@@ -1,5 +1,6 @@
 package com.github.roamswent.roam.ui.scan
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -18,6 +19,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.github.roamswent.roam.data.FileCapturedImageManager
+import com.github.roamswent.roam.repository.CapturedImageManager
+import com.github.roamswent.roam.ui.camera.CameraController
 import com.github.roamswent.roam.ui.camera.CameraCoordinator
 import com.github.roamswent.roam.ui.camera.CameraXEngine
 import com.github.roamswent.roam.ui.navigation.Routes
@@ -25,14 +28,25 @@ import com.github.roamswent.roam.ui.permission.rememberCameraPermissionControlle
 import kotlinx.coroutines.Dispatchers
 
 @Composable
-fun ScanRoute(navController: NavHostController, modifier: Modifier = Modifier) {
+fun ScanRoute(
+    navController: NavHostController,
+    modifier: Modifier = Modifier,
+    cameraControllerFactory: (Context, ComponentActivity) -> CameraController =
+        { context, activity ->
+          CameraCoordinator(context, activity, CameraXEngine())
+        },
+    capturedImageManagerFactory: (Context) -> CapturedImageManager = { context ->
+      FileCapturedImageManager(context, Dispatchers.IO)
+    },
+) {
   val context = LocalContext.current
   val activity = context as ComponentActivity
   val lifecycleOwner = LocalLifecycleOwner.current
   val permissionController = rememberCameraPermissionController {}
-  val capturedImageManager = remember(context) { FileCapturedImageManager(context, Dispatchers.IO) }
+  val capturedImageManager =
+      remember(context, capturedImageManagerFactory) { capturedImageManagerFactory(context) }
   val cameraController =
-      remember(activity) { CameraCoordinator(context, activity, CameraXEngine()) }
+      remember(activity, cameraControllerFactory) { cameraControllerFactory(context, activity) }
   val previewView = remember(context) { PreviewView(context) }
   val viewModel: ScanViewModel = viewModel {
     ScanViewModel(capturedImageManager, cameraController, Dispatchers.Main.immediate)
@@ -53,14 +67,16 @@ fun ScanRoute(navController: NavHostController, modifier: Modifier = Modifier) {
     val observer =
         object : DefaultLifecycleObserver {
           override fun onResume(owner: LifecycleOwner) {
-            if (permissionController.hasPermission()) {
-              cameraController.start(previewView)
-            } else {
+            if (!permissionController.hasPermission()) {
               viewModel.onPermissionRevoked()
             }
           }
         }
     lifecycleOwner.lifecycle.addObserver(observer)
+    if (permissionController.hasPermission()) {
+      viewModel.onCameraActive(cameraController)
+      cameraController.start(previewView)
+    }
     onDispose {
       lifecycleOwner.lifecycle.removeObserver(observer)
       cameraController.stop()
