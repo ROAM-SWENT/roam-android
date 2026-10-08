@@ -8,8 +8,19 @@ import io.github.kakaocup.compose.node.element.KNode
 class MainScreen(semanticsProvider: SemanticsNodeInteractionsProvider) :
     ComposeScreen<MainScreen>(
         semanticsProvider = semanticsProvider,
-        viewBuilderAction = { hasTestTag(C.Tag.main_screen_container) },
+        viewBuilderAction = { hasTestTag(C.Tag.home_screen_container) },
     ) {
 
-  val simpleText: KNode = child { hasTestTag(C.Tag.greeting) }
+  val scanButton: KNode =
+      child<KNode> {
+        hasAnyAncestor(androidx.compose.ui.test.hasTestTag(C.Tag.home_screen_container))
+        hasTestTag(C.Tag.home_scan_button)
+      }
+
+  val scanLabel: KNode =
+      child<KNode> {
+        useUnmergedTree = true
+        hasAnyAncestor(androidx.compose.ui.test.hasTestTag(C.Tag.home_screen_container))
+        hasTestTag(C.Tag.home_scan_label)
+      }
 }

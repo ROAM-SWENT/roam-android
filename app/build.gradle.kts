@@ -132,6 +132,15 @@ dependencies {
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
 
+  // ---------- Firebase Authentication ----------
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.auth)
+
+  // ---------- Google Sign-In / Credential Manager ----------
+  implementation(libs.credentials)
+  implementation(libs.credentials.play.services.auth)
+  implementation(libs.googleid)
+
   // ------------- Jetpack Compose ------------------
   val composeBom = platform(libs.compose.bom)
   implementation(composeBom)
@@ -140,11 +149,13 @@ dependencies {
   implementation(libs.compose.ui)
   implementation(libs.compose.ui.graphics)
   // Material Design 3
+  implementation(libs.compose.icons.extended)
   implementation(libs.compose.material3)
   // Integration with activities
   implementation(libs.compose.activity)
   // Integration with ViewModels
   implementation(libs.compose.viewmodel)
+  implementation(libs.androidx.navigation.compose)
   // Android Studio Preview support
   implementation(libs.compose.preview)
   debugImplementation(libs.compose.tooling)
@@ -158,6 +169,11 @@ dependencies {
 
   // ----------       Robolectric     ------------
   testImplementation(libs.robolectric)
+
+  // ---------- Unit Testing ----------
+  testImplementation(libs.mockito.core)
+  testImplementation(libs.mockito.kotlin)
+  testImplementation(libs.kotlinx.coroutines.test)
 }
 
 tasks.withType<Test> {
