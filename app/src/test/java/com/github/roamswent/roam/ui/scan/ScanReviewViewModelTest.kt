@@ -101,7 +101,7 @@ class ScanReviewViewModelTest {
       }
 
   @Test
-  fun deleteFailureStillNavigatesToCapture() =
+  fun retakeWithFailedDeletionStaysOnReview() =
       runTest(dispatcher) {
         coEvery { capturedImageManager.deleteCapture(uri) } returns false
         val viewModel = viewModel()
@@ -113,11 +113,12 @@ class ScanReviewViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { capturedImageManager.deleteCapture(uri) }
-        assertEquals(listOf(ScanReviewNavigationEvent.BackToCapture), events)
+        assertEquals(ScanReviewUiState.DeleteFailed(uri), viewModel.state.value)
+        assertTrue(events.isEmpty())
       }
 
   @Test
-  fun deleteExceptionStillNavigatesToCapture() =
+  fun retakeWithThrowingDeletionStaysOnReview() =
       runTest(dispatcher) {
         coEvery { capturedImageManager.deleteCapture(uri) } throws
             IllegalStateException("delete failed")
@@ -130,7 +131,49 @@ class ScanReviewViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { capturedImageManager.deleteCapture(uri) }
+        assertEquals(ScanReviewUiState.DeleteFailed(uri), viewModel.state.value)
+        assertTrue(events.isEmpty())
+      }
+
+  @Test
+  fun deleteErrorRetrySucceedsAndNavigates() =
+      runTest(dispatcher) {
+        coEvery { capturedImageManager.deleteCapture(uri) } returnsMany listOf(false, true)
+        val viewModel = viewModel()
+        val events = collectEvents(viewModel)
+        viewModel.setUri(uri)
+        viewModel.onRetake()
+
+        viewModel.confirmRetake()
+        advanceUntilIdle()
+        assertEquals(ScanReviewUiState.DeleteFailed(uri), viewModel.state.value)
+
+        viewModel.onRetryDelete()
+        assertEquals(ScanReviewUiState.Deleting(uri), viewModel.state.value)
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { capturedImageManager.deleteCapture(uri) }
         assertEquals(listOf(ScanReviewNavigationEvent.BackToCapture), events)
+      }
+
+  @Test
+  fun deleteErrorDismissReturnsToReviewing() =
+      runTest(dispatcher) {
+        coEvery { capturedImageManager.deleteCapture(uri) } returns false
+        val viewModel = viewModel()
+        val events = collectEvents(viewModel)
+        viewModel.setUri(uri)
+        viewModel.onRetake()
+
+        viewModel.confirmRetake()
+        advanceUntilIdle()
+        assertEquals(ScanReviewUiState.DeleteFailed(uri), viewModel.state.value)
+
+        viewModel.onDismissDeleteError()
+        advanceUntilIdle()
+
+        assertEquals(ScanReviewUiState.Reviewing(uri), viewModel.state.value)
+        assertTrue(events.isEmpty())
       }
 
   @Test

@@ -80,6 +80,26 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun deleteFailedRendersDialogAndInvokesActions() {
+    var retried = false
+    var stayed = false
+    setContent(
+        ScanReviewUiState.DeleteFailed(uri),
+        onRetryDelete = { retried = true },
+        onDismissDeleteError = { stayed = true },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_delete_failed_dialog).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_delete_retry).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_delete_stay).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
+
+    assertEquals(true, retried)
+    assertEquals(true, stayed)
+  }
+
+  @Test
   fun reviewingActionClicksInvokeLambdas() {
     var retakeClicks = 0
     var sendClicks = 0
@@ -132,6 +152,8 @@ class ScanReviewScreenTest {
       onRetake: () -> Unit = {},
       onRetakeConfirm: () -> Unit = {},
       onRetakeCancel: () -> Unit = {},
+      onRetryDelete: () -> Unit = {},
+      onDismissDeleteError: () -> Unit = {},
       onSend: () -> Unit = {},
   ) {
     composeTestRule.activity.setContent {
@@ -141,6 +163,8 @@ class ScanReviewScreenTest {
             onRetake = onRetake,
             onRetakeConfirm = onRetakeConfirm,
             onRetakeCancel = onRetakeCancel,
+            onRetryDelete = onRetryDelete,
+            onDismissDeleteError = onDismissDeleteError,
             onSend = onSend,
         )
       }
