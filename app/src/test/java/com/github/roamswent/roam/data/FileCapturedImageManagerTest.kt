@@ -86,12 +86,23 @@ class FileCapturedImageManagerTest {
   }
 
   @Test
-  fun deleteCaptureRejectsCorrectAuthorityWithWrongPathSuffix() = runTest {
+  fun deleteCaptureRejectsCorrectAuthorityWithWrongPath() = runTest {
     val target = manager().newCaptureUri()
     captureFile.writeText("capture image")
     val wrongPathUri = target.buildUpon().path("/captures/other.jpg").build()
 
     assertFalse(manager().deleteCapture(wrongPathUri))
+    assertTrue(captureFile.exists())
+    assertEquals("capture image", captureFile.readText())
+  }
+
+  @Test
+  fun deleteCaptureRejectsCorrectAuthorityWithUnrelatedPathEndingInFilename() = runTest {
+    val target = manager().newCaptureUri()
+    captureFile.writeText("capture image")
+    val unrelatedPathUri = target.buildUpon().path("/unrelated/capture.jpg").build()
+
+    assertFalse(manager().deleteCapture(unrelatedPathUri))
     assertTrue(captureFile.exists())
     assertEquals("capture image", captureFile.readText())
   }
