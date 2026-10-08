@@ -5,6 +5,7 @@ plugins {
   alias(libs.plugins.kotlinCompose)
   alias(libs.plugins.ktfmt)
   alias(libs.plugins.sonar)
+  alias(libs.plugins.gms)
   id("jacoco")
 }
 
@@ -121,6 +122,11 @@ dependencies {
   implementation(libs.material)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.kotlinx.serialization.json)
+
+  // Firebase: AI Logic for Gemini, App Check for attestation
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.ai)
+  debugImplementation(libs.firebase.appcheck.debug)
   implementation(platform(libs.compose.bom))
   testImplementation(libs.junit)
   globalTestImplementation(libs.androidx.junit)
