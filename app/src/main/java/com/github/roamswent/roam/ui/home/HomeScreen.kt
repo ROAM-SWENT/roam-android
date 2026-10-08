@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.NoPhotography
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +32,7 @@ import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
-fun HomeScreen(onScanClicked: () -> Unit) {
+fun HomeScreen(onScanClicked: () -> Unit, cameraAvailable: Boolean = true) {
   val haloSize = 72.dp
 
   Box(
@@ -54,8 +55,9 @@ fun HomeScreen(onScanClicked: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
           Text(
-              text = "Scan a monument",
-              color = ScanTeal,
+              text =
+                  if (cameraAvailable) "Scan a monument" else "No camera detected on this device",
+              color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.SemiBold,
               modifier = Modifier.semantics { testTag = C.Tag.home_scan_label },
@@ -67,19 +69,33 @@ fun HomeScreen(onScanClicked: () -> Unit) {
           modifier =
               Modifier.align(Alignment.TopCenter)
                   .size(haloSize)
-                  .background(color = Color.White, shape = CircleShape),
+                  .background(
+                      color =
+                          if (cameraAvailable) Color.White
+                          else MaterialTheme.colorScheme.surfaceVariant,
+                      shape = CircleShape,
+                  ),
           contentAlignment = Alignment.Center,
       ) {
         IconButton(
             onClick = onScanClicked,
+            enabled = cameraAvailable,
             modifier =
-                Modifier.size(56.dp).background(color = ScanTeal, shape = CircleShape).semantics {
-                  testTag = C.Tag.home_scan_button
-                },
+                Modifier.size(56.dp)
+                    .background(
+                        color =
+                            if (cameraAvailable) ScanTeal
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        shape = CircleShape,
+                    )
+                    .semantics { testTag = C.Tag.home_scan_button },
         ) {
           Icon(
-              imageVector = Icons.Default.CenterFocusStrong,
-              contentDescription = "Scan a monument",
+              imageVector =
+                  if (cameraAvailable) Icons.Default.CenterFocusStrong
+                  else Icons.Default.NoPhotography,
+              contentDescription =
+                  if (cameraAvailable) "Scan a monument" else "No camera detected on this device",
               tint = Color.White,
               modifier = Modifier.size(28.dp),
           )

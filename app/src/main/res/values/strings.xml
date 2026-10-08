@@ -2,4 +2,10 @@
     <string name="app_name">Roam</string>
     <string name="title_activity_main">MainActivity</string>
     <string name="title_activity_second">SecondActivity</string>
+    <string name="sign_in_title">Roam</string>
+    <string name="sign_in_tagline">Snap a monument, discover its story.</string>
+    <string name="sign_in_google_button">Continue with Google</string>
+    <string name="sign_in_terms">By continuing, you agree to the Terms of Service.</string>
+    <string name="sign_in_logo_description">Roam logo</string>
+    <string name="sign_in_success">Login successful!</string>
 </resources>

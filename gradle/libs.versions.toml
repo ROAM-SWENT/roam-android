@@ -17,6 +17,21 @@ kaspresso = "1.6.1"
 robolectric = "4.16.1"
 sonar = "7.5.0.8588"
 
+# Testing Unit
+mockitoCore = "5.20.0"
+mockitoKotlin = "5.4.0"
+kotlinxCoroutines = "1.11.0"
+
+# Google Services
+gms = "4.5.0"
+
+# Firebase
+firebaseBom = "34.18.0"
+
+# Credential Manager
+credentials = "1.6.0"
+googleid = "1.2.0"
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -44,8 +59,19 @@ kaspresso-compose = { group = "com.kaspersky.android-components", name = "kaspre
 
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
+mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+
+credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
+credentials-play-services-auth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
+firebase-auth = { module = "com.google.firebase:firebase-auth" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
+
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 kotlinCompose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ktfmt = { id = "com.ncorti.ktfmt.gradle", version.ref = "ktfmt" }
 sonar = { id = "org.sonarqube", version.ref = "sonar" }
+gms = { id = "com.google.gms.google-services", version.ref = "gms" }
