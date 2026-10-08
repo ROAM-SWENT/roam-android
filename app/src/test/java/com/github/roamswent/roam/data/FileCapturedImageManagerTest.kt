@@ -108,6 +108,16 @@ class FileCapturedImageManagerTest {
   }
 
   @Test
+  fun deleteCaptureRejectsNonContentScheme() = runTest {
+    val target = manager().newCaptureUri()
+    captureFile.writeText("capture image")
+    val fileSchemeUri = target.buildUpon().scheme("file").build()
+
+    assertFalse(manager().deleteCapture(fileSchemeUri))
+    assertTrue(captureFile.exists())
+  }
+
+  @Test
   fun deleteCaptureRejectsCorrectAuthorityWithNullPath() = runTest {
     val target = manager().newCaptureUri()
     captureFile.writeText("capture image")
