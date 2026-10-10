@@ -23,6 +23,7 @@ import com.google.firebase.ai.type.ServerException
 import com.google.firebase.ai.type.ServiceDisabledException
 import com.google.firebase.ai.type.UnsupportedUserLocationException
 import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.generationConfig
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 
@@ -40,7 +41,13 @@ class FirebaseGeminiClient(
   }
 
   private val model by lazy {
-    Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel(modelName)
+    Firebase.ai(backend = GenerativeBackend.googleAI())
+        .generativeModel(
+            modelName = modelName,
+            // Gemini otherwise tends to wrap the reply in a markdown code fence, which
+            // ResponseParser's strict JSON parsing does not tolerate.
+            generationConfig = generationConfig { responseMimeType = "application/json" },
+        )
   }
 
   override suspend fun generate(prompt: String, image: ImagePayload): String {
