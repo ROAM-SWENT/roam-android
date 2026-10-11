@@ -30,24 +30,36 @@ fun FramingReticle(modifier: Modifier = Modifier) {
     val strokeWidth = RETICLE_STROKE_WIDTH.toPx()
     val arm = RETICLE_ARM_LENGTH.toPx()
     val inset = strokeWidth / 2f
-    val path = Path()
-    for (corner in 0 until 4) {
-      val left = corner == 0 || corner == 3
-      val top = corner == 0 || corner == 1
-      val xEdge = if (left) inset else size.width - inset
-      val yEdge = if (top) inset else size.height - inset
-      val xInner = if (left) xEdge + arm else xEdge - arm
-      val yInner = if (top) yEdge + arm else yEdge - arm
-      path.apply {
-        moveTo(xEdge, yInner)
-        lineTo(xEdge, yEdge)
-        lineTo(xInner, yEdge)
+    for (bracket in bracketGeometry(size.width, size.height, arm, inset)) {
+      val path = Path()
+      bracket.points.forEachIndexed { index, (x, y) ->
+        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
       }
+      drawPath(
+          path = path,
+          color = RETICLE_COLOR,
+          style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+      )
     }
-    drawPath(
-        path = path,
-        color = RETICLE_COLOR,
-        style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-    )
   }
+}
+
+internal data class BracketLine(val points: List<Pair<Float, Float>>)
+
+internal fun bracketGeometry(
+    width: Float,
+    height: Float,
+    arm: Float,
+    inset: Float,
+): List<BracketLine> {
+  val left = inset
+  val top = inset
+  val right = width - inset
+  val bottom = height - inset
+  return listOf(
+      BracketLine(listOf(left to top + arm, left to top, left + arm to top)),
+      BracketLine(listOf(right to top + arm, right to top, right - arm to top)),
+      BracketLine(listOf(right to bottom - arm, right to bottom, right - arm to bottom)),
+      BracketLine(listOf(left to bottom - arm, left to bottom, left + arm to bottom)),
+  )
 }
