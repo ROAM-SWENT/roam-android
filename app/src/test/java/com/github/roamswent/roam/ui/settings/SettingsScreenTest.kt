@@ -117,30 +117,25 @@ class SettingsScreenTest {
     assertEquals("Unable to log out", ShadowToast.getTextOfLatestToast())
     verify(viewModel).clearErrorMsg()
   }
-    @Test
-    fun errorAppearsAfterInitialRender() {
-        val viewModel = mock<SettingsViewModel>()
-        val state = MutableStateFlow(SettingsUiState())
 
-        whenever(viewModel.uiState).thenReturn(state)
+  @Test
+  fun errorAppearsAfterInitialRender() {
+    val viewModel = mock<SettingsViewModel>()
+    val state = MutableStateFlow(SettingsUiState())
 
-        composeTestRule.setContent {
-            SampleAppTheme {
-                SettingsScreen(settingsViewModel = viewModel)
-            }
-        }
+    whenever(viewModel.uiState).thenReturn(state)
 
-        state.value = SettingsUiState(
-            errorMsg = "Logout failed"
-        )
+    composeTestRule.setContent { SampleAppTheme { SettingsScreen(settingsViewModel = viewModel) } }
 
-        composeTestRule.waitForIdle()
+    state.value = SettingsUiState(errorMsg = "Logout failed")
 
-        assertEquals(
-            "Logout failed",
-            ShadowToast.getTextOfLatestToast()
-        )
+    composeTestRule.waitForIdle()
 
-        verify(viewModel).clearErrorMsg()
-    }
+    assertEquals(
+        "Logout failed",
+        ShadowToast.getTextOfLatestToast(),
+    )
+
+    verify(viewModel).clearErrorMsg()
+  }
 }
