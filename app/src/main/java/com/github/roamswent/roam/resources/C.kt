@@ -21,6 +21,7 @@ object C {
     const val scan_framing_reticle = "scan_framing_reticle"
     const val scan_review_screen = "scan_review_screen"
     const val scan_review_photo = "scan_review_photo"
+    const val scan_review_prompt_pill = "scan_review_prompt_pill"
     const val scan_retake_button = "scan_retake_button"
     const val scan_validate_button = "scan_validate_button"
     const val scan_retake_dialog = "scan_retake_dialog"
