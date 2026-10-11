@@ -168,6 +168,20 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
   }
 
+  @Test
+  fun deletingShowsPromptPill() {
+    setContent(ScanReviewUiState.Deleting(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun deleteFailedShowsPromptPill() {
+    setContent(ScanReviewUiState.DeleteFailed(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
   private val uri = Uri.parse("content://example/capture.jpg")
 
   private fun setContent(
