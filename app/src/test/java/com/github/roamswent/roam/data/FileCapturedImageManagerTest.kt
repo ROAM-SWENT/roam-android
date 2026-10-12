@@ -1,9 +1,11 @@
 package com.github.roamswent.roam.data
 
 import android.content.Context
+import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -28,7 +30,6 @@ class FileCapturedImageManagerTest {
 
   @Before
   fun setUp() {
-    clearFileProviderCache()
     deleteRecursively(capturesDirectory)
   }
 
@@ -141,7 +142,7 @@ class FileCapturedImageManagerTest {
   @Test
   fun newCaptureUriRunsOnInjectedDispatcher() = runTest {
     val dispatcher = StandardTestDispatcher(testScheduler)
-    val result = async { FileCapturedImageManager(context, dispatcher).newCaptureUri() }
+    val result = async { manager(dispatcher).newCaptureUri() }
 
     assertFalse(result.isCompleted)
     advanceUntilIdle()
@@ -149,14 +150,52 @@ class FileCapturedImageManagerTest {
     assertTrue(result.await().path?.endsWith("capture.jpg") == true)
   }
 
-  private fun manager() = FileCapturedImageManager(context, UnconfinedTestDispatcher())
+  @Test
+  fun defaultUriFactoryDelegatesToFileProvider() = runTest {
+    val expectedFile = File(capturesDirectory, "capture.jpg")
+    val expectedUri =
+        Uri.parse("content://${context.packageName}.fileprovider/captures/capture.jpg")
 
-  @Suppress("UNCHECKED_CAST")
-  private fun clearFileProviderCache() {
-    val cacheField = FileProvider::class.java.getDeclaredField("sCache")
-    cacheField.isAccessible = true
-    (cacheField.get(null) as MutableMap<Any, Any>).clear()
+    org.mockito.Mockito.mockStatic(FileProvider::class.java).use { mocked ->
+      mocked
+          .`when`<Uri> {
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                expectedFile,
+            )
+          }
+          .thenReturn(expectedUri)
+
+      val manager =
+          FileCapturedImageManager(
+              context,
+              UnconfinedTestDispatcher(),
+          )
+
+      val result = manager.newCaptureUri()
+
+      assertEquals(expectedUri, result)
+
+      mocked.verify {
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            expectedFile,
+        )
+      }
+    }
   }
+
+  private fun manager(dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()) =
+      FileCapturedImageManager(context, dispatcher) { ctx, file ->
+        Uri.Builder()
+            .scheme("content")
+            .authority("${ctx.packageName}.fileprovider")
+            .appendPath("captures")
+            .appendPath(file.name)
+            .build()
+      }
 
   private fun deleteRecursively(file: File) {
     if (file.isDirectory) {
