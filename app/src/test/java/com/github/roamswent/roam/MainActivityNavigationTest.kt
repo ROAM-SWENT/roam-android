@@ -6,6 +6,7 @@ package com.github.roamswent.roam
 
 import android.Manifest
 import android.app.Application
+import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
@@ -25,12 +26,15 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
@@ -49,11 +53,32 @@ import org.robolectric.Shadows.shadowOf
 class MainActivityNavigationTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
+  private val locationDecisionRepository =
+      SharedPreferencesLocationPermissionDecisionRepository(
+          ApplicationProvider.getApplicationContext()
+      )
+  private val locationPermissions =
+      arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
+
   @Before
   fun configureCameraAvailability() {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, true)
-    shadowOf(application).denyPermissions(Manifest.permission.CAMERA)
+    shadowOf(application).denyPermissions(Manifest.permission.CAMERA, *locationPermissions)
+    application
+        .getSharedPreferences("location_permission", Context.MODE_PRIVATE)
+        .edit()
+        .clear()
+        .commit()
+  }
+
+  @After
+  fun clearLocationDecision() {
+    (ApplicationProvider.getApplicationContext() as Application)
+        .getSharedPreferences("location_permission", Context.MODE_PRIVATE)
+        .edit()
+        .clear()
+        .commit()
   }
 
   @Test
@@ -67,7 +92,7 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun successfulSignInNavigatesToHomeBeforeScan() {
+  fun firstSuccessfulSignInRequestsLocationAndGrantNavigatesToHome() {
     val authState = MutableStateFlow(AuthUIState())
     renderApp(authState)
 
@@ -78,8 +103,38 @@ class MainActivityNavigationTest {
 
     authState.value = AuthUIState(user = mock())
 
+    val request = waitForLocationPermissionRequest()
+    assertEquals(locationPermissions.toSet(), request.requestedPermissions.toSet())
+    waitForGone(C.Tag.home_screen_container)
+    dispatchLocationPermissionResult(request, granted = true)
+
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     waitForGone(C.Tag.scan_camera_screen)
+    assertEquals(LocationPermissionDecision.GRANTED, locationDecisionRepository.getDecision())
+  }
+
+  @Test
+  fun firstSuccessfulSignInNavigatesToHomeAndPersistsLocationDenial() {
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState)
+
+    authState.value = AuthUIState(user = mock())
+
+    val request = waitForLocationPermissionRequest()
+    dispatchLocationPermissionResult(request, granted = false)
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(LocationPermissionDecision.DENIED, locationDecisionRepository.getDecision())
+  }
+
+  @Test
+  fun persistedGrantNavigatesDirectlyToHomeWithoutRequestingLocation() {
+    signInWithPersistedLocationDecision(LocationPermissionDecision.GRANTED)
+  }
+
+  @Test
+  fun persistedDenialNavigatesDirectlyToHomeWithoutRequestingLocation() {
+    signInWithPersistedLocationDecision(LocationPermissionDecision.DENIED)
   }
 
   @Test
@@ -208,6 +263,7 @@ class MainActivityNavigationTest {
 
   @Test
   fun scanReviewWithUriDisplaysReviewScreen() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = mock())))
 
@@ -267,7 +323,50 @@ class MainActivityNavigationTest {
     return checkNotNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
 
+  private fun waitForLocationPermissionRequest():
+      org.robolectric.shadows.ShadowActivity.PermissionsRequest {
+    composeTestRule.waitUntil {
+      shadowOf(composeTestRule.activity)
+          .lastRequestedPermission
+          ?.requestedPermissions
+          ?.contains(Manifest.permission.ACCESS_FINE_LOCATION) == true
+    }
+    return permissionRequest()
+  }
+
+  private fun dispatchLocationPermissionResult(
+      request: org.robolectric.shadows.ShadowActivity.PermissionsRequest,
+      granted: Boolean,
+  ) {
+    if (granted) {
+      shadowOf(composeTestRule.activity)
+          .grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    } else {
+      shadowOf(composeTestRule.activity).denyPermissions(*locationPermissions)
+    }
+    val result =
+        if (granted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+    composeTestRule.activity.onRequestPermissionsResult(
+        request.requestCode,
+        locationPermissions,
+        intArrayOf(result, result),
+    )
+  }
+
+  private fun signInWithPersistedLocationDecision(decision: LocationPermissionDecision) {
+    locationDecisionRepository.saveDecision(decision)
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState)
+
+    authState.value = AuthUIState(user = mock())
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+    assertEquals(decision, locationDecisionRepository.getDecision())
+  }
+
   private fun showAuthenticatedHome() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(MutableStateFlow(AuthUIState(user = mock())))
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
