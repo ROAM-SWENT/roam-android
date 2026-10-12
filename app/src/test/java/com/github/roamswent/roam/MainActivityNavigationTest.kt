@@ -1,45 +1,103 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam
 
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.authentication.AuthUIState
+import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class MainActivityNavigationTest {
-  @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
+  @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   @Before
   fun configureCameraAvailability() {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, true)
     shadowOf(application).denyPermissions(Manifest.permission.CAMERA)
-    composeTestRule.activity.recreate()
   }
 
   @Test
-  fun startsAtHome() {
+  fun startsAtSignInWithoutAccessToHomeOrScan() {
+    renderApp(MutableStateFlow(AuthUIState()))
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+        .assertIsDisplayed()
+    waitForGone(C.Tag.home_screen_container)
+    waitForGone(C.Tag.scan_camera_screen)
+  }
+
+  @Test
+  fun successfulSignInNavigatesToHomeBeforeScan() {
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState)
+
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+        .assertIsDisplayed()
+    waitForGone(C.Tag.home_screen_container)
+
+    authState.value = AuthUIState(user = mock())
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    waitForGone(C.Tag.scan_camera_screen)
+  }
+
+  @Test
+  fun backFromScanReturnsToAuthenticatedHome() {
+    shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
+    showAuthenticatedHome()
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_camera_screen)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
 
   @Test
   fun scanEntryNavigatesToScanDestination() {
+    showAuthenticatedHome()
     shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
@@ -50,6 +108,7 @@ class MainActivityNavigationTest {
 
   @Test
   fun denyShowsPermissionDialogWithoutNavigating() {
+    showAuthenticatedHome()
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
     dispatchCameraPermissionResult()
@@ -61,6 +120,7 @@ class MainActivityNavigationTest {
 
   @Test
   fun dismissingPermissionDialogLeavesHomeDisplayed() {
+    showAuthenticatedHome()
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
     dispatchCameraPermissionResult()
@@ -75,6 +135,7 @@ class MainActivityNavigationTest {
 
   @Test
   fun denialAfterDismissShowsDialogAgain() {
+    showAuthenticatedHome()
     waitFor(C.Tag.home_scan_button)
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
     val firstPermissionRequest = dispatchCameraPermissionResult()
@@ -100,7 +161,7 @@ class MainActivityNavigationTest {
   fun unavailableCameraDoesNotRequestPermissionOrNavigate() {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
-    composeTestRule.activity.recreate()
+    showAuthenticatedHome()
     waitFor(C.Tag.home_scan_button)
 
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
@@ -114,14 +175,107 @@ class MainActivityNavigationTest {
   fun unavailableCameraDisablesScanButton() {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
-    composeTestRule.activity.recreate()
+    showAuthenticatedHome()
     waitFor(C.Tag.home_scan_button)
 
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
   }
 
+  @Test
+  fun openingSettingsFromPermissionDialog() {
+    showAuthenticatedHome()
+    waitFor(C.Tag.home_scan_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+
+    dispatchCameraPermissionResult()
+    waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
+
+    composeTestRule.onNodeWithTag(C.Tag.camera_permission_settings_button).performClick()
+
+    waitForGone(C.Tag.camera_permission_dialog)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    val intent = shadowOf(composeTestRule.activity).nextStartedActivity
+
+    assertNotNull(intent)
+    assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, intent.action)
+    assertEquals(
+        composeTestRule.activity.packageName,
+        intent.data?.schemeSpecificPart,
+    )
+  }
+
+  @Test
+  fun scanReviewWithUriDisplaysReviewScreen() {
+    val authViewModel = mock<SignInViewModel>()
+    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = mock())))
+
+    lateinit var navController: NavHostController
+
+    composeTestRule.activity.setContent {
+      val controller = rememberNavController()
+      SideEffect { navController = controller }
+
+      SampleAppTheme { RoamApp(authViewModel, controller) }
+    }
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.runOnIdle {
+      navController.navigate("${Routes.ScanReview}?uri=${Uri.encode("content://test/photo.jpg")}")
+    }
+
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+
+    composeTestRule.runOnIdle { navController.navigate(Routes.ScanReview) }
+
+    waitForGone(C.Tag.scan_review_screen)
+
+    composeTestRule.runOnIdle {
+      assertNull(navController.currentBackStackEntry?.arguments?.getString("uri"))
+    }
+  }
+
+  @Test
+  fun mainActivityCreatesComposeContent() {
+    val authViewModel = mock<SignInViewModel>()
+    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+
+    try {
+      ViewModelProvider(
+          controller.get(),
+          object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+              return authViewModel as T
+            }
+          },
+      )[SignInViewModel::class.java]
+
+      controller.start().resume().visible()
+
+      waitAndAssertDisplayed(C.Tag.main_screen_container)
+    } finally {
+      controller.pause().stop().destroy()
+    }
+  }
+
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
     return checkNotNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+  }
+
+  private fun showAuthenticatedHome() {
+    renderApp(MutableStateFlow(AuthUIState(user = mock())))
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+  }
+
+  private fun renderApp(authState: MutableStateFlow<AuthUIState>) {
+    val authViewModel = mock<SignInViewModel>()
+    whenever(authViewModel.uiState).thenReturn(authState)
+    composeTestRule.activity.setContent { SampleAppTheme { RoamApp(authViewModel) } }
   }
 
   private fun dispatchCameraPermissionResult() = dispatchCameraPermissionResult(permissionRequest())

@@ -1,32 +1,34 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.roamswent.roam.screen.MainScreen
-import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
-import io.github.kakaocup.compose.node.element.ComposeScreen
+import com.github.roamswent.roam.resources.C
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Instrumented test, which will execute on an Android device.
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
 @RunWith(AndroidJUnit4::class)
-class MainActivityTest : TestCase() {
+class MainActivityTest {
 
   @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
   @Test
-  fun test() = run {
-    step("Start Main Activity") {
-      ComposeScreen.onComposeScreen<MainScreen>(composeTestRule) {
-        assertIsDisplayed()
-        scanButton { assertIsDisplayed() }
-        scanLabel { assertIsDisplayed() }
-      }
+  fun startsAtSignInBeforeHomeOrScan() {
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+        .assertIsDisplayed()
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithTag(C.Tag.home_screen_container).fetchSemanticsNodes().isEmpty()
+    }
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithTag(C.Tag.scan_camera_screen).fetchSemanticsNodes().isEmpty()
     }
   }
 }
