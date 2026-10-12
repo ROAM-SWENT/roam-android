@@ -25,9 +25,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.ShutterWhite
 
@@ -40,8 +42,15 @@ fun ScanReviewScreen(
     onRetryDelete: () -> Unit = {},
     onDismissDeleteError: () -> Unit = {},
     onSend: () -> Unit,
+    onRetrySend: () -> Unit = {},
+    onDismissSendError: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+  if (state is ScanReviewUiState.Sent) {
+    MonumentDetailScreen(image = rememberAsyncImagePainter(state.uri), guide = state.guide)
+    return
+  }
+
   val context = LocalContext.current
   val uri =
       when (state) {
@@ -50,11 +59,14 @@ fun ScanReviewScreen(
         is ScanReviewUiState.Deleting -> state.uri
         is ScanReviewUiState.DeleteFailed -> state.uri
         is ScanReviewUiState.Sending -> state.uri
+        is ScanReviewUiState.SendFailed -> state.uri
+        is ScanReviewUiState.Sent -> state.uri
       }
   val locked =
       state is ScanReviewUiState.Deleting ||
           state is ScanReviewUiState.DeleteFailed ||
-          state is ScanReviewUiState.Sending
+          state is ScanReviewUiState.Sending ||
+          state is ScanReviewUiState.SendFailed
   Box(modifier.fillMaxSize().semantics { testTag = C.Tag.scan_review_screen }) {
     AsyncImage(
         model =
@@ -102,6 +114,9 @@ fun ScanReviewScreen(
   if (state is ScanReviewUiState.Sending) {
     SendingDialog()
   }
+  if (state is ScanReviewUiState.SendFailed) {
+    SendFailedDialog(message = state.message, onRetry = onRetrySend, onDismiss = onDismissSendError)
+  }
 }
 
 @Composable
@@ -127,6 +142,32 @@ private fun DeleteFailedDialog(onRetry: () -> Unit, onStay: () -> Unit) {
         }
       },
       modifier = Modifier.semantics { testTag = C.Tag.scan_retake_delete_failed_dialog },
+  )
+}
+
+@Composable
+private fun SendFailedDialog(message: String, onRetry: () -> Unit, onDismiss: () -> Unit) {
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text("Couldn't identify this photo") },
+      text = { Text(message) },
+      confirmButton = {
+        TextButton(
+            onClick = onRetry,
+            modifier = Modifier.semantics { testTag = C.Tag.scan_send_failed_retry },
+        ) {
+          Text("Retry")
+        }
+      },
+      dismissButton = {
+        TextButton(
+            onClick = onDismiss,
+            modifier = Modifier.semantics { testTag = C.Tag.scan_send_failed_dismiss },
+        ) {
+          Text("Dismiss")
+        }
+      },
+      modifier = Modifier.semantics { testTag = C.Tag.scan_send_failed_dialog },
   )
 }
 

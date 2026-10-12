@@ -27,6 +27,9 @@ object C {
     const val scan_retake_delete_retry = "scan_retake_delete_retry"
     const val scan_retake_delete_stay = "scan_retake_delete_stay"
     const val scan_sending_dialog = "scan_sending_dialog"
+    const val scan_send_failed_dialog = "scan_send_failed_dialog"
+    const val scan_send_failed_retry = "scan_send_failed_retry"
+    const val scan_send_failed_dismiss = "scan_send_failed_dismiss"
     const val camera_permission_dialog = "camera_permission_dialog"
     const val camera_permission_settings_button = "camera_permission_settings_button"
     const val camera_permission_dismiss_button = "camera_permission_dismiss_button"
@@ -34,5 +37,10 @@ object C {
     const val monument_detail_picture = "monument_detail_picture"
     const val monument_detail_text = "monument_detail_text"
     const val monument_detail_drag_handle = "monument_detail_drag_handle"
+    const val monument_detail_title = "monument_detail_title"
+    const val monument_detail_confidence = "monument_detail_confidence"
+    const val monument_detail_history = "monument_detail_history"
+    const val monument_detail_fact_item = "monument_detail_fact_item"
+    const val monument_detail_culture = "monument_detail_culture"
   }
 }
