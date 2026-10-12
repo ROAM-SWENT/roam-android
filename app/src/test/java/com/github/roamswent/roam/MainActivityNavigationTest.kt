@@ -20,6 +20,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
@@ -39,6 +41,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
@@ -224,6 +227,40 @@ class MainActivityNavigationTest {
     }
 
     waitAndAssertDisplayed(C.Tag.scan_review_screen)
+
+    composeTestRule.runOnIdle { navController.navigate(Routes.ScanReview) }
+
+    waitForGone(C.Tag.scan_review_screen)
+
+    composeTestRule.runOnIdle {
+      assertNull(navController.currentBackStackEntry?.arguments?.getString("uri"))
+    }
+  }
+
+  @Test
+  fun mainActivityCreatesComposeContent() {
+    val authViewModel = mock<SignInViewModel>()
+    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+
+    try {
+      ViewModelProvider(
+          controller.get(),
+          object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+              return authViewModel as T
+            }
+          },
+      )[SignInViewModel::class.java]
+
+      controller.start().resume().visible()
+
+      waitAndAssertDisplayed(C.Tag.main_screen_container)
+    } finally {
+      controller.pause().stop().destroy()
+    }
   }
 
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
