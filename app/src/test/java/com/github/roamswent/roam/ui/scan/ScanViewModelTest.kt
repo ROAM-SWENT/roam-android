@@ -172,6 +172,174 @@ class ScanViewModelTest {
       }
 
   @Test
+  fun cameraActiveRearmsCapturedStateForSecondCapture() =
+      runTest(dispatcher) {
+        val uris =
+            listOf(
+                Uri.parse("content://example/first.jpg"),
+                Uri.parse("content://example/second.jpg"),
+            )
+        val savedCallbacks = mutableListOf<() -> Unit>()
+        coEvery { capturedImageManager.newCaptureUri() } returnsMany uris
+        every { cameraController.captureTo(any(), any(), any()) } answers
+            {
+              savedCallbacks += secondArg<() -> Unit>()
+            }
+        val viewModel = viewModel()
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+        savedCallbacks[0].invoke()
+        advanceUntilIdle()
+        assertEquals(ScanUiState.Captured, viewModel.state.value)
+
+        viewModel.onCameraActive(cameraController)
+        assertEquals(ScanUiState.Streaming, viewModel.state.value)
+        viewModel.onCapture()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { capturedImageManager.newCaptureUri() }
+        verify(exactly = 2) { cameraController.captureTo(any(), any(), any()) }
+      }
+
+  @Test
+  fun cameraActiveDoesNothingWhileStreaming() =
+      runTest(dispatcher) {
+        val viewModel = viewModel()
+
+        viewModel.onCameraActive(cameraController)
+
+        assertEquals(ScanUiState.Streaming, viewModel.state.value)
+      }
+
+  @Test
+  fun cameraActiveDoesNothingWhileCapturing() =
+      runTest(dispatcher) {
+        every { cameraController.captureTo(any(), any(), any()) } answers {}
+        val viewModel = viewModel()
+
+        viewModel.onCapture()
+        viewModel.onCameraActive(cameraController)
+
+        assertEquals(ScanUiState.Capturing, viewModel.state.value)
+      }
+
+  @Test
+  fun cameraActiveDoesNothingWhileRevoked() =
+      runTest(dispatcher) {
+        val viewModel = viewModel()
+        viewModel.onPermissionRevoked()
+
+        viewModel.onCameraActive(cameraController)
+
+        assertEquals(ScanUiState.Revoked, viewModel.state.value)
+      }
+
+  @Test
+  fun captureAfterControllerRebindRoutesThroughNewController() =
+      runTest(dispatcher) {
+        val controllerA = mockk<CameraController>(relaxed = true)
+        val controllerB = mockk<CameraController>(relaxed = true)
+        val firstUri = Uri.parse("content://example/first.jpg")
+        val secondUri = Uri.parse("content://example/second.jpg")
+        val callbacksA = mutableListOf<() -> Unit>()
+        val callbacksB = mutableListOf<() -> Unit>()
+        coEvery { capturedImageManager.newCaptureUri() } returnsMany listOf(firstUri, secondUri)
+        every { controllerA.captureTo(any(), any(), any()) } answers
+            {
+              callbacksA += secondArg<() -> Unit>()
+            }
+        every { controllerB.captureTo(any(), any(), any()) } answers
+            {
+              callbacksB += secondArg<() -> Unit>()
+            }
+        val viewModel = ScanViewModel(capturedImageManager, controllerA, dispatcher)
+        val events = mutableListOf<ScanNavigationEvent>()
+        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+        callbacksA.single().invoke()
+        advanceUntilIdle()
+        viewModel.onCameraActive(controllerB)
+        viewModel.onCapture()
+        advanceUntilIdle()
+
+        verify(exactly = 1) { controllerA.captureTo(firstUri, any(), any()) }
+        verify(exactly = 1) { controllerB.captureTo(secondUri, any(), any()) }
+        callbacksB.single().invoke()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                ScanNavigationEvent.NavigateToReview(firstUri),
+                ScanNavigationEvent.NavigateToReview(secondUri),
+            ),
+            events,
+        )
+        collection.cancel()
+      }
+
+  @Test
+  fun navigationEventIsBufferedForReenteringCollector() =
+      runTest(dispatcher) {
+        val uri = Uri.parse("content://example/capture.jpg")
+        lateinit var onSaved: () -> Unit
+        coEvery { capturedImageManager.newCaptureUri() } returns uri
+        every { cameraController.captureTo(any(), any(), any()) } answers { onSaved = secondArg() }
+        val viewModel = viewModel()
+
+        viewModel.onCapture()
+        advanceUntilIdle()
+        onSaved.invoke()
+        advanceUntilIdle()
+
+        val events = mutableListOf<ScanNavigationEvent>()
+        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+        advanceUntilIdle()
+
+        assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
+        collection.cancel()
+      }
+
+  @Test
+  fun captureLoopTwiceDeliversTwoEvents() =
+      runTest(dispatcher) {
+        val uris =
+            listOf(
+                Uri.parse("content://example/first.jpg"),
+                Uri.parse("content://example/second.jpg"),
+            )
+        val callbacks = mutableListOf<() -> Unit>()
+        coEvery { capturedImageManager.newCaptureUri() } returnsMany uris
+        every { cameraController.captureTo(any(), any(), any()) } answers
+            {
+              callbacks += secondArg<() -> Unit>()
+            }
+        val viewModel = viewModel()
+        val events = mutableListOf<ScanNavigationEvent>()
+        val collection = launch { viewModel.navigationEvents.collect { events += it } }
+
+        repeat(2) {
+          viewModel.onCapture()
+          advanceUntilIdle()
+          callbacks[it].invoke()
+          advanceUntilIdle()
+          if (it == 0) viewModel.onCameraActive(cameraController)
+        }
+
+        assertEquals(
+            listOf(
+                ScanNavigationEvent.NavigateToReview(uris[0]),
+                ScanNavigationEvent.NavigateToReview(uris[1]),
+            ),
+            events,
+        )
+        coVerify(exactly = 2) { capturedImageManager.newCaptureUri() }
+        collection.cancel()
+      }
+
+  @Test
   fun captureWhileRevokedIsIgnored() =
       runTest(dispatcher) {
         val viewModel = viewModel()
