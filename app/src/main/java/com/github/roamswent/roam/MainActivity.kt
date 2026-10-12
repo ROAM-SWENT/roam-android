@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -46,8 +47,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-internal fun RoamApp(authViewModel: SignInViewModel) {
-  val navController = rememberNavController()
+internal fun RoamApp(
+    authViewModel: SignInViewModel,
+    navController: NavHostController = rememberNavController(),
+) {
   val cameraAvailable = rememberCameraAvailability()
   var showPermissionDialog by remember { mutableStateOf(false) }
   val permissionController = rememberCameraPermissionController { granted ->
