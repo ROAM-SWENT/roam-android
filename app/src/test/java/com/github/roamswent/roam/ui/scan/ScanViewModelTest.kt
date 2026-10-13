@@ -57,7 +57,7 @@ class ScanViewModelTest {
       }
 
   @Test
-  fun captureNavigatesToReviewAfterImageIsSaved() =
+  fun captureNavigatesToLoadingAfterImageIsSaved() =
       runTest(dispatcher) {
         val uri = Uri.Builder().scheme("content").authority("example").path("capture.jpg").build()
         lateinit var onSaved: () -> Unit
@@ -89,7 +89,7 @@ class ScanViewModelTest {
         onSaved.invoke()
         advanceUntilIdle()
 
-        assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
+        assertEquals(listOf(ScanNavigationEvent.NavigateToLoading(uri)), events)
         assertEquals(ScanUiState.Captured, viewModel.state.value)
         assertEquals(listOf("captured", "navigate"), ordering)
         stateCollection.cancel()
@@ -167,7 +167,7 @@ class ScanViewModelTest {
 
         assertEquals(ScanUiState.Captured, viewModel.state.value)
         coVerify(exactly = 1) { capturedImageManager.newCaptureUri() }
-        assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
+        assertEquals(listOf(ScanNavigationEvent.NavigateToLoading(uri)), events)
         collection.cancel()
       }
 
@@ -272,8 +272,8 @@ class ScanViewModelTest {
 
         assertEquals(
             listOf(
-                ScanNavigationEvent.NavigateToReview(firstUri),
-                ScanNavigationEvent.NavigateToReview(secondUri),
+                ScanNavigationEvent.NavigateToLoading(firstUri),
+                ScanNavigationEvent.NavigateToLoading(secondUri),
             ),
             events,
         )
@@ -298,7 +298,7 @@ class ScanViewModelTest {
         val collection = launch { viewModel.navigationEvents.collect { events += it } }
         advanceUntilIdle()
 
-        assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
+        assertEquals(listOf(ScanNavigationEvent.NavigateToLoading(uri)), events)
         collection.cancel()
       }
 
@@ -330,8 +330,8 @@ class ScanViewModelTest {
 
         assertEquals(
             listOf(
-                ScanNavigationEvent.NavigateToReview(uris[0]),
-                ScanNavigationEvent.NavigateToReview(uris[1]),
+                ScanNavigationEvent.NavigateToLoading(uris[0]),
+                ScanNavigationEvent.NavigateToLoading(uris[1]),
             ),
             events,
         )
@@ -493,7 +493,7 @@ class ScanViewModelTest {
         advanceUntilIdle()
 
         assertEquals(ScanUiState.Captured, viewModel.state.value)
-        assertEquals(listOf(ScanNavigationEvent.NavigateToReview(uri)), events)
+        assertEquals(listOf(ScanNavigationEvent.NavigateToLoading(uri)), events)
         collection.cancel()
       }
 

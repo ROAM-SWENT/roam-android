@@ -26,7 +26,7 @@ sealed interface ScanUiState {
 }
 
 sealed interface ScanNavigationEvent {
-  data class NavigateToReview(val uri: Uri) : ScanNavigationEvent
+  data class NavigateToLoading(val uri: Uri) : ScanNavigationEvent
 }
 
 class ScanViewModel(
@@ -69,7 +69,7 @@ class ScanViewModel(
             if (generation == captureGeneration) {
               _state.value = ScanUiState.Captured
               viewModelScope.launch {
-                _navigationEvents.send(ScanNavigationEvent.NavigateToReview(uri))
+                _navigationEvents.send(ScanNavigationEvent.NavigateToLoading(uri))
               }
             }
           },

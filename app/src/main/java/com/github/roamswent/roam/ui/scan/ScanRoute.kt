@@ -56,8 +56,8 @@ fun ScanRoute(
   LaunchedEffect(viewModel, navController) {
     viewModel.navigationEvents.collect { event ->
       when (event) {
-        is ScanNavigationEvent.NavigateToReview -> {
-          navController.navigate("${Routes.ScanReview}?uri=${Uri.encode(event.uri.toString())}")
+        is ScanNavigationEvent.NavigateToLoading -> {
+          navController.navigate("${Routes.Loading}?uri=${Uri.encode(event.uri.toString())}")
         }
       }
     }

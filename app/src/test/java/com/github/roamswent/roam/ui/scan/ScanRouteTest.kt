@@ -4,23 +4,38 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.github.roamswent.roam.model.ai.ImagePayload
+import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.repository.CapturedImageManager
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.camera.CameraController
+import com.github.roamswent.roam.ui.loading.LoadingRoute
+import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,6 +47,73 @@ import org.robolectric.Shadows.shadowOf
 @RunWith(RobolectricTestRunner::class)
 class ScanRouteTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+
+  @Test
+  fun capturedPhotoNavigatesToLoadingScreen() {
+    shadowOf(composeTestRule.activity).grantPermissions(android.Manifest.permission.CAMERA)
+    val uri = Uri.parse("content://example/capture.jpg")
+    val imageManager = mockk<CapturedImageManager>()
+    coEvery { imageManager.newCaptureUri() } returns uri
+    val imagePayload = ImagePayload(byteArrayOf(1), "image/jpeg")
+    val repository = mockk<MonumentGuideRepository>()
+    coEvery { repository.guideFor(any()) } coAnswers { awaitCancellation() }
+    var cameraController: FakeCameraController? = null
+
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        val navController = rememberNavController()
+        NavHost(navController = navController, startDestination = Routes.Home) {
+          composable(Routes.Home) {
+            Box(Modifier.fillMaxSize().semantics { testTag = C.Tag.home_screen_container }) {
+              Button(
+                  onClick = { navController.navigate(Routes.Scan) },
+                  modifier = Modifier.semantics { testTag = C.Tag.home_scan_button },
+              ) {
+                Text("Scan")
+              }
+            }
+          }
+          composable(Routes.Scan) {
+            ScanRoute(
+                navController = navController,
+                cameraControllerFactory = { _, _ ->
+                  FakeCameraController().also { cameraController = it }
+                },
+                capturedImageManagerFactory = { imageManager },
+            )
+          }
+          composable("${Routes.Loading}?uri={uri}") { backStackEntry ->
+            val imageUri = Uri.parse(requireNotNull(backStackEntry.arguments?.getString("uri")))
+            LoadingRoute(
+                imageUri = imageUri,
+                onCancel = { navController.popBackStack(Routes.Home, inclusive = false) },
+                onDiscoverySuccess = { _, _ -> },
+                onDiscoveryError = {},
+                repository = repository,
+                readImage = { imagePayload },
+            )
+          }
+        }
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.waitUntil { cameraController != null }
+    composeTestRule.onNodeWithTag(C.Tag.scan_shutter_button).performClick()
+    composeTestRule.waitUntil { cameraController?.onCaptureSaved != null }
+    requireNotNull(cameraController).onCaptureSaved?.invoke()
+
+    composeTestRule.waitUntil {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.loading_screen_title)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_cancel_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
+  }
 
   @Test
   fun cameraRestartsWhenScanRouteReenters() {
@@ -105,6 +187,7 @@ class ScanRouteTest {
       CameraController {
     var startCount = 0
     var stopCount = 0
+    var onCaptureSaved: (() -> Unit)? = null
 
     override val isRunning: Boolean = false
 
@@ -118,6 +201,8 @@ class ScanRouteTest {
       events += "stop"
     }
 
-    override fun captureTo(uri: Uri, onSaved: () -> Unit, onError: (Throwable) -> Unit) = Unit
+    override fun captureTo(uri: Uri, onSaved: () -> Unit, onError: (Throwable) -> Unit) {
+      onCaptureSaved = onSaved
+    }
   }
 }
