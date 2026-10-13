@@ -15,3 +15,9 @@ val ScreenBackground = Color(0xFFF2F4F3)
 val ShutterHalo = Color(0x99000000)
 val ShutterWhite = Color.White
 val CameraCaptureOverlay = Color.Black.copy(alpha = 0.35f)
+
+val LoadingTextPrimary = Color(0xFF1B2B27)
+val LoadingTextSecondary = Color(0xFF6B7773)
+val LoadingProgressAccent = Color(0xFF3FA08A)
+val LoadingProgressTrack = Color(0xFFDDE3E0)
+val LoadingErrorText = Color(0xFFB3261E)
