@@ -41,8 +41,7 @@ fun MonumentDetailRoute(
     onNavigateHome: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-  // Événements ponctuels du ViewModel -> navigation
+    
   LaunchedEffect(Unit) {
     viewModel.events.collect { event ->
       when (event) {

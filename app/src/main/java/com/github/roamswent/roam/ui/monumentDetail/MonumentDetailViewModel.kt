@@ -20,12 +20,10 @@ data class Monument(
     val description: String,
 )
 
-// À adapter : ton vrai repository (cache local, backend, etc.)
 interface MonumentDetailRepository {
   suspend fun getMonument(id: String): Monument
 }
 
-// --- État & événements -------------------------------------------------------
 
 sealed interface MonumentDetailUiState {
   data object Loading : MonumentDetailUiState
@@ -39,15 +37,11 @@ sealed interface MonumentDetailEvent {
   data object NavigateHome : MonumentDetailEvent
 }
 
-// --- ViewModel ---------------------------------------------------------------
-
 class MonumentDetailViewModel(
     savedStateHandle: SavedStateHandle,
     private val repository: MonumentDetailRepository,
 ) : ViewModel() {
 
-  // L'identifiant du monument est récupéré depuis le SavedStateHandle.
-  // On évite l'utilisation de `Result` qui entre en conflit avec kotlin.Result.
   private val monumentId: String = savedStateHandle["monumentId"] ?: ""
 
   private val _uiState = MutableStateFlow<MonumentDetailUiState>(MonumentDetailUiState.Loading)
@@ -74,7 +68,6 @@ class MonumentDetailViewModel(
     }
   }
 
-  // Action utilisateur : bouton retour
   fun onBackClick() {
     _events.trySend(MonumentDetailEvent.NavigateHome)
   }
