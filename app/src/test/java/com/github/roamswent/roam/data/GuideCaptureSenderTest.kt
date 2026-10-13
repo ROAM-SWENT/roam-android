@@ -7,8 +7,10 @@ import com.github.roamswent.roam.model.ai.DiscoveryRequest
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.ai.MonumentNotIdentifiedException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,6 +55,21 @@ class GuideCaptureSenderTest {
 
     assertTrue(result.isFailure)
     assertTrue(result.exceptionOrNull() is MonumentNotIdentifiedException)
+  }
+
+  @Test
+  fun sendRethrowsCancellationExceptionInsteadOfWrappingIt() = runTest {
+    val repository = FakeMonumentGuideRepository { throw CancellationException("cancelled") }
+    val sender = GuideCaptureSender(context, repository, readBytes = { bytes })
+
+    var caught: CancellationException? = null
+    try {
+      sender.send(uri)
+    } catch (e: CancellationException) {
+      caught = e
+    }
+
+    assertNotNull(caught)
   }
 
   @Test

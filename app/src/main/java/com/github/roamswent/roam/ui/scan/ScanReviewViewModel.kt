@@ -14,6 +14,7 @@ import com.github.roamswent.roam.model.ai.RejectedImageException
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.repository.CapturedImageManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -83,7 +84,9 @@ class ScanReviewViewModel(
       val deleted =
           try {
             withContext(dispatcher) { capturedImageManager.deleteCapture(uri) }
-          } catch (exception: Throwable) {
+          } catch (e: CancellationException) {
+            throw e
+          } catch (exception: Exception) {
             Log.e(TAG, "Failed to delete captured image", exception)
             false
           }
@@ -130,7 +133,9 @@ class ScanReviewViewModel(
       val result =
           try {
             withContext(dispatcher) { captureSender.send(uri) }
-          } catch (exception: Throwable) {
+          } catch (e: CancellationException) {
+            throw e
+          } catch (exception: Exception) {
             Result.failure(exception)
           }
       result.fold(

@@ -15,6 +15,7 @@ import com.github.roamswent.roam.repository.CapturedImageManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -151,6 +152,21 @@ class ScanReviewViewModelTest {
         coVerify(exactly = 1) { capturedImageManager.deleteCapture(uri) }
         assertEquals(ScanReviewUiState.DeleteFailed(uri), viewModel.state.value)
         assertTrue(events.isEmpty())
+      }
+
+  @Test
+  fun confirmRetakeCancellationIsNotTreatedAsDeleteFailed() =
+      runTest(dispatcher) {
+        coEvery { capturedImageManager.deleteCapture(uri) } throws
+            CancellationException("cancelled")
+        val viewModel = viewModel()
+        viewModel.setUri(uri)
+        viewModel.onRetake()
+
+        viewModel.confirmRetake()
+        advanceUntilIdle()
+
+        assertEquals(ScanReviewUiState.Deleting(uri), viewModel.state.value)
       }
 
   @Test
@@ -317,6 +333,19 @@ class ScanReviewViewModelTest {
             viewModel.state.value,
         )
         assertTrue(events.isEmpty())
+      }
+
+  @Test
+  fun sendCancellationIsNotTreatedAsSendFailed() =
+      runTest(dispatcher) {
+        coEvery { captureSender.send(uri) } throws CancellationException("cancelled")
+        val viewModel = viewModel()
+        viewModel.setUri(uri)
+
+        viewModel.onSend()
+        advanceUntilIdle()
+
+        assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
       }
 
   @Test
