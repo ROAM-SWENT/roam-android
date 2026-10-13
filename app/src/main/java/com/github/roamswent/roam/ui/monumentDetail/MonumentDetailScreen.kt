@@ -7,8 +7,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,11 +30,67 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.rememberAsyncImagePainter
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
-fun MonumentDetailScreen(image: Painter, text: String) {
+fun MonumentDetailRoute(
+    viewModel: MonumentDetailViewModel,
+    onNavigateHome: () -> Unit,
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+  // Événements ponctuels du ViewModel -> navigation
+  LaunchedEffect(Unit) {
+    viewModel.events.collect { event ->
+      when (event) {
+        MonumentDetailEvent.NavigateHome -> onNavigateHome()
+      }
+    }
+  }
+
+  when (val state = uiState) {
+    is MonumentDetailUiState.Success ->
+        MonumentDetailScreen(
+            image = rememberAsyncImagePainter(state.monument.imageUri),
+            text = state.monument.description,
+            onBackClick = viewModel::onBackClick,
+        )
+
+    MonumentDetailUiState.Loading ->
+        Box(Modifier.fillMaxSize().background(ScreenBackground)) {
+          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+          }
+          MonumentDetailBackButton(onClick = viewModel::onBackClick)
+        }
+
+    is MonumentDetailUiState.Error ->
+        Box(Modifier.fillMaxSize().background(ScreenBackground)) {
+          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+              Text(
+                  text = state.message,
+                  color = Color.Black,
+                  modifier = Modifier.semantics { testTag = C.Tag.monument_detail_error_message },
+              )
+              TextButton(
+                  onClick = viewModel::load,
+                  modifier = Modifier.semantics { testTag = C.Tag.monument_detail_retry_button },
+              ) {
+                Text("Retry")
+              }
+            }
+          }
+          MonumentDetailBackButton(onClick = viewModel::onBackClick)
+        }
+  }
+}
+
+@Composable
+fun MonumentDetailScreen(image: Painter, text: String, onBackClick: () -> Unit = {}) {
   val textBackgroundColor = ScreenBackground
   val cornerRadius = 32.dp
 
@@ -96,6 +159,25 @@ fun MonumentDetailScreen(image: Painter, text: String) {
         )
       }
     }
+  }
+  MonumentDetailBackButton(onClick = onBackClick)
+}
+
+@Composable
+fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+  IconButton(
+      onClick = onClick,
+      modifier =
+          modifier.statusBarsPadding().padding(16.dp).size(44.dp).semantics {
+            testTag = C.Tag.monument_detail_back_button
+          },
+      colors =
+          IconButtonDefaults.iconButtonColors(
+              containerColor = Color.Gray.copy(alpha = 0.6f),
+              contentColor = Color.White,
+          ),
+  ) {
+    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
   }
 }
 
