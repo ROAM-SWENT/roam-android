@@ -104,14 +104,13 @@ fun LoadingRoute(
 
 @Composable
 fun AnalyzingScreen(
-    image: Painter, // L'image change à chaque fois : on la passe en paramètre
-    onCancel: () -> Unit, // Retour à l'écran précédent
+    image: Painter,
+    onCancel: () -> Unit,
     modifier: Modifier = Modifier,
     title: String = "Analyzing…",
     subtitle: String = "Identifying your monument.",
     errorMessage: String? = null,
 ) {
-  // Le bouton retour système se comporte comme "Cancel"
   BackHandler(onBack = onCancel)
 
   Box(
@@ -122,7 +121,7 @@ fun AnalyzingScreen(
               .statusBarsPadding()
               .navigationBarsPadding()
   ) {
-    // Contenu centré
+
     Column(
         modifier = Modifier.align(Alignment.Center),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -140,7 +139,6 @@ fun AnalyzingScreen(
 
       Spacer(Modifier.height(32.dp))
 
-      // Sans paramètre `progress`, le cercle tourne en continu
       CircularProgressIndicator(
           modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_progress },
           color = LoadingProgressAccent,
@@ -168,7 +166,6 @@ fun AnalyzingScreen(
       )
     }
 
-    // Bouton Cancel en bas
     TextButton(
         onClick = onCancel,
         modifier =
