@@ -157,6 +157,7 @@ dependencies {
 
   implementation(libs.compose.ui)
   implementation(libs.compose.ui.graphics)
+  implementation(libs.coilCompose)
   // Material Design 3
   implementation(libs.compose.icons.extended)
   implementation(libs.compose.material3)
