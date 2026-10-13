@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam
 
 import android.net.Uri
@@ -14,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,6 +26,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
@@ -30,6 +37,7 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
+import com.github.roamswent.roam.ui.permission.rememberLocationPermissionController
 import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -51,6 +59,15 @@ internal fun RoamApp(
     authViewModel: SignInViewModel,
     navController: NavHostController = rememberNavController(),
 ) {
+  val context = LocalContext.current
+  val locationPermissionDecisionRepository =
+      remember(context.applicationContext) {
+        SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
+      }
+  val locationPermissionController =
+      rememberLocationPermissionController(locationPermissionDecisionRepository) {
+        navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
+      }
   val cameraAvailable = rememberCameraAvailability()
   var showPermissionDialog by remember { mutableStateOf(false) }
   val permissionController = rememberCameraPermissionController { granted ->
@@ -70,7 +87,14 @@ internal fun RoamApp(
         SignInScreen(
             authViewModel = authViewModel,
             onSignedIn = {
-              navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
+              if (
+                  locationPermissionController.state.value.decision ==
+                      LocationPermissionDecision.NOT_ASKED
+              ) {
+                locationPermissionController.requestPermission()
+              } else {
+                navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
+              }
             },
         )
       }
