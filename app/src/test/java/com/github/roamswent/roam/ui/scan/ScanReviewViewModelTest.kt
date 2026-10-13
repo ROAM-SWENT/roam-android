@@ -1,11 +1,21 @@
 package com.github.roamswent.roam.ui.scan
 
 import android.net.Uri
+import com.github.roamswent.roam.model.ai.BlockedException
+import com.github.roamswent.roam.model.ai.ConfigurationException
+import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.ai.MonumentNotIdentifiedException
+import com.github.roamswent.roam.model.ai.NetworkUnavailableException
+import com.github.roamswent.roam.model.ai.ParseException
+import com.github.roamswent.roam.model.ai.RejectedImageException
+import com.github.roamswent.roam.model.ai.RejectionReason
+import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.repository.CapturedImageManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,6 +43,15 @@ class ScanReviewViewModelTest {
   private val captureSender = mockk<CaptureSender>()
   private val dispatcher = StandardTestDispatcher()
   private val uri = Uri.parse("content://example/capture.jpg")
+  private val guide =
+      MonumentGuide(
+          monumentName = "Eiffel Tower",
+          confidence = 0.95,
+          history = "Built in 1889.",
+          facts = listOf("330 meters tall"),
+          culture = "Symbol of Paris.",
+          language = "en",
+      )
 
   @Before
   fun setMainDispatcher() {
@@ -136,6 +155,21 @@ class ScanReviewViewModelTest {
       }
 
   @Test
+  fun confirmRetakeCancellationIsNotTreatedAsDeleteFailed() =
+      runTest(dispatcher) {
+        coEvery { capturedImageManager.deleteCapture(uri) } throws
+            CancellationException("cancelled")
+        val viewModel = viewModel()
+        viewModel.setUri(uri)
+        viewModel.onRetake()
+
+        viewModel.confirmRetake()
+        advanceUntilIdle()
+
+        assertEquals(ScanReviewUiState.Deleting(uri), viewModel.state.value)
+      }
+
+  @Test
   fun deleteErrorRetrySucceedsAndNavigates() =
       runTest(dispatcher) {
         coEvery { capturedImageManager.deleteCapture(uri) } returnsMany listOf(false, true)
@@ -177,9 +211,9 @@ class ScanReviewViewModelTest {
       }
 
   @Test
-  fun sendSuccessLocksInSendingState() =
+  fun sendSuccessTransitionsToSentWithGuide() =
       runTest(dispatcher) {
-        coEvery { captureSender.send(uri) } returns Result.success(Unit)
+        coEvery { captureSender.send(uri) } returns Result.success(guide)
         val viewModel = viewModel()
         val events = collectEvents(viewModel)
         viewModel.setUri(uri)
@@ -191,7 +225,7 @@ class ScanReviewViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { captureSender.send(uri) }
-        assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
+        assertEquals(ScanReviewUiState.Sent(uri, guide), viewModel.state.value)
         assertTrue(events.isEmpty())
       }
 
@@ -199,7 +233,7 @@ class ScanReviewViewModelTest {
   fun sendingLocksAllActionsUntilSenderCompletes() =
       runTest(dispatcher) {
         val sendStarted = CompletableDeferred<Unit>()
-        val allowSend = CompletableDeferred<Result<Unit>>()
+        val allowSend = CompletableDeferred<Result<MonumentGuide>>()
         coEvery { captureSender.send(uri) } coAnswers
             {
               sendStarted.complete(Unit)
@@ -224,23 +258,15 @@ class ScanReviewViewModelTest {
         assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
         assertTrue(events.isEmpty())
 
-        allowSend.complete(Result.success(Unit))
+        allowSend.complete(Result.success(guide))
         advanceUntilIdle()
 
-        assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
-        assertTrue(events.isEmpty())
-        viewModel.onSend()
-        viewModel.onRetake()
-        viewModel.confirmRetake()
-        advanceUntilIdle()
-        coVerify(exactly = 1) { captureSender.send(uri) }
-        coVerify(exactly = 0) { capturedImageManager.deleteCapture(any()) }
-        assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
+        assertEquals(ScanReviewUiState.Sent(uri, guide), viewModel.state.value)
         assertTrue(events.isEmpty())
       }
 
   @Test
-  fun sendFailureReturnsToReviewingWithoutNavigation() =
+  fun sendFailureShowsSendFailedWithGenericMessage() =
       runTest(dispatcher) {
         coEvery { captureSender.send(uri) } returns
             Result.failure(IllegalStateException("send failed"))
@@ -252,12 +278,46 @@ class ScanReviewViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { captureSender.send(uri) }
-        assertEquals(ScanReviewUiState.Reviewing(uri), viewModel.state.value)
+        assertEquals(
+            ScanReviewUiState.SendFailed(uri, "Something went wrong. Please try again."),
+            viewModel.state.value,
+        )
         assertTrue(events.isEmpty())
       }
 
   @Test
-  fun sendExceptionRestoresReviewingWithoutNavigation() =
+  fun sendFailureMapsEachDiscoveryExceptionToItsMessage() =
+      runTest(dispatcher) {
+        val cases =
+            listOf(
+                MonumentNotIdentifiedException() to "No monument was recognized in this photo.",
+                RejectedImageException(RejectionReason.Oversized) to
+                    "This photo couldn't be used. Try retaking it.",
+                BlockedException("safety filter triggered") to
+                    "This request was blocked by the safety filter.",
+                NetworkUnavailableException() to
+                    "No internet connection. Check your connection and retry.",
+                TransientException("server busy") to
+                    "The service is busy right now. Please try again.",
+                ParseException() to "The guide couldn't be generated. Please try again.",
+                ConfigurationException("missing api key") to
+                    "The service isn't configured correctly.",
+            )
+
+        for ((exception, expectedMessage) in cases) {
+          coEvery { captureSender.send(uri) } returns Result.failure(exception)
+          val viewModel = viewModel()
+          viewModel.setUri(uri)
+
+          viewModel.onSend()
+          advanceUntilIdle()
+
+          assertEquals(ScanReviewUiState.SendFailed(uri, expectedMessage), viewModel.state.value)
+        }
+      }
+
+  @Test
+  fun sendExceptionShowsSendFailed() =
       runTest(dispatcher) {
         coEvery { captureSender.send(uri) } throws IllegalStateException("sender crashed")
         val viewModel = viewModel()
@@ -268,13 +328,63 @@ class ScanReviewViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { captureSender.send(uri) }
-        assertEquals(ScanReviewUiState.Reviewing(uri), viewModel.state.value)
+        assertEquals(
+            ScanReviewUiState.SendFailed(uri, "Something went wrong. Please try again."),
+            viewModel.state.value,
+        )
         assertTrue(events.isEmpty())
-        coEvery { captureSender.send(uri) } returns Result.success(Unit)
+      }
+
+  @Test
+  fun sendCancellationIsNotTreatedAsSendFailed() =
+      runTest(dispatcher) {
+        coEvery { captureSender.send(uri) } throws CancellationException("cancelled")
+        val viewModel = viewModel()
+        viewModel.setUri(uri)
+
         viewModel.onSend()
         advanceUntilIdle()
 
         assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
+      }
+
+  @Test
+  fun retrySendAfterFailureCanSucceed() =
+      runTest(dispatcher) {
+        coEvery { captureSender.send(uri) } returns
+            Result.failure(IllegalStateException("send failed"))
+        val viewModel = viewModel()
+        viewModel.setUri(uri)
+        viewModel.onSend()
+        advanceUntilIdle()
+        assertEquals(
+            ScanReviewUiState.SendFailed(uri, "Something went wrong. Please try again."),
+            viewModel.state.value,
+        )
+
+        coEvery { captureSender.send(uri) } returns Result.success(guide)
+        viewModel.onRetrySend()
+        assertEquals(ScanReviewUiState.Sending(uri), viewModel.state.value)
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { captureSender.send(uri) }
+        assertEquals(ScanReviewUiState.Sent(uri, guide), viewModel.state.value)
+      }
+
+  @Test
+  fun dismissSendErrorReturnsToReviewing() =
+      runTest(dispatcher) {
+        coEvery { captureSender.send(uri) } returns
+            Result.failure(IllegalStateException("send failed"))
+        val viewModel = viewModel()
+        viewModel.setUri(uri)
+        viewModel.onSend()
+        advanceUntilIdle()
+
+        viewModel.onDismissSendError()
+
+        assertEquals(ScanReviewUiState.Reviewing(uri), viewModel.state.value)
+        coVerify(exactly = 1) { captureSender.send(uri) }
       }
 
   @Test

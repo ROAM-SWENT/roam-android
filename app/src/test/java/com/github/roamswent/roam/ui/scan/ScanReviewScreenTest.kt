@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performClick
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -146,6 +147,43 @@ class ScanReviewScreenTest {
   }
 
   private val uri = Uri.parse("content://example/capture.jpg")
+  private val guide =
+      MonumentGuide(
+          monumentName = "Eiffel Tower",
+          confidence = 0.95,
+          history = "Built in 1889.",
+          facts = listOf("330 meters tall"),
+          culture = "Symbol of Paris.",
+          language = "en",
+      )
+
+  @Test
+  fun sentRendersMonumentDetailScreen() {
+    setContent(ScanReviewUiState.Sent(uri, guide))
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_screen_container).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.scan_review_screen).assertCountEquals(0)
+  }
+
+  @Test
+  fun sendFailedRendersDialogAndInvokesActions() {
+    var retried = false
+    var dismissed = false
+    setContent(
+        ScanReviewUiState.SendFailed(uri, "No monument was recognized in this photo."),
+        onRetrySend = { retried = true },
+        onDismissSendError = { dismissed = true },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_send_failed_dialog).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.scan_send_failed_retry).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.scan_send_failed_dismiss).performClick()
+
+    assertEquals(true, retried)
+    assertEquals(true, dismissed)
+  }
 
   private fun setContent(
       state: ScanReviewUiState,
@@ -155,6 +193,8 @@ class ScanReviewScreenTest {
       onRetryDelete: () -> Unit = {},
       onDismissDeleteError: () -> Unit = {},
       onSend: () -> Unit = {},
+      onRetrySend: () -> Unit = {},
+      onDismissSendError: () -> Unit = {},
   ) {
     composeTestRule.activity.setContent {
       SampleAppTheme {
@@ -166,6 +206,8 @@ class ScanReviewScreenTest {
             onRetryDelete = onRetryDelete,
             onDismissDeleteError = onDismissDeleteError,
             onSend = onSend,
+            onRetrySend = onRetrySend,
+            onDismissSendError = onDismissSendError,
         )
       }
     }

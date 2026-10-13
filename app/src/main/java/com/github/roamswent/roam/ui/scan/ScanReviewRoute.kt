@@ -11,7 +11,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.github.roamswent.roam.data.FileCapturedImageManager
-import com.github.roamswent.roam.data.StubCaptureSender
+import com.github.roamswent.roam.data.GuideCaptureSender
+import com.github.roamswent.roam.data.NullLocationProvider
+import com.github.roamswent.roam.model.ai.FirebaseGeminiClient
+import com.github.roamswent.roam.model.ai.GeminiImageScreen
+import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
+import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.ui.navigation.Routes
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +25,18 @@ import kotlinx.coroutines.Dispatchers
 fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
   val context = LocalContext.current
   val capturedImageManager = remember(context) { FileCapturedImageManager(context, Dispatchers.IO) }
-  val captureSender: CaptureSender = remember { StubCaptureSender() }
+  val captureSender: CaptureSender =
+      remember(context) {
+        val geminiClient = FirebaseGeminiClient(context)
+        val guideRepository =
+            GuideRepositoryImpl(
+                imagePreparer = ImagePreparer(),
+                imageScreen = GeminiImageScreen(geminiClient),
+                geminiClient = geminiClient,
+                locationProvider = NullLocationProvider(),
+            )
+        GuideCaptureSender(context, guideRepository)
+      }
   val viewModel: ScanReviewViewModel = viewModel {
     ScanReviewViewModel(capturedImageManager, captureSender, Dispatchers.Main.immediate)
   }
@@ -36,8 +52,10 @@ fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
     }
   }
   BackHandler(enabled = true) {
-    if (state !is ScanReviewUiState.Sending) {
-      viewModel.onRetake()
+    when (state) {
+      is ScanReviewUiState.Sent -> navController.popBackStack(Routes.Home, inclusive = false)
+      is ScanReviewUiState.Sending -> Unit
+      else -> viewModel.onRetake()
     }
   }
 
@@ -50,6 +68,8 @@ fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
         onRetryDelete = viewModel::onRetryDelete,
         onDismissDeleteError = viewModel::onDismissDeleteError,
         onSend = viewModel::onSend,
+        onRetrySend = viewModel::onRetrySend,
+        onDismissSendError = viewModel::onDismissSendError,
     )
   }
 }

@@ -20,20 +20,23 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import kotlin.math.roundToInt
 
 @Composable
-fun MonumentDetailScreen(image: Painter, text: String) {
+fun MonumentDetailScreen(image: Painter, guide: MonumentGuide, modifier: Modifier = Modifier) {
   val textBackgroundColor = ScreenBackground
   val cornerRadius = 32.dp
 
   BoxWithConstraints(
       modifier =
-          Modifier.fillMaxSize().semantics { testTag = C.Tag.monument_detail_screen_container }
+          modifier.fillMaxSize().semantics { testTag = C.Tag.monument_detail_screen_container }
   ) {
     val totalHeightPx = constraints.maxHeight.toFloat()
     var textFraction by remember { mutableFloatStateOf(2f / 3f) }
@@ -81,19 +84,64 @@ fun MonumentDetailScreen(image: Painter, text: String) {
           )
         }
 
-        Text(
-            text = text,
-            fontSize = 16.sp,
-            lineHeight = 24.sp,
-            color = Color.Black,
+        Column(
             modifier =
                 Modifier.fillMaxWidth()
                     .weight(1f)
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 24.dp)
                     .verticalScroll(rememberScrollState())
-                    .semantics { testTag = C.Tag.monument_detail_text },
-        )
+                    .semantics { testTag = C.Tag.monument_detail_text }
+        ) {
+          Text(
+              text = guide.monumentName,
+              fontSize = 22.sp,
+              fontWeight = FontWeight.Bold,
+              color = Color.Black,
+              modifier = Modifier.semantics { testTag = C.Tag.monument_detail_title },
+          )
+          Text(
+              text = "${(guide.confidence * 100).roundToInt()}% match",
+              fontSize = 14.sp,
+              color = Color.Gray,
+              modifier =
+                  Modifier.padding(bottom = 16.dp).semantics {
+                    testTag = C.Tag.monument_detail_confidence
+                  },
+          )
+          Text(
+              text = guide.history,
+              fontSize = 16.sp,
+              lineHeight = 24.sp,
+              color = Color.Black,
+              modifier =
+                  Modifier.padding(bottom = 16.dp).semantics {
+                    testTag = C.Tag.monument_detail_history
+                  },
+          )
+          guide.facts.forEach { fact ->
+            Text(
+                text = "• $fact",
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                color = Color.Black,
+                modifier =
+                    Modifier.padding(bottom = 4.dp).semantics {
+                      testTag = C.Tag.monument_detail_fact_item
+                    },
+            )
+          }
+          Text(
+              text = guide.culture,
+              fontSize = 16.sp,
+              lineHeight = 24.sp,
+              color = Color.Black,
+              modifier =
+                  Modifier.padding(top = 12.dp).semantics {
+                    testTag = C.Tag.monument_detail_culture
+                  },
+          )
+        }
       }
     }
   }
@@ -102,19 +150,28 @@ fun MonumentDetailScreen(image: Painter, text: String) {
 @Preview(showBackground = true)
 @Composable
 fun PreviewMonumentDetailScreen() {
-  val placeholderText =
-      """
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing nec, ultricies sed, dolor. Cras elementum ultrices diam. Maecenas ligula massa, varius a, semper congue, euismod non, mi. Proin porttitor, orci nec nonummy molestie, enim est eleifend mi, non fermentum diam nisl sit amet erat. Duis semper. Duis arcu massa, scelerisque vitae, consequat in, pretium a, enim. Pellentesque congue. Ut in risus volutpat libero pharetra tempor. Cras vestibulum bibendum augue. Praesent egestas leo in pede. Praesent blandit odio eu enim. Pellentesque sed dui ut augue blandit sodales. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Aliquam nibh. Mauris ac mauris sed pede pellentesque fermentum. Maecenas adipiscing ante non diam sodales hendrerit.
-
-      Ut velit mauris, egestas sed, gravida nec, ornare ut, mi. Aenean ut orci vel massa suscipit pulvinar. Nulla sollicitudin. Fusce varius, ligula non tempus aliquam, nunc turpis ullamcorper nibh, in tempus sapien eros vitae ligula. Pellentesque rhoncus nunc et augue. Integer id felis. Curabitur aliquet pellentesque diam. Integer quis metus vitae elit lobortis egestas. Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Morbi vel erat non mauris convallis vehicula. Nulla et sapien. Integer tortor tellus, aliquam faucibus, convallis id, congue eu, quam. Mauris ullamcorper felis vitae erat. Proin feugiat, augue non elementum posuere, metus purus iaculis lectus, et tristique ligula justo vitae magna.
-      Aliquam convallis sollicitudin purus. Praesent aliquam, enim at fermentum mollis, ligula massa adipiscing nisl, ac euismod nibh nisl eu lectus. Fusce vulputate sem at sapien. Vivamus leo. Aliquam euismod libero eu enim. Nulla nec felis sed leo placerat imperdiet. Aenean suscipit nulla in justo. Suspendisse cursus rutrum augue. Nulla tincidunt tincidunt mi. Curabitur iaculis, lorem vel rhoncus faucibus, felis magna fermentum augue, et ultricies lacus lorem varius purus. Curabitur eu amet. 
-      """
-          .trimIndent()
-
   MaterialTheme {
     MonumentDetailScreen(
         image = painterResource(id = android.R.drawable.ic_menu_gallery),
-        text = placeholderText.repeat(2),
+        guide =
+            MonumentGuide(
+                monumentName = "Eiffel Tower",
+                confidence = 0.92,
+                history =
+                    "Built in 1889 as the entrance arch for the World's Fair, the Eiffel Tower " +
+                        "was designed by Gustave Eiffel's engineering company and was initially " +
+                        "criticized before becoming an enduring icon of Paris.",
+                facts =
+                    listOf(
+                        "330 meters tall, the tallest structure in the world until 1930.",
+                        "Repainted every seven years with around 60 tonnes of paint.",
+                        "Grows up to 15 centimeters taller in summer due to thermal expansion.",
+                    ),
+                culture =
+                    "The globally recognized symbol of Paris and France, epitomizing romance, " +
+                        "elegance, and 19th-century industrial architecture.",
+                language = "en",
+            ),
     )
   }
 }
