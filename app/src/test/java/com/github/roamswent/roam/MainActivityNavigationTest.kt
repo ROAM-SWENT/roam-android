@@ -114,6 +114,19 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun firstSuccessfulSignInWithPreGrantedLocationNavigatesAndPersistsGrant() {
+    shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState)
+
+    authState.value = AuthUIState(user = mock())
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+    assertEquals(LocationPermissionDecision.GRANTED, locationDecisionRepository.getDecision())
+  }
+
+  @Test
   fun firstSuccessfulSignInNavigatesToHomeAndPersistsLocationDenial() {
     val authState = MutableStateFlow(AuthUIState())
     renderApp(authState)
@@ -135,6 +148,19 @@ class MainActivityNavigationTest {
   @Test
   fun persistedDenialNavigatesDirectlyToHomeWithoutRequestingLocation() {
     signInWithPersistedLocationDecision(LocationPermissionDecision.DENIED)
+  }
+
+  @Test
+  fun revokedPersistedGrantStillNavigatesWithoutRequestingLocation() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.GRANTED)
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState)
+
+    authState.value = AuthUIState(user = mock())
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+    assertEquals(LocationPermissionDecision.GRANTED, locationDecisionRepository.getDecision())
   }
 
   @Test

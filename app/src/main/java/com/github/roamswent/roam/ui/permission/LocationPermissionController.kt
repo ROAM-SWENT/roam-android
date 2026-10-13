@@ -51,7 +51,6 @@ fun rememberLocationPermissionController(
           results ->
         val granted = results.values.any { it }
         permissionController.recordRequestResult(granted)
-        currentOnPermissionResult(granted)
       }
   val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -63,14 +62,17 @@ fun rememberLocationPermissionController(
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
-  permissionController.attachPermissionLauncher {
-    permissionLauncher.launch(
-        arrayOf(
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
+  permissionController.attachPermissionLauncher(
+      launchPermissionRequest = {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            )
         )
-    )
-  }
+      },
+      onPermissionResult = { granted -> currentOnPermissionResult(granted) },
+  )
   return permissionController
 }
 
@@ -94,6 +96,8 @@ private class AndroidLocationPermissionController(
       hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION) ||
           hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
 
+  private var onPermissionResult: ((Boolean) -> Unit)? = null
+
   override fun refreshPermissionState() {
     permissionState.value = permissionState.value.copy(isGranted = hasPermission())
   }
@@ -101,6 +105,9 @@ private class AndroidLocationPermissionController(
   override fun requestPermission() {
     refreshPermissionState()
     if (permissionState.value.isGranted) {
+      if (permissionState.value.decision == LocationPermissionDecision.NOT_ASKED) {
+        recordRequestResult(granted = true)
+      }
       return
     }
     checkNotNull(launchPermissionRequest) { "Location permission launcher is not attached" }()
@@ -112,10 +119,17 @@ private class AndroidLocationPermissionController(
     decisionRepository.saveDecision(decision)
     permissionState.value =
         LocationPermissionState(isGranted = hasPermission(), decision = decision)
+    checkNotNull(onPermissionResult) { "Location permission result callback is not attached" }(
+        granted
+    )
   }
 
-  fun attachPermissionLauncher(launchPermissionRequest: () -> Unit) {
+  fun attachPermissionLauncher(
+      launchPermissionRequest: () -> Unit,
+      onPermissionResult: (Boolean) -> Unit,
+  ) {
     this.launchPermissionRequest = launchPermissionRequest
+    this.onPermissionResult = onPermissionResult
   }
 
   private fun hasPermission(permission: String): Boolean =

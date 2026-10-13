@@ -95,6 +95,21 @@ class LocationPermissionControllerTest {
   }
 
   @Test
+  fun alreadyGrantedPermissionPersistsGrantAndReportsPermissionResult() {
+    var permissionResult: Boolean? = null
+    setUpController { permissionResult = it }
+    shadowOf(activity).grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+    controller.requestPermission()
+
+    assertTrue(controller.state.value.isGranted)
+    assertEquals(LocationPermissionDecision.GRANTED, controller.state.value.decision)
+    assertEquals(LocationPermissionDecision.GRANTED, repository.getDecision())
+    assertEquals(true, permissionResult)
+    assertEquals(null, shadowOf(activity).lastRequestedPermission)
+  }
+
+  @Test
   fun refreshUsesCurrentAndroidPermissionInsteadOfPersistedDecision() {
     repository.saveDecision(LocationPermissionDecision.DENIED)
     setUpController()
@@ -141,11 +156,15 @@ class LocationPermissionControllerTest {
     assertTrue(controller.state.value.isGranted)
   }
 
-  private fun setUpController() {
+  private fun setUpController(onPermissionResult: (Boolean) -> Unit = {}) {
     composeTestRule.setContent {
       activity = LocalActivity.current!!
       lifecycleOwner = LocalLifecycleOwner.current
-      controller = rememberLocationPermissionController(decisionRepository = repository)
+      controller =
+          rememberLocationPermissionController(
+              decisionRepository = repository,
+              onPermissionResult = onPermissionResult,
+          )
     }
   }
 
