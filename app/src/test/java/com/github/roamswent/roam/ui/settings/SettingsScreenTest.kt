@@ -313,7 +313,6 @@ class SettingsScreenTest {
     verify(locationController).hasPermission()
   }
 
-
   private fun permissionControllers():
       Pair<CameraPermissionController, LocationPermissionController> {
     val cameraController = mock<CameraPermissionController>()
