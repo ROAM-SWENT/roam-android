@@ -6,14 +6,18 @@ import android.content.Context
 import android.location.Location
 import androidx.test.core.app.ApplicationProvider
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.tasks.CancellationToken
 import com.google.android.gms.tasks.OnFailureListener
 import com.google.android.gms.tasks.OnSuccessListener
 import com.google.android.gms.tasks.Task
+import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -60,6 +64,17 @@ class AndroidLocationProviderTest {
     assertNull(provider.currentCoordinates())
   }
 
+  @Test
+  fun returnsNullAndCancelsTheFetchWhenTheFixNeverCompletes() = runTest {
+    grantLocationPermission()
+    val tokenSlot = slot<CancellationToken>()
+    val fusedClient = fusedClientThatNeverCompletes(tokenSlot)
+    val provider = AndroidLocationProvider(context, fusedClient)
+
+    assertNull(provider.currentCoordinates())
+    assertTrue(tokenSlot.captured.isCancellationRequested)
+  }
+
   private fun grantLocationPermission() {
     shadowOf(context as Application).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
   }
@@ -89,6 +104,20 @@ class AndroidLocationProviderTest {
 
     val fusedClient: FusedLocationProviderClient = mockk()
     every { fusedClient.getCurrentLocation(any<Int>(), any()) } returns task
+    return fusedClient
+  }
+
+  /** Registers listeners but never invokes any of them, as if the fix never arrives. */
+  private fun fusedClientThatNeverCompletes(
+      tokenSlot: CapturingSlot<CancellationToken>
+  ): FusedLocationProviderClient {
+    val task: Task<Location> = mockk()
+    every { task.addOnSuccessListener(any()) } returns task
+    every { task.addOnFailureListener(any()) } returns task
+    every { task.addOnCanceledListener(any()) } returns task
+
+    val fusedClient: FusedLocationProviderClient = mockk()
+    every { fusedClient.getCurrentLocation(any<Int>(), capture(tokenSlot)) } returns task
     return fusedClient
   }
 }
