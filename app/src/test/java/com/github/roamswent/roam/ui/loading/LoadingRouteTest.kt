@@ -5,8 +5,10 @@ package com.github.roamswent.roam.ui.loading
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.ai.ImagePayload
@@ -55,18 +57,23 @@ class LoadingRouteTest {
   }
 
   @Test
-  fun discoveryFailureDisplaysErrorAndReportsItToHost() {
+  fun discoveryFailureDisplaysErrorAndStaysOnLoadingScreen() {
     val repository = mockk<MonumentGuideRepository>()
     coEvery { repository.guideFor(any()) } throws IllegalStateException("Gemini is unavailable")
-    var reportedError: String? = null
 
-    setContent(repository, onError = { reportedError = it })
+    setContent(repository)
 
-    composeTestRule.waitUntil { reportedError != null }
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_subtitle).fetchSemanticsNodes().any {
+          node ->
+        SemanticsProperties.Text in node.config &&
+            node.config[SemanticsProperties.Text].any { it.text == "Something went wrong." }
+      }
+    }
     composeTestRule
         .onNodeWithTag(C.Tag.loading_screen_subtitle)
-        .assertTextEquals("Gemini is unavailable")
-    assertEquals("Gemini is unavailable", reportedError)
+        .assertTextEquals("Something went wrong.")
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_title).assertTextEquals("Analyzing…")
   }
 
   @Test
@@ -93,14 +100,12 @@ class LoadingRouteTest {
       repository: MonumentGuideRepository,
       onCancel: () -> Unit = {},
       onSuccess: (MonumentGuide, Uri) -> Unit = { _, _ -> },
-      onError: (String) -> Unit = {},
   ) {
     composeTestRule.activity.setContent {
       LoadingRoute(
           imageUri = uri,
           onCancel = onCancel,
           onDiscoverySuccess = onSuccess,
-          onDiscoveryError = onError,
           repository = repository,
           readImage = { ImagePayload(byteArrayOf(1), "image/jpeg") },
       )

@@ -3,21 +3,35 @@
 package com.github.roamswent.roam.ui.loading
 
 import android.net.Uri
+import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.ai.BlockedException
+import com.github.roamswent.roam.model.ai.ConfigurationException
 import com.github.roamswent.roam.model.ai.DiscoveryRequest
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.ai.MonumentNotIdentifiedException
+import com.github.roamswent.roam.model.ai.NetworkUnavailableException
+import com.github.roamswent.roam.model.ai.ParseException
+import com.github.roamswent.roam.model.ai.RejectedImageException
+import com.github.roamswent.roam.model.ai.RejectionReason
+import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -56,15 +70,7 @@ class LoadingViewModelTest {
   @Test
   fun successfulDiscoveryAutomaticallyNavigatesToDetail() =
       runTest(dispatcher) {
-        val guide =
-            MonumentGuide(
-                monumentName = "The Colosseum",
-                confidence = 0.98,
-                history = "Built in ancient Rome.",
-                facts = listOf("It could hold tens of thousands of spectators."),
-                culture = "A symbol of Rome.",
-                language = "en",
-            )
+        val guide = guide()
         coEvery { repository.guideFor(request) } returns guide
         val viewModel = viewModel()
         val event = async { viewModel.navigationEvents.first() }
@@ -83,19 +89,37 @@ class LoadingViewModelTest {
       }
 
   @Test
+  fun cancelAfterSuccessEmitsOnlyDetailNavigation() =
+      runTest(dispatcher) {
+        val guide = guide()
+        coEvery { repository.guideFor(request) } returns guide
+        val viewModel = viewModel()
+        val events = mutableListOf<LoadingNavigationEvent>()
+        val collector =
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+              viewModel.navigationEvents.collect(events::add)
+            }
+
+        advanceUntilIdle()
+        viewModel.onCancel()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(LoadingNavigationEvent.NavigateToMonumentDetail(guide, uri.toString())),
+            events,
+        )
+        collector.cancel()
+      }
+
+  @Test
   fun discoveryFailureIsExposedAsError() =
       runTest(dispatcher) {
         coEvery { repository.guideFor(request) } throws IllegalStateException("Network unavailable")
         val viewModel = viewModel()
-        val event = async { viewModel.navigationEvents.first() }
 
         advanceUntilIdle()
 
-        assertEquals(LoadingUiState.Error("Network unavailable"), viewModel.uiState.value)
-        assertEquals(
-            LoadingNavigationEvent.NavigateHomeWithError("Network unavailable"),
-            event.await(),
-        )
+        assertEquals(LoadingUiState.Error(R.string.loading_error_generic), viewModel.uiState.value)
       }
 
   @Test
@@ -104,20 +128,43 @@ class LoadingViewModelTest {
         val viewModel =
             LoadingViewModel(
                 repository,
-                { throw IllegalStateException("Image unavailable") },
+                { throw IOException("internal read failure") },
                 uri,
                 "fr-FR",
             )
-        val event = async { viewModel.navigationEvents.first() }
 
         advanceUntilIdle()
 
-        assertEquals(LoadingUiState.Error("Image unavailable"), viewModel.uiState.value)
         assertEquals(
-            LoadingNavigationEvent.NavigateHomeWithError("Image unavailable"),
-            event.await(),
+            LoadingUiState.Error(R.string.loading_error_read_image),
+            viewModel.uiState.value,
         )
         coVerify(exactly = 0) { repository.guideFor(any()) }
+      }
+
+  @Test
+  fun knownDiscoveryFailuresUseUserFriendlyMessages() =
+      runTest(dispatcher) {
+        val failures =
+            listOf(
+                NetworkUnavailableException() to R.string.loading_error_network,
+                RejectedImageException(RejectionReason.Oversized) to
+                    R.string.loading_error_rejected_image,
+                MonumentNotIdentifiedException() to R.string.loading_error_not_identified,
+                BlockedException("internal detail") to R.string.loading_error_blocked,
+                ParseException() to R.string.loading_error_parse,
+                TransientException("internal detail") to R.string.loading_error_transient,
+                ConfigurationException("internal detail") to R.string.loading_error_configuration,
+            )
+
+        failures.forEach { (exception, expectedMessage) ->
+          coEvery { repository.guideFor(request) } throws exception
+          val viewModel = viewModel()
+
+          advanceUntilIdle()
+
+          assertEquals(LoadingUiState.Error(expectedMessage), viewModel.uiState.value)
+        }
       }
 
   @Test
@@ -125,15 +172,28 @@ class LoadingViewModelTest {
       runTest(dispatcher) {
         coEvery { repository.guideFor(request) } throws IllegalStateException()
         val viewModel = viewModel()
-        val event = async { viewModel.navigationEvents.first() }
 
         advanceUntilIdle()
 
-        assertEquals(LoadingUiState.Error("Something went wrong."), viewModel.uiState.value)
+        assertEquals(LoadingUiState.Error(R.string.loading_error_generic), viewModel.uiState.value)
+      }
+
+  @Test
+  fun discoveryTimeoutIsExposedAsError() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } coAnswers
+            {
+              kotlinx.coroutines.awaitCancellation()
+            }
+        val viewModel = viewModel()
+
+        advanceUntilIdle()
+
         assertEquals(
-            LoadingNavigationEvent.NavigateHomeWithError("Something went wrong."),
-            event.await(),
+            LoadingUiState.Error(R.string.loading_error_timeout),
+            viewModel.uiState.value,
         )
+        coVerify(exactly = 1) { repository.guideFor(request) }
       }
 
   @Test
@@ -147,7 +207,7 @@ class LoadingViewModelTest {
             }
         val viewModel = viewModel()
 
-        advanceUntilIdle()
+        runCurrent()
         assertTrue(discoveryStarted)
 
         val event = async { viewModel.navigationEvents.first() }
@@ -161,4 +221,14 @@ class LoadingViewModelTest {
       }
 
   private fun viewModel() = LoadingViewModel(repository, readImage, uri, "fr-FR")
+
+  private fun guide() =
+      MonumentGuide(
+          monumentName = "The Colosseum",
+          confidence = 0.98,
+          history = "Built in ancient Rome.",
+          facts = listOf("It could hold tens of thousands of spectators."),
+          culture = "A symbol of Rome.",
+          language = "en",
+      )
 }

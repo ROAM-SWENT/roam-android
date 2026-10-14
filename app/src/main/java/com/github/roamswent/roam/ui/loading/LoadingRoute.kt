@@ -11,21 +11,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Composable
 fun LoadingRoute(
     imageUri: Uri,
     onCancel: () -> Unit,
     onDiscoverySuccess: (MonumentGuide, Uri) -> Unit,
-    onDiscoveryError: (String) -> Unit,
     repository: MonumentGuideRepository,
     readImage: (suspend (Uri) -> ImagePayload)? = null,
     language: String = Locale.getDefault().toLanguageTag(),
@@ -34,17 +32,7 @@ fun LoadingRoute(
   val context = LocalContext.current
   val imageReader =
       remember(context, readImage) {
-        readImage
-            ?: { uri ->
-              withContext(Dispatchers.IO) {
-                val bytes =
-                    checkNotNull(context.contentResolver.openInputStream(uri)) {
-                          "Cannot open image: $uri"
-                        }
-                        .use { it.readBytes() }
-                ImagePayload(bytes, "image/jpeg")
-              }
-            }
+        readImage ?: ContentResolverImageReader(context.contentResolver)::read
       }
   val viewModel: LoadingViewModel =
       viewModel(key = imageUri.toString()) {
@@ -53,14 +41,12 @@ fun LoadingRoute(
   val state by viewModel.uiState.collectAsState()
   val latestOnCancel by rememberUpdatedState(onCancel)
   val latestOnDiscoverySuccess by rememberUpdatedState(onDiscoverySuccess)
-  val latestOnDiscoveryError by rememberUpdatedState(onDiscoveryError)
 
   LaunchedEffect(viewModel) {
     viewModel.navigationEvents.collect { event ->
       when (event) {
         is LoadingNavigationEvent.NavigateToMonumentDetail ->
             latestOnDiscoverySuccess(event.guide, Uri.parse(event.imageUri))
-        is LoadingNavigationEvent.NavigateHomeWithError -> latestOnDiscoveryError(event.message)
         LoadingNavigationEvent.NavigateHome -> latestOnCancel()
       }
     }
@@ -70,6 +56,6 @@ fun LoadingRoute(
       image = rememberAsyncImagePainter(imageUri),
       onCancel = viewModel::onCancel,
       modifier = modifier,
-      errorMessage = (state as? LoadingUiState.Error)?.message,
+      errorMessage = (state as? LoadingUiState.Error)?.messageResId?.let { stringResource(it) },
   )
 }

@@ -8,4 +8,17 @@
     <string name="sign_in_terms">By continuing, you agree to the Terms of Service.</string>
     <string name="sign_in_logo_description">Roam logo</string>
     <string name="sign_in_success">Login successful!</string>
+    <string name="loading_title">Analyzing…</string>
+    <string name="loading_subtitle">Identifying your monument.</string>
+    <string name="loading_cancel">Cancel</string>
+    <string name="loading_error_generic">Something went wrong.</string>
+    <string name="loading_error_timeout">Discovery timed out. Please try again.</string>
+    <string name="loading_error_network">No internet connection. Check your connection and try again.</string>
+    <string name="loading_error_rejected_image">This photo can’t be used. Please try another one.</string>
+    <string name="loading_error_not_identified">No monument was found in this photo.</string>
+    <string name="loading_error_blocked">This request couldn’t be processed. Please try another photo.</string>
+    <string name="loading_error_parse">Couldn’t generate the guide. Please try again.</string>
+    <string name="loading_error_transient">The service is busy. Please try again shortly.</string>
+    <string name="loading_error_configuration">The service is unavailable. Please try again later.</string>
+    <string name="loading_error_read_image">Couldn’t load the photo. Please try again.</string>
 </resources>

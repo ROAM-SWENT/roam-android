@@ -26,12 +26,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
 import com.github.roamswent.roam.ui.theme.LoadingProgressAccent
@@ -45,11 +47,13 @@ fun LoadingScreen(
     image: Painter,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String = "Analyzing…",
-    subtitle: String = "Identifying your monument.",
+    title: String? = null,
+    subtitle: String? = null,
     errorMessage: String? = null,
 ) {
   BackHandler(onBack = onCancel)
+  val displayedTitle = title ?: stringResource(R.string.loading_title)
+  val displayedSubtitle = subtitle ?: stringResource(R.string.loading_subtitle)
 
   Box(
       modifier =
@@ -86,7 +90,7 @@ fun LoadingScreen(
       Spacer(Modifier.height(24.dp))
 
       Text(
-          text = title,
+          text = displayedTitle,
           modifier = Modifier.semantics { testTag = C.Tag.loading_screen_title },
           color = LoadingTextPrimary,
           fontSize = 20.sp,
@@ -96,7 +100,7 @@ fun LoadingScreen(
       Spacer(Modifier.height(6.dp))
 
       Text(
-          text = errorMessage ?: subtitle,
+          text = errorMessage ?: displayedSubtitle,
           modifier = Modifier.semantics { testTag = C.Tag.loading_screen_subtitle },
           color = if (errorMessage == null) LoadingTextSecondary else LoadingErrorText,
           fontSize = 14.sp,
@@ -111,7 +115,7 @@ fun LoadingScreen(
             },
     ) {
       Text(
-          text = "Cancel",
+          text = stringResource(R.string.loading_cancel),
           color = LoadingTextPrimary,
           fontSize = 14.sp,
           fontWeight = FontWeight.SemiBold,

@@ -36,7 +36,10 @@ class LoadingScreenTest {
         .onNodeWithTag(C.Tag.loading_screen_subtitle)
         .assertIsDisplayed()
         .assertTextEquals("Identifying your monument.")
-    composeTestRule.onNodeWithTag(C.Tag.loading_screen_cancel_button).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.loading_screen_cancel_button)
+        .assertIsDisplayed()
+        .assertTextEquals("Cancel")
   }
 
   @Test
