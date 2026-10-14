@@ -8,4 +8,5 @@
     <string name="sign_in_terms">By continuing, you agree to the Terms of Service.</string>
     <string name="sign_in_logo_description">Roam logo</string>
     <string name="sign_in_success">Login successful!</string>
+    <string name="monument_detail_home_description">Home</string>
 </resources>

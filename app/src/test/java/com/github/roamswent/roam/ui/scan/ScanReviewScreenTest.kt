@@ -159,10 +159,14 @@ class ScanReviewScreenTest {
 
   @Test
   fun sentRendersMonumentDetailScreen() {
-    setContent(ScanReviewUiState.Sent(uri, guide))
+    var homeClicked = false
+    setContent(ScanReviewUiState.Sent(uri, guide), onHomeClick = { homeClicked = true })
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_screen_container).assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.scan_review_screen).assertCountEquals(0)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    assertEquals(true, homeClicked)
   }
 
   @Test
@@ -195,6 +199,7 @@ class ScanReviewScreenTest {
       onSend: () -> Unit = {},
       onRetrySend: () -> Unit = {},
       onDismissSendError: () -> Unit = {},
+      onHomeClick: () -> Unit = {},
   ) {
     composeTestRule.activity.setContent {
       SampleAppTheme {
@@ -208,6 +213,7 @@ class ScanReviewScreenTest {
             onSend = onSend,
             onRetrySend = onRetrySend,
             onDismissSendError = onDismissSendError,
+            onHomeClick = onHomeClick,
         )
       }
     }

@@ -14,7 +14,7 @@ import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,7 +39,9 @@ class MonumentDetailScreenTest {
   fun monumentDetailScreenDisplaysImageAndStructuredGuideCorrectly() {
     val falseImage = ColorPainter(Color.LightGray)
 
-    composeTestRule.setContent { MonumentDetailScreen(image = falseImage, guide = guide) }
+    composeTestRule.setContent {
+      MonumentDetailScreen(image = falseImage, guide = guide, onBackClick = {})
+    }
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_screen_container).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_picture).assertIsDisplayed()
@@ -84,6 +86,6 @@ class MonumentDetailScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
 
-    assertEquals(true, backClicked)
+    assertTrue(backClicked)
   }
 }
