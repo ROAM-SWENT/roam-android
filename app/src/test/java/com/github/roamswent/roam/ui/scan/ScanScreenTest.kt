@@ -64,6 +64,127 @@ class ScanScreenTest {
     assertEquals(1, goBacks)
   }
 
+  @Test
+  fun streamingShowsFramingReticle() {
+    setContent(ScanUiState.Streaming)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_framing_reticle).assertIsDisplayed()
+  }
+
+  @Test
+  fun capturingShowsFramingReticle() {
+    setContent(ScanUiState.Capturing)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_framing_reticle).assertIsDisplayed()
+  }
+
+  @Test
+  fun capturedShowsFramingReticle() {
+    setContent(ScanUiState.Captured)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_framing_reticle).assertIsDisplayed()
+  }
+
+  @Test
+  fun revokedDoesNotShowFramingReticle() {
+    setContent(ScanUiState.Revoked)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_framing_reticle).assertDoesNotExist()
+  }
+
+  @Test
+  fun streamingShowsCloseButtonAndPromptPill() {
+    setContent(ScanUiState.Streaming)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.scan_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun closeButtonInvokesGoBack() {
+    var goBacks = 0
+    setContent(ScanUiState.Streaming, onGoBack = { goBacks++ })
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).performClick()
+
+    assertEquals(1, goBacks)
+  }
+
+  @Test
+  fun capturingKeepsCloseButtonDisplayed() {
+    setContent(ScanUiState.Capturing)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun capturedKeepsCloseButtonDisplayed() {
+    setContent(ScanUiState.Captured)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun revokedDoesNotShowCloseButtonOrPromptPill() {
+    setContent(ScanUiState.Revoked)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.scan_prompt_pill).assertDoesNotExist()
+  }
+
+  @Test
+  fun revokedDoesNotShowShutterButton() {
+    setContent(ScanUiState.Revoked)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_shutter_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun capturingShowsPromptPill() {
+    setContent(ScanUiState.Capturing)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun capturedShowsPromptPill() {
+    setContent(ScanUiState.Captured)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun closeClickInvokesGoBackWithoutCapturing() {
+    var goBacks = 0
+    var captures = 0
+    setContent(ScanUiState.Streaming, onCapture = { captures++ }, onGoBack = { goBacks++ })
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).performClick()
+
+    assertEquals(1, goBacks)
+    assertEquals(0, captures)
+  }
+
+  @Test
+  fun closeClickWhileCapturingInvokesGoBack() {
+    var goBacks = 0
+    setContent(ScanUiState.Capturing, onGoBack = { goBacks++ })
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).performClick()
+
+    assertEquals(1, goBacks)
+  }
+
+  @Test
+  fun closeClickWhenCapturedInvokesGoBack() {
+    var goBacks = 0
+    setContent(ScanUiState.Captured, onGoBack = { goBacks++ })
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_close_button).performClick()
+
+    assertEquals(1, goBacks)
+  }
+
   private fun setContent(
       state: ScanUiState,
       onCapture: () -> Unit = {},

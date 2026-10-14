@@ -146,6 +146,43 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_dialog).assertIsDisplayed()
   }
 
+  @Test
+  fun reviewingShowsPromptPillWithEnabledActions() {
+    setContent(ScanReviewUiState.Reviewing(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsDisplayed().assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsDisplayed().assertIsEnabled()
+  }
+
+  @Test
+  fun sendingShowsPromptPill() {
+    setContent(ScanReviewUiState.Sending(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun confirmRetakeShowsPromptPill() {
+    setContent(ScanReviewUiState.ConfirmRetake(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun deletingShowsPromptPill() {
+    setContent(ScanReviewUiState.Deleting(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun deleteFailedShowsPromptPill() {
+    setContent(ScanReviewUiState.DeleteFailed(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
   private val uri = Uri.parse("content://example/capture.jpg")
   private val guide =
       MonumentGuide(
