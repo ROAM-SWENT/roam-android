@@ -51,7 +51,7 @@ fun ScanReviewScreen(
     MonumentDetailScreen(
         image = rememberAsyncImagePainter(state.uri),
         guide = state.guide,
-        onBackClick = onHomeClick
+        onBackClick = onHomeClick,
     )
     return
   }
