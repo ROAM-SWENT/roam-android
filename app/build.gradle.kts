@@ -145,6 +145,9 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.auth)
 
+  // ---------- Location ----------
+  implementation(libs.play.services.location)
+
   // ---------- Google Sign-In / Credential Manager ----------
   implementation(libs.credentials)
   implementation(libs.credentials.play.services.auth)

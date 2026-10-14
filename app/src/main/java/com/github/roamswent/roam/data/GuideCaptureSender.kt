@@ -7,8 +7,6 @@ import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.ai.UserPreferences
-import com.github.roamswent.roam.model.location.Coordinates
-import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.repository.CaptureSender
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -42,9 +40,4 @@ class GuideCaptureSender(
       } catch (e: Exception) {
         Result.failure(e)
       }
-}
-
-/** No real location feature exists yet; omitting it is the pipeline's designed behavior. */
-class NullLocationProvider : LocationProvider {
-  override suspend fun currentCoordinates(): Coordinates? = null
 }
