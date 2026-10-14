@@ -52,10 +52,15 @@ fun ScanReviewScreen(
     onSend: () -> Unit,
     onRetrySend: () -> Unit = {},
     onDismissSendError: () -> Unit = {},
+    onHomeClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
   if (state is ScanReviewUiState.Sent) {
-    MonumentDetailScreen(image = rememberAsyncImagePainter(state.uri), guide = state.guide)
+    MonumentDetailScreen(
+        image = rememberAsyncImagePainter(state.uri),
+        guide = state.guide,
+        onBackClick = onHomeClick,
+    )
     return
   }
 

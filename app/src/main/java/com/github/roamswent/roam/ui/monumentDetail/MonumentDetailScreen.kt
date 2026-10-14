@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -18,19 +23,26 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlin.math.roundToInt
 
 @Composable
-fun MonumentDetailScreen(image: Painter, guide: MonumentGuide, modifier: Modifier = Modifier) {
+fun MonumentDetailScreen(
+    image: Painter,
+    guide: MonumentGuide,
+    onBackClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
   val textBackgroundColor = ScreenBackground
   val cornerRadius = 32.dp
 
@@ -144,6 +156,32 @@ fun MonumentDetailScreen(image: Painter, guide: MonumentGuide, modifier: Modifie
         }
       }
     }
+
+    MonumentDetailBackButton(
+        onClick = onBackClick,
+        modifier = Modifier.align(Alignment.TopStart),
+    )
+  }
+}
+
+@Composable
+fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+  IconButton(
+      onClick = onClick,
+      modifier =
+          modifier.statusBarsPadding().padding(16.dp).size(44.dp).semantics {
+            testTag = C.Tag.monument_detail_back_button
+          },
+      colors =
+          IconButtonDefaults.iconButtonColors(
+              containerColor = Color.Gray.copy(alpha = 0.6f),
+              contentColor = Color.White,
+          ),
+  ) {
+    Icon(
+        imageVector = Icons.Filled.Home,
+        contentDescription = stringResource(R.string.monument_detail_home_description),
+    )
   }
 }
 
@@ -172,6 +210,7 @@ fun PreviewMonumentDetailScreen() {
                         "elegance, and 19th-century industrial architecture.",
                 language = "en",
             ),
+        onBackClick = {},
     )
   }
 }

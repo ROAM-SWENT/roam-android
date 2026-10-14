@@ -70,6 +70,7 @@ fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
         onSend = viewModel::onSend,
         onRetrySend = viewModel::onRetrySend,
         onDismissSendError = viewModel::onDismissSendError,
+        onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
     )
   }
 }
