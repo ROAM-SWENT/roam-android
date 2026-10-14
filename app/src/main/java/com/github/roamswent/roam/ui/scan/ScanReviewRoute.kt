@@ -22,20 +22,27 @@ import com.github.roamswent.roam.ui.navigation.Routes
 import kotlinx.coroutines.Dispatchers
 
 @Composable
-fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
+fun ScanReviewRoute(
+    navController: NavHostController,
+    uri: Uri,
+    captureSenderOverride: CaptureSender? = null,
+) {
   val context = LocalContext.current
   val capturedImageManager = remember(context) { FileCapturedImageManager(context, Dispatchers.IO) }
   val captureSender: CaptureSender =
-      remember(context) {
-        val geminiClient = FirebaseGeminiClient(context)
-        val guideRepository =
-            GuideRepositoryImpl(
-                imagePreparer = ImagePreparer(),
-                imageScreen = GeminiImageScreen(geminiClient),
-                geminiClient = geminiClient,
-                locationProvider = AndroidLocationProvider(context),
-            )
-        GuideCaptureSender(context, guideRepository)
+      remember(context, captureSenderOverride) {
+        captureSenderOverride
+            ?: run {
+              val geminiClient = FirebaseGeminiClient(context)
+              val guideRepository =
+                  GuideRepositoryImpl(
+                      imagePreparer = ImagePreparer(),
+                      imageScreen = GeminiImageScreen(geminiClient),
+                      geminiClient = geminiClient,
+                      locationProvider = AndroidLocationProvider(context),
+                  )
+              GuideCaptureSender(context, guideRepository)
+            }
       }
   val viewModel: ScanReviewViewModel = viewModel {
     ScanReviewViewModel(capturedImageManager, captureSender, Dispatchers.Main.immediate)
