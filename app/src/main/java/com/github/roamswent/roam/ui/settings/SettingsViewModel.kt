@@ -5,8 +5,10 @@
 
 package com.github.roamswent.roam.ui.settings
 
+import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.authentication.AuthRepository
@@ -52,12 +54,18 @@ class SettingsViewModel(
       authRepository
           .signOut()
           .fold(
-              onSuccess = { _uiState.update { it.copy(signedOut = true) } },
+              onSuccess = {
+                try {
+                  credentialManager.clearCredentialState(ClearCredentialStateRequest())
+                } catch (e: ClearCredentialException) {
+                  Log.w("SettingsViewModel", "Failed to clear credentials", e)
+                }
+                _uiState.update { it.copy(signedOut = true) }
+              },
               onFailure = { throwable ->
                 _uiState.update { it.copy(errorMsg = throwable.localizedMessage) }
               },
           )
-      credentialManager.clearCredentialState(ClearCredentialStateRequest())
     }
   }
 }

@@ -26,6 +26,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -95,9 +96,9 @@ class SettingsViewModelTest {
         verify(credentialManager).clearCredentialState(any<ClearCredentialStateRequest>())
       }
 
-  /** Verifies that failed sign-out exposes the error while still clearing the credential state. */
+  /** Verifies that failed sign-out exposes the error without clearing the credential state. */
   @Test
-  fun signOut_failure_setsErrorAndStillClearsCredentials() =
+  fun signOut_failure_setsErrorWithoutClearingCredentials() =
       runTest(dispatcher) {
         whenever(repository.signOut())
             .thenReturn(Result.failure(IllegalStateException("Unable to log out")))
@@ -109,6 +110,6 @@ class SettingsViewModelTest {
         assertEquals("Unable to log out", viewModel.uiState.value.errorMsg)
         assertFalse(viewModel.uiState.value.signedOut)
         verify(repository).signOut()
-        verify(credentialManager).clearCredentialState(any<ClearCredentialStateRequest>())
+        verifyNoInteractions(credentialManager)
       }
 }
