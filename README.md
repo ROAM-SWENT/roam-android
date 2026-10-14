@@ -253,7 +253,7 @@ User stories are grouped into the following epics:
 
 The user interface and user experience are designed collaboratively in Figma.
 
-**Figma:** https://www.figma.com/files/folder/662421157
+**Figma:** [https://www.figma.com/files/folder/662421157](https://www.figma.com/folder_invite/redeem/r9O7AdzImdYfddSM6y36iI)
 
 ---
 
