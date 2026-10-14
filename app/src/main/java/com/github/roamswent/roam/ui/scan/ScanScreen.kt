@@ -94,7 +94,7 @@ fun ScanScreen(
             )
           }
           Box(
-              modifier = Modifier.weight(1f).padding(start = 12.dp),
+              modifier = Modifier.weight(1f),
               contentAlignment = Alignment.Center,
           ) {
             Surface(
