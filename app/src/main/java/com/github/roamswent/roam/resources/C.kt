@@ -43,5 +43,10 @@ object C {
     const val monument_detail_history = "monument_detail_history"
     const val monument_detail_fact_item = "monument_detail_fact_item"
     const val monument_detail_culture = "monument_detail_culture"
+    const val loading_screen_image = "loading_screen_image"
+    const val loading_screen_progress = "loading_screen_progress"
+    const val loading_screen_title = "loading_screen_title"
+    const val loading_screen_subtitle = "loading_screen_subtitle"
+    const val loading_screen_cancel_button = "loading_screen_cancel_button"
   }
 }
