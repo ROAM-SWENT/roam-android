@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -30,7 +35,12 @@ import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlin.math.roundToInt
 
 @Composable
-fun MonumentDetailScreen(image: Painter, guide: MonumentGuide, modifier: Modifier = Modifier) {
+fun MonumentDetailScreen(
+    image: Painter,
+    guide: MonumentGuide,
+    onBackClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
   val textBackgroundColor = ScreenBackground
   val cornerRadius = 32.dp
 
@@ -144,6 +154,29 @@ fun MonumentDetailScreen(image: Painter, guide: MonumentGuide, modifier: Modifie
         }
       }
     }
+
+    MonumentDetailBackButton(
+        onClick = onBackClick,
+        modifier = Modifier.align(Alignment.TopStart),
+    )
+  }
+}
+
+@Composable
+fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+  IconButton(
+      onClick = onClick,
+      modifier =
+          modifier.statusBarsPadding().padding(16.dp).size(44.dp).semantics {
+            testTag = C.Tag.monument_detail_back_button
+          },
+      colors =
+          IconButtonDefaults.iconButtonColors(
+              containerColor = Color.Gray.copy(alpha = 0.6f),
+              contentColor = Color.White,
+          ),
+  ) {
+    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
   }
 }
 

@@ -39,6 +39,7 @@ object C {
     const val monument_detail_drag_handle = "monument_detail_drag_handle"
     const val monument_detail_title = "monument_detail_title"
     const val monument_detail_confidence = "monument_detail_confidence"
+    const val monument_detail_back_button = "monument_detail_back_button"
     const val monument_detail_history = "monument_detail_history"
     const val monument_detail_fact_item = "monument_detail_fact_item"
     const val monument_detail_culture = "monument_detail_culture"

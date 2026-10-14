@@ -8,11 +8,13 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,5 +69,21 @@ class MonumentDetailScreenTest {
       swipeUp()
       swipeDown()
     }
+  }
+
+  @Test
+  fun backButtonInvokesCallback() {
+    var backClicked = false
+    composeTestRule.setContent {
+      MonumentDetailScreen(
+          image = ColorPainter(Color.LightGray),
+          guide = guide,
+          onBackClick = { backClicked = true },
+      )
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    assertEquals(true, backClicked)
   }
 }
