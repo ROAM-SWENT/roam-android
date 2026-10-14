@@ -191,6 +191,13 @@ class UserJourneyEndToEndTest {
 
     pressSystemBack()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // Press system Back from home and verify that the Activity finishes.
+    pressSystemBack()
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.activity.isFinishing
+    }
   }
 
   private fun enterCapture() {
