@@ -72,11 +72,6 @@ class GuideCaptureSenderTest {
     assertNotNull(caught)
   }
 
-  @Test
-  fun nullLocationProviderAlwaysReturnsNull() = runTest {
-    assertNull(NullLocationProvider().currentCoordinates())
-  }
-
   private class FakeMonumentGuideRepository(private val result: () -> MonumentGuide) :
       MonumentGuideRepository {
     var lastRequest: DiscoveryRequest? = null
