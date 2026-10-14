@@ -20,29 +20,39 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.github.roamswent.roam.ui.permission.CameraPermissionController
+import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
 fun SettingsScreen(
+    cameraPermissionController: CameraPermissionController,
+    locationPermissionController: LocationPermissionController,
     modifier: Modifier = Modifier,
     settingsViewModel: SettingsViewModel = viewModel(),
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
-    onSignedOut: () -> Unit = {},
     onManagePermissionsClick: () -> Unit = {},
+    onSignedOut: () -> Unit = {},
 ) {
 
   val context = LocalContext.current
   val uiState by settingsViewModel.uiState.collectAsState()
+  val lifecycleOwner = LocalLifecycleOwner.current
 
   LaunchedEffect(uiState.signedOut) {
     if (uiState.signedOut) {
@@ -56,6 +66,22 @@ fun SettingsScreen(
       Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
       settingsViewModel.clearErrorMsg()
     }
+  }
+
+  DisposableEffect(lifecycleOwner, cameraPermissionController, locationPermissionController) {
+    fun refreshPermissionStatus() {
+      settingsViewModel.setCameraPermissionGranted(cameraPermissionController.hasPermission())
+      settingsViewModel.setLocationPermissionGranted(locationPermissionController.hasPermission())
+    }
+
+    refreshPermissionStatus()
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
+        refreshPermissionStatus()
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
   Scaffold(
@@ -79,7 +105,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
           PermissionStatus("Camera permission", uiState.cameraPermissionGranted)
-          PermissionStatus("Localisation permission", uiState.locationPermissionGranted)
+          PermissionStatus("Location permission", uiState.locationPermissionGranted)
           Spacer(modifier = Modifier.height(4.dp))
           OutlinedButton(
               onClick = onManagePermissionsClick,
@@ -111,6 +137,7 @@ private fun PermissionStatus(
     isGranted: Boolean,
 ) {
   Column(
+      modifier = Modifier.testTag(name),
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(
@@ -126,11 +153,3 @@ private fun PermissionStatus(
     )
   }
 }
-
-// @Preview(showBackground = true)
-// @Composable
-// fun SettingsScreenPreview() {
-//    SampleAppTheme {
-//        SettingsScreen()
-//    }
-// }
