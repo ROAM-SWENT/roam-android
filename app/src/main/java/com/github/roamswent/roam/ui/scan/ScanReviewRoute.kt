@@ -6,18 +6,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.github.roamswent.roam.data.FileCapturedImageManager
 import com.github.roamswent.roam.data.GuideCaptureSender
+import com.github.roamswent.roam.model.ai.DiscoveryRequest
 import com.github.roamswent.roam.model.ai.FirebaseGeminiClient
 import com.github.roamswent.roam.model.ai.GeminiImageScreen
 import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
 import com.github.roamswent.roam.model.ai.ImagePreparer
+import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.repository.CaptureSender
+import com.github.roamswent.roam.ui.loading.LoadingRoute
 import com.github.roamswent.roam.ui.navigation.Routes
 import kotlinx.coroutines.Dispatchers
 
@@ -48,6 +54,15 @@ fun ScanReviewRoute(
     ScanReviewViewModel(capturedImageManager, captureSender, Dispatchers.Main.immediate)
   }
   val state by viewModel.state.collectAsState()
+  var showLoading by remember(uri) { mutableStateOf(false) }
+  var discoveredGuide by remember(uri) { mutableStateOf<MonumentGuide?>(null) }
+  val guideRepository =
+      remember(captureSender, uri) {
+        object : MonumentGuideRepository {
+          override suspend fun guideFor(request: DiscoveryRequest): MonumentGuide =
+              captureSender.send(uri).getOrThrow()
+        }
+      }
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
@@ -58,26 +73,40 @@ fun ScanReviewRoute(
       }
     }
   }
-  BackHandler(enabled = true) {
-    when (state) {
-      is ScanReviewUiState.Sent -> navController.popBackStack(Routes.Home, inclusive = false)
-      is ScanReviewUiState.Sending -> Unit
-      else -> viewModel.onRetake()
+
+  BackHandler(enabled = !showLoading) {
+    if (discoveredGuide != null) {
+      navController.popBackStack(Routes.Home, inclusive = false)
+    } else {
+      viewModel.onRetake()
     }
   }
 
-  state?.let { currentState ->
-    ScanReviewScreen(
-        state = currentState,
-        onRetake = viewModel::onRetake,
-        onRetakeConfirm = viewModel::confirmRetake,
-        onRetakeCancel = viewModel::cancelRetake,
-        onRetryDelete = viewModel::onRetryDelete,
-        onDismissDeleteError = viewModel::onDismissDeleteError,
-        onSend = viewModel::onSend,
-        onRetrySend = viewModel::onRetrySend,
-        onDismissSendError = viewModel::onDismissSendError,
-        onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
+  if (showLoading) {
+    LoadingRoute(
+        imageUri = uri,
+        onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
+        onDiscoverySuccess = { guide, _ ->
+          discoveredGuide = guide
+          showLoading = false
+        },
+        repository = guideRepository,
     )
+  } else {
+    val currentState = discoveredGuide?.let { ScanReviewUiState.Sent(uri, it) } ?: state
+    currentState?.let {
+      ScanReviewScreen(
+          state = it,
+          onRetake = viewModel::onRetake,
+          onRetakeConfirm = viewModel::confirmRetake,
+          onRetakeCancel = viewModel::cancelRetake,
+          onRetryDelete = viewModel::onRetryDelete,
+          onDismissDeleteError = viewModel::onDismissDeleteError,
+          onSend = { showLoading = true },
+          onRetrySend = viewModel::onRetrySend,
+          onDismissSendError = viewModel::onDismissSendError,
+          onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
+      )
+    }
   }
 }
