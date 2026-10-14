@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -26,6 +27,7 @@ fun ExpressiveFloatingButton(
     onClick: () -> Unit,
     enabled: Boolean,
     shape: Shape = CircleShape,
+    containerColor: Color = ShutterHalo,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -47,7 +49,7 @@ fun ExpressiveFloatingButton(
       modifier =
           modifier
               .clip(shape)
-              .background(ShutterHalo, shape)
+              .background(containerColor, shape)
               .clickable(
                   enabled = enabled,
                   interactionSource = interactionSource,

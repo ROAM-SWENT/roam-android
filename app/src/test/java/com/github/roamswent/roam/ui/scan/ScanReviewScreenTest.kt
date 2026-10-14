@@ -146,6 +146,43 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_dialog).assertIsDisplayed()
   }
 
+  @Test
+  fun reviewingShowsPromptPillWithEnabledActions() {
+    setContent(ScanReviewUiState.Reviewing(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsDisplayed().assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsDisplayed().assertIsEnabled()
+  }
+
+  @Test
+  fun sendingShowsPromptPill() {
+    setContent(ScanReviewUiState.Sending(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun confirmRetakeShowsPromptPill() {
+    setContent(ScanReviewUiState.ConfirmRetake(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun deletingShowsPromptPill() {
+    setContent(ScanReviewUiState.Deleting(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
+  @Test
+  fun deleteFailedShowsPromptPill() {
+    setContent(ScanReviewUiState.DeleteFailed(uri))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+  }
+
   private val uri = Uri.parse("content://example/capture.jpg")
   private val guide =
       MonumentGuide(
@@ -159,10 +196,14 @@ class ScanReviewScreenTest {
 
   @Test
   fun sentRendersMonumentDetailScreen() {
-    setContent(ScanReviewUiState.Sent(uri, guide))
+    var homeClicked = false
+    setContent(ScanReviewUiState.Sent(uri, guide), onHomeClick = { homeClicked = true })
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_screen_container).assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.scan_review_screen).assertCountEquals(0)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    assertEquals(true, homeClicked)
   }
 
   @Test
@@ -195,6 +236,7 @@ class ScanReviewScreenTest {
       onSend: () -> Unit = {},
       onRetrySend: () -> Unit = {},
       onDismissSendError: () -> Unit = {},
+      onHomeClick: () -> Unit = {},
   ) {
     composeTestRule.activity.setContent {
       SampleAppTheme {
@@ -208,6 +250,7 @@ class ScanReviewScreenTest {
             onSend = onSend,
             onRetrySend = onRetrySend,
             onDismissSendError = onDismissSendError,
+            onHomeClick = onHomeClick,
         )
       }
     }

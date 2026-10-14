@@ -12,11 +12,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.github.roamswent.roam.data.FileCapturedImageManager
 import com.github.roamswent.roam.data.GuideCaptureSender
-import com.github.roamswent.roam.data.NullLocationProvider
 import com.github.roamswent.roam.model.ai.FirebaseGeminiClient
 import com.github.roamswent.roam.model.ai.GeminiImageScreen
 import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
 import com.github.roamswent.roam.model.ai.ImagePreparer
+import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.ui.navigation.Routes
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +33,7 @@ fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
                 imagePreparer = ImagePreparer(),
                 imageScreen = GeminiImageScreen(geminiClient),
                 geminiClient = geminiClient,
-                locationProvider = NullLocationProvider(),
+                locationProvider = AndroidLocationProvider(context),
             )
         GuideCaptureSender(context, guideRepository)
       }
@@ -70,6 +70,7 @@ fun ScanReviewRoute(navController: NavHostController, uri: Uri) {
         onSend = viewModel::onSend,
         onRetrySend = viewModel::onRetrySend,
         onDismissSendError = viewModel::onDismissSendError,
+        onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
     )
   }
 }
