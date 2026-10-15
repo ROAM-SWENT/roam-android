@@ -27,6 +27,10 @@ render.experimental.xml
 *.jks
 *.keystore
 
+# Shared debug keystore: committed intentionally so every build (local and CI)
+# signs with the same key, keeping the SHA-1 registered in Firebase stable.
+!/app/debug.keystore
+
 # Google Services (e.g. APIs or Firebase)
 google-services.json
 

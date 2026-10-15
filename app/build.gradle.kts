@@ -24,6 +24,18 @@ android {
     vectorDrawables { useSupportLibrary = true }
   }
 
+  // Shared, committed debug keystore so every build (local or CI) is signed with the
+  // same key. Without this, each CI run gets a fresh random debug key, so its SHA-1
+  // is never registered in Firebase and Google Sign-In fails on the built APK.
+  signingConfigs {
+    getByName("debug") {
+      storeFile = file("debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
+  }
+
   buildTypes {
     release {
       isMinifyEnabled = true
@@ -37,6 +49,7 @@ android {
     debug {
       enableUnitTestCoverage = true
       enableAndroidTestCoverage = true
+      signingConfig = signingConfigs.getByName("debug")
     }
   }
 
