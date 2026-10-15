@@ -23,7 +23,10 @@ class FileCapturedImageManager(
       withContext(ioDispatcher) {
         val directory = File(context.cacheDir, CAPTURES_DIRECTORY)
         directory.mkdirs()
-
+        directory
+            .listFiles()
+            ?.filter { it.isFile && it.name.matches(Regex("""capture_[A-Za-z0-9_-]+\.jpg""")) }
+            ?.forEach { it.delete() }
         val file =
             File.createTempFile(
                 "capture_",

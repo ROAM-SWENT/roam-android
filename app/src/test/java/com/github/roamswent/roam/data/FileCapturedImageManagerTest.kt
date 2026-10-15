@@ -56,20 +56,21 @@ class FileCapturedImageManagerTest {
   }
 
   @Test
-  fun newCaptureUriCreatesUniqueFilesWithoutReplacingPreviousCapture() = runTest {
-    val firstUri = manager().newCaptureUri()
-    val firstFile = captureFile(firstUri)
-    firstFile.writeText("old image")
+  fun newCaptureUriDeletesPreviousCapture() = runTest {
+    val manager = manager()
 
-    val secondUri = manager().newCaptureUri()
+    val firstUri = manager.newCaptureUri()
+    val firstFile = captureFile(firstUri)
+
+    assertTrue(firstFile.exists())
+
+    val secondUri = manager.newCaptureUri()
     val secondFile = captureFile(secondUri)
 
     assertNotEquals(firstUri, secondUri)
-    assertTrue(firstFile.exists())
+    assertFalse(firstFile.exists())
     assertTrue(secondFile.exists())
-    assertEquals("old image", firstFile.readText())
-    assertEquals(0L, secondFile.length())
-    assertEquals(2, capturesDirectory.listFiles()?.size)
+    assertEquals(1, capturesDirectory.listFiles()?.size)
   }
 
   @Test
@@ -83,13 +84,21 @@ class FileCapturedImageManagerTest {
   }
 
   @Test
-  fun deleteCaptureDoesNotDeleteOtherCaptures() = runTest {
-    val firstUri = manager().newCaptureUri()
-    val secondUri = manager().newCaptureUri()
+  fun newCaptureUriDeletesOnlyMatchingCaptureFiles() = runTest {
+    capturesDirectory.mkdirs()
 
-    assertTrue(manager().deleteCapture(firstUri))
-    assertFalse(captureFile(firstUri).exists())
-    assertTrue(captureFile(secondUri).exists())
+    val oldCapture = File(capturesDirectory, "capture_old.jpg").apply { writeText("old") }
+
+    val unrelatedFile = File(capturesDirectory, "important.jpg").apply { writeText("keep") }
+
+    val wrongExtension = File(capturesDirectory, "capture_test.txt").apply { writeText("keep") }
+
+    val newUri = manager().newCaptureUri()
+
+    assertFalse(oldCapture.exists())
+    assertTrue(unrelatedFile.exists())
+    assertTrue(wrongExtension.exists())
+    assertTrue(captureFile(newUri).exists())
   }
 
   @Test
@@ -241,9 +250,12 @@ class FileCapturedImageManagerTest {
     val uris = captures.awaitAll()
 
     assertNotEquals(uris[0], uris[1])
-    assertTrue(captureFile(uris[0]).exists())
-    assertTrue(captureFile(uris[1]).exists())
-    assertEquals(2, capturesDirectory.listFiles()?.size)
+
+    val survivingFiles = capturesDirectory.listFiles().orEmpty()
+
+    assertTrue(survivingFiles.size in 1..2)
+    assertTrue(uris.any { captureFile(it).exists() })
+    assertTrue(survivingFiles.all { file -> uris.any { captureFile(it) == file } })
   }
 
   @Test
