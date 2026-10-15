@@ -5,15 +5,20 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -211,6 +216,54 @@ class FileCapturedImageManagerTest {
         )
       }
     }
+  }
+
+  @Test
+  fun concurrentCapturesCreateUniqueFiles() = runTest {
+    assertFalse(capturesDirectory.exists())
+
+    val manager = manager(Dispatchers.IO)
+    val readyCount = AtomicInteger(0)
+    val start = CompletableDeferred<Unit>()
+
+    val captures =
+        List(2) {
+          async(Dispatchers.IO) {
+            if (readyCount.incrementAndGet() == 2) {
+              start.complete(Unit)
+            }
+
+            start.await()
+            manager.newCaptureUri()
+          }
+        }
+
+    val uris = captures.awaitAll()
+
+    assertNotEquals(uris[0], uris[1])
+    assertTrue(captureFile(uris[0]).exists())
+    assertTrue(captureFile(uris[1]).exists())
+    assertEquals(2, capturesDirectory.listFiles()?.size)
+  }
+
+  @Test
+  fun deleteCaptureWorksWithDefaultFileProvider() = runTest {
+    // FileProvider path resolution is incompatible with
+    // Windows filesystem separators under Robolectric.
+    assumeTrue(File.separatorChar == '/')
+
+    val manager =
+        FileCapturedImageManager(
+            context,
+            UnconfinedTestDispatcher(testScheduler),
+        )
+
+    val uri = manager.newCaptureUri()
+    val file = capturesDirectory.listFiles()?.singleOrNull()
+
+    assertNotNull(file)
+    assertTrue(manager.deleteCapture(uri))
+    assertFalse(file!!.exists())
   }
 
   private fun manager(dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()) =

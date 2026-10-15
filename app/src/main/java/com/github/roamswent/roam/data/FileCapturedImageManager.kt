@@ -22,8 +22,7 @@ class FileCapturedImageManager(
   override suspend fun newCaptureUri(): Uri =
       withContext(ioDispatcher) {
         val directory = File(context.cacheDir, CAPTURES_DIRECTORY)
-
-        check(directory.isDirectory || directory.mkdirs()) { "Cannot create captures directory" }
+        directory.mkdirs()
 
         val file =
             File.createTempFile(
@@ -49,10 +48,15 @@ class FileCapturedImageManager(
           return@withContext false
         }
 
-        val filename = uri.lastPathSegment ?: return@withContext false
+        val path =
+            uri.path?.replace(File.separatorChar, '/')?.let {
+              if (!it.startsWith("/")) "/$it" else it
+            } ?: return@withContext false
+
+        val filename = path.substringAfterLast('/')
 
         if (
-            uri.path != "/$CAPTURES_DIRECTORY/$filename" ||
+            path != "/$CAPTURES_DIRECTORY/$filename" ||
                 !filename.matches(Regex("""capture_[A-Za-z0-9_-]+\.jpg"""))
         ) {
           return@withContext false
