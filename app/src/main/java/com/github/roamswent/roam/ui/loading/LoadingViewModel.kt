@@ -65,6 +65,7 @@ class LoadingViewModel(
   val navigationEvents: Flow<LoadingNavigationEvent> = _navigationEvents.receiveAsFlow()
   private val navigationClaimed = AtomicBoolean(false)
   private var discoveryStarted = false
+  private var navigationFinished = false
   private var discoveryJob: Job? = null
 
   fun beginLoading() {
@@ -74,12 +75,14 @@ class LoadingViewModel(
   fun onDiscoverySuccess(guide: MonumentGuide) {
     _discoveredGuide.value = guide
     _showLoading.value = false
+    navigationFinished = true
+    resetDiscovery()
   }
 
   fun startDiscovery() {
-    if (discoveryStarted) {
-      return
-    }
+    discoveryJob?.cancel()
+    resetDiscovery()
+    navigationFinished = false
     discoveryStarted = true
     discoveryJob = viewModelScope.launch {
       try {
@@ -98,23 +101,35 @@ class LoadingViewModel(
           _navigationEvents.trySend(
               LoadingNavigationEvent.NavigateToMonumentDetail(guide, imageUri.toString())
           )
+          navigationFinished = true
+          resetDiscovery()
         }
       } catch (exception: TimeoutCancellationException) {
         _uiState.value = LoadingUiState.Error(R.string.loading_error_timeout)
+        resetDiscovery()
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
         _uiState.value = LoadingUiState.Error(userMessageResId(exception))
+        resetDiscovery()
       }
     }
   }
 
   fun onCancel() {
-    if (navigationClaimed.compareAndSet(false, true)) {
-      _showLoading.value = false
-      discoveryJob?.cancel()
-      _navigationEvents.trySend(LoadingNavigationEvent.NavigateHome)
+    if (navigationFinished || !navigationClaimed.compareAndSet(false, true)) {
+      return
     }
+    navigationFinished = true
+    _showLoading.value = false
+    resetDiscovery()
+    _navigationEvents.trySend(LoadingNavigationEvent.NavigateHome)
+  }
+
+  private fun resetDiscovery() {
+    discoveryStarted = false
+    navigationClaimed.set(false)
+    discoveryJob?.cancel()
   }
 
   private companion object {

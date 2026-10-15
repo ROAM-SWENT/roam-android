@@ -221,6 +221,50 @@ class LoadingViewModelTest {
         coVerify(exactly = 1) { repository.guideFor(request) }
       }
 
+  @Test
+  fun discoveryCanBeRetriedAfterCancellationAndFailure() =
+      runTest(dispatcher) {
+        var attempts = 0
+        val guide = guide()
+        coEvery { repository.guideFor(request) } coAnswers
+            {
+              when (++attempts) {
+                1 -> kotlinx.coroutines.awaitCancellation()
+                2 -> throw IllegalStateException("Temporary failure")
+                else -> guide
+              }
+            }
+        val viewModel = LoadingViewModel(repository, readImage, uri, "fr-FR")
+        val events = mutableListOf<LoadingNavigationEvent>()
+        val collector =
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+              viewModel.navigationEvents.collect(events::add)
+            }
+
+        viewModel.startDiscovery()
+        runCurrent()
+        viewModel.onCancel()
+        advanceUntilIdle()
+        assertEquals(listOf(LoadingNavigationEvent.NavigateHome), events)
+
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        assertEquals(LoadingUiState.Error(R.string.loading_error_generic), viewModel.uiState.value)
+
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                LoadingNavigationEvent.NavigateHome,
+                LoadingNavigationEvent.NavigateToMonumentDetail(guide, uri.toString()),
+            ),
+            events,
+        )
+        assertEquals(3, attempts)
+        collector.cancel()
+      }
+
   private fun viewModel() =
       LoadingViewModel(repository, readImage, uri, "fr-FR").also { it.startDiscovery() }
 
