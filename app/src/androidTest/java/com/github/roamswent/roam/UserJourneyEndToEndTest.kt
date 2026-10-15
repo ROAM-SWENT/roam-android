@@ -66,6 +66,15 @@ class UserJourneyEndToEndTest {
       SharedPreferencesLocationPermissionDecisionRepository(
           ApplicationProvider.getApplicationContext()
       )
+  private var latestCapturedPhoto: File? = null
+
+  private fun captureFiles(): List<File> {
+    val directory = File(ApplicationProvider.getApplicationContext<Context>().cacheDir, "captures")
+
+    return directory.listFiles()?.filter {
+      it.isFile && it.name.startsWith("capture_") && it.extension == "jpg"
+    } ?: emptyList()
+  }
 
   @After
   fun clearLocationPermissionDecision() {
@@ -239,8 +248,16 @@ class UserJourneyEndToEndTest {
 
   private fun capturePhoto() {
     // Use the camera shutter and wait for the photo review screen.
+    val existingFiles = captureFiles().toSet()
+
     composeTestRule.onNodeWithTag(C.Tag.scan_shutter_button).performClick()
     waitAndAssertDisplayed(C.Tag.scan_review_screen)
+
+    val newFiles = captureFiles().filterNot { it in existingFiles }
+
+    check(newFiles.size == 1) { "Expected exactly one new capture, found ${newFiles.size}" }
+
+    latestCapturedPhoto = newFiles.single()
   }
 
   private fun pressSystemBack() {
@@ -337,8 +354,10 @@ class UserJourneyEndToEndTest {
       ApplicationProvider.getApplicationContext<Context>().checkSelfPermission(permission)
 
   private fun readCapturedPhoto(): ByteArray {
-    val photo = File(ApplicationProvider.getApplicationContext<Context>().cacheDir, CAPTURE_PATH)
+    val photo = checkNotNull(latestCapturedPhoto) { "No captured photo was recorded" }
+
     check(photo.isFile) { "Camera did not save a captured photo at ${photo.absolutePath}" }
+
     return photo.readBytes().also { check(it.isNotEmpty()) { "Captured photo is empty" } }
   }
 
@@ -367,7 +386,6 @@ class UserJourneyEndToEndTest {
     const val PERMISSION_CONTROLLER_PACKAGE = "com.android.permissioncontroller"
     const val PERMISSION_DIALOG_TIMEOUT_MS = 10_000L
     private const val SELECTOR_TIMEOUT_MS = 500L
-    const val CAPTURE_PATH = "captures/capture.jpg"
 
     @BeforeClass
     @JvmStatic
