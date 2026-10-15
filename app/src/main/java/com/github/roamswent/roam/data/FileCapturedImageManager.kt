@@ -22,33 +22,60 @@ class FileCapturedImageManager(
   override suspend fun newCaptureUri(): Uri =
       withContext(ioDispatcher) {
         val directory = File(context.cacheDir, CAPTURES_DIRECTORY)
-        val file = File(directory, CAPTURE_FILE_NAME)
-        file.delete()
         directory.mkdirs()
-        file.createNewFile()
-        uriFactory(context, file)
+        directory
+            .listFiles()
+            ?.filter { it.isFile && it.name.matches(Regex("""capture_[A-Za-z0-9_-]+\.jpg""")) }
+            ?.forEach { it.delete() }
+        val file =
+            File.createTempFile(
+                "capture_",
+                ".jpg",
+                directory,
+            )
+
+        try {
+          uriFactory(context, file)
+        } catch (e: Exception) {
+          file.delete()
+          throw e
+        }
       }
 
   override suspend fun deleteCapture(uri: Uri): Boolean =
       withContext(ioDispatcher) {
-        val path =
-            uri.path?.replace(File.separatorChar, '/')?.let {
-              if (!it.startsWith("/")) "/$it" else it
-            }
         if (
             uri.scheme != "content" ||
-                uri.authority != "${context.packageName}$FILE_PROVIDER_SUFFIX" ||
-                path != CAPTURE_PATH
+                uri.authority != "${context.packageName}$FILE_PROVIDER_SUFFIX"
         ) {
           return@withContext false
         }
-        File(context.cacheDir, "$CAPTURES_DIRECTORY/$CAPTURE_FILE_NAME").delete()
+
+        val path =
+            uri.path?.replace(File.separatorChar, '/')?.let {
+              if (!it.startsWith("/")) "/$it" else it
+            } ?: return@withContext false
+
+        val filename = path.substringAfterLast('/')
+
+        if (
+            path != "/$CAPTURES_DIRECTORY/$filename" ||
+                !filename.matches(Regex("""capture_[A-Za-z0-9_-]+\.jpg"""))
+        ) {
+          return@withContext false
+        }
+
+        val file =
+            File(
+                File(context.cacheDir, CAPTURES_DIRECTORY),
+                filename,
+            )
+
+        file.delete()
       }
 
   private companion object {
     const val CAPTURES_DIRECTORY = "captures"
-    const val CAPTURE_FILE_NAME = "capture.jpg"
-    const val CAPTURE_PATH = "/$CAPTURES_DIRECTORY/$CAPTURE_FILE_NAME"
     const val FILE_PROVIDER_SUFFIX = ".fileprovider"
   }
 }

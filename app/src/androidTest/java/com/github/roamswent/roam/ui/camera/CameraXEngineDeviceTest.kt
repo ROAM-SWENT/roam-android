@@ -59,7 +59,8 @@ class CameraXEngineDeviceTest {
 
       assertTrue(saved.await(10, TimeUnit.SECONDS))
       assertTrue("capture failed: ${error[0]}", error[0] == null)
-      assertTrue(File(activityCacheDir(scenario), "captures/capture.jpg").length() > 0)
+      val filename = requireNotNull(requireNotNull(targetUri).lastPathSegment)
+      assertTrue(File(activityCacheDir(scenario), "captures/$filename").length() > 0)
 
       scenario.onActivity { coordinator!!.stop() }
       assertFalse(coordinator!!.isRunning)
