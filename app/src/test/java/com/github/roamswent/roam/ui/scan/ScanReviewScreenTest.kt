@@ -1,9 +1,15 @@
 package com.github.roamswent.roam.ui.scan
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -11,14 +17,23 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.awaitCancellation
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -28,6 +43,15 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class ScanReviewScreenTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+
+  private lateinit var navController: NavHostController
+  private lateinit var photoUri: Uri
+  private var photoFile: File? = null
+
+  @After
+  fun deleteTemporaryPhoto() {
+    photoFile?.delete()
+  }
 
   @Test
   fun reviewingRendersPhotoAndEnabledActions() {
@@ -147,6 +171,74 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteCancelDuringLoadingReturnsToCaptureAndCancelsRequest() {
+    val requestStarted = AtomicBoolean(false)
+    val requestCancelled = AtomicBoolean(false)
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> {
+            requestStarted.set(true)
+            return try {
+              awaitCancellation()
+            } finally {
+              requestCancelled.set(true)
+            }
+          }
+        }
+    showReviewRoute(sender)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.loading_screen_progress)
+    composeTestRule.waitUntil { requestStarted.get() }
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_cancel_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.scan_camera_screen)
+    waitForDestination(Routes.Scan)
+    composeTestRule.waitUntil { requestCancelled.get() }
+  }
+
+  @Test
+  fun reviewRouteSuccessShowsGuideAndGuideButtonReturnsHome() {
+    val sentUri = AtomicReference<Uri>()
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> {
+            sentUri.set(uri)
+            return Result.success(guide)
+          }
+        }
+    showReviewRoute(sender)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithText(guide.monumentName).assertIsDisplayed()
+    assertEquals(photoUri, sentUri.get())
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    waitForDestination(Routes.Home)
+  }
+
+  @Test
+  fun reviewRouteSystemBackFromGuideReturnsHome() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+    showReviewRoute(sender)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    waitForDestination(Routes.Home)
+  }
+
+  @Test
   fun reviewingShowsPromptPillWithEnabledActions() {
     setContent(ScanReviewUiState.Reviewing(uri))
 
@@ -193,6 +285,56 @@ class ScanReviewScreenTest {
           culture = "Symbol of Paris.",
           language = "en",
       )
+
+  private fun showReviewRoute(captureSender: CaptureSender) {
+    val photo =
+        File.createTempFile(
+            "scan-review-route",
+            ".jpg",
+            ApplicationProvider.getApplicationContext<Context>().cacheDir,
+        )
+    photo.writeBytes(byteArrayOf(1, 2, 3, 4))
+    photoFile = photo
+    photoUri = Uri.fromFile(photo)
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        val controller = rememberNavController()
+        SideEffect { navController = controller }
+        NavHost(navController = controller, startDestination = Routes.Home) {
+          composable(Routes.Home) {
+            Box(Modifier.fillMaxSize().testTag(C.Tag.home_screen_container))
+          }
+          composable(Routes.Scan) { Box(Modifier.fillMaxSize().testTag(C.Tag.scan_camera_screen)) }
+          composable("${Routes.ScanReview}?uri={uri}") { entry ->
+            ScanReviewRoute(
+                navController = controller,
+                uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
+                captureSenderOverride = captureSender,
+            )
+          }
+        }
+      }
+    }
+    composeTestRule.waitForIdle()
+    composeTestRule.runOnIdle {
+      navController.navigate(Routes.Scan)
+      navController.navigate("${Routes.ScanReview}?uri=${Uri.encode(photoUri.toString())}")
+    }
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+  }
+
+  private fun waitForDestination(route: String) {
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController.currentDestination?.route == route
+    }
+  }
+
+  private fun waitAndAssertDisplayed(tag: String) {
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(tag).assertIsDisplayed()
+  }
 
   @Test
   fun sentRendersMonumentDetailScreen() {

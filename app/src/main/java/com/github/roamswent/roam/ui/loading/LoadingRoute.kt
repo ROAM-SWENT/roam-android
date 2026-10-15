@@ -28,21 +28,24 @@ fun LoadingRoute(
     readImage: (suspend (Uri) -> ImagePayload)? = null,
     language: String = Locale.getDefault().toLanguageTag(),
     modifier: Modifier = Modifier,
+    loadingViewModel: LoadingViewModel? = null,
 ) {
   val context = LocalContext.current
   val imageReader =
       remember(context, readImage) {
         readImage ?: ContentResolverImageReader(context.contentResolver)::read
       }
-  val viewModel: LoadingViewModel =
-      viewModel(key = imageUri.toString()) {
-        LoadingViewModel(repository, imageReader, imageUri, language)
-      }
+  val viewModel =
+      loadingViewModel
+          ?: viewModel(key = imageUri.toString()) {
+            LoadingViewModel(repository, imageReader, imageUri, language)
+          }
   val state by viewModel.uiState.collectAsState()
   val latestOnCancel by rememberUpdatedState(onCancel)
   val latestOnDiscoverySuccess by rememberUpdatedState(onDiscoverySuccess)
 
   LaunchedEffect(viewModel) {
+    viewModel.startDiscovery()
     viewModel.navigationEvents.collect { event ->
       when (event) {
         is LoadingNavigationEvent.NavigateToMonumentDetail ->

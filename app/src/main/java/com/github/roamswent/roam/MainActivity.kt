@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
+import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
@@ -58,6 +59,8 @@ class MainActivity : ComponentActivity() {
 internal fun RoamApp(
     authViewModel: SignInViewModel,
     navController: NavHostController = rememberNavController(),
+    captureSenderOverride: CaptureSender? = null,
+    onSignInClickOverride: (() -> Unit)? = null,
 ) {
   val context = LocalContext.current
   val locationPermissionDecisionRepository =
@@ -84,18 +87,26 @@ internal fun RoamApp(
   ) {
     NavHost(navController = navController, startDestination = Routes.SignIn) {
       composable(Routes.SignIn) {
+        val onSignedIn = {
+          if (
+              locationPermissionController.state.value.decision ==
+                  LocationPermissionDecision.NOT_ASKED
+          ) {
+            locationPermissionController.requestPermission()
+          } else {
+            navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
+          }
+        }
         SignInScreen(
             authViewModel = authViewModel,
-            onSignedIn = {
-              if (
-                  locationPermissionController.state.value.decision ==
-                      LocationPermissionDecision.NOT_ASKED
-              ) {
-                locationPermissionController.requestPermission()
-              } else {
-                navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
-              }
-            },
+            onSignedIn = onSignedIn,
+            onSignInClickOverride =
+                onSignInClickOverride?.let { signIn ->
+                  {
+                    signIn()
+                    onSignedIn()
+                  }
+                },
         )
       }
       composable(Routes.Home) {
@@ -108,7 +119,7 @@ internal fun RoamApp(
       composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
         if (uri != null) {
-          ScanReviewRoute(navController, uri)
+          ScanReviewRoute(navController, uri, captureSenderOverride)
         }
       }
     }
