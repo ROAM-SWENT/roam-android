@@ -50,6 +50,7 @@ fun SignInScreen(
     authViewModel: SignInViewModel = viewModel(),
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onSignedIn: () -> Unit = {},
+    onSignInClickOverride: (() -> Unit)? = null,
 ) {
 
   val context = LocalContext.current
@@ -92,7 +93,8 @@ fun SignInScreen(
               CircularProgressIndicator(color = ScanTeal)
             } else {
               GoogleSignInButton(
-                  onSignInClick = { authViewModel.signIn(context, credentialManager) }
+                  onSignInClick =
+                      onSignInClickOverride ?: { authViewModel.signIn(context, credentialManager) }
               )
             }
           }

@@ -132,6 +132,7 @@ class LoadingViewModelTest {
                 uri,
                 "fr-FR",
             )
+        viewModel.startDiscovery()
 
         advanceUntilIdle()
 
@@ -220,7 +221,69 @@ class LoadingViewModelTest {
         coVerify(exactly = 1) { repository.guideFor(request) }
       }
 
-  private fun viewModel() = LoadingViewModel(repository, readImage, uri, "fr-FR")
+  @Test
+  fun discoveryCanBeRetriedAfterCancellationAndFailure() =
+      runTest(dispatcher) {
+        var attempts = 0
+        val guide = guide()
+        coEvery { repository.guideFor(request) } coAnswers
+            {
+              when (++attempts) {
+                1 -> kotlinx.coroutines.awaitCancellation()
+                2 -> throw IllegalStateException("Temporary failure")
+                else -> guide
+              }
+            }
+        val viewModel = LoadingViewModel(repository, readImage, uri, "fr-FR")
+        val events = mutableListOf<LoadingNavigationEvent>()
+        val collector =
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+              viewModel.navigationEvents.collect(events::add)
+            }
+
+        viewModel.startDiscovery()
+        runCurrent()
+        viewModel.onCancel()
+        advanceUntilIdle()
+        assertEquals(listOf(LoadingNavigationEvent.NavigateHome), events)
+
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        assertEquals(LoadingUiState.Error(R.string.loading_error_generic), viewModel.uiState.value)
+
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                LoadingNavigationEvent.NavigateHome,
+                LoadingNavigationEvent.NavigateToMonumentDetail(guide, uri.toString()),
+            ),
+            events,
+        )
+        assertEquals(3, attempts)
+        collector.cancel()
+      }
+
+  private fun viewModel() =
+      LoadingViewModel(repository, readImage, uri, "fr-FR").also { it.startDiscovery() }
+
+  @Test
+  fun loadingAndDiscoveredGuideAreExposedAsState() =
+      runTest(dispatcher) {
+        val viewModel = LoadingViewModel(repository, readImage, uri, "fr-FR")
+        val guide = guide()
+
+        assertEquals(false, viewModel.showLoading.value)
+        assertEquals(null, viewModel.discoveredGuide.value)
+
+        viewModel.beginLoading()
+        assertEquals(true, viewModel.showLoading.value)
+
+        viewModel.onDiscoverySuccess(guide)
+        assertEquals(false, viewModel.showLoading.value)
+        assertEquals(guide, viewModel.discoveredGuide.value)
+      }
 
   private fun guide() =
       MonumentGuide(
