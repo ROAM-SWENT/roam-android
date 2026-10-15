@@ -114,6 +114,31 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun signInClickOverrideRunsAndNavigatesToHome() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authViewModel = mock<SignInViewModel>()
+    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+    var signInClickCount = 0
+
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        RoamApp(
+            authViewModel = authViewModel,
+            onSignInClickOverride = { signInClickCount++ },
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_google_button))
+        .performClick()
+
+    assertEquals(1, signInClickCount)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+  }
+
+  @Test
   fun firstSuccessfulSignInWithPreGrantedLocationNavigatesAndPersistsGrant() {
     shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
     val authState = MutableStateFlow(AuthUIState())
