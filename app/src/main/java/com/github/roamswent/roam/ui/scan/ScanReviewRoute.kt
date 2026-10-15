@@ -6,9 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -23,8 +21,11 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.repository.CaptureSender
+import com.github.roamswent.roam.ui.loading.ContentResolverImageReader
 import com.github.roamswent.roam.ui.loading.LoadingRoute
+import com.github.roamswent.roam.ui.loading.LoadingViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 
 @Composable
@@ -54,8 +55,6 @@ fun ScanReviewRoute(
     ScanReviewViewModel(capturedImageManager, captureSender, Dispatchers.Main.immediate)
   }
   val state by viewModel.state.collectAsState()
-  var showLoading by remember(uri) { mutableStateOf(false) }
-  var discoveredGuide by remember(uri) { mutableStateOf<MonumentGuide?>(null) }
   val guideRepository =
       remember(captureSender, uri) {
         object : MonumentGuideRepository {
@@ -63,6 +62,17 @@ fun ScanReviewRoute(
               captureSender.send(uri).getOrThrow()
         }
       }
+  val loadingViewModel: LoadingViewModel =
+      viewModel(key = uri.toString()) {
+        LoadingViewModel(
+            guideRepository,
+            ContentResolverImageReader(context.contentResolver)::read,
+            uri,
+            Locale.getDefault().toLanguageTag(),
+        )
+      }
+  val showLoading by loadingViewModel.showLoading.collectAsState()
+  val discoveredGuide by loadingViewModel.discoveredGuide.collectAsState()
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
@@ -86,11 +96,9 @@ fun ScanReviewRoute(
     LoadingRoute(
         imageUri = uri,
         onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
-        onDiscoverySuccess = { guide, _ ->
-          discoveredGuide = guide
-          showLoading = false
-        },
+        onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
         repository = guideRepository,
+        loadingViewModel = loadingViewModel,
     )
   } else {
     val currentState = discoveredGuide?.let { ScanReviewUiState.Sent(uri, it) } ?: state
@@ -102,7 +110,7 @@ fun ScanReviewRoute(
           onRetakeCancel = viewModel::cancelRetake,
           onRetryDelete = viewModel::onRetryDelete,
           onDismissDeleteError = viewModel::onDismissDeleteError,
-          onSend = { showLoading = true },
+          onSend = loadingViewModel::beginLoading,
           onRetrySend = viewModel::onRetrySend,
           onDismissSendError = viewModel::onDismissSendError,
           onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },

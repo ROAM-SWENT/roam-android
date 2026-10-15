@@ -22,6 +22,7 @@ import com.github.roamswent.roam.model.ai.UserPreferences
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -51,43 +52,67 @@ class LoadingViewModel(
     private val imageUri: Uri,
     private val language: String,
 ) : ViewModel() {
+  private val _showLoading = MutableStateFlow(false)
+  val showLoading: StateFlow<Boolean> = _showLoading.asStateFlow()
+
+  private val _discoveredGuide = MutableStateFlow<MonumentGuide?>(null)
+  val discoveredGuide: StateFlow<MonumentGuide?> = _discoveredGuide.asStateFlow()
+
   private val _uiState = MutableStateFlow<LoadingUiState>(LoadingUiState.Loading)
   val uiState: StateFlow<LoadingUiState> = _uiState.asStateFlow()
 
   private val _navigationEvents = Channel<LoadingNavigationEvent>(Channel.BUFFERED)
   val navigationEvents: Flow<LoadingNavigationEvent> = _navigationEvents.receiveAsFlow()
   private val navigationClaimed = AtomicBoolean(false)
+  private var discoveryStarted = false
+  private var discoveryJob: Job? = null
 
-  private val discoveryJob = viewModelScope.launch {
-    try {
-      val image = readImage(imageUri)
-      val guide =
-          withTimeout(DISCOVERY_TIMEOUT_MILLIS) {
-            repository.guideFor(
-                DiscoveryRequest(
-                    image = image,
-                    location = null,
-                    preferences = UserPreferences(language),
-                )
-            )
-          }
-      if (navigationClaimed.compareAndSet(false, true)) {
-        _navigationEvents.trySend(
-            LoadingNavigationEvent.NavigateToMonumentDetail(guide, imageUri.toString())
-        )
+  fun beginLoading() {
+    _showLoading.value = true
+  }
+
+  fun onDiscoverySuccess(guide: MonumentGuide) {
+    _discoveredGuide.value = guide
+    _showLoading.value = false
+  }
+
+  fun startDiscovery() {
+    if (discoveryStarted) {
+      return
+    }
+    discoveryStarted = true
+    discoveryJob = viewModelScope.launch {
+      try {
+        val image = readImage(imageUri)
+        val guide =
+            withTimeout(DISCOVERY_TIMEOUT_MILLIS) {
+              repository.guideFor(
+                  DiscoveryRequest(
+                      image = image,
+                      location = null,
+                      preferences = UserPreferences(language),
+                  )
+              )
+            }
+        if (navigationClaimed.compareAndSet(false, true)) {
+          _navigationEvents.trySend(
+              LoadingNavigationEvent.NavigateToMonumentDetail(guide, imageUri.toString())
+          )
+        }
+      } catch (exception: TimeoutCancellationException) {
+        _uiState.value = LoadingUiState.Error(R.string.loading_error_timeout)
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _uiState.value = LoadingUiState.Error(userMessageResId(exception))
       }
-    } catch (exception: TimeoutCancellationException) {
-      _uiState.value = LoadingUiState.Error(R.string.loading_error_timeout)
-    } catch (exception: CancellationException) {
-      throw exception
-    } catch (exception: Exception) {
-      _uiState.value = LoadingUiState.Error(userMessageResId(exception))
     }
   }
 
   fun onCancel() {
     if (navigationClaimed.compareAndSet(false, true)) {
-      discoveryJob.cancel()
+      _showLoading.value = false
+      discoveryJob?.cancel()
       _navigationEvents.trySend(LoadingNavigationEvent.NavigateHome)
     }
   }

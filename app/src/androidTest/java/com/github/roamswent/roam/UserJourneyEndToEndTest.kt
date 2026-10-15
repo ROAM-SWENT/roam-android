@@ -109,6 +109,9 @@ class UserJourneyEndToEndTest {
     // Permissions and the saved choice start empty. Sign-in opens the real Android location
     // prompt. Choose precise location, then check Android's grants and Roam's saved choice.
     acceptPreciseLocationPermission()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      locationPermissionDecisions.getDecision() == LocationPermissionDecision.GRANTED
+    }
     assertEquals(LocationPermissionDecision.GRANTED, locationPermissionDecisions.getDecision())
     assertPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
     assertPermissionGranted(Manifest.permission.ACCESS_FINE_LOCATION)

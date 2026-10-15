@@ -132,6 +132,7 @@ class LoadingViewModelTest {
                 uri,
                 "fr-FR",
             )
+        viewModel.startDiscovery()
 
         advanceUntilIdle()
 
@@ -220,7 +221,25 @@ class LoadingViewModelTest {
         coVerify(exactly = 1) { repository.guideFor(request) }
       }
 
-  private fun viewModel() = LoadingViewModel(repository, readImage, uri, "fr-FR")
+  private fun viewModel() =
+      LoadingViewModel(repository, readImage, uri, "fr-FR").also { it.startDiscovery() }
+
+  @Test
+  fun loadingAndDiscoveredGuideAreExposedAsState() =
+      runTest(dispatcher) {
+        val viewModel = LoadingViewModel(repository, readImage, uri, "fr-FR")
+        val guide = guide()
+
+        assertEquals(false, viewModel.showLoading.value)
+        assertEquals(null, viewModel.discoveredGuide.value)
+
+        viewModel.beginLoading()
+        assertEquals(true, viewModel.showLoading.value)
+
+        viewModel.onDiscoverySuccess(guide)
+        assertEquals(false, viewModel.showLoading.value)
+        assertEquals(guide, viewModel.discoveredGuide.value)
+      }
 
   private fun guide() =
       MonumentGuide(
