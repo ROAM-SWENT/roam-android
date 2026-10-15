@@ -56,10 +56,6 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --parallel --build-cache --configuration-cache
 
-      - name: Print debug signing SHA-1
-        run: keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep SHA
-
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
