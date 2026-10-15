@@ -1,3 +1,5 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.ui.scan
 
 import android.net.Uri
@@ -58,12 +60,13 @@ class ScanReviewScreenTest {
   }
 
   @Test
-  fun sendingRendersNonDismissibleDialogAndDisablesActions() {
+  fun sendingShowsLoadingScreenAndExistingDialog() {
     setContent(ScanReviewUiState.Sending(uri))
 
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_progress).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_title).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_sending_dialog).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
     composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
     composeTestRule.onNodeWithTag(C.Tag.scan_sending_dialog).assertIsDisplayed()
   }
@@ -78,6 +81,7 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
     composeTestRule.onAllNodesWithTag(C.Tag.scan_retake_dialog).assertCountEquals(0)
     composeTestRule.onAllNodesWithTag(C.Tag.scan_sending_dialog).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
   }
 
   @Test
@@ -159,7 +163,7 @@ class ScanReviewScreenTest {
   fun sendingShowsPromptPill() {
     setContent(ScanReviewUiState.Sending(uri))
 
-    composeTestRule.onNodeWithTag(C.Tag.scan_review_prompt_pill).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
   }
 
   @Test
@@ -207,7 +211,7 @@ class ScanReviewScreenTest {
   }
 
   @Test
-  fun sendFailedRendersDialogAndInvokesActions() {
+  fun sendFailedKeepsLoadingScreenWithoutProgressAndShowsDialog() {
     var retried = false
     var dismissed = false
     setContent(
@@ -216,9 +220,10 @@ class ScanReviewScreenTest {
         onDismissSendError = { dismissed = true },
     )
 
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_title).assertCountEquals(0)
     composeTestRule.onNodeWithTag(C.Tag.scan_send_failed_dialog).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.scan_send_failed_retry).performClick()
     composeTestRule.onNodeWithTag(C.Tag.scan_send_failed_dismiss).performClick()
 

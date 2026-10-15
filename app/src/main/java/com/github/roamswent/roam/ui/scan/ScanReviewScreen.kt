@@ -37,6 +37,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.loading.LoadingScreen
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.ShutterWhite
@@ -62,6 +63,34 @@ fun ScanReviewScreen(
         onBackClick = onHomeClick,
     )
     return
+  }
+
+  when (state) {
+    is ScanReviewUiState.Sending -> {
+      LoadingScreen(
+          image = rememberAsyncImagePainter(state.uri),
+          onCancel = onHomeClick,
+          modifier = modifier,
+          isLoading = true,
+      )
+      SendingDialog()
+      return
+    }
+    is ScanReviewUiState.SendFailed -> {
+      LoadingScreen(
+          image = rememberAsyncImagePainter(state.uri),
+          onCancel = onHomeClick,
+          modifier = modifier,
+          isLoading = false,
+      )
+      SendFailedDialog(
+          message = state.message,
+          onRetry = onRetrySend,
+          onDismiss = onDismissSendError,
+      )
+      return
+    }
+    else -> Unit
   }
 
   val context = LocalContext.current
@@ -144,12 +173,6 @@ fun ScanReviewScreen(
   }
   if (state is ScanReviewUiState.DeleteFailed) {
     DeleteFailedDialog(onRetry = onRetryDelete, onStay = onDismissDeleteError)
-  }
-  if (state is ScanReviewUiState.Sending) {
-    SendingDialog()
-  }
-  if (state is ScanReviewUiState.SendFailed) {
-    SendFailedDialog(message = state.message, onRetry = onRetrySend, onDismiss = onDismissSendError)
   }
 }
 

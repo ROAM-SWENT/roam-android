@@ -1,12 +1,16 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.ui.loading
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.resources.C
@@ -68,16 +72,19 @@ class LoadingScreenTest {
   }
 
   @Test
-  fun displaysErrorMessageInPlaceOfSubtitle() {
+  fun hidesProgressAndAnalyzingTitleWhenNotLoading() {
     composeTestRule.activity.setContent {
       LoadingScreen(
           image = ColorPainter(Color.LightGray),
           onCancel = {},
-          subtitle = "Identifying your monument.",
           errorMessage = "Gemini is unavailable",
+          isLoading = false,
       )
     }
 
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_title).assertCountEquals(0)
     composeTestRule
         .onNodeWithTag(C.Tag.loading_screen_subtitle)
         .assertIsDisplayed()
