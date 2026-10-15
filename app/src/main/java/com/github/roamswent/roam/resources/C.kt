@@ -52,5 +52,6 @@ object C {
     const val loading_screen_title = "loading_screen_title"
     const val loading_screen_subtitle = "loading_screen_subtitle"
     const val loading_screen_cancel_button = "loading_screen_cancel_button"
+    const val loading_screen_error_icon = "loading_screen_error_icon"
   }
 }

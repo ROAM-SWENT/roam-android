@@ -358,6 +358,8 @@ class ScanReviewScreenTest {
         onDismissSendError = { dismissed = true },
     )
 
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_title).assertCountEquals(0)
     composeTestRule.onNodeWithTag(C.Tag.scan_send_failed_dialog).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
