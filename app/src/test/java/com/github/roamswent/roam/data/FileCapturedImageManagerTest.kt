@@ -13,12 +13,12 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers
+import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -26,7 +26,9 @@ import org.robolectric.RobolectricTestRunner
 class FileCapturedImageManagerTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
   private val capturesDirectory = File(context.cacheDir, "captures")
-  private val captureFile = File(capturesDirectory, "capture.jpg")
+
+  private fun captureFile(uri: Uri): File =
+      File(capturesDirectory, requireNotNull(uri.lastPathSegment))
 
   @Before
   fun setUp() {
@@ -41,100 +43,123 @@ class FileCapturedImageManagerTest {
   @Test
   fun newCaptureUriPointsToExistingFileWithExpectedAuthority() = runTest {
     val uri = manager().newCaptureUri()
-    val path =
-        uri.path?.replace(File.separatorChar, '/')?.let { if (!it.startsWith("/")) "/$it" else it }
 
     assertEquals("${context.packageName}.fileprovider", uri.authority)
-    assertTrue(path?.endsWith("captures/capture.jpg") == true)
-    assertTrue(captureFile.exists())
+    assertTrue(uri.path?.startsWith("/captures/capture_") == true)
+    assertTrue(uri.path?.endsWith(".jpg") == true)
+    assertTrue(captureFile(uri).exists())
   }
 
   @Test
-  fun newCaptureUriReplacesTheExistingSingleImage() = runTest {
+  fun newCaptureUriCreatesUniqueFilesWithoutReplacingPreviousCapture() = runTest {
     val firstUri = manager().newCaptureUri()
-    captureFile.writeText("old image")
+    val firstFile = captureFile(firstUri)
+    firstFile.writeText("old image")
 
     val secondUri = manager().newCaptureUri()
+    val secondFile = captureFile(secondUri)
 
-    assertEquals(firstUri.path, secondUri.path)
-    assertEquals(listOf(captureFile.name), capturesDirectory.list()?.toList())
-    assertTrue(captureFile.exists())
-    assertEquals(0L, captureFile.length())
+    assertNotEquals(firstUri, secondUri)
+    assertTrue(firstFile.exists())
+    assertTrue(secondFile.exists())
+    assertEquals("old image", firstFile.readText())
+    assertEquals(0L, secondFile.length())
+    assertEquals(2, capturesDirectory.listFiles()?.size)
   }
 
   @Test
   fun deleteCaptureDeletesManagerProducedFile() = runTest {
     val uri = manager().newCaptureUri()
+    val file = captureFile(uri)
 
+    assertTrue(file.exists())
     assertTrue(manager().deleteCapture(uri))
-    assertFalse(captureFile.exists())
+    assertFalse(file.exists())
+  }
+
+  @Test
+  fun deleteCaptureDoesNotDeleteOtherCaptures() = runTest {
+    val firstUri = manager().newCaptureUri()
+    val secondUri = manager().newCaptureUri()
+
+    assertTrue(manager().deleteCapture(firstUri))
+    assertFalse(captureFile(firstUri).exists())
+    assertTrue(captureFile(secondUri).exists())
   }
 
   @Test
   fun deleteCaptureRejectsUriWithForeignAuthority() = runTest {
-    manager().newCaptureUri()
-    val foreignUri = android.net.Uri.parse("content://foreign.example/other.jpg")
+    val uri = manager().newCaptureUri()
+    val foreignUri = Uri.parse("content://foreign.example/other.jpg")
 
     assertFalse(manager().deleteCapture(foreignUri))
-    assertTrue(captureFile.exists())
+    assertTrue(captureFile(uri).exists())
   }
 
   @Test
   fun deleteCaptureRejectsForeignAuthorityUri() = runTest {
     val target = manager().newCaptureUri()
-    val foreignAuthorityUri = target.buildUpon().authority("foreign.example").build()
+    val foreignUri = target.buildUpon().authority("foreign.example").build()
 
-    assertFalse(manager().deleteCapture(foreignAuthorityUri))
-    assertTrue(captureFile.exists())
+    assertFalse(manager().deleteCapture(foreignUri))
+    assertTrue(captureFile(target).exists())
   }
 
   @Test
   fun deleteCaptureRejectsCorrectAuthorityWithWrongPath() = runTest {
     val target = manager().newCaptureUri()
-    captureFile.writeText("capture image")
+    val file = captureFile(target)
+    file.writeText("capture image")
+
     val wrongPathUri = target.buildUpon().path("/captures/other.jpg").build()
 
     assertFalse(manager().deleteCapture(wrongPathUri))
-    assertTrue(captureFile.exists())
-    assertEquals("capture image", captureFile.readText())
+    assertTrue(file.exists())
+    assertEquals("capture image", file.readText())
   }
 
   @Test
   fun deleteCaptureRejectsCorrectAuthorityWithUnrelatedPathEndingInFilename() = runTest {
     val target = manager().newCaptureUri()
-    captureFile.writeText("capture image")
-    val unrelatedPathUri = target.buildUpon().path("/unrelated/capture.jpg").build()
+    val file = captureFile(target)
+    file.writeText("capture image")
 
-    assertFalse(manager().deleteCapture(unrelatedPathUri))
-    assertTrue(captureFile.exists())
-    assertEquals("capture image", captureFile.readText())
+    val unrelatedUri = target.buildUpon().path("/unrelated/${file.name}").build()
+
+    assertFalse(manager().deleteCapture(unrelatedUri))
+    assertTrue(file.exists())
+    assertEquals("capture image", file.readText())
   }
 
   @Test
   fun deleteCaptureRejectsNonContentScheme() = runTest {
     val target = manager().newCaptureUri()
-    captureFile.writeText("capture image")
+    val file = captureFile(target)
+    file.writeText("capture image")
+
     val fileSchemeUri = target.buildUpon().scheme("file").build()
 
     assertFalse(manager().deleteCapture(fileSchemeUri))
-    assertTrue(captureFile.exists())
+    assertTrue(file.exists())
   }
 
   @Test
   fun deleteCaptureRejectsCorrectAuthorityWithNullPath() = runTest {
     val target = manager().newCaptureUri()
-    captureFile.writeText("capture image")
+    val file = captureFile(target)
+    file.writeText("capture image")
+
     val nullPathUri = target.buildUpon().path(null).build()
 
     assertFalse(manager().deleteCapture(nullPathUri))
-    assertTrue(captureFile.exists())
-    assertEquals("capture image", captureFile.readText())
+    assertTrue(file.exists())
+    assertEquals("capture image", file.readText())
   }
 
   @Test
   fun deleteCaptureReturnsFalseWhenFileWasAlreadyRemoved() = runTest {
     val uri = manager().newCaptureUri()
-    assertTrue(captureFile.delete())
+    assertTrue(captureFile(uri).delete())
 
     assertFalse(manager().deleteCapture(uri))
   }
@@ -147,41 +172,42 @@ class FileCapturedImageManagerTest {
     assertFalse(result.isCompleted)
     advanceUntilIdle()
 
-    assertTrue(result.await().path?.endsWith("capture.jpg") == true)
+    val uri = result.await()
+    assertTrue(uri.path?.contains("/captures/capture_") == true)
+    assertTrue(captureFile(uri).exists())
   }
 
   @Test
   fun defaultUriFactoryDelegatesToFileProvider() = runTest {
-    val expectedFile = File(capturesDirectory, "capture.jpg")
-    val expectedUri =
-        Uri.parse("content://${context.packageName}.fileprovider/captures/capture.jpg")
+    val authority = "${context.packageName}.fileprovider"
 
-    org.mockito.Mockito.mockStatic(FileProvider::class.java).use { mocked ->
+    Mockito.mockStatic(FileProvider::class.java).use { mocked ->
       mocked
           .`when`<Uri> {
             FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                expectedFile,
+                ArgumentMatchers.eq(context),
+                ArgumentMatchers.eq(authority),
+                ArgumentMatchers.any(File::class.java),
             )
           }
-          .thenReturn(expectedUri)
+          .thenAnswer { invocation ->
+            val file = invocation.getArgument<File>(2)
+            Uri.parse("content://$authority/captures/${file.name}")
+          }
 
-      val manager =
-          FileCapturedImageManager(
-              context,
-              UnconfinedTestDispatcher(),
-          )
+      val manager = FileCapturedImageManager(context, UnconfinedTestDispatcher())
 
       val result = manager.newCaptureUri()
+      val generatedFile = captureFile(result)
 
-      assertEquals(expectedUri, result)
+      assertTrue(generatedFile.exists())
+      assertTrue(generatedFile.name.startsWith("capture_"))
 
       mocked.verify {
         FileProvider.getUriForFile(
             context,
-            "${context.packageName}.fileprovider",
-            expectedFile,
+            authority,
+            generatedFile,
         )
       }
     }
