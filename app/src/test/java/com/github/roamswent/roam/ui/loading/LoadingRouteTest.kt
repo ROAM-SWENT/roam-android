@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -73,7 +74,8 @@ class LoadingRouteTest {
     composeTestRule
         .onNodeWithTag(C.Tag.loading_screen_subtitle)
         .assertTextEquals("Something went wrong.")
-    composeTestRule.onNodeWithTag(C.Tag.loading_screen_title).assertTextEquals("Analyzing…")
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_title).assertCountEquals(0)
   }
 
   @Test

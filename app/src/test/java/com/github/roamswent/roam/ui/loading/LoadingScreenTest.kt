@@ -4,9 +4,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.resources.C
@@ -82,6 +84,9 @@ class LoadingScreenTest {
         .onNodeWithTag(C.Tag.loading_screen_subtitle)
         .assertIsDisplayed()
         .assertTextEquals("Gemini is unavailable")
+    composeTestRule.onNodeWithTag(C.Tag.loading_screen_error_icon).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_title).assertCountEquals(0)
   }
 
   @Test

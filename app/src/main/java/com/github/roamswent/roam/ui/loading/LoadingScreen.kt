@@ -15,7 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +55,7 @@ fun LoadingScreen(
     errorMessage: String? = null,
 ) {
   BackHandler(onBack = onCancel)
+  val isLoading = errorMessage == null
   val displayedTitle = title ?: stringResource(R.string.loading_title)
   val displayedSubtitle = subtitle ?: stringResource(R.string.loading_subtitle)
 
@@ -80,24 +84,35 @@ fun LoadingScreen(
 
       Spacer(Modifier.height(32.dp))
 
-      CircularProgressIndicator(
-          modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_progress },
-          color = LoadingProgressAccent,
-          trackColor = LoadingProgressTrack,
-          strokeWidth = 3.dp,
-      )
+      if (isLoading) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_progress },
+            color = LoadingProgressAccent,
+            trackColor = LoadingProgressTrack,
+            strokeWidth = 3.dp,
+        )
 
-      Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(24.dp))
 
-      Text(
-          text = displayedTitle,
-          modifier = Modifier.semantics { testTag = C.Tag.loading_screen_title },
-          color = LoadingTextPrimary,
-          fontSize = 20.sp,
-          fontWeight = FontWeight.Bold,
-      )
+        Text(
+            text = displayedTitle,
+            modifier = Modifier.semantics { testTag = C.Tag.loading_screen_title },
+            color = LoadingTextPrimary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+        )
 
-      Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(6.dp))
+      } else {
+        Icon(
+            imageVector = Icons.Filled.ErrorOutline,
+            contentDescription = "Error",
+            tint = LoadingErrorText,
+            modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_error_icon },
+        )
+
+        Spacer(Modifier.height(24.dp))
+      }
 
       Text(
           text = errorMessage ?: displayedSubtitle,
