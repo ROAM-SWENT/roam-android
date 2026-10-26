@@ -143,6 +143,9 @@ dependencies {
   // Firebase: AI Logic for Gemini, App Check for attestation
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.ai)
+  implementation(libs.firebase.firestore)
+  implementation(libs.guava)
+  implementation(libs.kotlinx.coroutines.play.services)
   debugImplementation(libs.firebase.appcheck.debug)
 
   implementation(libs.androidx.camera.core)
