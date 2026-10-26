@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -43,7 +44,7 @@ import org.robolectric.shadows.ShadowToast
 class SettingsScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
-  /** Verifies that the screen displays its controls and the correct initial permission statuses. */
+  /** Verifies the profile, settings sections, and initial permission statuses. */
   @Test
   fun initialState_displaysSettingsButtonsAndPermissionStatuses() {
     val viewModel = mock<SettingsViewModel>()
@@ -68,9 +69,11 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Victor").assertIsDisplayed()
+    composeTestRule.onNodeWithText("App Permissions").assertIsDisplayed()
     composeTestRule.onNodeWithText("Manage Permissions").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Log Out").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Sign Out").assertIsDisplayed()
+    composeTestRule.onNodeWithText("My Interests (AI Guide)").assertIsDisplayed()
     composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
     composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
     composeTestRule
@@ -137,7 +140,7 @@ class SettingsScreenTest {
     assertEquals(1, managePermissionsClicks)
   }
 
-  /** Verifies that tapping Log Out delegates sign-out to the ViewModel and credential manager. */
+  /** Verifies that tapping Sign Out delegates to the ViewModel and credential manager. */
   @Test
   fun logOutButton_delegatesToViewModel() {
     val viewModel = mock<SettingsViewModel>()
@@ -156,9 +159,37 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Log Out").performClick()
+    composeTestRule.onNodeWithText("Sign Out").performClick()
 
     verify(viewModel).signOut(credentialManager)
+  }
+
+  /** Verifies that an interest can be added from the dialog and removed from its chip. */
+  @Test
+  fun interests_canBeAddedAndRemoved() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    val (cameraController, locationController) = permissionControllers()
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Add an interest").performClick()
+    composeTestRule.onNodeWithText("Museums").performClick()
+    composeTestRule.onNodeWithText("Museums").assertIsDisplayed()
+
+    composeTestRule.onNodeWithContentDescription("Remove Museums").performClick()
+    composeTestRule.onNodeWithText("Museums").assertDoesNotExist()
+
+    composeTestRule.onNodeWithText("Add an interest").performClick()
+    composeTestRule.onNodeWithText("Museums").assertIsDisplayed()
   }
 
   /** Verifies that an initially available error is shown as a toast and then cleared. */
