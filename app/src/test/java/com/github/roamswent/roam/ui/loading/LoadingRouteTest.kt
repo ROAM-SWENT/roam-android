@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.resources.C
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -109,6 +110,7 @@ class LoadingRouteTest {
           onCancel = onCancel,
           onDiscoverySuccess = onSuccess,
           repository = repository,
+          userInterestsRepository = mockk<UserInterestsRepository>(),
           readImage = { ImagePayload(byteArrayOf(1), "image/jpeg") },
       )
     }

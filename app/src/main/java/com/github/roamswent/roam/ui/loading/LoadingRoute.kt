@@ -17,6 +17,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import java.util.Locale
 
 @Composable
@@ -25,6 +26,7 @@ fun LoadingRoute(
     onCancel: () -> Unit,
     onDiscoverySuccess: (MonumentGuide, Uri) -> Unit,
     repository: MonumentGuideRepository,
+    userInterestsRepository: UserInterestsRepository,
     readImage: (suspend (Uri) -> ImagePayload)? = null,
     language: String = Locale.getDefault().toLanguageTag(),
     modifier: Modifier = Modifier,
@@ -38,7 +40,13 @@ fun LoadingRoute(
   val viewModel =
       loadingViewModel
           ?: viewModel(key = imageUri.toString()) {
-            LoadingViewModel(repository, imageReader, imageUri, language)
+            LoadingViewModel(
+                repository,
+                imageReader,
+                imageUri,
+                language,
+                userInterestsRepository,
+            )
           }
   val state by viewModel.uiState.collectAsState()
   val latestOnCancel by rememberUpdatedState(onCancel)

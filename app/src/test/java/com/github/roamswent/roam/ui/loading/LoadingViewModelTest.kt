@@ -17,6 +17,8 @@ import com.github.roamswent.roam.model.ai.RejectedImageException
 import com.github.roamswent.roam.model.ai.RejectionReason
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.interests.UserInterestsState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -46,6 +48,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class LoadingViewModelTest {
   private val repository = mockk<MonumentGuideRepository>()
+  private val userInterestsRepository = FakeUserInterestsRepository()
   private val dispatcher = StandardTestDispatcher()
   private val uri = Uri.parse("content://capture/photo.jpg")
   private val image = ImagePayload(byteArrayOf(1), "image/jpeg")
@@ -131,6 +134,7 @@ class LoadingViewModelTest {
                 { throw IOException("internal read failure") },
                 uri,
                 "fr-FR",
+                userInterestsRepository,
             )
         viewModel.startDiscovery()
 
@@ -234,7 +238,7 @@ class LoadingViewModelTest {
                 else -> guide
               }
             }
-        val viewModel = LoadingViewModel(repository, readImage, uri, "fr-FR")
+        val viewModel = newViewModel(userInterestsRepository)
         val events = mutableListOf<LoadingNavigationEvent>()
         val collector =
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -265,13 +269,12 @@ class LoadingViewModelTest {
         collector.cancel()
       }
 
-  private fun viewModel() =
-      LoadingViewModel(repository, readImage, uri, "fr-FR").also { it.startDiscovery() }
+  private fun viewModel() = newViewModel(userInterestsRepository).also { it.startDiscovery() }
 
   @Test
   fun loadingAndDiscoveredGuideAreExposedAsState() =
       runTest(dispatcher) {
-        val viewModel = LoadingViewModel(repository, readImage, uri, "fr-FR")
+        val viewModel = newViewModel(userInterestsRepository)
         val guide = guide()
 
         assertEquals(false, viewModel.showLoading.value)
@@ -284,6 +287,98 @@ class LoadingViewModelTest {
         assertEquals(false, viewModel.showLoading.value)
         assertEquals(guide, viewModel.discoveredGuide.value)
       }
+
+  @Test
+  fun alreadyAskedUserBeginsLoadingImmediately() =
+      runTest(dispatcher) {
+        val viewModel = newViewModel(FakeUserInterestsRepository(hasBeenAsked = true))
+
+        viewModel.beginLoading()
+
+        assertEquals(true, viewModel.showLoading.value)
+        assertEquals(false, viewModel.showInterestsPrompt.value)
+      }
+
+  @Test
+  fun neverAskedUserSeesPromptWithoutBeginningLoading() =
+      runTest(dispatcher) {
+        val viewModel = newViewModel(FakeUserInterestsRepository(hasBeenAsked = false))
+
+        viewModel.beginLoading()
+
+        assertEquals(false, viewModel.showLoading.value)
+        assertEquals(true, viewModel.showInterestsPrompt.value)
+        coVerify(exactly = 0) { repository.guideFor(any()) }
+      }
+
+  @Test
+  fun savingInterestsPersistsAndBeginsLoading() =
+      runTest(dispatcher) {
+        val interests = FakeUserInterestsRepository(hasBeenAsked = false)
+        val viewModel = newViewModel(interests)
+        viewModel.beginLoading()
+
+        viewModel.onSaveInterests(listOf("art", "history"))
+
+        assertEquals(
+            UserInterestsState(hasBeenAsked = true, interests = listOf("art", "history")),
+            interests.getUserInterests(),
+        )
+        assertEquals(false, viewModel.showInterestsPrompt.value)
+        assertEquals(true, viewModel.showLoading.value)
+      }
+
+  @Test
+  fun skippingInterestsPersistsAndBeginsLoading() =
+      runTest(dispatcher) {
+        val interests = FakeUserInterestsRepository(hasBeenAsked = false)
+        val viewModel = newViewModel(interests)
+        viewModel.beginLoading()
+
+        viewModel.onSkipInterests()
+
+        assertEquals(
+            UserInterestsState(hasBeenAsked = true, interests = emptyList()),
+            interests.getUserInterests(),
+        )
+        assertEquals(false, viewModel.showInterestsPrompt.value)
+        assertEquals(true, viewModel.showLoading.value)
+      }
+
+  @Test
+  fun laterSendDoesNotPromptAgainAfterInterestsDecision() =
+      runTest(dispatcher) {
+        val interests = FakeUserInterestsRepository(hasBeenAsked = false)
+        val firstViewModel = newViewModel(interests)
+        firstViewModel.beginLoading()
+        firstViewModel.onSkipInterests()
+
+        val nextViewModel = newViewModel(interests)
+        nextViewModel.beginLoading()
+
+        assertEquals(false, nextViewModel.showInterestsPrompt.value)
+        assertEquals(true, nextViewModel.showLoading.value)
+      }
+
+  private fun newViewModel(interestsRepository: UserInterestsRepository) =
+      LoadingViewModel(repository, readImage, uri, "fr-FR", interestsRepository)
+
+  private class FakeUserInterestsRepository(
+      private var hasBeenAsked: Boolean = true,
+      private var interests: List<String> = emptyList(),
+  ) : UserInterestsRepository {
+    override fun getUserInterests() = UserInterestsState(hasBeenAsked, interests)
+
+    override fun saveInterests(interests: List<String>) {
+      hasBeenAsked = true
+      this.interests = interests
+    }
+
+    override fun skipInterests() {
+      hasBeenAsked = true
+      interests = emptyList()
+    }
+  }
 
   private fun guide() =
       MonumentGuide(
