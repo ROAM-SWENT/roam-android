@@ -14,13 +14,18 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Co
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -185,5 +190,64 @@ class AuthRepositoryFirebaseTest {
 
     assertFalse(result.isSuccess)
     assertEquals("Logout failed: cannot logout", result.exceptionOrNull()?.message)
+  }
+
+  /**
+   * Verifies that the currently signed-in Firebase user is returned by
+   * [AuthRepositoryFirebase.currentUser].
+   */
+  @Test
+  fun currentUserReturnsSignedInUser() {
+    whenever(auth.currentUser).thenReturn(user)
+
+    assertEquals(user, repository.currentUser())
+  }
+
+  /** Verifies that null is returned when no user is currently signed in with Firebase. */
+  @Test
+  fun currentUserReturnsNullWhenSignedOut() {
+    whenever(auth.currentUser).thenReturn(null)
+
+    assertNull(repository.currentUser())
+  }
+
+  /**
+   * Verifies that the auth-state listener registered when collecting the flow emits the currently
+   * signed-in user as soon as it is fired.
+   */
+  @Test
+  fun currentUserFlowEmitsOnListenerRegistration() = runTest {
+    whenever(auth.currentUser).thenReturn(user)
+    val listenerCaptor = argumentCaptor<FirebaseAuth.AuthStateListener>()
+    val emissions = mutableListOf<FirebaseUser?>()
+    val collector = launch { repository.currentUserFlow().collect { emissions.add(it) } }
+
+    runCurrent()
+    verify(auth).addAuthStateListener(listenerCaptor.capture())
+
+    listenerCaptor.firstValue.onAuthStateChanged(auth)
+    runCurrent()
+
+    assertEquals(listOf(user), emissions)
+    collector.cancel()
+    advanceUntilIdle()
+  }
+
+  /**
+   * Verifies that cancelling the flow collection removes the registered auth-state listener from
+   * Firebase.
+   */
+  @Test
+  fun currentUserFlowRemovesListenerOnCancel() = runTest {
+    val listenerCaptor = argumentCaptor<FirebaseAuth.AuthStateListener>()
+    val collector = launch { repository.currentUserFlow().collect {} }
+
+    runCurrent()
+    verify(auth).addAuthStateListener(listenerCaptor.capture())
+
+    collector.cancel()
+    advanceUntilIdle()
+
+    verify(auth).removeAuthStateListener(listenerCaptor.firstValue)
   }
 }

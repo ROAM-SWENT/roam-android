@@ -25,10 +25,10 @@ import com.github.roamswent.roam.ui.theme.HomeTextSecondary
 
 @Composable
 fun HomeGreetingHeader(
-    userName: String = "Victor",
+    userName: String = HomeViewModel.DEFAULT_USER_NAME,
     modifier: Modifier = Modifier,
 ) {
-  val displayName = userName.ifBlank { "Victor" }
+  val displayName = userName.ifBlank { HomeViewModel.DEFAULT_USER_NAME }
 
   Column(modifier = modifier.fillMaxWidth().padding(top = 16.dp, bottom = 20.dp)) {
     Text(
