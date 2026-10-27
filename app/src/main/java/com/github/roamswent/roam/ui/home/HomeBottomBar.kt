@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.NoPhotography
@@ -23,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -44,22 +47,20 @@ fun HomeBottomBar(
 ) {
   val haloSize = 72.dp
 
-  Box(
-      modifier =
-          Modifier.fillMaxWidth().navigationBarsPadding().semantics {
-            testTag = C.Tag.home_bottom_bar
-          }
-  ) {
+  Box(modifier = Modifier.fillMaxWidth().semantics { testTag = C.Tag.home_bottom_bar }) {
     Surface(
         modifier =
             Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(top = haloSize / 2),
         color = Color.White,
     ) {
       Row(
-          modifier = Modifier.fillMaxWidth().height(80.dp),
+          modifier = Modifier.fillMaxWidth().navigationBarsPadding().height(80.dp),
           verticalAlignment = Alignment.Bottom,
       ) {
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
+        Box(
+            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
           HomeBottomTabItem(
               tab = HomeBottomTab.HOME,
               selected = selectedTab == HomeBottomTab.HOME,
@@ -78,7 +79,10 @@ fun HomeBottomBar(
                   Modifier.padding(bottom = 16.dp).semantics { testTag = C.Tag.home_scan_label },
           )
         }
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
+        Box(
+            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
           HomeBottomTabItem(
               tab = HomeBottomTab.PROFILE,
               selected = selectedTab == HomeBottomTab.PROFILE,
@@ -138,9 +142,11 @@ private fun HomeBottomTabItem(
   Column(
       horizontalAlignment = Alignment.CenterHorizontally,
       modifier =
-          Modifier.clickable { onTabSelected(tab) }
+          Modifier.defaultMinSize(minWidth = 68.dp, minHeight = 56.dp)
+              .clip(RoundedCornerShape(12.dp))
+              .clickable { onTabSelected(tab) }
               .semantics { testTag = tab.tag }
-              .padding(bottom = 16.dp),
+              .padding(horizontal = 12.dp, vertical = 6.dp),
   ) {
     Icon(
         imageVector = tab.icon,
