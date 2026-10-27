@@ -5,13 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CenterFocusStrong
@@ -45,43 +44,41 @@ fun HomeBottomBar(
 ) {
   val haloSize = 72.dp
 
-  Box(modifier = Modifier.fillMaxWidth().semantics { testTag = C.Tag.home_bottom_bar }) {
+  Box(
+      modifier =
+          Modifier.fillMaxWidth().navigationBarsPadding().semantics {
+            testTag = C.Tag.home_bottom_bar
+          }
+  ) {
     Surface(
         modifier =
-            Modifier.fillMaxWidth()
-                .height(76.dp)
-                .align(Alignment.BottomCenter)
-                .padding(top = haloSize / 2),
+            Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(top = haloSize / 2),
         color = Color.White,
     ) {
-      Row(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
-        Box(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-            contentAlignment = Alignment.Center,
-        ) {
+      Row(
+          modifier = Modifier.fillMaxWidth().height(80.dp),
+          verticalAlignment = Alignment.Bottom,
+      ) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
           HomeBottomTabItem(
               tab = HomeBottomTab.HOME,
               selected = selectedTab == HomeBottomTab.HOME,
               onTabSelected = onTabSelected,
           )
         }
-        Box(
-            modifier = Modifier.width(haloSize).fillMaxHeight(),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
           Text(
               text =
                   if (cameraAvailable) "Scan a monument" else "No camera detected on this device",
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
-              style = MaterialTheme.typography.labelMedium,
-              fontWeight = FontWeight.SemiBold,
-              modifier = Modifier.semantics { testTag = C.Tag.home_scan_label },
+              fontSize = 11.sp,
+              fontWeight = FontWeight.Bold,
+              maxLines = 1,
+              modifier =
+                  Modifier.padding(bottom = 16.dp).semantics { testTag = C.Tag.home_scan_label },
           )
         }
-        Box(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
           HomeBottomTabItem(
               tab = HomeBottomTab.PROFILE,
               selected = selectedTab == HomeBottomTab.PROFILE,
@@ -140,7 +137,10 @@ private fun HomeBottomTabItem(
 
   Column(
       horizontalAlignment = Alignment.CenterHorizontally,
-      modifier = Modifier.clickable { onTabSelected(tab) }.semantics { testTag = tab.tag },
+      modifier =
+          Modifier.clickable { onTabSelected(tab) }
+              .semantics { testTag = tab.tag }
+              .padding(bottom = 16.dp),
   ) {
     Icon(
         imageVector = tab.icon,
@@ -148,6 +148,7 @@ private fun HomeBottomTabItem(
         tint = color,
         modifier = Modifier.size(24.dp),
     )
+    Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = stringResource(tab.labelRes),
         color = color,

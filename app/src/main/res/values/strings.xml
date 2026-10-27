@@ -22,7 +22,7 @@
     <string name="loading_error_configuration">The service is unavailable. Please try again later.</string>
     <string name="loading_error_read_image">Couldn’t load the photo. Please try again.</string>
     <string name="monument_detail_home_description">Home</string>
-    <string name="home_tab_home">Accueil</string>
-    <string name="home_tab_scan">Scanner un monument</string>
-    <string name="home_tab_profile">Profil</string>
+    <string name="home_tab_home">Home</string>
+    <string name="home_tab_scan">Scan a monument</string>
+    <string name="home_tab_profile">Profile</string>
 </resources>
