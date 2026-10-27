@@ -29,7 +29,7 @@ class HomeDashboardTest {
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
-        .assertTextEquals("Hello Victor,")
+        .assertTextEquals("Hello,")
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_title, useUnmergedTree = true)
         .assertTextEquals("Ready to explore?")
@@ -51,13 +51,13 @@ class HomeDashboardTest {
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
-        .assertTextEquals("Hello Victor,")
+        .assertTextEquals("Hello,")
 
     userName.value = " "
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
-        .assertTextEquals("Hello Victor,")
+        .assertTextEquals("Hello,")
   }
 
   @Test

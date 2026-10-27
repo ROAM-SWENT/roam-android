@@ -70,4 +70,13 @@ class HomeScreenTest {
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
         .assertTextEquals("Hello Ada Lovelace,")
   }
+
+  @Test
+  fun homeScreenShowsSignedOutGreeting() {
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "") } }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
+        .assertTextEquals("Hello,")
+  }
 }
