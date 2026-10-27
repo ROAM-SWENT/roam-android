@@ -113,6 +113,7 @@ internal fun RoamApp(
         HomeScreen(
             onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
             cameraAvailable = cameraAvailable,
+            onSettingsClicked = {}
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }
