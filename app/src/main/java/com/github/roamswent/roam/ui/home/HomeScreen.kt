@@ -19,7 +19,11 @@ import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
-fun HomeScreen(onScanClicked: () -> Unit, cameraAvailable: Boolean = true) {
+fun HomeScreen(
+    onScanClicked: () -> Unit,
+    cameraAvailable: Boolean = true,
+    userName: String = HomeViewModel.DEFAULT_USER_NAME,
+) {
   Box(
       modifier =
           Modifier.fillMaxSize().background(ScreenBackground).semantics {
@@ -27,7 +31,7 @@ fun HomeScreen(onScanClicked: () -> Unit, cameraAvailable: Boolean = true) {
           }
   ) {
     Column(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp)) {
-      HomeGreetingHeader()
+      HomeGreetingHeader(userName = userName)
       ScanPromptCard(onPromptClick = {})
     }
 

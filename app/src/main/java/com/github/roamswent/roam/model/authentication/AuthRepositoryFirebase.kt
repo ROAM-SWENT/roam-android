@@ -54,6 +54,11 @@ class AuthRepositoryFirebase(
     }
   }
 
+  /** Returns the currently signed-in user, or null when signed out. */
+  override fun currentUser(): FirebaseUser? {
+    return auth.currentUser
+  }
+
   override fun signOut(): Result<Unit> {
     return try {
       // Firebase sign out

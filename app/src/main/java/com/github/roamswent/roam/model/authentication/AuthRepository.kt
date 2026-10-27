@@ -17,6 +17,9 @@ interface AuthRepository {
    */
   suspend fun signInWithGoogle(credential: Credential): Result<FirebaseUser>
 
+  /** Returns the currently signed-in user, or null when signed out. */
+  fun currentUser(): FirebaseUser?
+
   /**
    * Signs out the currently authenticated user and clears the credential state.
    *
