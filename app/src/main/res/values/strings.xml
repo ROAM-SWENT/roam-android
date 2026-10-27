@@ -25,4 +25,5 @@
     <string name="home_tab_home">Home</string>
     <string name="home_tab_scan">Scan a monument</string>
     <string name="home_tab_profile">Profile</string>
+    <string name="home_scan_unavailable">No camera detected on this device</string>
 </resources>

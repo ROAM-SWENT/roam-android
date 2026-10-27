@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ */
+
 package com.github.roamswent.roam.ui.home
 
 import androidx.compose.material.icons.Icons

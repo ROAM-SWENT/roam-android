@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ */
+
 package com.github.roamswent.roam.ui.home
 
 import androidx.compose.foundation.background
@@ -33,6 +37,7 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeActiveTab
 import com.github.roamswent.roam.ui.theme.HomeInactiveTab
@@ -70,7 +75,8 @@ fun HomeBottomBar(
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
           Text(
               text =
-                  if (cameraAvailable) "Scan a monument" else "No camera detected on this device",
+                  if (cameraAvailable) stringResource(R.string.home_tab_scan)
+                  else stringResource(R.string.home_scan_unavailable),
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               fontSize = 11.sp,
               fontWeight = FontWeight.Bold,
@@ -96,6 +102,7 @@ fun HomeBottomBar(
         modifier =
             Modifier.align(Alignment.TopCenter)
                 .size(haloSize)
+                .semantics { testTag = C.Tag.home_tab_scan }
                 .background(
                     color =
                         if (cameraAvailable) Color.White
@@ -122,7 +129,8 @@ fun HomeBottomBar(
                 if (cameraAvailable) Icons.Default.CenterFocusStrong
                 else Icons.Default.NoPhotography,
             contentDescription =
-                if (cameraAvailable) "Scan a monument" else "No camera detected on this device",
+                if (cameraAvailable) stringResource(R.string.home_tab_scan)
+                else stringResource(R.string.home_scan_unavailable),
             tint = Color.White,
             modifier = Modifier.size(28.dp),
         )
