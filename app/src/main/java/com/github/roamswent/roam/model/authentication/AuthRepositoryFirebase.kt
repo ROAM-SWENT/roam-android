@@ -11,6 +11,9 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -57,6 +60,13 @@ class AuthRepositoryFirebase(
   /** Returns the currently signed-in user, or null when signed out. */
   override fun currentUser(): FirebaseUser? {
     return auth.currentUser
+  }
+
+  /** Emits the currently signed-in user (or null when signed out) on every auth state change. */
+  override fun currentUserFlow(): Flow<FirebaseUser?> = callbackFlow {
+    val listener = FirebaseAuth.AuthStateListener { auth -> trySend(auth.currentUser) }
+    auth.addAuthStateListener(listener)
+    awaitClose { auth.removeAuthStateListener(listener) }
   }
 
   override fun signOut(): Result<Unit> {

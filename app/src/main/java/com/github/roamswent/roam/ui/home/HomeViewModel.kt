@@ -5,18 +5,22 @@
 package com.github.roamswent.roam.ui.home
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * ViewModel for the Home screen.
  *
- * Exposes the display name of the currently signed-in user for the greeting header.
+ * Exposes the display name of the currently signed-in user for the greeting header, reactively
+ * updating on every authentication state change.
  *
- * @property repository The repository used to retrieve the currently signed-in user.
+ * @property repository The repository used to observe the currently signed-in user.
  */
 class HomeViewModel(private val repository: AuthRepository = AuthRepositoryFirebase()) :
     ViewModel() {
@@ -26,6 +30,9 @@ class HomeViewModel(private val repository: AuthRepository = AuthRepositoryFireb
 
   init {
     _userName.value = resolveDisplayName(repository.currentUser())
+    viewModelScope.launch {
+      repository.currentUserFlow().map { resolveDisplayName(it) }.collect { _userName.value = it }
+    }
   }
 
   /**
