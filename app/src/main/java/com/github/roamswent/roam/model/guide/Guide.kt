@@ -1,6 +1,8 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.location.Coordinates
+
 /** A saved guide, including the photo and all information shown on the detail screen. */
 data class Guide(
     val id: String = "",
@@ -10,7 +12,10 @@ data class Guide(
     val history: String,
     val facts: List<String>,
     val culture: String,
-    val language: String,
+    /** Coordinates where the guide was discovered, if location was available. */
+    val location: Coordinates? = null,
+    /** Discovery time as Unix epoch milliseconds; null if not available. */
+    val discoveryDate: Long? = System.currentTimeMillis(),
 ) {
   override fun equals(other: Any?): Boolean =
       other is Guide &&
@@ -21,7 +26,8 @@ data class Guide(
           history == other.history &&
           facts == other.facts &&
           culture == other.culture &&
-          language == other.language
+          location == other.location &&
+          discoveryDate == other.discoveryDate
 
   override fun hashCode(): Int {
     var result = id.hashCode()
@@ -31,7 +37,8 @@ data class Guide(
     result = 31 * result + history.hashCode()
     result = 31 * result + facts.hashCode()
     result = 31 * result + culture.hashCode()
-    result = 31 * result + language.hashCode()
+    result = 31 * result + (location?.hashCode() ?: 0)
+    result = 31 * result + (discoveryDate?.hashCode() ?: 0)
     return result
   }
 }
