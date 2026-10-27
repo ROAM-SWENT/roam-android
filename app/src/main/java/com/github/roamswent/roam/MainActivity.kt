@@ -41,6 +41,7 @@ import com.github.roamswent.roam.ui.permission.rememberCameraPermissionControlle
 import com.github.roamswent.roam.ui.permission.rememberLocationPermissionController
 import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
+import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -113,6 +114,7 @@ internal fun RoamApp(
         HomeScreen(
             onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
             cameraAvailable = cameraAvailable,
+            onSettingsClicked = { navController.navigate(Routes.Settings) },
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }
@@ -121,6 +123,21 @@ internal fun RoamApp(
         if (uri != null) {
           ScanReviewRoute(navController, uri, captureSenderOverride)
         }
+      }
+      composable(Routes.Settings) {
+        SettingsScreen(
+            cameraPermissionController = permissionController,
+            locationPermissionController = locationPermissionController,
+            onManagePermissionsClick = {
+                permissionController.openAppSettings()
+            },
+            onSignedOut = {
+              authViewModel.clearSignedInUser()
+              navController.navigate(Routes.SignIn) {
+                popUpTo(navController.graph.id) { inclusive = true }
+              }
+            },
+        )
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
