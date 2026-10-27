@@ -51,6 +51,11 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
     _uiState.update { it.copy(errorMsg = null) }
   }
 
+  /** Clears the cached user after a successful sign-out. */
+  fun clearSignedInUser() {
+    _uiState.update { it.copy(user = null, signedOut = true) }
+  }
+
   private fun getSignInOptions(context: Context) =
       GetSignInWithGoogleOption.Builder(
               serverClientId = context.getString(R.string.default_web_client_id)

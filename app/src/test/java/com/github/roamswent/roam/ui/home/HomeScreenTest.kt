@@ -20,7 +20,9 @@ class HomeScreenTest {
 
   @Test
   fun homeScreenDisplaysScanEntry() {
-    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}) } }
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, onSettingsClicked = {}) }
+    }
 
     composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsDisplayed()
@@ -28,9 +30,20 @@ class HomeScreenTest {
   }
 
   @Test
+  fun homeScreenDisplaysSettingsEntry() {
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, onSettingsClicked = {}) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.home_settings_button).assertIsDisplayed()
+  }
+
+  @Test
   fun scanButtonInvokesCallbackOncePerClick() {
     var clicks = 0
-    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = { clicks++ }) } }
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = { clicks++ }, onSettingsClicked = {}) }
+    }
 
     val button = composeTestRule.onNodeWithTag(C.Tag.home_scan_button)
     button.performClick()
@@ -40,9 +53,25 @@ class HomeScreenTest {
   }
 
   @Test
+  fun settingsButtonInvokesCallbackOncePerClick() {
+    var clicks = 0
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, onSettingsClicked = { clicks++ }) }
+    }
+
+    val button = composeTestRule.onNodeWithTag(C.Tag.home_settings_button)
+    button.performClick()
+    assertEquals(1, clicks)
+    button.performClick()
+    assertEquals(2, clicks)
+  }
+
+  @Test
   fun unavailableCameraDisablesScanEntryAndShowsUnavailableLabel() {
     composeTestRule.setContent {
-      SampleAppTheme { HomeScreen(onScanClicked = {}, cameraAvailable = false) }
+      SampleAppTheme {
+        HomeScreen(onScanClicked = {}, onSettingsClicked = {}, cameraAvailable = false)
+      }
     }
 
     composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
@@ -50,5 +79,24 @@ class HomeScreenTest {
         .onNodeWithTag(C.Tag.home_scan_label, useUnmergedTree = true)
         .assertIsDisplayed()
         .assertTextEquals("No camera detected on this device")
+  }
+
+  @Test
+  fun unavailableCameraDoesNotDisableSettingsButton() {
+    var settingsClicks = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        HomeScreen(
+            onScanClicked = {},
+            onSettingsClicked = { settingsClicks++ },
+            cameraAvailable = false,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.home_settings_button).performClick()
+
+    assertEquals(1, settingsClicks)
   }
 }

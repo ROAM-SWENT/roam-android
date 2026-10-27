@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.NoPhotography
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,7 +35,11 @@ import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
-fun HomeScreen(onScanClicked: () -> Unit, cameraAvailable: Boolean = true) {
+fun HomeScreen(
+    onScanClicked: () -> Unit,
+    cameraAvailable: Boolean = true,
+    onSettingsClicked: () -> Unit,
+) {
   val haloSize = 72.dp
 
   Box(
@@ -102,11 +109,31 @@ fun HomeScreen(onScanClicked: () -> Unit, cameraAvailable: Boolean = true) {
         }
       }
     }
+
+    IconButton(
+        onClick = onSettingsClicked,
+        modifier =
+            Modifier.align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(16.dp)
+                .size(44.dp)
+                .semantics { testTag = C.Tag.home_settings_button },
+        colors =
+            IconButtonDefaults.iconButtonColors(
+                containerColor = Color.Gray.copy(alpha = 0.6f),
+                contentColor = Color.White,
+            ),
+    ) {
+      Icon(
+          imageVector = Icons.Filled.Settings,
+          contentDescription = "Settings",
+      )
+    }
   }
 }
 
 @Preview(showBackground = true)
 @Composable
 fun HomeScreenPreview() {
-  SampleAppTheme { HomeScreen(onScanClicked = {}) }
+  SampleAppTheme { HomeScreen(onScanClicked = {}, onSettingsClicked = {}) }
 }
