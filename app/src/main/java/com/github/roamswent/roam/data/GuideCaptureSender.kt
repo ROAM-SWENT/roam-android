@@ -7,6 +7,7 @@ import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.ai.UserPreferences
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -18,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 class GuideCaptureSender(
     private val context: Context,
     private val guideRepository: MonumentGuideRepository,
+    private val userInterestsRepository: UserInterestsRepository,
     private val readBytes: (Uri) -> ByteArray = { uri ->
       checkNotNull(context.contentResolver.openInputStream(uri)) { "cannot open $uri" }
           .use { it.readBytes() }
@@ -31,7 +33,11 @@ class GuideCaptureSender(
                 DiscoveryRequest(
                     image = ImagePayload(readBytes(uri), "image/jpeg"),
                     location = null,
-                    preferences = UserPreferences(language = Locale.getDefault().language),
+                    preferences =
+                        UserPreferences(
+                            language = Locale.getDefault().language,
+                            interests = userInterestsRepository.getUserInterests().interests,
+                        ),
                 )
             )
         )

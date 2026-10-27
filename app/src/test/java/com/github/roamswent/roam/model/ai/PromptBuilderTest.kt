@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.model.ai
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -28,6 +32,23 @@ class PromptBuilderTest {
   fun guidePromptUsesTheRequestedLanguage() {
     val prompt = PromptBuilder.guidePrompt(french, null)
     assertTrue(prompt.contains("Write the text fields in fr."))
+  }
+
+  @Test
+  fun guidePromptPersonalizesForNonEmptyInterests() {
+    val prompt =
+        PromptBuilder.guidePrompt(UserPreferences("fr", listOf("art", "architecture")), null)
+
+    assertTrue(prompt.contains("Personalize the guide toward these interests when relevant"))
+    assertTrue(prompt.contains("""["art","architecture"]"""))
+  }
+
+  @Test
+  fun guidePromptOmitsInterestsWhenNoneAreSaved() {
+    val prompt = PromptBuilder.guidePrompt(french, null)
+
+    assertFalse(prompt.contains("interests"))
+    assertFalse(prompt.contains("Personalize"))
   }
 
   @Test

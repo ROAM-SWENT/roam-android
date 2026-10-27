@@ -33,6 +33,7 @@ import com.github.roamswent.roam.model.ai.ImageScreen
 import com.github.roamswent.roam.model.ai.NetworkUnavailableException
 import com.github.roamswent.roam.model.ai.ScreenVerdict
 import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
@@ -427,6 +428,8 @@ private class FakeDiscoveryServices {
       GuideCaptureSender(
           context = ApplicationProvider.getApplicationContext(),
           guideRepository = repository,
+          userInterestsRepository =
+              SharedPreferencesUserInterestsRepository(ApplicationProvider.getApplicationContext()),
       )
 }
 
