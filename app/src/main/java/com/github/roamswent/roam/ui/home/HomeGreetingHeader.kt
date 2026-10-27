@@ -28,11 +28,13 @@ fun HomeGreetingHeader(
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     modifier: Modifier = Modifier,
 ) {
-  val displayName = userName.ifBlank { HomeViewModel.DEFAULT_USER_NAME }
+  val displayName = userName.trim()
 
   Column(modifier = modifier.fillMaxWidth().padding(top = 16.dp, bottom = 20.dp)) {
     Text(
-        text = stringResource(R.string.home_greeting_format, displayName),
+        text =
+            if (displayName.isEmpty()) stringResource(R.string.home_greeting_no_name)
+            else stringResource(R.string.home_greeting_format, displayName),
         fontSize = 15.sp,
         fontWeight = FontWeight.Normal,
         color = HomeTextSecondary,

@@ -61,6 +61,6 @@ class HomeViewModel(private val repository: AuthRepository = AuthRepositoryFireb
   }
 
   companion object {
-    const val DEFAULT_USER_NAME = "Victor"
+    const val DEFAULT_USER_NAME = ""
   }
 }
