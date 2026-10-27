@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,21 +21,30 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -67,6 +77,17 @@ private val sampleProfile =
         email = "victor@epfl.ch",
         provider = "Google",
     )
+
+private val sampleInterests =
+    listOf(
+        "Architecture",
+        "Ancient history",
+        "Unusual anecdotes",
+        "Art & Sculpture",
+        "Local legends",
+    )
+
+private val additionalSampleInterests = listOf("Museums", "Nature", "Food & drink", "Local culture")
 
 @Composable
 fun SettingsScreen(
@@ -135,6 +156,11 @@ private fun SettingsContent(
     onSignOutClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+  val interests = remember { mutableStateListOf<String>().apply { addAll(sampleInterests) } }
+  var showAddInterestDialog by remember { mutableStateOf(false) }
+  val availableInterests =
+      (sampleInterests + additionalSampleInterests).filterNot { it in interests }
+
   Column(
       modifier =
           modifier
@@ -151,6 +177,40 @@ private fun SettingsContent(
         cameraPermissionGranted = cameraPermissionGranted,
         locationPermissionGranted = locationPermissionGranted,
         onManagePermissionsClick = onManagePermissionsClick,
+    )
+    InterestsCard(
+        interests = interests,
+        onRemoveInterest = { interests.remove(it) },
+        onAddInterestClick = { showAddInterestDialog = true },
+    )
+  }
+
+  if (showAddInterestDialog) {
+    AlertDialog(
+        onDismissRequest = { showAddInterestDialog = false },
+        title = { Text("Add an interest") },
+        text = {
+          if (availableInterests.isEmpty()) {
+            Text("You have added all the sample interests.")
+          } else {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              availableInterests.forEach { interest ->
+                TextButton(
+                    onClick = {
+                      interests.add(interest)
+                      showAddInterestDialog = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                  Text(interest, modifier = Modifier.fillMaxWidth())
+                }
+              }
+            }
+          }
+        },
+        confirmButton = {
+          TextButton(onClick = { showAddInterestDialog = false }) { Text("Cancel") }
+        },
     )
   }
 }
@@ -263,6 +323,81 @@ private fun PermissionsCard(
           modifier = Modifier.fillMaxWidth(),
       ) {
         Text(text = "Manage Permissions")
+      }
+    }
+  }
+}
+
+@Composable
+private fun InterestsCard(
+    interests: List<String>,
+    onRemoveInterest: (String) -> Unit,
+    onAddInterestClick: () -> Unit,
+) {
+  Card(
+      modifier = Modifier.fillMaxWidth(),
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = Color.White),
+  ) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Text(
+          text = "My Interests (AI Guide)",
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold,
+      )
+      Text(
+          text = "Used by AI to personalize your tourist guides.",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      FlowRow(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        interests.forEach { interest ->
+          InterestChip(interest = interest, onRemove = { onRemoveInterest(interest) })
+        }
+        OutlinedButton(
+            onClick = onAddInterestClick,
+            shape = RoundedCornerShape(50),
+        ) {
+          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.size(4.dp))
+          Text("Add an interest")
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun InterestChip(interest: String, onRemove: () -> Unit) {
+  Surface(
+      shape = RoundedCornerShape(50),
+      color = ScreenBackground,
+  ) {
+    Row(
+        modifier = Modifier.padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(
+          text = interest,
+          modifier = Modifier.padding(vertical = 10.dp),
+          style = MaterialTheme.typography.labelLarge,
+          color = MaterialTheme.colorScheme.onSurface,
+      )
+      IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+        Icon(
+            Icons.Default.Close,
+            contentDescription = "Remove $interest",
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
     }
   }
