@@ -43,7 +43,7 @@ import org.robolectric.shadows.ShadowToast
 class SettingsScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
-  /** Verifies that the screen displays its controls and the correct initial permission statuses. */
+  /** Verifies the profile, settings sections, and initial permission statuses. */
   @Test
   fun initialState_displaysSettingsButtonsAndPermissionStatuses() {
     val viewModel = mock<SettingsViewModel>()
@@ -68,9 +68,10 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Victor").assertIsDisplayed()
+    composeTestRule.onNodeWithText("App Permissions").assertIsDisplayed()
     composeTestRule.onNodeWithText("Manage Permissions").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Log Out").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Sign Out").assertIsDisplayed()
     composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
     composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
     composeTestRule
@@ -137,7 +138,7 @@ class SettingsScreenTest {
     assertEquals(1, managePermissionsClicks)
   }
 
-  /** Verifies that tapping Log Out delegates sign-out to the ViewModel and credential manager. */
+  /** Verifies that tapping Sign Out delegates to the ViewModel and credential manager. */
   @Test
   fun logOutButton_delegatesToViewModel() {
     val viewModel = mock<SettingsViewModel>()
@@ -156,7 +157,7 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Log Out").performClick()
+    composeTestRule.onNodeWithText("Sign Out").performClick()
 
     verify(viewModel).signOut(credentialManager)
   }
