@@ -18,10 +18,8 @@ import kotlinx.coroutines.tasks.await
  * A Firebase implementation of [AuthRepository].
  *
  * Retrieves a Google ID token via Credential Manager and authenticates the user with Firebase. Also
- * handles sign-out and credential state clearing.
+ * handles sign-out.
  *
- * @param context Used to launch the Credential Manager UI and load string resources.
- * @param credentialManager The [CredentialManager] used to retrieve credentials.
  * @param auth The [FirebaseAuth] instance for Firebase authentication.
  * @param helper A [GoogleSignInHelper] to extract Google ID token credentials and convert them to
  *   Firebase credentials.
