@@ -13,6 +13,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
+import com.github.roamswent.roam.model.profile.ProfileRepository
+import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
+import com.github.roamswent.roam.model.profile.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,10 +27,13 @@ data class SettingsUIState(
     val signedOut: Boolean = false,
     val cameraPermissionGranted: Boolean = false,
     val locationPermissionGranted: Boolean = false,
+    val profileLoading: Boolean = false,
+    val profile: UserProfile? = null,
 )
 
 class SettingsViewModel(
     private val authRepository: AuthRepository = AuthRepositoryFirebase(),
+    private val profileRepository: ProfileRepository = ProfileRepositoryFirebase(),
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(SettingsUIState())
@@ -46,6 +52,34 @@ class SettingsViewModel(
   /** Updates the location permission status reported by the UI permission controller. */
   fun setLocationPermissionGranted(granted: Boolean) {
     _uiState.update { it.copy(locationPermissionGranted = granted) }
+  }
+
+  /** Loads the authenticated user's profile and preferences from the backend. */
+  fun loadProfile() {
+    if (_uiState.value.profileLoading) return
+    viewModelScope.launch {
+      _uiState.update { it.copy(profileLoading = true, errorMsg = null) }
+      profileRepository
+          .loadProfile()
+          .fold(
+              onSuccess = { profile ->
+                _uiState.update {
+                  it.copy(
+                      profileLoading = false,
+                      profile = profile,
+                  )
+                }
+              },
+              onFailure = { throwable ->
+                _uiState.update {
+                  it.copy(
+                      profileLoading = false,
+                      errorMsg = throwable.localizedMessage ?: "Unable to load your profile.",
+                  )
+                }
+              },
+          )
+    }
   }
 
   /** Initiates sign-out and updates the UI state on success or failure. */

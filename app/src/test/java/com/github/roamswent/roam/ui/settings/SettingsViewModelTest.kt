@@ -7,12 +7,16 @@ package com.github.roamswent.roam.ui.settings
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
+import com.github.roamswent.roam.model.profile.UserProfile
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -33,12 +37,14 @@ import org.mockito.kotlin.whenever
 class SettingsViewModelTest {
   private val dispatcher = StandardTestDispatcher()
   private lateinit var repository: AuthRepository
+  private lateinit var profileRepository: ProfileRepository
   private lateinit var credentialManager: CredentialManager
 
   @Before
   fun setUp() {
     Dispatchers.setMain(dispatcher)
     repository = mock()
+    profileRepository = mock()
     credentialManager = mock()
     runBlocking {
       doReturn(Unit)
@@ -55,13 +61,31 @@ class SettingsViewModelTest {
   /** Verifies that the ViewModel starts with the default settings UI state. */
   @Test
   fun initialState_isEmpty() {
-    assertEquals(SettingsUIState(), SettingsViewModel(repository).uiState.value)
+    assertEquals(SettingsUIState(), SettingsViewModel(repository, profileRepository).uiState.value)
   }
+
+  /** Verifies that clearing an error removes it from the observable UI state. */
+  @Test
+  fun clearErrorMsg_removesCurrentError() =
+      runTest(dispatcher) {
+        whenever(profileRepository.loadProfile())
+            .thenReturn(Result.failure(IllegalStateException("Profile unavailable")))
+        val viewModel = SettingsViewModel(repository, profileRepository)
+
+        viewModel.loadProfile()
+        advanceUntilIdle()
+
+        assertEquals("Profile unavailable", viewModel.uiState.value.errorMsg)
+
+        viewModel.clearErrorMsg()
+
+        assertNull(viewModel.uiState.value.errorMsg)
+      }
 
   /** Verifies that camera and location permission updates support granting and revoking access. */
   @Test
   fun permissionUpdates_updateBothStatuses() {
-    val viewModel = SettingsViewModel(repository)
+    val viewModel = SettingsViewModel(repository, profileRepository)
 
     viewModel.setCameraPermissionGranted(true)
     viewModel.setLocationPermissionGranted(true)
@@ -85,7 +109,7 @@ class SettingsViewModelTest {
   fun signOut_success_marksSignedOutAndClearsCredentials() =
       runTest(dispatcher) {
         whenever(repository.signOut()).thenReturn(Result.success(Unit))
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, profileRepository)
 
         viewModel.signOut(credentialManager)
         advanceUntilIdle()
@@ -102,7 +126,7 @@ class SettingsViewModelTest {
       runTest(dispatcher) {
         whenever(repository.signOut())
             .thenReturn(Result.failure(IllegalStateException("Unable to log out")))
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = SettingsViewModel(repository, profileRepository)
 
         viewModel.signOut(credentialManager)
         advanceUntilIdle()
@@ -111,5 +135,64 @@ class SettingsViewModelTest {
         assertFalse(viewModel.uiState.value.signedOut)
         verify(repository).signOut()
         verifyNoInteractions(credentialManager)
+      }
+
+  /** Verifies that a successful profile load is exposed as a single profile value. */
+  @Test
+  fun loadProfile_success_updatesProfileAndStopsLoading() =
+      runTest(dispatcher) {
+        val profile = UserProfile("Victor", "victor@epfl.ch", "Google")
+        whenever(profileRepository.loadProfile()).thenReturn(Result.success(profile))
+        val viewModel = SettingsViewModel(repository, profileRepository)
+
+        viewModel.loadProfile()
+        assertTrue(viewModel.uiState.value.profileLoading.not())
+        advanceUntilIdle()
+
+        assertEquals(profile, viewModel.uiState.value.profile)
+        assertFalse(viewModel.uiState.value.profileLoading)
+        assertNull(viewModel.uiState.value.errorMsg)
+        verify(profileRepository).loadProfile()
+      }
+
+  /** Verifies that a failed profile load exposes the error and clears the loading state. */
+  @Test
+  fun loadProfile_failure_setsErrorAndStopsLoading() =
+      runTest(dispatcher) {
+        whenever(profileRepository.loadProfile())
+            .thenReturn(Result.failure(IllegalStateException("Profile unavailable")))
+        val viewModel = SettingsViewModel(repository, profileRepository)
+
+        viewModel.loadProfile()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.profile)
+        assertFalse(viewModel.uiState.value.profileLoading)
+        assertEquals("Profile unavailable", viewModel.uiState.value.errorMsg)
+        verify(profileRepository).loadProfile()
+      }
+
+  /** Verifies that a profile load already in progress is not started a second time. */
+  @Test
+  fun loadProfile_whileAlreadyLoading_ignoresSecondRequest() =
+      runTest(dispatcher) {
+        val result = CompletableDeferred<Result<UserProfile>>()
+        var loadCalls = 0
+        val blockingProfileRepository =
+            object : ProfileRepository {
+              override suspend fun loadProfile(): Result<UserProfile> {
+                loadCalls++
+                return result.await()
+              }
+            }
+        val viewModel = SettingsViewModel(repository, blockingProfileRepository)
+
+        viewModel.loadProfile()
+        runCurrent()
+        viewModel.loadProfile()
+
+        assertEquals(1, loadCalls)
+        result.complete(Result.success(UserProfile("Victor", "victor@epfl.ch", "Google")))
+        advanceUntilIdle()
       }
 }
