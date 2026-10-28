@@ -5,7 +5,6 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -51,7 +50,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
@@ -70,14 +68,6 @@ private data class ProfileDisplayData(
     val provider: String,
 )
 
-private val sampleProfile =
-    ProfileDisplayData(
-        initial = "V",
-        name = "Victor",
-        email = "victor@epfl.ch",
-        provider = "Google",
-    )
-
 private val sampleInterests =
     listOf(
         "Architecture",
@@ -87,7 +77,13 @@ private val sampleInterests =
         "Local legends",
     )
 
-private val additionalSampleInterests = listOf("Museums", "Nature", "Food & drink", "Local culture")
+private val additionalSampleInterests =
+    listOf(
+        "Museums",
+        "Nature",
+        "Food & drink",
+        "Local culture",
+    )
 
 @Composable
 fun SettingsScreen(
@@ -103,6 +99,8 @@ fun SettingsScreen(
   val context = LocalContext.current
   val uiState by settingsViewModel.uiState.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
+
+  LaunchedEffect(Unit) { settingsViewModel.loadProfile() }
 
   LaunchedEffect(uiState.signedOut) {
     if (uiState.signedOut) {
@@ -142,6 +140,14 @@ fun SettingsScreen(
         modifier = Modifier.padding(contentPadding),
         cameraPermissionGranted = uiState.cameraPermissionGranted,
         locationPermissionGranted = uiState.locationPermissionGranted,
+        profile =
+            ProfileDisplayData(
+                initial =
+                    uiState.profile?.displayName?.ifBlank { "?" }?.first()?.uppercase() ?: "?",
+                name = uiState.profile?.displayName.orEmpty().ifBlank { "Traveler" },
+                email = uiState.profile?.email.orEmpty(),
+                provider = uiState.profile?.provider.orEmpty(),
+            ),
         onManagePermissionsClick = onManagePermissionsClick,
         onSignOutClick = { settingsViewModel.signOut(credentialManager) },
     )
@@ -152,14 +158,13 @@ fun SettingsScreen(
 private fun SettingsContent(
     cameraPermissionGranted: Boolean,
     locationPermissionGranted: Boolean,
+    profile: ProfileDisplayData,
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
   val interests = remember { mutableStateListOf<String>().apply { addAll(sampleInterests) } }
   var showAddInterestDialog by remember { mutableStateOf(false) }
-  val availableInterests =
-      (sampleInterests + additionalSampleInterests).filterNot { it in interests }
 
   Column(
       modifier =
@@ -170,7 +175,7 @@ private fun SettingsContent(
       verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
     ProfileCard(
-        profile = sampleProfile,
+        profile = profile,
         onSignOutClick = onSignOutClick,
     )
     PermissionsCard(
@@ -190,6 +195,8 @@ private fun SettingsContent(
         onDismissRequest = { showAddInterestDialog = false },
         title = { Text("Add an interest") },
         text = {
+          val availableInterests =
+              (sampleInterests + additionalSampleInterests).filterNot { it in interests }
           if (availableInterests.isEmpty()) {
             Text("You have added all the sample interests.")
           } else {
@@ -422,20 +429,6 @@ private fun PermissionStatus(
         text = if (isGranted) "Granted" else "Denied",
         style = MaterialTheme.typography.bodyLarge,
         color = if (isGranted) ScanTeal else MaterialTheme.colorScheme.error,
-    )
-  }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun SettingsContentPreview() {
-  MaterialTheme {
-    SettingsContent(
-        cameraPermissionGranted = true,
-        locationPermissionGranted = false,
-        onManagePermissionsClick = {},
-        onSignOutClick = {},
-        modifier = Modifier.background(ScreenBackground),
     )
   }
 }
