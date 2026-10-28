@@ -5,7 +5,6 @@
 package com.github.roamswent.roam.model.authentication
 
 import androidx.credentials.Credential
-import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.Firebase
@@ -18,10 +17,8 @@ import kotlinx.coroutines.tasks.await
  * A Firebase implementation of [AuthRepository].
  *
  * Retrieves a Google ID token via Credential Manager and authenticates the user with Firebase. Also
- * handles sign-out and credential state clearing.
+ * handles sign-out.
  *
- * @param context Used to launch the Credential Manager UI and load string resources.
- * @param credentialManager The [CredentialManager] used to retrieve credentials.
  * @param auth The [FirebaseAuth] instance for Firebase authentication.
  * @param helper A [GoogleSignInHelper] to extract Google ID token credentials and convert them to
  *   Firebase credentials.
