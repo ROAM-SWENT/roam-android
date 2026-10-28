@@ -18,6 +18,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -221,6 +222,9 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     navigateToSettings(navController)
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithText("Log Out").fetchSemanticsNodes().isNotEmpty()
+    }
     composeTestRule.onNodeWithText("Log Out").performClick()
     composeTestRule
         .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
