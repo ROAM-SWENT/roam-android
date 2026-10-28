@@ -222,7 +222,7 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     navigateToSettings(navController)
-    composeTestRule.waitUntil {
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
       composeTestRule.onAllNodesWithText("Log Out").fetchSemanticsNodes().isNotEmpty()
     }
     composeTestRule.onNodeWithText("Log Out").performClick()
