@@ -178,12 +178,13 @@ class SettingsViewModelTest {
       runTest(dispatcher) {
         val result = CompletableDeferred<Result<UserProfile>>()
         var loadCalls = 0
-        val blockingProfileRepository = object : ProfileRepository {
-          override suspend fun loadProfile(): Result<UserProfile> {
-            loadCalls++
-            return result.await()
-          }
-        }
+        val blockingProfileRepository =
+            object : ProfileRepository {
+              override suspend fun loadProfile(): Result<UserProfile> {
+                loadCalls++
+                return result.await()
+              }
+            }
         val viewModel = SettingsViewModel(repository, blockingProfileRepository)
 
         viewModel.loadProfile()

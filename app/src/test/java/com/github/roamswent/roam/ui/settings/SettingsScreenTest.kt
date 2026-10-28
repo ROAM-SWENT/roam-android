@@ -250,9 +250,7 @@ class SettingsScreenTest {
         }
 
     composeTestRule.onNodeWithText("Add an interest").performClick()
-    composeTestRule
-        .onNodeWithText("You have added all the sample interests.")
-        .assertIsDisplayed()
+    composeTestRule.onNodeWithText("You have added all the sample interests.").assertIsDisplayed()
   }
 
   /** Verifies that an initially available error is shown as a toast and then cleared. */
