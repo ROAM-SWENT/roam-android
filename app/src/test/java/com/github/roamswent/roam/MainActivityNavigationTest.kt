@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
@@ -32,6 +33,8 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.settings.SettingsUIState
+import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
@@ -43,6 +46,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
@@ -197,21 +201,27 @@ class MainActivityNavigationTest {
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authState = MutableStateFlow(AuthUIState(user = mock()))
+    val settingsState = MutableStateFlow(SettingsUIState())
+    val settingsViewModel = mock<SettingsViewModel>()
+    whenever(settingsViewModel.uiState).thenReturn(settingsState)
+    doAnswer {
+          settingsState.value = settingsState.value.copy(signedOut = true)
+          Unit
+        }
+        .whenever(settingsViewModel)
+        .signOut(any<CredentialManager>())
     var signInClickCount = 0
     lateinit var navController: NavHostController
     renderApp(
         authState,
         onSignInClickOverride = { signInClickCount++ },
         onNavControllerReady = { navController = it },
+        settingsViewModel = settingsViewModel,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     navigateToSettings(navController)
-
-    authState.value = AuthUIState(signedOut = true)
-    composeTestRule.runOnIdle {
-      navController.navigate(Routes.SignIn) { popUpTo(navController.graph.id) { inclusive = true } }
-    }
+    composeTestRule.onNodeWithText("Log Out").performClick()
     composeTestRule
         .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
         .assertIsDisplayed()
@@ -515,6 +525,7 @@ class MainActivityNavigationTest {
       authState: MutableStateFlow<AuthUIState>,
       onSignInClickOverride: (() -> Unit)? = null,
       onNavControllerReady: (NavHostController) -> Unit = {},
+      settingsViewModel: SettingsViewModel? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -532,6 +543,7 @@ class MainActivityNavigationTest {
             authViewModel,
             navController = navController,
             onSignInClickOverride = onSignInClickOverride,
+            settingsViewModel = settingsViewModel,
         )
       }
     }
