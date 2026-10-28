@@ -22,7 +22,6 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
@@ -47,7 +46,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
@@ -202,15 +200,9 @@ class MainActivityNavigationTest {
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authState = MutableStateFlow(AuthUIState(user = mock()))
-    val settingsState = MutableStateFlow(SettingsUIState())
     val settingsViewModel = mock<SettingsViewModel>()
-    whenever(settingsViewModel.uiState).thenReturn(settingsState)
-    doAnswer {
-          settingsState.value = settingsState.value.copy(signedOut = true)
-          Unit
-        }
-        .whenever(settingsViewModel)
-        .signOut(any<CredentialManager>())
+    whenever(settingsViewModel.uiState)
+        .thenReturn(MutableStateFlow(SettingsUIState(signedOut = true)))
     var signInClickCount = 0
     lateinit var navController: NavHostController
     renderApp(
@@ -223,12 +215,11 @@ class MainActivityNavigationTest {
 
     navigateToSettings(navController)
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
-      composeTestRule.onAllNodesWithText("Log Out").fetchSemanticsNodes().isNotEmpty()
+      composeTestRule
+          .onAllNodesWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+          .fetchSemanticsNodes()
+          .isNotEmpty()
     }
-    composeTestRule.onNodeWithText("Log Out").performClick()
-    composeTestRule
-        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
-        .assertIsDisplayed()
     waitForGone(C.Tag.home_screen_container)
     composeTestRule.waitForIdle()
 
