@@ -1,16 +1,20 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.guide
 
+import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -282,5 +286,80 @@ class SavedGuidesViewModelTest {
         assertEquals(listOf(guide), viewModel.uiState.value.guides)
         assertEquals(error, viewModel.uiState.value.deleteError)
         assertTrue(viewModel.uiState.value.deletingGuideIds.isEmpty())
+      }
+
+  @Test
+  fun clearErrorsResetsOperationFailuresAndLastSavedGuideId() =
+      runTest(dispatcher) {
+        val guidesError = IllegalStateException("offline cache unavailable")
+        val guideError = IllegalStateException("failed to load guide")
+        val deleteError = IllegalStateException("delete failed")
+        val saveError = IllegalStateException("save failed")
+        coEvery { repository.getSavedGuides() } throws guidesError
+        coEvery { repository.getGuide(guide.id) } throws guideError
+        coEvery { repository.removeGuide(guide.id) } throws deleteError
+        coEvery { repository.addGuide(any()) } throws saveError
+        val viewModel = SavedGuidesViewModel(repository)
+
+        viewModel.loadSavedGuides()
+        advanceUntilIdle()
+        assertEquals(guidesError, viewModel.uiState.value.guidesError)
+
+        viewModel.loadGuide(guide.id)
+        advanceUntilIdle()
+        assertEquals(guideError, viewModel.uiState.value.guideError)
+
+        viewModel.deleteGuide(guide.id)
+        advanceUntilIdle()
+        assertEquals(deleteError, viewModel.uiState.value.deleteError)
+
+        viewModel.saveGuide(guide.copy(id = ""))
+        advanceUntilIdle()
+        assertEquals(saveError, viewModel.uiState.value.saveError)
+
+        coEvery { repository.addGuide(any()) } returns guide
+        viewModel.saveGuide(guide.copy(id = ""))
+        advanceUntilIdle()
+        assertEquals(guide.id, viewModel.uiState.value.savedGuideId)
+
+        viewModel.clearErrors()
+
+        assertNull(viewModel.uiState.value.guidesError)
+        assertNull(viewModel.uiState.value.guideError)
+        assertNull(viewModel.uiState.value.deleteError)
+        assertNull(viewModel.uiState.value.saveError)
+        assertNull(viewModel.uiState.value.savedGuideId)
+      }
+
+  @Test
+  fun cancellationExceptionsAreNotShownAsUiErrors() =
+      runTest(dispatcher) {
+        val cancellation = CancellationException("cancelled")
+        every { repository.observeSavedGuides() } returns flow { throw cancellation }
+        coEvery { repository.getGuide(any()) } throws cancellation
+        coEvery { repository.removeGuide(any()) } throws cancellation
+        coEvery { repository.addGuide(any()) } throws cancellation
+        val viewModel = SavedGuidesViewModel(repository)
+
+        viewModel.loadSavedGuides()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.guidesError)
+
+        val field = SavedGuidesViewModel::class.java.getDeclaredField("loadSavedGuidesJob")
+        field.isAccessible = true
+        val loadJob = field.get(viewModel) as kotlinx.coroutines.Job
+        assertTrue(loadJob.isCancelled)
+
+        viewModel.loadGuide(guide.id)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.guideError)
+
+        viewModel.deleteGuide(guide.id)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.deleteError)
+
+        viewModel.saveGuide(guide.copy(id = ""))
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.saveError)
       }
 }
