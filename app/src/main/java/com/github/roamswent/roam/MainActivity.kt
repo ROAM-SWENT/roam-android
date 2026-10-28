@@ -114,7 +114,6 @@ internal fun RoamApp(
         HomeScreen(
             onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
             cameraAvailable = cameraAvailable,
-            onSettingsClicked = { navController.navigate(Routes.Settings) },
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }
@@ -128,9 +127,7 @@ internal fun RoamApp(
         SettingsScreen(
             cameraPermissionController = permissionController,
             locationPermissionController = locationPermissionController,
-            onManagePermissionsClick = {
-                permissionController.openAppSettings()
-            },
+            onManagePermissionsClick = { permissionController.openAppSettings() },
             onSignedOut = {
               authViewModel.clearSignedInUser()
               navController.navigate(Routes.SignIn) {

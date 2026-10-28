@@ -177,20 +177,11 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun homeSettingsButtonNavigatesToSettings() {
-    showAuthenticatedHome()
-
-    composeTestRule.onNodeWithTag(C.Tag.home_settings_button).performClick()
-
-    composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
-    waitForGone(C.Tag.home_screen_container)
-  }
-
-  @Test
   fun managePermissionsOpensApplicationSettings() {
-    showAuthenticatedHome()
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
 
-    composeTestRule.onNodeWithTag(C.Tag.home_settings_button).performClick()
+    navigateToSettings(navController)
     composeTestRule.onNodeWithText("Manage Permissions").performClick()
 
     val intent = shadowOf(composeTestRule.activity).nextStartedActivity
@@ -215,8 +206,7 @@ class MainActivityNavigationTest {
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_settings_button).performClick()
-    composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
+    navigateToSettings(navController)
 
     authState.value = AuthUIState(signedOut = true)
     composeTestRule.runOnIdle {
@@ -248,7 +238,7 @@ class MainActivityNavigationTest {
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_settings_button).performClick()
+    navigateToSettings(navController)
     authState.value = AuthUIState(signedOut = true)
     composeTestRule.runOnIdle {
       navController.navigate(Routes.SignIn) { popUpTo(navController.graph.id) { inclusive = true } }
@@ -506,10 +496,19 @@ class MainActivityNavigationTest {
     assertEquals(decision, locationDecisionRepository.getDecision())
   }
 
-  private fun showAuthenticatedHome() {
+  private fun showAuthenticatedHome(
+      onNavControllerReady: (NavHostController) -> Unit = {},
+  ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
-    renderApp(MutableStateFlow(AuthUIState(user = mock())))
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = onNavControllerReady,
+    )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
+  }
+
+  private fun navigateToSettings(navController: NavHostController) {
+    composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
   }
 
   private fun renderApp(

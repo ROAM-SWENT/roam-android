@@ -109,6 +109,53 @@ class SignInViewModelTest {
         verify(repository).signInWithGoogle(credential)
       }
 
+  @Test
+  fun clearSignedInUser_removesCachedUserAfterSignOut() =
+      runTest(dispatcher) {
+        org.mockito.kotlin
+            .doReturn(response)
+            .whenever(credentialManager)
+            .getCredential(any<Context>(), any<GetCredentialRequest>())
+        whenever(repository.signInWithGoogle(credential)).thenReturn(Result.success(user))
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signIn(context, credentialManager)
+        advanceUntilIdle()
+        viewModel.clearSignedInUser()
+
+        assertNull(viewModel.uiState.value.user)
+        assertTrue(viewModel.uiState.value.signedOut)
+      }
+
+  @Test
+  fun signIn_succeedsAgainAfterClearingSignedInUser() =
+      runTest(dispatcher) {
+        org.mockito.kotlin
+            .doReturn(response)
+            .whenever(credentialManager)
+            .getCredential(any<Context>(), any<GetCredentialRequest>())
+        whenever(repository.signInWithGoogle(credential)).thenReturn(Result.success(user))
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signIn(context, credentialManager)
+        advanceUntilIdle()
+        viewModel.clearSignedInUser()
+
+        assertNull(viewModel.uiState.value.user)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNull(viewModel.uiState.value.errorMsg)
+        assertTrue(viewModel.uiState.value.signedOut)
+
+        viewModel.signIn(context, credentialManager)
+        advanceUntilIdle()
+
+        assertEquals(user, viewModel.uiState.value.user)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNull(viewModel.uiState.value.errorMsg)
+        assertFalse(viewModel.uiState.value.signedOut)
+        verify(repository, org.mockito.kotlin.times(2)).signInWithGoogle(credential)
+      }
+
   /**
    * Verifies that a repository sign-in failure updates the UI with the failure message, marks the
    * user as signed out, and stops loading.
