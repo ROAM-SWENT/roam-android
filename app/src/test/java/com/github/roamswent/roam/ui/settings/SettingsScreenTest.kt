@@ -23,6 +23,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -54,6 +55,7 @@ class SettingsScreenTest {
                 SettingsUIState(
                     cameraPermissionGranted = true,
                     locationPermissionGranted = false,
+                    profile = UserProfile("Victor", "victor@epfl.ch", "Google"),
                 )
             )
         )
@@ -73,6 +75,8 @@ class SettingsScreenTest {
     composeTestRule.onNodeWithText("App Permissions").assertIsDisplayed()
     composeTestRule.onNodeWithText("Manage Permissions").assertIsDisplayed()
     composeTestRule.onNodeWithText("Sign Out").assertIsDisplayed()
+    composeTestRule.onNodeWithText("victor@epfl.ch").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Google").assertIsDisplayed()
     composeTestRule.onNodeWithText("My Interests (AI Guide)").assertIsDisplayed()
     composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
     composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
@@ -82,6 +86,31 @@ class SettingsScreenTest {
     composeTestRule
         .onNodeWithTag("Location permission", useUnmergedTree = true)
         .assert(hasAnyChild(hasText("Denied")))
+  }
+
+  /** Verifies that an empty display name falls back to the default profile label. */
+  @Test
+  fun emptyProfileName_usesTravelerFallback() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(
+                SettingsUIState(profile = UserProfile("", "", "Account")),
+            )
+        )
+    val (cameraController, locationController) = permissionControllers()
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Traveler").assertIsDisplayed()
   }
 
   /**
@@ -190,6 +219,40 @@ class SettingsScreenTest {
 
     composeTestRule.onNodeWithText("Add an interest").performClick()
     composeTestRule.onNodeWithText("Museums").assertIsDisplayed()
+  }
+
+  /** Verifies that the interest dialog handles the case where every sample interest is selected. */
+  @Test
+  fun interests_whenAllSelected_showsEmptyStateMessage() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    val (cameraController, locationController) = permissionControllers()
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+        )
+      }
+    }
+
+    listOf(
+            "Museums",
+            "Nature",
+            "Food & drink",
+            "Local culture",
+        )
+        .forEach { interest ->
+          composeTestRule.onNodeWithText("Add an interest").performClick()
+          composeTestRule.onNodeWithText(interest).performClick()
+        }
+
+    composeTestRule.onNodeWithText("Add an interest").performClick()
+    composeTestRule
+        .onNodeWithText("You have added all the sample interests.")
+        .assertIsDisplayed()
   }
 
   /** Verifies that an initially available error is shown as a toast and then cleared. */
