@@ -18,6 +18,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -32,6 +33,8 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.settings.SettingsUIState
+import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
@@ -43,6 +46,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.Robolectric
@@ -173,6 +177,87 @@ class MainActivityNavigationTest {
   @Test
   fun persistedDenialNavigatesDirectlyToHomeWithoutRequestingLocation() {
     signInWithPersistedLocationDecision(LocationPermissionDecision.DENIED)
+  }
+
+  @Test
+  fun managePermissionsOpensApplicationSettings() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    navigateToSettings(navController)
+    composeTestRule.onNodeWithText("Manage Permissions").performClick()
+
+    val intent = shadowOf(composeTestRule.activity).nextStartedActivity
+    assertNotNull(intent)
+    assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, intent.action)
+    assertEquals(
+        composeTestRule.activity.packageName,
+        intent.data?.schemeSpecificPart,
+    )
+  }
+
+  @Test
+  fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    val settingsViewModel = mock<SettingsViewModel>()
+    whenever(settingsViewModel.uiState)
+        .thenReturn(MutableStateFlow(SettingsUIState(signedOut = true)))
+    var signInClickCount = 0
+    lateinit var navController: NavHostController
+    renderApp(
+        authState,
+        onSignInClickOverride = { signInClickCount++ },
+        onNavControllerReady = { navController = it },
+        settingsViewModel = settingsViewModel,
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    navigateToSettings(navController)
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule
+          .onAllNodesWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    waitForGone(C.Tag.home_screen_container)
+    composeTestRule.waitForIdle()
+
+    assertEquals(AuthUIState(signedOut = true), authState.value)
+    assertEquals(0, signInClickCount)
+  }
+
+  @Test
+  fun loginCanBeStartedAgainFromSignedOutState() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    var signInClickCount = 0
+    lateinit var navController: NavHostController
+    renderApp(
+        authState,
+        onSignInClickOverride = {
+          signInClickCount++
+          authState.value = AuthUIState(user = mock())
+        },
+        onNavControllerReady = { navController = it },
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    navigateToSettings(navController)
+    authState.value = AuthUIState(signedOut = true)
+    composeTestRule.runOnIdle {
+      navController.navigate(Routes.SignIn) { popUpTo(navController.graph.id) { inclusive = true } }
+    }
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+        .assertIsDisplayed()
+
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_google_button))
+        .performClick()
+
+    assertEquals(1, signInClickCount)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
 
   @Test
@@ -416,16 +501,47 @@ class MainActivityNavigationTest {
     assertEquals(decision, locationDecisionRepository.getDecision())
   }
 
-  private fun showAuthenticatedHome() {
+  private fun showAuthenticatedHome(
+      onNavControllerReady: (NavHostController) -> Unit = {},
+  ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
-    renderApp(MutableStateFlow(AuthUIState(user = mock())))
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = onNavControllerReady,
+    )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
 
-  private fun renderApp(authState: MutableStateFlow<AuthUIState>) {
+  private fun navigateToSettings(navController: NavHostController) {
+    composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
+  }
+
+  private fun renderApp(
+      authState: MutableStateFlow<AuthUIState>,
+      onSignInClickOverride: (() -> Unit)? = null,
+      onNavControllerReady: (NavHostController) -> Unit = {},
+      settingsViewModel: SettingsViewModel? = null,
+  ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
-    composeTestRule.activity.setContent { SampleAppTheme { RoamApp(authViewModel) } }
+    doAnswer {
+          authState.value = AuthUIState(signedOut = true)
+          Unit
+        }
+        .whenever(authViewModel)
+        .clearSignedInUser()
+    composeTestRule.activity.setContent {
+      val navController = rememberNavController()
+      SideEffect { onNavControllerReady(navController) }
+      SampleAppTheme {
+        RoamApp(
+            authViewModel,
+            navController = navController,
+            onSignInClickOverride = onSignInClickOverride,
+            settingsViewModel = settingsViewModel,
+        )
+      }
+    }
   }
 
   private fun dispatchCameraPermissionResult() = dispatchCameraPermissionResult(permissionRequest())
