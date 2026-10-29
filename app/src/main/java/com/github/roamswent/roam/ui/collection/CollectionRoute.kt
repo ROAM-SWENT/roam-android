@@ -13,15 +13,18 @@ import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 
 /**
  * Loads the saved guides and shows them in [CollectionScreen]. Until the collection is wired to
- * Firestore (#87), [repository] defaults to placeholder data.
+ * Firestore (#87), a null [repository] falls back to placeholder data, created once with the
+ * ViewModel so it shares its lifetime.
  */
 @Composable
 fun CollectionRoute(
     modifier: Modifier = Modifier,
-    repository: SavedGuideRepository = PlaceholderSavedGuideRepository(),
+    repository: SavedGuideRepository? = null,
     onGuideClick: (String) -> Unit = {},
 ) {
-  val viewModel: SavedGuidesViewModel = viewModel { SavedGuidesViewModel(repository) }
+  val viewModel: SavedGuidesViewModel = viewModel {
+    SavedGuidesViewModel(repository ?: PlaceholderSavedGuideRepository())
+  }
   val state by viewModel.uiState.collectAsState()
 
   LaunchedEffect(viewModel) { viewModel.loadSavedGuides() }
