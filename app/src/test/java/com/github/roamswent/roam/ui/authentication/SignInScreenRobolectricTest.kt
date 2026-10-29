@@ -9,13 +9,15 @@ package com.github.roamswent.roam.ui.authentication
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.credentials.CredentialManager
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.resources.C
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -49,10 +51,7 @@ class SignInScreenRobolectricTest {
       SignInScreen(authViewModel = viewModel, credentialManager = mock<CredentialManager>())
     }
 
-    composeTestRule
-        .onNodeWithText(context.getString(R.string.sign_in_google_button))
-        .assertIsDisplayed()
-        .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).assertIsDisplayed().performClick()
     verify(viewModel).signIn(any(), any())
   }
 
@@ -84,7 +83,7 @@ class SignInScreenRobolectricTest {
 
     assertTrue(
         composeTestRule
-            .onAllNodesWithText(context.getString(R.string.sign_in_google_button))
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
             .fetchSemanticsNodes()
             .isEmpty()
     )
@@ -151,7 +150,7 @@ class SignInScreenRobolectricTest {
     assertEquals(1, navigationCount)
     assertTrue(
         composeTestRule
-            .onAllNodesWithText(context.getString(R.string.sign_in_google_button))
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
             .fetchSemanticsNodes()
             .isEmpty()
     )

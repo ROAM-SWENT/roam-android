@@ -89,7 +89,7 @@ class SignInViewModelTest {
 
   /**
    * Verifies that a successful sign-in updates the authenticated user, stops the loading state, and
-   * leaves the UI without an error or signed-out status.
+   * leaves the UI without an error or a completed sign-out status.
    */
   @Test
   fun signIn_success_updatesUserAndStopsLoading() =
@@ -107,7 +107,7 @@ class SignInViewModelTest {
         assertEquals(user, viewModel.uiState.value.user)
         assertFalse(viewModel.uiState.value.isLoading)
         assertNull(viewModel.uiState.value.errorMsg)
-        assertFalse(viewModel.uiState.value.signedOut)
+        assertFalse(viewModel.uiState.value.signOutCompleted)
         verify(repository).signInWithGoogle(credential)
       }
 
@@ -126,7 +126,7 @@ class SignInViewModelTest {
         viewModel.clearSignedInUser()
 
         assertNull(viewModel.uiState.value.user)
-        assertTrue(viewModel.uiState.value.signedOut)
+        assertTrue(viewModel.uiState.value.signOutCompleted)
       }
 
   @Test
@@ -146,7 +146,7 @@ class SignInViewModelTest {
         assertNull(viewModel.uiState.value.user)
         assertFalse(viewModel.uiState.value.isLoading)
         assertNull(viewModel.uiState.value.errorMsg)
-        assertTrue(viewModel.uiState.value.signedOut)
+        assertTrue(viewModel.uiState.value.signOutCompleted)
 
         viewModel.signIn(context, credentialManager)
         advanceUntilIdle()
@@ -154,16 +154,16 @@ class SignInViewModelTest {
         assertEquals(user, viewModel.uiState.value.user)
         assertFalse(viewModel.uiState.value.isLoading)
         assertNull(viewModel.uiState.value.errorMsg)
-        assertFalse(viewModel.uiState.value.signedOut)
+        assertFalse(viewModel.uiState.value.signOutCompleted)
         verify(repository, org.mockito.kotlin.times(2)).signInWithGoogle(credential)
       }
 
   /**
-   * Verifies that a repository sign-in failure updates the UI with the failure message, marks the
-   * user as signed out, and stops loading.
+   * Verifies that a repository sign-in failure updates the UI with the failure message, leaves the
+   * sign-out completion flag clear, and stops loading.
    */
   @Test
-  fun signIn_repositoryFailure_updatesErrorAndSignedOut() =
+  fun signIn_repositoryFailure_updatesErrorWithoutCompletingSignOut() =
       runTest(dispatcher) {
         org.mockito.kotlin
             .doReturn(response)
@@ -177,14 +177,14 @@ class SignInViewModelTest {
         advanceUntilIdle()
 
         assertEquals("invalid account", viewModel.uiState.value.errorMsg)
-        assertTrue(viewModel.uiState.value.signedOut)
+        assertFalse(viewModel.uiState.value.signOutCompleted)
         assertNull(viewModel.uiState.value.user)
         assertFalse(viewModel.uiState.value.isLoading)
       }
 
   /**
    * Verifies that cancelling the credential selection updates the UI with a cancellation error,
-   * marks the user as signed out, and does not attempt repository authentication.
+   * leaves the sign-out completion flag clear, and does not attempt repository authentication.
    */
   @Test
   fun signIn_cancellation_updatesCancellationError() =
@@ -199,13 +199,13 @@ class SignInViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Sign-in cancelled", viewModel.uiState.value.errorMsg)
-        assertTrue(viewModel.uiState.value.signedOut)
+        assertFalse(viewModel.uiState.value.signOutCompleted)
         verify(repository, never()).signInWithGoogle(any())
       }
 
   /**
    * Verifies that a credential retrieval failure updates the UI with the corresponding credential
-   * error message and marks the user as signed out.
+   * error message without marking a sign-out as completed.
    */
   @Test
   fun signIn_credentialFailure_updatesCredentialError() =
@@ -225,12 +225,12 @@ class SignInViewModelTest {
             "Failed to get credentials: credential failure",
             viewModel.uiState.value.errorMsg,
         )
-        assertTrue(viewModel.uiState.value.signedOut)
+        assertFalse(viewModel.uiState.value.signOutCompleted)
       }
 
   /**
    * Verifies that an unexpected exception during credential retrieval is converted into an
-   * appropriate error message and marks the user as signed out.
+   * appropriate error message without marking a sign-out as completed.
    */
   @Test
   fun signIn_unexpectedFailure_updatesUnexpectedError() =
@@ -245,7 +245,7 @@ class SignInViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Unexpected error: boom", viewModel.uiState.value.errorMsg)
-        assertTrue(viewModel.uiState.value.signedOut)
+        assertFalse(viewModel.uiState.value.signOutCompleted)
       }
 
   /**

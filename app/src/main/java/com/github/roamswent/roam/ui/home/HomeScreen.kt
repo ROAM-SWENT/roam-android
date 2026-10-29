@@ -23,6 +23,7 @@ fun HomeScreen(
     onScanClicked: () -> Unit,
     cameraAvailable: Boolean = true,
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
+    onProfileClicked: () -> Unit = {},
 ) {
   Box(
       modifier =
@@ -38,7 +39,7 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) {
       HomeBottomBar(
           selectedTab = HomeBottomTab.HOME,
-          onTabSelected = {},
+          onTabSelected = { tab -> if (tab == HomeBottomTab.PROFILE) onProfileClicked() },
           onScanClick = onScanClicked,
           cameraAvailable = cameraAvailable,
       )

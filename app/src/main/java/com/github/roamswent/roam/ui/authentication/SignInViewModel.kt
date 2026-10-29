@@ -26,13 +26,13 @@ import kotlinx.coroutines.launch
  * @property isLoading Whether an authentication operation is in progress.
  * @property user The currently signed-in [FirebaseUser], or null if not signed in.
  * @property errorMsg An error message to display, or null if there is no error.
- * @property signedOut True if a sign-out operation has completed.
+ * @property signOutCompleted True after the cached signed-in user is cleared by sign-out.
  */
 data class AuthUIState(
     val isLoading: Boolean = false,
     val user: FirebaseUser? = null,
     val errorMsg: String? = null,
-    val signedOut: Boolean = false,
+    val signOutCompleted: Boolean = false,
 )
 
 /**
@@ -53,7 +53,7 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
 
   /** Clears the cached user after a successful sign-out. */
   fun clearSignedInUser() {
-    _uiState.update { it.copy(user = null, signedOut = true) }
+    _uiState.update { it.copy(user = null, signOutCompleted = true) }
   }
 
   private fun getSignInOptions(context: Context) =
@@ -76,7 +76,7 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
     if (_uiState.value.isLoading) return
 
     viewModelScope.launch {
-      _uiState.update { it.copy(isLoading = true, errorMsg = null) }
+      _uiState.update { it.copy(isLoading = true, errorMsg = null, signOutCompleted = false) }
 
       val signInOptions = getSignInOptions(context)
       val signInRequest = signInRequest(signInOptions)
@@ -88,30 +88,26 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
         // Pass the credential to your repository
         repository.signInWithGoogle(credential).fold({ user ->
           _uiState.update {
-            it.copy(isLoading = false, user = user, errorMsg = null, signedOut = false)
+            it.copy(isLoading = false, user = user, errorMsg = null, signOutCompleted = false)
           }
         }) { failure ->
           _uiState.update {
             it.copy(
                 isLoading = false,
                 errorMsg = failure.localizedMessage,
-                signedOut = true,
                 user = null,
             )
           }
         }
       } catch (_: GetCredentialCancellationException) {
         // User cancelled the sign-in flow
-        _uiState.update {
-          it.copy(isLoading = false, errorMsg = "Sign-in cancelled", signedOut = true, user = null)
-        }
+        _uiState.update { it.copy(isLoading = false, errorMsg = "Sign-in cancelled", user = null) }
       } catch (e: androidx.credentials.exceptions.GetCredentialException) {
         // Other credential errors
         _uiState.update {
           it.copy(
               isLoading = false,
               errorMsg = "Failed to get credentials: ${e.localizedMessage}",
-              signedOut = true,
               user = null,
           )
         }
@@ -121,7 +117,6 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
           it.copy(
               isLoading = false,
               errorMsg = "Unexpected error: ${e.localizedMessage}",
-              signedOut = true,
               user = null,
           )
         }
