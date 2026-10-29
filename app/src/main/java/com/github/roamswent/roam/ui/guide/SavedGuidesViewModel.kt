@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.guide
 
 import androidx.lifecycle.ViewModel
@@ -39,6 +40,8 @@ data class SavedGuidesUiState(
     val savedGuideId: String? = null,
     /** Failure from the most recent save. */
     val saveError: Exception? = null,
+    /** Failure from the most recent favourite change. */
+    val favoriteError: Exception? = null,
 )
 
 /** Saves and retrieves the current user's guides and exposes operation status through [uiState]. */
@@ -58,6 +61,20 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
   private val savedGuideIds = mutableSetOf<String>()
   /** Records saves that finish during deletion, for recovery if deletion fails. */
   private val savedGuideIdsDuringDelete = mutableSetOf<String>()
+  /** Optimistic favourite values that override snapshots until their write settles. */
+  private val pendingFavorites = mutableMapOf<String, PendingFavorite>()
+  /** Increases with every favourite request so only the latest one settles its entry. */
+  private var lastFavoriteRequest = 0L
+
+  /**
+   * Latest favourite value requested for a guide. [request] orders the writes so only the latest
+   * one may clear or roll back the entry; [rollbackTo] is the value to restore if it fails.
+   */
+  private data class PendingFavorite(
+      val isFavorite: Boolean,
+      val request: Long,
+      val rollbackTo: Boolean,
+  )
 
   /**
    * Observes the saved collection, including cached data. Each snapshot replaces [savedGuideIds] so
@@ -102,7 +119,7 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
     _uiState.update { it.copy(guide = null, isLoadingGuide = true, guideError = null) }
     viewModelScope.launch {
       try {
-        val guide = repository.getGuide(guideId)
+        val guide = repository.getGuide(guideId)?.withPendingFavorite()
         _uiState.update { it.copy(guide = guide, isLoadingGuide = false) }
       } catch (exception: CancellationException) {
         throw exception
@@ -180,6 +197,7 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
     val savedGuideIdBeforeDelete = _uiState.value.savedGuideId?.takeIf { it == guideId }
     val saveJob = pendingSaveJobs[guideId]
     pendingGuideSaves.remove(guideId)
+    pendingFavorites.remove(guideId)
     pendingGuideDeletes += guideId
 
     _uiState.update {
@@ -236,6 +254,52 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
     }
   }
 
+  /**
+   * Marks [guideId] as a favourite, or removes it from favourites, immediately in the UI while
+   * Firestore synchronizes the change. Offline writes only complete once back online, so a newer
+   * request is never blocked by an older one: the latest request wins.
+   */
+  fun setFavorite(guideId: String, isFavorite: Boolean) {
+    val current = displayedGuide(guideId) ?: return
+    if (current.isFavorite == isFavorite) return
+    val request = ++lastFavoriteRequest
+    val rollbackTo = pendingFavorites[guideId]?.rollbackTo ?: current.isFavorite
+    pendingFavorites[guideId] = PendingFavorite(isFavorite, request, rollbackTo)
+    _uiState.update { it.withFavorite(guideId, isFavorite).copy(favoriteError = null) }
+
+    viewModelScope.launch {
+      try {
+        repository.setFavorite(guideId, isFavorite)
+        val pending = pendingFavorites[guideId]
+        if (pending?.request == request) {
+          pendingFavorites.remove(guideId)
+        } else if (pending != null) {
+          // Writes are applied in order, so this value is now the one to restore on failure.
+          pendingFavorites[guideId] = pending.copy(rollbackTo = isFavorite)
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        val pending = pendingFavorites[guideId]
+        if (pending != null && pending.request == request) {
+          pendingFavorites.remove(guideId)
+          _uiState.update {
+            it.withFavorite(guideId, pending.rollbackTo).copy(favoriteError = exception)
+          }
+        } else {
+          // A newer request decides the final value, so only report the failure.
+          _uiState.update { it.copy(favoriteError = exception) }
+        }
+      }
+    }
+  }
+
+  /** Flips the favourite state of [guideId]. */
+  fun toggleFavorite(guideId: String) {
+    val current = displayedGuide(guideId) ?: return
+    setFavorite(guideId, !current.isFavorite)
+  }
+
   /** Clears operation errors and the last save result from the UI state. */
   fun clearErrors() {
     _uiState.update {
@@ -245,12 +309,31 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
           deleteError = null,
           saveError = null,
           savedGuideId = null,
+          favoriteError = null,
       )
     }
   }
 
+  private fun displayedGuide(guideId: String): Guide? =
+      _uiState.value.guides.firstOrNull { it.id == guideId }
+          ?: _uiState.value.guide?.takeIf { it.id == guideId }
+
+  private fun SavedGuidesUiState.withFavorite(
+      guideId: String,
+      isFavorite: Boolean,
+  ): SavedGuidesUiState =
+      copy(
+          guides = guides.map { if (it.id == guideId) it.copy(isFavorite = isFavorite) else it },
+          guide = guide?.let { if (it.id == guideId) it.copy(isFavorite = isFavorite) else it },
+      )
+
+  private fun Guide.withPendingFavorite(): Guide =
+      pendingFavorites[id]?.let { copy(isFavorite = it.isFavorite) } ?: this
+
+  // Pending favourites are applied on every upsert so a snapshot or save result that predates the
+  // latest favourite request does not flip it back.
   private fun List<Guide>.upsert(guide: Guide): List<Guide> =
-      filterNot { it.id == guide.id } + guide
+      filterNot { it.id == guide.id } + guide.withPendingFavorite()
 
   private fun rollbackFailedSave(guideId: String, previousGuide: Guide?) {
     if (guideId in pendingGuideDeletes) return
@@ -276,7 +359,8 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
           location == other.location
 
   private fun mergePendingChanges(snapshotGuides: List<Guide>): List<Guide> {
-    var mergedGuides = snapshotGuides.filterNot { it.id in pendingGuideDeletes }
+    var mergedGuides =
+        snapshotGuides.filterNot { it.id in pendingGuideDeletes }.map { it.withPendingFavorite() }
     pendingGuideSaves.values.forEach { guide -> mergedGuides = mergedGuides.upsert(guide) }
     return mergedGuides
   }

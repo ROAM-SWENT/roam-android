@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -53,6 +54,16 @@ class GuideDocumentSizeTest {
             baseGuide.copy(facts = baseGuide.facts + "é"),
             documentPath,
         ) - GuideDocumentSize.estimatedBytes(baseGuide, documentPath),
+    )
+  }
+
+  @Test
+  fun favoriteFlagHasTheSameSizeWhateverItsValue() {
+    val notFavorite = guide(photoBytes = byteArrayOf(1, 2, 3))
+
+    assertEquals(
+        GuideDocumentSize.estimatedBytes(notFavorite, documentPath),
+        GuideDocumentSize.estimatedBytes(notFavorite.copy(isFavorite = true), documentPath),
     )
   }
 

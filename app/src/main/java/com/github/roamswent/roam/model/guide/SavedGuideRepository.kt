@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 import kotlinx.coroutines.flow.Flow
@@ -10,6 +11,9 @@ interface SavedGuideRepository {
 
   /** Removes the guide identified by [guideId]. */
   suspend fun removeGuide(guideId: String)
+
+  /** Marks the guide identified by [guideId] as a favourite, or removes it from favourites. */
+  suspend fun setFavorite(guideId: String, isFavorite: Boolean)
 
   /** Retrieves every guide saved by the current user. */
   suspend fun getSavedGuides(): List<Guide>

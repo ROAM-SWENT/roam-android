@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -30,6 +31,15 @@ class FirestoreSavedGuideRepository(
 
   override suspend fun removeGuide(guideId: String) {
     savedGuidesCollection().document(guideId).delete().await()
+  }
+
+  override suspend fun setFavorite(guideId: String, isFavorite: Boolean) {
+    // update() writes only the flag, so the photo is not re-sent, and it fails instead of
+    // recreating a guide that was deleted meanwhile.
+    savedGuidesCollection()
+        .document(guideId)
+        .update(GuideFirestoreMapper.FAVORITE_FIELD, isFavorite)
+        .await()
   }
 
   override suspend fun getSavedGuides(): List<Guide> =
@@ -110,6 +120,8 @@ private val firestoreWithUnlimitedLocalCache: FirebaseFirestore by lazy {
 private fun savedGuidesFirestore(): FirebaseFirestore = firestoreWithUnlimitedLocalCache
 
 internal object GuideFirestoreMapper {
+  const val FAVORITE_FIELD = "isFavorite"
+
   fun toFields(guide: Guide): Map<String, Any> = buildMap {
     put("photo", Blob.fromBytes(guide.photoBytes))
     put("monumentName", guide.monumentName)
@@ -121,6 +133,7 @@ internal object GuideFirestoreMapper {
       put("location", mapOf("latitude" to it.latitude, "longitude" to it.longitude))
     }
     guide.discoveryDate?.let { put("discoveryDate", it) }
+    put(FAVORITE_FIELD, guide.isFavorite)
   }
 
   fun fromFields(id: String, fields: Map<String, Any>): Guide =
@@ -134,6 +147,8 @@ internal object GuideFirestoreMapper {
           culture = required(fields, "culture"),
           location = optionalCoordinates(fields["location"]),
           discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
+          // Guides saved before favourites existed have no flag, so they are not favourites.
+          isFavorite = fields[FAVORITE_FIELD] as? Boolean ?: false,
       )
 
   private fun optionalCoordinates(value: Any?): Coordinates? {

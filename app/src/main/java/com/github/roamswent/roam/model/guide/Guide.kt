@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -16,6 +17,8 @@ data class Guide(
     val location: Coordinates? = null,
     /** Discovery time as Unix epoch milliseconds; null if not available. */
     val discoveryDate: Long? = System.currentTimeMillis(),
+    /** Whether the user marked this guide as a favourite. */
+    val isFavorite: Boolean = false,
 ) {
   override fun equals(other: Any?): Boolean =
       other is Guide &&
@@ -27,7 +30,8 @@ data class Guide(
           facts == other.facts &&
           culture == other.culture &&
           location == other.location &&
-          discoveryDate == other.discoveryDate
+          discoveryDate == other.discoveryDate &&
+          isFavorite == other.isFavorite
 
   override fun hashCode(): Int {
     var result = id.hashCode()
@@ -39,6 +43,7 @@ data class Guide(
     result = 31 * result + culture.hashCode()
     result = 31 * result + (location?.hashCode() ?: 0)
     result = 31 * result + (discoveryDate?.hashCode() ?: 0)
+    result = 31 * result + isFavorite.hashCode()
     return result
   }
 }

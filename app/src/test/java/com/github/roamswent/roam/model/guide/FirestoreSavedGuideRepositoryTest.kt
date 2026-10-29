@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -119,6 +120,40 @@ class FirestoreSavedGuideRepositoryTest {
     repository.removeGuide("guide-id")
 
     verify { document.delete() }
+  }
+
+  @Test
+  fun setFavoriteUpdatesOnlyTheFavoriteFlag() = runTest {
+    val document = mockk<DocumentReference>()
+    every { savedGuidesCollection.document("guide-id") } returns document
+    every { document.update("isFavorite", true) } returns Tasks.forResult(null)
+
+    repository.setFavorite("guide-id", true)
+
+    verify(exactly = 1) { document.update("isFavorite", true) }
+    verify(exactly = 0) { document.set(any()) }
+  }
+
+  @Test
+  fun setFavoritePropagatesFirestoreFailures() = runTest {
+    val document = mockk<DocumentReference>()
+    val failure =
+        FirebaseFirestoreException("guide deleted", FirebaseFirestoreException.Code.NOT_FOUND)
+    every { savedGuidesCollection.document("guide-id") } returns document
+    every { document.update("isFavorite", false) } returns Tasks.forException(failure)
+
+    val error = captureFailure { repository.setFavorite("guide-id", false) }
+
+    assertTrue(error === failure)
+  }
+
+  @Test
+  fun setFavoriteRequiresAnAuthenticatedUser() = runTest {
+    every { auth.currentUser } returns null
+
+    val error = captureFailure { repository.setFavorite("guide-id", true) }
+
+    assertTrue(error is IllegalStateException)
   }
 
   @Test
