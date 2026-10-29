@@ -1,0 +1,283 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+package com.github.roamswent.roam.ui.guide
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class SavedGuidesUiState(
+    /** Guides currently loaded for the collection screen. */
+    val guides: List<Guide> = emptyList(),
+    /** Whether the collection is being loaded. */
+    val isLoadingGuides: Boolean = false,
+    /** Failure from the most recent collection load. */
+    val guidesError: Exception? = null,
+    /** Guide currently loaded for the detail screen, or null if not loaded/not found. */
+    val guide: Guide? = null,
+    /** Whether a guide is being loaded. */
+    val isLoadingGuide: Boolean = false,
+    /** Failure from the most recent guide load. */
+    val guideError: Exception? = null,
+    /** IDs of guides currently being removed. */
+    val deletingGuideIds: Set<String> = emptySet(),
+    /** Failure from the most recent deletion. */
+    val deleteError: Exception? = null,
+    /** Whether a guide is currently being saved. */
+    val isSavingGuide: Boolean = false,
+    /** ID of the most recently saved guide, cleared when another save starts. */
+    val savedGuideId: String? = null,
+    /** Failure from the most recent save. */
+    val saveError: Exception? = null,
+)
+
+/** Saves and retrieves the current user's guides and exposes operation status through [uiState]. */
+class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewModel() {
+  private val _uiState = MutableStateFlow(SavedGuidesUiState())
+  val uiState: StateFlow<SavedGuidesUiState> = _uiState.asStateFlow()
+  private var loadSavedGuidesJob: Job? = null
+  /** Local optimistic saves override repository snapshots until they finish. */
+  private val pendingGuideSaves = mutableMapOf<String, Guide>()
+  /** IDs hidden from snapshots while deletion is in progress. */
+  private val pendingGuideDeletes = mutableSetOf<String>()
+  /** Used to derive [SavedGuidesUiState.isSavingGuide] across concurrent saves. */
+  private val pendingSaveIds = mutableSetOf<String>()
+  /** Lets deletion wait for the corresponding save before removing the guide remotely. */
+  private val pendingSaveJobs = mutableMapOf<String, Job>()
+  /** IDs currently treated as saved, reconciled from snapshots and successful writes. */
+  private val savedGuideIds = mutableSetOf<String>()
+  /** Records saves that finish during deletion, for recovery if deletion fails. */
+  private val savedGuideIdsDuringDelete = mutableSetOf<String>()
+
+  /**
+   * Observes the saved collection, including cached data. Each snapshot replaces [savedGuideIds] so
+   * guides removed elsewhere no longer block a future save.
+   */
+  fun loadSavedGuides(seedGuides: List<Guide> = emptyList()) {
+    if (loadSavedGuidesJob?.isActive == true) return
+
+    _uiState.update { it.copy(isLoadingGuides = true, guidesError = null) }
+    loadSavedGuidesJob = viewModelScope.launch {
+      try {
+        var receivedInitialSnapshot = false
+        repository.observeSavedGuides().collect { guides ->
+          _uiState.update { state ->
+            state.copy(
+                guides = mergePendingChanges(guides),
+                isLoadingGuides = false,
+                guidesError = null,
+            )
+          }
+          savedGuideIds.clear()
+          savedGuideIds += guides.filterNot { it.id in pendingGuideDeletes }.map { it.id }
+          if (!receivedInitialSnapshot) {
+            receivedInitialSnapshot = true
+            val existingIds = guides.mapTo(mutableSetOf()) { it.id }
+            seedGuides.filterNot { it.id in existingIds }.forEach(::saveGuide)
+          }
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _uiState.update { it.copy(isLoadingGuides = false, guidesError = exception) }
+      }
+    }
+  }
+
+  /**
+   * Loads [guideId] for a detail screen. A missing guide is reported as a null
+   * [SavedGuidesUiState.guide].
+   */
+  fun loadGuide(guideId: String) {
+    _uiState.update { it.copy(guide = null, isLoadingGuide = true, guideError = null) }
+    viewModelScope.launch {
+      try {
+        val guide = repository.getGuide(guideId)
+        _uiState.update { it.copy(guide = guide, isLoadingGuide = false) }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _uiState.update { it.copy(isLoadingGuide = false, guideError = exception) }
+      }
+    }
+  }
+
+  /** Adds [guide] immediately to the UI and lets Firestore synchronize it in the background. */
+  fun saveGuide(guide: Guide) {
+    if (guide.id.isBlank() && _uiState.value.guides.any { it.hasSameContentAs(guide) }) return
+    val guideToSave = guide.copy(id = guide.id.ifBlank { UUID.randomUUID().toString() })
+    if (
+        guideToSave.id in pendingSaveIds ||
+            guideToSave.id in pendingGuideDeletes ||
+            guideToSave.id in savedGuideIds ||
+            _uiState.value.guides.any { it.id == guideToSave.id }
+    ) {
+      return
+    }
+    val previousGuide = _uiState.value.guides.firstOrNull { it.id == guideToSave.id }
+    pendingGuideSaves[guideToSave.id] = guideToSave
+    pendingSaveIds += guideToSave.id
+
+    _uiState.update {
+      it.copy(
+          guides = it.guides.upsert(guideToSave),
+          isSavingGuide = true,
+          savedGuideId = null,
+          saveError = null,
+      )
+    }
+    // Register the Job before it runs so a concurrent delete can reliably wait for it.
+    lateinit var saveJob: Job
+    saveJob =
+        viewModelScope.launch(start = CoroutineStart.LAZY) {
+          try {
+            val savedGuide = repository.addGuide(guideToSave)
+            if (savedGuide.id in pendingGuideDeletes) {
+              savedGuideIdsDuringDelete += savedGuide.id
+              _uiState.update {
+                it.copy(savedGuideId = it.savedGuideId?.takeUnless { id -> id == savedGuide.id })
+              }
+            } else {
+              savedGuideIds += savedGuide.id
+              _uiState.update {
+                it.copy(guides = it.guides.upsert(savedGuide), savedGuideId = savedGuide.id)
+              }
+            }
+          } catch (exception: CancellationException) {
+            rollbackFailedSave(guideToSave.id, previousGuide)
+            throw exception
+          } catch (exception: Exception) {
+            rollbackFailedSave(guideToSave.id, previousGuide)
+            _uiState.update { it.copy(saveError = exception) }
+          } finally {
+            pendingGuideSaves.remove(guideToSave.id)
+            pendingSaveIds.remove(guideToSave.id)
+            if (pendingSaveJobs[guideToSave.id] === saveJob) {
+              pendingSaveJobs.remove(guideToSave.id)
+            }
+            _uiState.update { it.copy(isSavingGuide = pendingSaveIds.isNotEmpty()) }
+          }
+        }
+    pendingSaveJobs[guideToSave.id] = saveJob
+    saveJob.start()
+  }
+
+  /** Removes [guideId] from the UI immediately while Firestore synchronizes the deletion. */
+  fun deleteGuide(guideId: String) {
+    if (guideId in _uiState.value.deletingGuideIds) return
+    val previousGuide = _uiState.value.guides.firstOrNull { it.id == guideId }
+    val wasSavedBeforeDelete = guideId in savedGuideIds
+    val savedGuideIdBeforeDelete = _uiState.value.savedGuideId?.takeIf { it == guideId }
+    val saveJob = pendingSaveJobs[guideId]
+    pendingGuideSaves.remove(guideId)
+    pendingGuideDeletes += guideId
+
+    _uiState.update {
+      it.copy(
+          guides = it.guides.filterNot { guide -> guide.id == guideId },
+          guide = it.guide?.takeUnless { guide -> guide.id == guideId },
+          deletingGuideIds = it.deletingGuideIds + guideId,
+          savedGuideId = it.savedGuideId?.takeUnless { id -> id == guideId },
+          deleteError = null,
+      )
+    }
+    viewModelScope.launch {
+      var deletionSucceeded = false
+      try {
+        // Keep the pending-delete marker set while waiting so snapshots and save completion cannot
+        // make the guide visible again.
+        saveJob?.join()
+        repository.removeGuide(guideId)
+        deletionSucceeded = true
+        savedGuideIds.remove(guideId)
+        savedGuideIdsDuringDelete.remove(guideId)
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _uiState.update { it.copy(deleteError = exception) }
+      } finally {
+        pendingGuideDeletes.remove(guideId)
+        val saveSucceededDuringDelete = savedGuideIdsDuringDelete.remove(guideId)
+        // A failed delete restores a previously saved guide, but a failed save remains retryable.
+        if (!deletionSucceeded && (wasSavedBeforeDelete || saveSucceededDuringDelete)) {
+          savedGuideIds += guideId
+          _uiState.update { state ->
+            state.copy(
+                savedGuideId =
+                    state.savedGuideId
+                        ?: savedGuideIdBeforeDelete
+                        ?: guideId.takeIf { saveSucceededDuringDelete },
+                guides =
+                    if (previousGuide != null && state.guides.none { it.id == guideId }) {
+                      state.guides + previousGuide
+                    } else {
+                      state.guides
+                    },
+            )
+          }
+        }
+        _uiState.update {
+          it.copy(
+              deletingGuideIds = it.deletingGuideIds - guideId,
+              isSavingGuide = pendingSaveIds.isNotEmpty(),
+          )
+        }
+      }
+    }
+  }
+
+  /** Clears operation errors and the last save result from the UI state. */
+  fun clearErrors() {
+    _uiState.update {
+      it.copy(
+          guidesError = null,
+          guideError = null,
+          deleteError = null,
+          saveError = null,
+          savedGuideId = null,
+      )
+    }
+  }
+
+  private fun List<Guide>.upsert(guide: Guide): List<Guide> =
+      filterNot { it.id == guide.id } + guide
+
+  private fun rollbackFailedSave(guideId: String, previousGuide: Guide?) {
+    if (guideId in pendingGuideDeletes) return
+    _uiState.update { state ->
+      state.copy(
+          guides =
+              if (previousGuide == null) {
+                state.guides.filterNot { it.id == guideId }
+              } else {
+                state.guides.upsert(previousGuide)
+              },
+      )
+    }
+  }
+
+  private fun Guide.hasSameContentAs(other: Guide): Boolean =
+      photoBytes.contentEquals(other.photoBytes) &&
+          monumentName == other.monumentName &&
+          confidence == other.confidence &&
+          history == other.history &&
+          facts == other.facts &&
+          culture == other.culture &&
+          location == other.location
+
+  private fun mergePendingChanges(snapshotGuides: List<Guide>): List<Guide> {
+    var mergedGuides = snapshotGuides.filterNot { it.id in pendingGuideDeletes }
+    pendingGuideSaves.values.forEach { guide -> mergedGuides = mergedGuides.upsert(guide) }
+    return mergedGuides
+  }
+}
