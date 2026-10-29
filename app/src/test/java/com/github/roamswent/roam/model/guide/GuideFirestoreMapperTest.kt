@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -51,5 +52,23 @@ class GuideFirestoreMapperTest {
 
     assertEquals(null, restored.location)
     assertEquals(null, restored.discoveryDate)
+  }
+
+  @Test
+  fun favoriteStateRoundTrips() {
+    val favorite = guide.copy(isFavorite = true)
+
+    val fields = GuideFirestoreMapper.toFields(favorite)
+
+    assertEquals(true, fields.getValue(GuideFirestoreMapper.FAVORITE_FIELD))
+    assertEquals(favorite, GuideFirestoreMapper.fromFields(guide.id, fields))
+  }
+
+  @Test
+  fun fromFieldsTreatsLegacyGuidesWithoutFavoriteFlagAsNotFavorite() {
+    val fields = GuideFirestoreMapper.toFields(guide.copy(isFavorite = true)).toMutableMap()
+    fields.remove(GuideFirestoreMapper.FAVORITE_FIELD)
+
+    assertEquals(false, GuideFirestoreMapper.fromFields(guide.id, fields).isFavorite)
   }
 }

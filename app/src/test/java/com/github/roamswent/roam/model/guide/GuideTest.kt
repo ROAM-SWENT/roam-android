@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -42,6 +43,13 @@ class GuideTest {
     assertNotEquals(guide, guide.copy(culture = "Different culture"))
     assertNotEquals(guide, guide.copy(location = null))
     assertNotEquals(guide, guide.copy(discoveryDate = null))
+    assertNotEquals(guide, guide.copy(isFavorite = true))
+  }
+
+  @Test
+  fun newGuidesAreNotFavoritesAndFavoriteChangesTheHashCode() {
+    assertEquals(false, guide.isFavorite)
+    assertNotEquals(guide.hashCode(), guide.copy(isFavorite = true).hashCode())
   }
 
   @Test

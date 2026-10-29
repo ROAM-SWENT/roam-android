@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
 /** Conservative size check for the Firestore 1 MiB document limit. */
@@ -12,6 +13,7 @@ internal object GuideDocumentSize {
   private const val DOCUMENT_OVERHEAD_BYTES = 32L
   private const val DOCUMENT_NAME_OVERHEAD_BYTES = 16L
   private const val NUMBER_SIZE_BYTES = 8L
+  private const val BOOLEAN_SIZE_BYTES = 1L
 
   /** Firestore strings include a trailing byte in addition to their UTF-8 content. */
   private fun String.firestoreStringSize(): Long = toByteArray(Charsets.UTF_8).size.toLong() + 1L
@@ -52,6 +54,8 @@ internal object GuideDocumentSize {
     if (guide.discoveryDate != null) {
       fieldsSize += fieldSize("discoveryDate", NUMBER_SIZE_BYTES)
     }
+
+    fieldsSize += fieldSize(GuideFirestoreMapper.FAVORITE_FIELD, BOOLEAN_SIZE_BYTES)
 
     return documentNameSize + fieldsSize + DOCUMENT_OVERHEAD_BYTES
   }
