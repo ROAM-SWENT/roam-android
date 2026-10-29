@@ -111,8 +111,6 @@ fun ScanReviewRoute(
         imageUri = uri,
         onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
         onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
-        repository = guideRepository,
-        userInterestsRepository = userInterestsRepository,
         loadingViewModel = loadingViewModel,
     )
   } else {

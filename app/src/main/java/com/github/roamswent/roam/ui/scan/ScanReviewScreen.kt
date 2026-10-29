@@ -39,6 +39,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -180,7 +182,13 @@ fun ScanReviewScreen(
 
 @Composable
 private fun InterestsPromptDialog(onSave: (List<String>) -> Unit, onSkip: () -> Unit) {
-  var selectedInterests by remember { mutableStateOf(emptySet<String>()) }
+  val selectedInterestsSaver =
+      listSaver<Set<String>, String>(
+          save = { it.toList() },
+          restore = { it.toSet() },
+      )
+  var selectedInterests by
+      rememberSaveable(stateSaver = selectedInterestsSaver) { mutableStateOf(emptySet<String>()) }
 
   Box(
       modifier =

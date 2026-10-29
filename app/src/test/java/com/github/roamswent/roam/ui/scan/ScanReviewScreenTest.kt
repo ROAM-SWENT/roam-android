@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -220,6 +221,31 @@ class ScanReviewScreenTest {
     composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
     composeTestRule.onAllNodesWithTag(C.Tag.scan_interests_chip).assertCountEquals(8)
     assertEquals(0, sendCount.get())
+  }
+
+  @Test
+  fun selectedInterestsAreRestoredAfterSavedStateRestore() {
+    val restorationTester = StateRestorationTester(composeTestRule)
+    restorationTester.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Reviewing(uri),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            showInterestsPrompt = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Architecture").performClick()
+    composeTestRule.onNodeWithText("History").performClick()
+    restorationTester.emulateSavedInstanceStateRestore()
+
+    composeTestRule.onNodeWithText("Architecture").assertIsSelected()
+    composeTestRule.onNodeWithText("History").assertIsSelected()
+    composeTestRule.onNodeWithText("Nature").assertIsNotSelected()
   }
 
   @Test
