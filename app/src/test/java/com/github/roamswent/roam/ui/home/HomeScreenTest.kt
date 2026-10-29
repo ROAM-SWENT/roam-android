@@ -51,4 +51,12 @@ class HomeScreenTest {
         .assertIsDisplayed()
         .assertTextEquals("No camera detected on this device")
   }
+
+  @Test
+  fun homeScreenShowsBottomBar() {
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}) } }
+
+    composeTestRule.onNodeWithTag(C.Tag.home_bottom_bar).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.home_tab_home).assertIsDisplayed()
+  }
 }
