@@ -104,6 +104,26 @@ class SavedGuidesViewModelTest {
       }
 
   @Test
+  fun externallyRemovedGuideCanBeSavedAgain() =
+      runTest(dispatcher) {
+        val snapshots = MutableStateFlow(listOf(guide))
+        every { repository.observeSavedGuides() } returns snapshots
+        coEvery { repository.addGuide(guide) } returns guide
+        val viewModel = SavedGuidesViewModel(repository)
+
+        viewModel.loadSavedGuides()
+        runCurrent()
+        snapshots.value = emptyList()
+        runCurrent()
+
+        viewModel.saveGuide(guide)
+        advanceUntilIdle()
+
+        assertEquals(listOf(guide), viewModel.uiState.value.guides)
+        coVerify(exactly = 1) { repository.addGuide(guide) }
+      }
+
+  @Test
   fun savesGuideAndExposesItsGeneratedId() =
       runTest(dispatcher) {
         val guideWithoutId = guide.copy(id = "")
@@ -124,26 +144,71 @@ class SavedGuidesViewModelTest {
       }
 
   @Test
+  fun repeatedSaveAfterSuccessDoesNotSubmitGuideAgain() =
+      runTest(dispatcher) {
+        coEvery { repository.addGuide(guide) } returns guide
+        val viewModel = SavedGuidesViewModel(repository)
+
+        viewModel.saveGuide(guide)
+        advanceUntilIdle()
+        viewModel.saveGuide(guide)
+        advanceUntilIdle()
+
+        assertEquals(listOf(guide), viewModel.uiState.value.guides)
+        coVerify(exactly = 1) { repository.addGuide(guide) }
+      }
+
+  @Test
   fun repeatedSaveClicksForSameGuideOnlySubmitOneSave() =
       runTest(dispatcher) {
-        val guideToSave = guide.copy(id = "")
+        val guideToSave = guide
         val delayedSave = CompletableDeferred<Guide>()
-        coEvery { repository.addGuide(any()) } coAnswers { delayedSave.await() }
+        coEvery { repository.addGuide(guideToSave) } coAnswers { delayedSave.await() }
         val viewModel = SavedGuidesViewModel(repository)
 
         viewModel.saveGuide(guideToSave)
-        viewModel.saveGuide(guideToSave.copy(discoveryDate = guideToSave.discoveryDate!! + 1))
+        viewModel.saveGuide(guideToSave)
         runCurrent()
 
         assertEquals(1, viewModel.uiState.value.guides.size)
         assertTrue(viewModel.uiState.value.isSavingGuide)
-        coVerify(exactly = 1) { repository.addGuide(any()) }
+        coVerify(exactly = 1) { repository.addGuide(guideToSave) }
 
         val pendingGuide = viewModel.uiState.value.guides.single()
         delayedSave.complete(pendingGuide)
         advanceUntilIdle()
 
         assertEquals(listOf(pendingGuide), viewModel.uiState.value.guides)
+      }
+
+  @Test
+  fun failedSaveCanBeRetried() =
+      runTest(dispatcher) {
+        val saveAcknowledgement = CompletableDeferred<Guide>()
+        var saveAttempts = 0
+        coEvery { repository.addGuide(guide) } coAnswers
+            {
+              saveAttempts++
+              if (saveAttempts == 1) saveAcknowledgement.await() else guide
+            }
+        val viewModel = SavedGuidesViewModel(repository)
+
+        viewModel.saveGuide(guide)
+        runCurrent()
+        saveAcknowledgement.completeExceptionally(IllegalStateException("save failed"))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSavingGuide)
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+        assertEquals("save failed", viewModel.uiState.value.saveError?.message)
+
+        viewModel.saveGuide(guide)
+        advanceUntilIdle()
+
+        assertEquals(listOf(guide), viewModel.uiState.value.guides)
+        assertEquals(guide.id, viewModel.uiState.value.savedGuideId)
+        assertNull(viewModel.uiState.value.saveError)
+        coVerify(exactly = 2) { repository.addGuide(guide) }
       }
 
   @Test
@@ -269,6 +334,40 @@ class SavedGuidesViewModelTest {
       }
 
   @Test
+  fun deletingGuideClearsItsPendingSaveState() =
+      runTest(dispatcher) {
+        val saveAcknowledgement = CompletableDeferred<Guide>()
+        val deleteAcknowledgement = CompletableDeferred<Unit>()
+        coEvery { repository.addGuide(guide) } coAnswers { saveAcknowledgement.await() }
+        coEvery { repository.removeGuide(guide.id) } coAnswers { deleteAcknowledgement.await() }
+        val viewModel = SavedGuidesViewModel(repository)
+
+        viewModel.saveGuide(guide)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isSavingGuide)
+
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isSavingGuide)
+        assertTrue(guide.id in viewModel.uiState.value.deletingGuideIds)
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+        coVerify(exactly = 0) { repository.removeGuide(guide.id) }
+
+        saveAcknowledgement.complete(guide)
+        runCurrent()
+        coVerify(exactly = 1) { repository.removeGuide(guide.id) }
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+        assertNull(viewModel.uiState.value.savedGuideId)
+        deleteAcknowledgement.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSavingGuide)
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+        assertTrue(viewModel.uiState.value.deletingGuideIds.isEmpty())
+        assertNull(viewModel.uiState.value.savedGuideId)
+      }
+
+  @Test
   fun exposesDeletionFailure() =
       runTest(dispatcher) {
         val error = IllegalStateException("delete failed")
@@ -355,9 +454,12 @@ class SavedGuidesViewModelTest {
         viewModel.deleteGuide(guide.id)
         advanceUntilIdle()
         assertNull(viewModel.uiState.value.deleteError)
+        assertTrue(viewModel.uiState.value.deletingGuideIds.isEmpty())
 
         viewModel.saveGuide(guide.copy(id = ""))
         advanceUntilIdle()
         assertNull(viewModel.uiState.value.saveError)
+        assertFalse(viewModel.uiState.value.isSavingGuide)
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
       }
 }
