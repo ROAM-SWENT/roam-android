@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.data
 
 import android.content.Context
@@ -7,6 +11,8 @@ import com.github.roamswent.roam.model.ai.DiscoveryRequest
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.ai.MonumentNotIdentifiedException
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.interests.UserInterestsState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -35,7 +41,13 @@ class GuideCaptureSenderTest {
   @Test
   fun sendReadsBytesAndReturnsTheGuide() = runTest {
     val repository = FakeMonumentGuideRepository { guide }
-    val sender = GuideCaptureSender(context, repository, readBytes = { bytes })
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+        )
 
     val result = sender.send(uri)
 
@@ -44,12 +56,39 @@ class GuideCaptureSenderTest {
     assertEquals("image/jpeg", request.image.mimeType)
     assertTrue(request.image.bytes.contentEquals(bytes))
     assertNull(request.location)
+    assertTrue(request.preferences.interests.isEmpty())
+  }
+
+  @Test
+  fun sendIncludesRepositoryInterestsInTheDiscoveryRequest() = runTest {
+    val interestsRepository = FakeUserInterestsRepository(listOf("art", "architecture"))
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            userInterestsRepository = interestsRepository,
+            readBytes = { bytes },
+        )
+
+    sender.send(uri)
+
+    assertEquals(
+        listOf("art", "architecture"),
+        requireNotNull(repository.lastRequest).preferences.interests,
+    )
   }
 
   @Test
   fun sendWrapsAThrownDiscoveryExceptionAsFailure() = runTest {
     val repository = FakeMonumentGuideRepository { throw MonumentNotIdentifiedException() }
-    val sender = GuideCaptureSender(context, repository, readBytes = { bytes })
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+        )
 
     val result = sender.send(uri)
 
@@ -60,7 +99,13 @@ class GuideCaptureSenderTest {
   @Test
   fun sendRethrowsCancellationExceptionInsteadOfWrappingIt() = runTest {
     val repository = FakeMonumentGuideRepository { throw CancellationException("cancelled") }
-    val sender = GuideCaptureSender(context, repository, readBytes = { bytes })
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+        )
 
     var caught: CancellationException? = null
     try {
@@ -70,6 +115,19 @@ class GuideCaptureSenderTest {
     }
 
     assertNotNull(caught)
+  }
+
+  private class FakeUserInterestsRepository(private var interests: List<String> = emptyList()) :
+      UserInterestsRepository {
+    override fun getUserInterests() = UserInterestsState(hasBeenAsked = true, interests = interests)
+
+    override fun saveInterests(interests: List<String>) {
+      this.interests = interests
+    }
+
+    override fun skipInterests() {
+      interests = emptyList()
+    }
   }
 
   private class FakeMonumentGuideRepository(private val result: () -> MonumentGuide) :

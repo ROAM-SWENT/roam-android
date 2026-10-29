@@ -19,6 +19,7 @@ import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
 import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.ui.loading.ContentResolverImageReader
@@ -48,7 +49,11 @@ fun ScanReviewRoute(
                       geminiClient = geminiClient,
                       locationProvider = AndroidLocationProvider(context),
                   )
-              GuideCaptureSender(context, guideRepository)
+              GuideCaptureSender(
+                  context,
+                  guideRepository,
+                  SharedPreferencesUserInterestsRepository(context),
+              )
             }
       }
   val viewModel: ScanReviewViewModel = viewModel {

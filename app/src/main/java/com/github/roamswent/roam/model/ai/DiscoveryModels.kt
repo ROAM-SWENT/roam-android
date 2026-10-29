@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.model.ai
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -11,8 +15,8 @@ class ImagePayload(val bytes: ByteArray, val mimeType: String) {
   override fun hashCode(): Int = 31 * mimeType.hashCode() + bytes.contentHashCode()
 }
 
-/** Traveler settings that shape the guide. Only the response language for now. */
-data class UserPreferences(val language: String)
+/** Traveler settings that shape the guide. */
+data class UserPreferences(val language: String, val interests: List<String> = emptyList())
 
 /** Everything one scan needs. [location] is null when unavailable or denied. */
 data class DiscoveryRequest(

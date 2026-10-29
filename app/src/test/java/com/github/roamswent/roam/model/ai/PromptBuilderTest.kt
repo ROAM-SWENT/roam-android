@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.model.ai
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -28,6 +32,60 @@ class PromptBuilderTest {
   fun guidePromptUsesTheRequestedLanguage() {
     val prompt = PromptBuilder.guidePrompt(french, null)
     assertTrue(prompt.contains("Write the text fields in fr."))
+  }
+
+  @Test
+  fun guidePromptPersonalizesForNonEmptyInterests() {
+    val prompt =
+        PromptBuilder.guidePrompt(UserPreferences("fr", listOf("art", "architecture")), null)
+
+    assertTrue(prompt.contains("Personalize the guide toward these interests when relevant"))
+    assertTrue(prompt.contains("""["art","architecture"]"""))
+  }
+
+  @Test
+  fun guidePromptSanitizesInterestsBeforePersonalizing() {
+    val longInterest = "a".repeat(41)
+    val prompt =
+        PromptBuilder.guidePrompt(
+            UserPreferences(
+                "fr",
+                listOf(" art ", "", "   ", "art", longInterest, "${longInterest}b"),
+            ),
+            null,
+        )
+
+    assertTrue(prompt.contains("""["art","${"a".repeat(40)}"]"""))
+  }
+
+  @Test
+  fun guidePromptLimitsInterestsToTen() {
+    val interests = (1..11).map { "interest$it" }
+
+    val prompt = PromptBuilder.guidePrompt(UserPreferences("fr", interests), null)
+
+    assertTrue(
+        prompt.contains(
+            interests.take(10).joinToString(prefix = "[\"", separator = "\",\"", postfix = "\"]")
+        )
+    )
+    assertFalse(prompt.contains("interest11"))
+  }
+
+  @Test
+  fun guidePromptOmitsInterestsWhenNoneAreSaved() {
+    val prompt = PromptBuilder.guidePrompt(french, null)
+
+    assertFalse(prompt.contains("interests"))
+    assertFalse(prompt.contains("Personalize"))
+  }
+
+  @Test
+  fun guidePromptOmitsInterestsWhenSanitizationRemovesAllEntries() {
+    val prompt = PromptBuilder.guidePrompt(UserPreferences("fr", listOf("", "   ")), null)
+
+    assertFalse(prompt.contains("interests"))
+    assertFalse(prompt.contains("Personalize"))
   }
 
   @Test
