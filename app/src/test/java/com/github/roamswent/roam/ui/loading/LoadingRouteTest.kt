@@ -12,9 +12,11 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.resources.C
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -104,12 +106,20 @@ class LoadingRouteTest {
       onSuccess: (MonumentGuide, Uri) -> Unit = { _, _ -> },
   ) {
     composeTestRule.activity.setContent {
+      val loadingViewModel: LoadingViewModel = viewModel {
+        LoadingViewModel(
+            repository,
+            { ImagePayload(byteArrayOf(1), "image/jpeg") },
+            uri,
+            "en",
+            mockk<UserInterestsRepository>(),
+        )
+      }
       LoadingRoute(
           imageUri = uri,
           onCancel = onCancel,
           onDiscoverySuccess = onSuccess,
-          repository = repository,
-          readImage = { ImagePayload(byteArrayOf(1), "image/jpeg") },
+          loadingViewModel = loadingViewModel,
       )
     }
   }

@@ -20,6 +20,7 @@ import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.ui.loading.ContentResolverImageReader
@@ -34,9 +35,15 @@ fun ScanReviewRoute(
     navController: NavHostController,
     uri: Uri,
     captureSenderOverride: CaptureSender? = null,
+    userInterestsRepositoryOverride: UserInterestsRepository? = null,
 ) {
   val context = LocalContext.current
   val capturedImageManager = remember(context) { FileCapturedImageManager(context, Dispatchers.IO) }
+  val userInterestsRepository =
+      remember(context.applicationContext, userInterestsRepositoryOverride) {
+        userInterestsRepositoryOverride
+            ?: SharedPreferencesUserInterestsRepository(context.applicationContext)
+      }
   val captureSender: CaptureSender =
       remember(context, captureSenderOverride) {
         captureSenderOverride
@@ -52,7 +59,7 @@ fun ScanReviewRoute(
               GuideCaptureSender(
                   context,
                   guideRepository,
-                  SharedPreferencesUserInterestsRepository(context),
+                  userInterestsRepository,
               )
             }
       }
@@ -74,9 +81,11 @@ fun ScanReviewRoute(
             ContentResolverImageReader(context.contentResolver)::read,
             uri,
             Locale.getDefault().toLanguageTag(),
+            userInterestsRepository,
         )
       }
   val showLoading by loadingViewModel.showLoading.collectAsState()
+  val showInterestsPrompt by loadingViewModel.showInterestsPrompt.collectAsState()
   val discoveredGuide by loadingViewModel.discoveredGuide.collectAsState()
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
@@ -89,7 +98,7 @@ fun ScanReviewRoute(
     }
   }
 
-  BackHandler(enabled = !showLoading) {
+  BackHandler(enabled = !showLoading && !showInterestsPrompt) {
     if (discoveredGuide != null) {
       navController.popBackStack(Routes.Home, inclusive = false)
     } else {
@@ -102,7 +111,6 @@ fun ScanReviewRoute(
         imageUri = uri,
         onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
         onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
-        repository = guideRepository,
         loadingViewModel = loadingViewModel,
     )
   } else {
@@ -119,6 +127,9 @@ fun ScanReviewRoute(
           onRetrySend = viewModel::onRetrySend,
           onDismissSendError = viewModel::onDismissSendError,
           onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
+          showInterestsPrompt = showInterestsPrompt,
+          onSaveInterests = loadingViewModel::onSaveInterests,
+          onSkipInterests = loadingViewModel::onSkipInterests,
       )
     }
   }

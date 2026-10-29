@@ -1,8 +1,18 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.ui.scan
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,18 +22,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +54,7 @@ import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
@@ -53,6 +72,9 @@ fun ScanReviewScreen(
     onRetrySend: () -> Unit = {},
     onDismissSendError: () -> Unit = {},
     onHomeClick: () -> Unit = {},
+    showInterestsPrompt: Boolean = false,
+    onSaveInterests: (List<String>) -> Unit = {},
+    onSkipInterests: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
   if (state is ScanReviewUiState.Sent) {
@@ -79,7 +101,8 @@ fun ScanReviewScreen(
       state is ScanReviewUiState.Deleting ||
           state is ScanReviewUiState.DeleteFailed ||
           state is ScanReviewUiState.Sending ||
-          state is ScanReviewUiState.SendFailed
+          state is ScanReviewUiState.SendFailed ||
+          showInterestsPrompt
   Box(modifier.fillMaxSize().semantics { testTag = C.Tag.scan_review_screen }) {
     AsyncImage(
         model =
@@ -150,6 +173,90 @@ fun ScanReviewScreen(
   }
   if (state is ScanReviewUiState.SendFailed) {
     SendFailedDialog(message = state.message, onRetry = onRetrySend, onDismiss = onDismissSendError)
+  }
+  if (showInterestsPrompt) {
+    BackHandler {}
+    InterestsPromptDialog(onSave = onSaveInterests, onSkip = onSkipInterests)
+  }
+}
+
+@Composable
+private fun InterestsPromptDialog(onSave: (List<String>) -> Unit, onSkip: () -> Unit) {
+  val selectedInterestsSaver =
+      listSaver<Set<String>, String>(
+          save = { it.toList() },
+          restore = { it.toSet() },
+      )
+  var selectedInterests by
+      rememberSaveable(stateSaver = selectedInterestsSaver) { mutableStateOf(emptySet<String>()) }
+
+  Box(
+      modifier =
+          Modifier.fillMaxSize()
+              .background(Color.Black.copy(alpha = 0.32f))
+              .clickable(
+                  interactionSource = remember { MutableInteractionSource() },
+                  indication = null,
+              ) {}
+              .semantics { testTag = C.Tag.scan_interests_prompt },
+      contentAlignment = Alignment.Center,
+  ) {
+    Surface(
+        modifier = Modifier.widthIn(max = 560.dp).padding(horizontal = 24.dp),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
+    ) {
+      Column(Modifier.fillMaxWidth().padding(24.dp)) {
+        Text("Personalize your guide", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.size(12.dp))
+        Text("Add interests to personalize your AI guide.")
+        Spacer(Modifier.size(12.dp))
+        InterestCategoryChips(selectedInterests) { selectedInterests = it }
+        Spacer(Modifier.size(24.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+          TextButton(
+              onClick = onSkip,
+              modifier = Modifier.semantics { testTag = C.Tag.scan_interests_skip },
+          ) {
+            Text("Skip")
+          }
+          TextButton(
+              onClick = { onSave(UserInterestCategories.all.filter(selectedInterests::contains)) },
+              enabled = selectedInterests.isNotEmpty(),
+              modifier = Modifier.semantics { testTag = C.Tag.scan_interests_save },
+          ) {
+            Text("Save")
+          }
+        }
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InterestCategoryChips(
+    selectedInterests: Set<String>,
+    onSelectionChange: (Set<String>) -> Unit,
+) {
+  FlowRow(
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    UserInterestCategories.all.forEach { category ->
+      FilterChip(
+          selected = category in selectedInterests,
+          onClick = {
+            onSelectionChange(
+                if (category in selectedInterests) selectedInterests - category
+                else selectedInterests + category
+            )
+          },
+          label = { Text(category) },
+          modifier = Modifier.semantics { testTag = C.Tag.scan_interests_chip },
+      )
+    }
   }
 }
 

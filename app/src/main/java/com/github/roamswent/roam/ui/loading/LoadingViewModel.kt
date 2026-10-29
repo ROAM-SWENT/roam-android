@@ -19,6 +19,7 @@ import com.github.roamswent.roam.model.ai.ParseException
 import com.github.roamswent.roam.model.ai.RejectedImageException
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -51,9 +52,13 @@ class LoadingViewModel(
     private val readImage: suspend (Uri) -> ImagePayload,
     private val imageUri: Uri,
     private val language: String,
+    private val userInterestsRepository: UserInterestsRepository,
 ) : ViewModel() {
   private val _showLoading = MutableStateFlow(false)
   val showLoading: StateFlow<Boolean> = _showLoading.asStateFlow()
+
+  private val _showInterestsPrompt = MutableStateFlow(false)
+  val showInterestsPrompt: StateFlow<Boolean> = _showInterestsPrompt.asStateFlow()
 
   private val _discoveredGuide = MutableStateFlow<MonumentGuide?>(null)
   val discoveredGuide: StateFlow<MonumentGuide?> = _discoveredGuide.asStateFlow()
@@ -69,6 +74,35 @@ class LoadingViewModel(
   private var discoveryJob: Job? = null
 
   fun beginLoading() {
+    if (_showInterestsPrompt.value) {
+      return
+    }
+    if (userInterestsRepository.getUserInterests().hasBeenAsked) {
+      continueLoading()
+    } else {
+      _showInterestsPrompt.value = true
+    }
+  }
+
+  fun onSaveInterests(interests: List<String>) {
+    if (!_showInterestsPrompt.value) {
+      return
+    }
+    userInterestsRepository.saveInterests(interests)
+    _showInterestsPrompt.value = false
+    continueLoading()
+  }
+
+  fun onSkipInterests() {
+    if (!_showInterestsPrompt.value) {
+      return
+    }
+    userInterestsRepository.skipInterests()
+    _showInterestsPrompt.value = false
+    continueLoading()
+  }
+
+  private fun continueLoading() {
     _showLoading.value = true
   }
 

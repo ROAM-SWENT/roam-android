@@ -14,6 +14,9 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -25,12 +28,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
@@ -198,6 +204,145 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun firstSendShowsInterestsPromptWithoutStartingGuideGeneration() {
+    val sendCount = AtomicInteger()
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> {
+            sendCount.incrementAndGet()
+            return Result.success(guide)
+          }
+        }
+    showReviewRoute(sender, FakeUserInterestsRepository(hasBeenAsked = false))
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.scan_interests_prompt)
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.scan_interests_chip).assertCountEquals(8)
+    assertEquals(0, sendCount.get())
+  }
+
+  @Test
+  fun selectedInterestsAreRestoredAfterSavedStateRestore() {
+    val restorationTester = StateRestorationTester(composeTestRule)
+    restorationTester.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Reviewing(uri),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            showInterestsPrompt = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Architecture").performClick()
+    composeTestRule.onNodeWithText("History").performClick()
+    restorationTester.emulateSavedInstanceStateRestore()
+
+    composeTestRule.onNodeWithText("Architecture").assertIsSelected()
+    composeTestRule.onNodeWithText("History").assertIsSelected()
+    composeTestRule.onNodeWithText("Nature").assertIsNotSelected()
+  }
+
+  @Test
+  fun savingInterestsContinuesGuideGeneration() {
+    val interestsRepository = FakeUserInterestsRepository(hasBeenAsked = false)
+    val sendCount = AtomicInteger()
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> {
+            sendCount.incrementAndGet()
+            return Result.success(guide)
+          }
+        }
+    showReviewRoute(sender, interestsRepository)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_interests_prompt)
+    composeTestRule.onNodeWithTag(C.Tag.scan_interests_save).assertIsNotEnabled()
+    composeTestRule
+        .onNodeWithText("Architecture")
+        .assertIsNotSelected()
+        .performClick()
+        .assertIsSelected()
+    composeTestRule
+        .onNodeWithText("History")
+        .assertIsNotSelected()
+        .performClick()
+        .assertIsSelected()
+    composeTestRule.onNodeWithText("Nature").assertIsNotSelected()
+    composeTestRule.onNodeWithTag(C.Tag.scan_interests_save).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    assertEquals(
+        UserInterestsState(hasBeenAsked = true, interests = listOf("Architecture", "History")),
+        interestsRepository.getUserInterests(),
+    )
+    assertEquals(1, sendCount.get())
+  }
+
+  @Test
+  fun skippingInterestsContinuesGuideGeneration() {
+    val interestsRepository = FakeUserInterestsRepository(hasBeenAsked = false)
+    val sendCount = AtomicInteger()
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> {
+            sendCount.incrementAndGet()
+            return Result.success(guide)
+          }
+        }
+    showReviewRoute(sender, interestsRepository)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_interests_prompt)
+    composeTestRule.onNodeWithTag(C.Tag.scan_interests_skip).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    assertEquals(
+        UserInterestsState(hasBeenAsked = true, interests = emptyList()),
+        interestsRepository.getUserInterests(),
+    )
+    assertEquals(1, sendCount.get())
+  }
+
+  @Test
+  fun laterSendDoesNotShowInterestsPromptAgain() {
+    val interestsRepository = FakeUserInterestsRepository(hasBeenAsked = false)
+    val sendCount = AtomicInteger()
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> {
+            sendCount.incrementAndGet()
+            return Result.success(guide)
+          }
+        }
+    showReviewRoute(sender, interestsRepository)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_interests_prompt)
+    composeTestRule.onNodeWithTag(C.Tag.scan_interests_skip).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.runOnIdle {
+      navController.navigate(Routes.Scan)
+      navController.navigate("${Routes.ScanReview}?uri=${Uri.encode(photoUri.toString())}")
+    }
+
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.onAllNodesWithTag(C.Tag.scan_interests_prompt).assertCountEquals(0)
+    assertEquals(2, sendCount.get())
+  }
+
+  @Test
   fun reviewRouteSuccessShowsGuideAndGuideButtonReturnsHome() {
     val sentUri = AtomicReference<Uri>()
     val sender =
@@ -286,7 +431,10 @@ class ScanReviewScreenTest {
           language = "en",
       )
 
-  private fun showReviewRoute(captureSender: CaptureSender) {
+  private fun showReviewRoute(
+      captureSender: CaptureSender,
+      userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
+  ) {
     val photo =
         File.createTempFile(
             "scan-review-route",
@@ -310,6 +458,7 @@ class ScanReviewScreenTest {
                 navController = controller,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
+                userInterestsRepositoryOverride = userInterestsRepository,
             )
           }
         }
@@ -321,6 +470,23 @@ class ScanReviewScreenTest {
       navController.navigate("${Routes.ScanReview}?uri=${Uri.encode(photoUri.toString())}")
     }
     waitAndAssertDisplayed(C.Tag.scan_review_screen)
+  }
+
+  private class FakeUserInterestsRepository(
+      private var hasBeenAsked: Boolean = true,
+      private var interests: List<String> = emptyList(),
+  ) : UserInterestsRepository {
+    override fun getUserInterests() = UserInterestsState(hasBeenAsked, interests)
+
+    override fun saveInterests(interests: List<String>) {
+      hasBeenAsked = true
+      this.interests = interests
+    }
+
+    override fun skipInterests() {
+      hasBeenAsked = true
+      interests = emptyList()
+    }
   }
 
   private fun waitForDestination(route: String) {
