@@ -23,7 +23,7 @@ class FirestoreSavedGuideRepository(
     val collection = savedGuidesCollection()
     val document = if (guide.id.isBlank()) collection.document() else collection.document(guide.id)
     val savedGuide = guide.copy(id = document.id)
-    GuideDocumentSize.requireWithinLimit(savedGuide)
+    GuideDocumentSize.requireWithinLimit(savedGuide, document.path)
     document.set(GuideFirestoreMapper.toFields(savedGuide)).await()
     return savedGuide
   }

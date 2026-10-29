@@ -4,10 +4,11 @@ package com.github.roamswent.roam.model.guide
 import com.github.roamswent.roam.model.location.Coordinates
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GuideDocumentSizeTest {
+  private val documentPath = "users/user-id/savedGuides/guide-id"
+
   @Test
   fun estimatesTextAndPhotoBytes() {
     val shortGuide = guide(photoBytes = byteArrayOf(1, 2, 3))
@@ -15,10 +16,10 @@ class GuideDocumentSizeTest {
 
     assertEquals(
         26L,
-        GuideDocumentSize.estimatedBytes(longerGuide) -
-            GuideDocumentSize.estimatedBytes(shortGuide),
+        GuideDocumentSize.estimatedBytes(longerGuide, documentPath) -
+            GuideDocumentSize.estimatedBytes(shortGuide, documentPath),
     )
-    GuideDocumentSize.requireWithinLimit(shortGuide)
+    GuideDocumentSize.requireWithinLimit(shortGuide, documentPath)
   }
 
   @Test
@@ -30,18 +31,59 @@ class GuideDocumentSizeTest {
             discoveryDate = 1L,
         )
 
-    assertTrue(
-        GuideDocumentSize.estimatedBytes(withMetadata) >
-            GuideDocumentSize.estimatedBytes(withoutMetadata)
+    assertEquals(
+        98L,
+        GuideDocumentSize.estimatedBytes(withMetadata, documentPath) -
+            GuideDocumentSize.estimatedBytes(withoutMetadata, documentPath),
     )
   }
 
   @Test
-  fun rejectsGuideThatWouldExceedConservativeDocumentLimit() {
-    val tooLarge = guide(photoBytes = ByteArray(GuideDocumentSize.FIRESTORE_DOCUMENT_LIMIT_BYTES))
+  fun includesAdditionalPathSegmentsAndFactStrings() {
+    val baseGuide = guide(photoBytes = byteArrayOf(1, 2, 3))
+
+    assertEquals(
+        2L,
+        GuideDocumentSize.estimatedBytes(baseGuide, "$documentPath/x") -
+            GuideDocumentSize.estimatedBytes(baseGuide, documentPath),
+    )
+    assertEquals(
+        3L,
+        GuideDocumentSize.estimatedBytes(
+            baseGuide.copy(facts = baseGuide.facts + "é"),
+            documentPath,
+        ) - GuideDocumentSize.estimatedBytes(baseGuide, documentPath),
+    )
+  }
+
+  @Test
+  fun accountsForBlobEncodingAndStructuredValueOverhead() {
+    val threeBytes = guide(photoBytes = ByteArray(3))
+    val fourBytes = threeBytes.copy(photoBytes = ByteArray(4))
+
+    assertEquals(
+        1L,
+        GuideDocumentSize.estimatedBytes(fourBytes, documentPath) -
+            GuideDocumentSize.estimatedBytes(threeBytes, documentPath),
+    )
+  }
+
+  @Test
+  fun rejectsPhotoWhoseBlobWouldExceedLimit() {
+    val tooLarge = guide(photoBytes = ByteArray(1_048_000))
 
     assertThrows(IllegalArgumentException::class.java) {
-      GuideDocumentSize.requireWithinLimit(tooLarge)
+      GuideDocumentSize.requireWithinLimit(tooLarge, documentPath)
+    }
+  }
+
+  @Test
+  fun rejectsGuideThatWouldExceedConservativeDocumentLimit() {
+    val tooLarge =
+        guide(photoBytes = ByteArray(GuideDocumentSize.FIRESTORE_DOCUMENT_LIMIT_BYTES.toInt()))
+
+    assertThrows(IllegalArgumentException::class.java) {
+      GuideDocumentSize.requireWithinLimit(tooLarge, documentPath)
     }
   }
 

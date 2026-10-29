@@ -86,6 +86,7 @@ class FirestoreSavedGuideRepositoryTest {
     val document = mockk<DocumentReference>()
     every { savedGuidesCollection.document("guide-id") } returns document
     every { document.id } returns "guide-id"
+    every { document.path } returns "users/user-id/savedGuides/guide-id"
     every { document.set(any<Map<String, Any>>()) } returns Tasks.forResult(null)
 
     val savedGuide = repository.addGuide(guide)
@@ -100,6 +101,7 @@ class FirestoreSavedGuideRepositoryTest {
     val guideWithoutId = guide.copy(id = "")
     every { savedGuidesCollection.document() } returns document
     every { document.id } returns "generated-id"
+    every { document.path } returns "users/user-id/savedGuides/generated-id"
     every { document.set(any<Map<String, Any>>()) } returns Tasks.forResult(null)
 
     val savedGuide = repository.addGuide(guideWithoutId)
