@@ -73,6 +73,20 @@ class UserInterestsRepositoryTest {
   }
 
   @Test
+  fun getUserInterests_returnsEmptyListForMalformedStoredDataAndPreservesAskedState() {
+    preferences
+        .edit()
+        .putBoolean("has_been_asked", true)
+        .putString("interests", "not json")
+        .commit()
+
+    assertEquals(
+        UserInterestsState(hasBeenAsked = true, interests = emptyList()),
+        SharedPreferencesUserInterestsRepository(context).getUserInterests(),
+    )
+  }
+
+  @Test
   fun saveInterests_replacesPreviouslySavedInterests() {
     val repository = SharedPreferencesUserInterestsRepository(context)
     repository.saveInterests(listOf("art", "history"))

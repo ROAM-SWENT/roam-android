@@ -44,8 +44,45 @@ class PromptBuilderTest {
   }
 
   @Test
+  fun guidePromptSanitizesInterestsBeforePersonalizing() {
+    val longInterest = "a".repeat(41)
+    val prompt =
+        PromptBuilder.guidePrompt(
+            UserPreferences(
+                "fr",
+                listOf(" art ", "", "   ", "art", longInterest, "${longInterest}b"),
+            ),
+            null,
+        )
+
+    assertTrue(prompt.contains("""["art","${"a".repeat(40)}"]"""))
+  }
+
+  @Test
+  fun guidePromptLimitsInterestsToTen() {
+    val interests = (1..11).map { "interest$it" }
+
+    val prompt = PromptBuilder.guidePrompt(UserPreferences("fr", interests), null)
+
+    assertTrue(
+        prompt.contains(
+            interests.take(10).joinToString(prefix = "[\"", separator = "\",\"", postfix = "\"]")
+        )
+    )
+    assertFalse(prompt.contains("interest11"))
+  }
+
+  @Test
   fun guidePromptOmitsInterestsWhenNoneAreSaved() {
     val prompt = PromptBuilder.guidePrompt(french, null)
+
+    assertFalse(prompt.contains("interests"))
+    assertFalse(prompt.contains("Personalize"))
+  }
+
+  @Test
+  fun guidePromptOmitsInterestsWhenSanitizationRemovesAllEntries() {
+    val prompt = PromptBuilder.guidePrompt(UserPreferences("fr", listOf("", "   ")), null)
 
     assertFalse(prompt.contains("interests"))
     assertFalse(prompt.contains("Personalize"))

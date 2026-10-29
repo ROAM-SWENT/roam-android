@@ -7,6 +7,7 @@ package com.github.roamswent.roam.model.interests
 import android.content.Context
 import android.content.SharedPreferences
 import org.json.JSONArray
+import org.json.JSONException
 
 /** The user's saved interests and whether they have been asked about them. */
 data class UserInterestsState(val hasBeenAsked: Boolean, val interests: List<String>)
@@ -29,10 +30,14 @@ class SharedPreferencesUserInterestsRepository(context: Context) : UserInterests
   override fun getUserInterests(): UserInterestsState {
     val serializedInterests = preferences.getString(INTERESTS_KEY, null)
     val interests =
-        serializedInterests?.let { stored ->
-          val jsonArray = JSONArray(stored)
-          List(jsonArray.length()) { index -> jsonArray.getString(index) }
-        } ?: emptyList()
+        try {
+          serializedInterests?.let { stored ->
+            val jsonArray = JSONArray(stored)
+            List(jsonArray.length()) { index -> jsonArray.getString(index) }
+          } ?: emptyList()
+        } catch (_: JSONException) {
+          emptyList()
+        }
 
     return UserInterestsState(
         hasBeenAsked = preferences.getBoolean(HAS_BEEN_ASKED_KEY, false),
