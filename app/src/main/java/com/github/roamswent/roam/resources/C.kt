@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.resources
 
 // Like R, but C
@@ -76,5 +77,15 @@ object C {
     const val loading_screen_subtitle = "loading_screen_subtitle"
     const val loading_screen_cancel_button = "loading_screen_cancel_button"
     const val loading_screen_error_icon = "loading_screen_error_icon"
+    const val collection_screen = "collection_screen"
+    const val collection_title = "collection_title"
+    const val collection_grid = "collection_grid"
+    const val collection_card = "collection_card"
+    const val collection_card_photo_placeholder = "collection_card_photo_placeholder"
+    const val collection_card_name = "collection_card_name"
+    const val collection_card_date = "collection_card_date"
+    const val collection_empty_state = "collection_empty_state"
+    const val collection_loading = "collection_loading"
+    const val collection_error = "collection_error"
   }
 }

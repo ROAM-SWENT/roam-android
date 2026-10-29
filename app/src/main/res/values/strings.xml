@@ -33,4 +33,9 @@
     <string name="home_scan_card_title">A monument in front of you?</string>
     <string name="home_scan_card_body">Tap the scan button to discover what you\'re looking at.</string>
     <string name="home_scan_card_icon_description">Monument</string>
+    <string name="collection_title">History</string>
+    <string name="collection_empty_title">No monuments yet</string>
+    <string name="collection_empty_subtitle">Scan a monument to start your collection.</string>
+    <string name="collection_error">Couldn’t load your collection. Please try again.</string>
+    <string name="collection_photo_description">Photo of %1$s</string>
 </resources>
