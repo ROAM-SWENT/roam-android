@@ -120,6 +120,7 @@ internal fun RoamApp(
             onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
             cameraAvailable = cameraAvailable,
             userName = userName,
+            onProfileClicked = { navController.navigate(Routes.Settings) },
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }

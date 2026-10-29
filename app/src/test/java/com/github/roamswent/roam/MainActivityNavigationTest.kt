@@ -202,6 +202,22 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun homeProfileButtonNavigatesToSettingsAndHomeButtonReturnsHome() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.home_tab_profile).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_home_button)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Settings, navController.currentDestination?.route)
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
+  }
+
+  @Test
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authState = MutableStateFlow(AuthUIState(user = mock()))
