@@ -131,10 +131,11 @@ internal fun RoamApp(
       }
       composable(Routes.Settings) {
         SettingsScreen(
-            settingsViewModel = settingsViewModel ?: viewModel(),
+            settingsViewModel = settingsViewModel,
             cameraPermissionController = permissionController,
             locationPermissionController = locationPermissionController,
             onManagePermissionsClick = { permissionController.openAppSettings() },
+            onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
             onSignedOut = {
               authViewModel.clearSignedInUser()
               navController.navigate(Routes.SignIn) {

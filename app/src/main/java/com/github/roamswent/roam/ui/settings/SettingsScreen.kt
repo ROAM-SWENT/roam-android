@@ -6,6 +6,7 @@ package com.github.roamswent.roam.ui.settings
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,6 +32,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -49,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
@@ -56,6 +61,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.github.roamswent.roam.R
+import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.ScanTeal
@@ -90,17 +97,19 @@ fun SettingsScreen(
     cameraPermissionController: CameraPermissionController,
     locationPermissionController: LocationPermissionController,
     modifier: Modifier = Modifier,
-    settingsViewModel: SettingsViewModel = viewModel(),
+    settingsViewModel: SettingsViewModel? = null,
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onManagePermissionsClick: () -> Unit = {},
     onSignedOut: () -> Unit = {},
+    onHomeClick: () -> Unit = {},
 ) {
 
+  val resolvedSettingsViewModel = settingsViewModel ?: viewModel<SettingsViewModel>()
   val context = LocalContext.current
-  val uiState by settingsViewModel.uiState.collectAsState()
+  val uiState by resolvedSettingsViewModel.uiState.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
 
-  LaunchedEffect(Unit) { settingsViewModel.loadProfile() }
+  LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
   LaunchedEffect(uiState.signedOut) {
     if (uiState.signedOut) {
@@ -112,14 +121,18 @@ fun SettingsScreen(
   LaunchedEffect(uiState.errorMsg) {
     uiState.errorMsg?.let { message ->
       Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-      settingsViewModel.clearErrorMsg()
+      resolvedSettingsViewModel.clearErrorMsg()
     }
   }
 
   DisposableEffect(lifecycleOwner, cameraPermissionController, locationPermissionController) {
     fun refreshPermissionStatus() {
-      settingsViewModel.setCameraPermissionGranted(cameraPermissionController.hasPermission())
-      settingsViewModel.setLocationPermissionGranted(locationPermissionController.hasPermission())
+      resolvedSettingsViewModel.setCameraPermissionGranted(
+          cameraPermissionController.hasPermission()
+      )
+      resolvedSettingsViewModel.setLocationPermissionGranted(
+          locationPermissionController.hasPermission()
+      )
     }
 
     refreshPermissionStatus()
@@ -149,7 +162,8 @@ fun SettingsScreen(
                 provider = uiState.profile?.provider.orEmpty(),
             ),
         onManagePermissionsClick = onManagePermissionsClick,
-        onSignOutClick = { settingsViewModel.signOut(credentialManager) },
+        onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
+        onHomeClick = onHomeClick,
     )
   }
 }
@@ -161,33 +175,56 @@ private fun SettingsContent(
     profile: ProfileDisplayData,
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
+    onHomeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
   val interests = remember { mutableStateListOf<String>().apply { addAll(sampleInterests) } }
   var showAddInterestDialog by remember { mutableStateOf(false) }
 
-  Column(
-      modifier =
-          modifier
-              .fillMaxSize()
-              .verticalScroll(rememberScrollState())
-              .padding(horizontal = 20.dp, vertical = 16.dp),
-      verticalArrangement = Arrangement.spacedBy(16.dp),
-  ) {
-    ProfileCard(
-        profile = profile,
-        onSignOutClick = onSignOutClick,
-    )
-    PermissionsCard(
-        cameraPermissionGranted = cameraPermissionGranted,
-        locationPermissionGranted = locationPermissionGranted,
-        onManagePermissionsClick = onManagePermissionsClick,
-    )
-    InterestsCard(
-        interests = interests,
-        onRemoveInterest = { interests.remove(it) },
-        onAddInterestClick = { showAddInterestDialog = true },
-    )
+  Box(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, top = 72.dp, end = 20.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      ProfileCard(
+          profile = profile,
+          onSignOutClick = onSignOutClick,
+      )
+      PermissionsCard(
+          cameraPermissionGranted = cameraPermissionGranted,
+          locationPermissionGranted = locationPermissionGranted,
+          onManagePermissionsClick = onManagePermissionsClick,
+      )
+      InterestsCard(
+          interests = interests,
+          onRemoveInterest = { interests.remove(it) },
+          onAddInterestClick = { showAddInterestDialog = true },
+      )
+    }
+
+    IconButton(
+        onClick = onHomeClick,
+        modifier =
+            Modifier.align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(16.dp)
+                .size(44.dp)
+                .testTag(C.Tag.settings_home_button),
+        colors =
+            IconButtonDefaults.iconButtonColors(
+                containerColor = Color.Gray.copy(alpha = 0.6f),
+                contentColor = Color.White,
+            ),
+    ) {
+      Icon(
+          imageVector = Icons.Filled.Home,
+          contentDescription = stringResource(R.string.settings_home_description),
+      )
+    }
   }
 
   if (showAddInterestDialog) {
@@ -207,7 +244,9 @@ private fun SettingsContent(
                       interests.add(interest)
                       showAddInterestDialog = false
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                        Modifier.fillMaxWidth()
+                            .testTag(C.Tag.settings_interest_option_prefix + interest),
                 ) {
                   Text(interest, modifier = Modifier.fillMaxWidth())
                 }
@@ -216,7 +255,12 @@ private fun SettingsContent(
           }
         },
         confirmButton = {
-          TextButton(onClick = { showAddInterestDialog = false }) { Text("Cancel") }
+          TextButton(
+              onClick = { showAddInterestDialog = false },
+              modifier = Modifier.testTag(C.Tag.settings_add_interest_cancel_button),
+          ) {
+            Text("Cancel")
+          }
         },
     )
   }
@@ -287,7 +331,7 @@ private fun ProfileCard(
       }
       Button(
           onClick = onSignOutClick,
-          modifier = Modifier.fillMaxWidth(),
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_sign_out_button),
           shape = RoundedCornerShape(14.dp),
           colors =
               ButtonDefaults.buttonColors(
@@ -327,7 +371,7 @@ private fun PermissionsCard(
       PermissionStatus("Location permission", locationPermissionGranted)
       OutlinedButton(
           onClick = onManagePermissionsClick,
-          modifier = Modifier.fillMaxWidth(),
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_manage_permissions_button),
       ) {
         Text(text = "Manage Permissions")
       }
@@ -370,6 +414,7 @@ private fun InterestsCard(
         }
         OutlinedButton(
             onClick = onAddInterestClick,
+            modifier = Modifier.testTag(C.Tag.settings_add_interest_button),
             shape = RoundedCornerShape(50),
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -398,7 +443,10 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.onSurface,
       )
-      IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+      IconButton(
+          onClick = onRemove,
+          modifier = Modifier.size(32.dp).testTag(C.Tag.settings_interest_remove_prefix + interest),
+      ) {
         Icon(
             Icons.Default.Close,
             contentDescription = "Remove $interest",

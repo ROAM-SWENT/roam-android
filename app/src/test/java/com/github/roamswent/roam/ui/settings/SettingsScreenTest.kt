@@ -9,11 +9,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,6 +25,7 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.profile.UserProfile
+import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -73,8 +75,8 @@ class SettingsScreenTest {
 
     composeTestRule.onNodeWithText("Victor").assertIsDisplayed()
     composeTestRule.onNodeWithText("App Permissions").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Manage Permissions").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Sign Out").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_manage_permissions_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_sign_out_button).assertIsDisplayed()
     composeTestRule.onNodeWithText("victor@epfl.ch").assertIsDisplayed()
     composeTestRule.onNodeWithText("Google").assertIsDisplayed()
     composeTestRule.onNodeWithText("My Interests (AI Guide)").assertIsDisplayed()
@@ -164,9 +166,33 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Manage Permissions").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_manage_permissions_button).performClick()
 
     assertEquals(1, managePermissionsClicks)
+  }
+
+  /** Verifies that tapping the Home button invokes its callback. */
+  @Test
+  fun homeButton_invokesCallback() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    val (cameraController, locationController) = permissionControllers()
+    var homeClicks = 0
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+            onHomeClick = { homeClicks++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
+
+    assertEquals(1, homeClicks)
   }
 
   /** Verifies that tapping Sign Out delegates to the ViewModel and credential manager. */
@@ -188,7 +214,7 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Sign Out").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_sign_out_button).performClick()
 
     verify(viewModel).signOut(credentialManager)
   }
@@ -210,15 +236,27 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Add an interest").performClick()
-    composeTestRule.onNodeWithText("Museums").performClick()
-    composeTestRule.onNodeWithText("Museums").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_cancel_button).performClick()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.settings_interest_option_prefix + "Museums")
+        .assertCountEquals(0)
 
-    composeTestRule.onNodeWithContentDescription("Remove Museums").performClick()
-    composeTestRule.onNodeWithText("Museums").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_interest_option_prefix + "Museums").performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Museums")
+        .assertIsDisplayed()
 
-    composeTestRule.onNodeWithText("Add an interest").performClick()
-    composeTestRule.onNodeWithText("Museums").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Museums").performClick()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.settings_interest_remove_prefix + "Museums")
+        .assertCountEquals(0)
+
+    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_interest_option_prefix + "Museums")
+        .assertIsDisplayed()
   }
 
   /** Verifies that the interest dialog handles the case where every sample interest is selected. */
@@ -245,11 +283,13 @@ class SettingsScreenTest {
             "Local culture",
         )
         .forEach { interest ->
-          composeTestRule.onNodeWithText("Add an interest").performClick()
-          composeTestRule.onNodeWithText(interest).performClick()
+          composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+          composeTestRule
+              .onNodeWithTag(C.Tag.settings_interest_option_prefix + interest)
+              .performClick()
         }
 
-    composeTestRule.onNodeWithText("Add an interest").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
     composeTestRule.onNodeWithText("You have added all the sample interests.").assertIsDisplayed()
   }
 

@@ -18,9 +18,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -88,9 +86,7 @@ class MainActivityNavigationTest {
   @Test
   fun startsAtSignInWithoutAccessToHomeOrScan() {
     renderApp(MutableStateFlow(AuthUIState()))
-    composeTestRule
-        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
-        .assertIsDisplayed()
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
     waitForGone(C.Tag.home_screen_container)
     waitForGone(C.Tag.scan_camera_screen)
   }
@@ -100,9 +96,7 @@ class MainActivityNavigationTest {
     val authState = MutableStateFlow(AuthUIState())
     renderApp(authState)
 
-    composeTestRule
-        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
-        .assertIsDisplayed()
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
     waitForGone(C.Tag.home_screen_container)
 
     authState.value = AuthUIState(user = mock())
@@ -133,9 +127,7 @@ class MainActivityNavigationTest {
       }
     }
 
-    composeTestRule
-        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_google_button))
-        .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
 
     assertEquals(1, signInClickCount)
     waitAndAssertDisplayed(C.Tag.home_screen_container)
@@ -185,7 +177,7 @@ class MainActivityNavigationTest {
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
     navigateToSettings(navController)
-    composeTestRule.onNodeWithText("Manage Permissions").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_manage_permissions_button).performClick()
 
     val intent = shadowOf(composeTestRule.activity).nextStartedActivity
     assertNotNull(intent)
@@ -194,6 +186,19 @@ class MainActivityNavigationTest {
         composeTestRule.activity.packageName,
         intent.data?.schemeSpecificPart,
     )
+  }
+
+  @Test
+  fun settingsHomeButtonNavigatesToHome() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    navigateToSettings(navController)
+    waitAndAssertDisplayed(C.Tag.settings_home_button)
+    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.waitUntil { navController.currentDestination?.route == Routes.Home }
   }
 
   @Test
@@ -216,14 +221,14 @@ class MainActivityNavigationTest {
     navigateToSettings(navController)
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       composeTestRule
-          .onAllNodesWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+          .onAllNodesWithTag(C.Tag.sign_in_screen_container)
           .fetchSemanticsNodes()
           .isNotEmpty()
     }
     waitForGone(C.Tag.home_screen_container)
     composeTestRule.waitForIdle()
 
-    assertEquals(AuthUIState(signedOut = true), authState.value)
+    assertEquals(AuthUIState(signOutCompleted = true), authState.value)
     assertEquals(0, signInClickCount)
   }
 
@@ -244,17 +249,13 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     navigateToSettings(navController)
-    authState.value = AuthUIState(signedOut = true)
+    authState.value = AuthUIState(signOutCompleted = true)
     composeTestRule.runOnIdle {
       navController.navigate(Routes.SignIn) { popUpTo(navController.graph.id) { inclusive = true } }
     }
-    composeTestRule
-        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
-        .assertIsDisplayed()
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
 
-    composeTestRule
-        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_google_button))
-        .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
 
     assertEquals(1, signInClickCount)
     waitAndAssertDisplayed(C.Tag.home_screen_container)
@@ -525,7 +526,7 @@ class MainActivityNavigationTest {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
     doAnswer {
-          authState.value = AuthUIState(signedOut = true)
+          authState.value = AuthUIState(signOutCompleted = true)
           Unit
         }
         .whenever(authViewModel)
