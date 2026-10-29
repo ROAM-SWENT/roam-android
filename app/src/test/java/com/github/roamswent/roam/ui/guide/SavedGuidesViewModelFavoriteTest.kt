@@ -288,7 +288,7 @@ class SavedGuidesViewModelFavoriteTest {
       }
 
   @Test
-  fun deletingAGuideDropsItsPendingFavorite() =
+  fun favoriteFailureAfterTheGuideIsDeletedIsNotReported() =
       runTest(dispatcher) {
         recordFavoriteWrites()
         coEvery { repository.removeGuide(guide.id) } just Runs
@@ -302,6 +302,88 @@ class SavedGuidesViewModelFavoriteTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.guides.isEmpty())
+        assertNull(viewModel.uiState.value.favoriteError)
+      }
+
+  @Test
+  fun failedDeleteKeepsAPendingFavoriteAndItsRollback() =
+      runTest(dispatcher) {
+        recordFavoriteWrites()
+        val delete = recordDelete()
+        val viewModel = loadedViewModel()
+
+        viewModel.setFavorite(guide.id, true)
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        delete.completeExceptionally(IllegalStateException("delete failed"))
+        runCurrent()
+        assertTrue(viewModel.uiState.value.guides.single().isFavorite)
+
+        // A snapshot that predates the favourite does not flip the restored guide back.
+        snapshots.value = listOf(guide, otherGuide)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.guides.first { it.id == guide.id }.isFavorite)
+
+        val error = IllegalStateException("favourite failed")
+        favoriteWrites.single().completeExceptionally(error)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.guides.first { it.id == guide.id }.isFavorite)
+        assertEquals(error.message, viewModel.uiState.value.favoriteError?.message)
+      }
+
+  @Test
+  fun favoriteFailingDuringAFailedDeleteRestoresTheConfirmedValue() =
+      runTest(dispatcher) {
+        recordFavoriteWrites()
+        val delete = recordDelete()
+        val viewModel = loadedViewModel()
+
+        viewModel.setFavorite(guide.id, true)
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        favoriteWrites.single().completeExceptionally(IllegalStateException("favourite failed"))
+        runCurrent()
+        assertNull(viewModel.uiState.value.favoriteError)
+
+        delete.completeExceptionally(IllegalStateException("delete failed"))
+        runCurrent()
+        assertFalse(viewModel.uiState.value.guides.single().isFavorite)
+      }
+
+  @Test
+  fun olderFavoriteFailingDuringADeleteIsNotReported() =
+      runTest(dispatcher) {
+        recordFavoriteWrites()
+        recordDelete()
+        val viewModel = loadedViewModel()
+
+        viewModel.setFavorite(guide.id, true)
+        viewModel.setFavorite(guide.id, false)
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        favoriteWrites[0].completeExceptionally(IllegalStateException("older write failed"))
+        runCurrent()
+
+        assertNull(viewModel.uiState.value.favoriteError)
+      }
+
+  @Test
+  fun favoriteConfirmedDuringAFailedDeleteIsKept() =
+      runTest(dispatcher) {
+        recordFavoriteWrites()
+        val delete = recordDelete()
+        val viewModel = loadedViewModel()
+
+        viewModel.setFavorite(guide.id, true)
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        favoriteWrites.single().complete(Unit)
+        runCurrent()
+        delete.completeExceptionally(IllegalStateException("delete failed"))
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.guides.single().isFavorite)
+        assertNull(viewModel.uiState.value.favoriteError)
       }
 
   @Test
@@ -341,5 +423,12 @@ class SavedGuidesViewModelFavoriteTest {
         {
           CompletableDeferred<Unit>().also { favoriteWrites += it }.await()
         }
+  }
+
+  /** Makes the deletion of [guide] wait until the returned result is completed. */
+  private fun recordDelete(): CompletableDeferred<Unit> {
+    val delete = CompletableDeferred<Unit>()
+    coEvery { repository.removeGuide(guide.id) } coAnswers { delete.await() }
+    return delete
   }
 }

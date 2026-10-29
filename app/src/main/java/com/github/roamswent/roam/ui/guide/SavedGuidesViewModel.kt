@@ -63,6 +63,8 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
   private val savedGuideIdsDuringDelete = mutableSetOf<String>()
   /** Optimistic favourite values that override snapshots until their write settles. */
   private val pendingFavorites = mutableMapOf<String, PendingFavorite>()
+  /** Final favourite value of writes that settled while their guide was being deleted. */
+  private val favoritesSettledWhileDeleting = mutableMapOf<String, Boolean>()
   /** Increases with every favourite request so only the latest one settles its entry. */
   private var lastFavoriteRequest = 0L
 
@@ -197,7 +199,7 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
     val savedGuideIdBeforeDelete = _uiState.value.savedGuideId?.takeIf { it == guideId }
     val saveJob = pendingSaveJobs[guideId]
     pendingGuideSaves.remove(guideId)
-    pendingFavorites.remove(guideId)
+    // Pending favourites are kept until the deletion settles, in case the guide is restored.
     pendingGuideDeletes += guideId
 
     _uiState.update {
@@ -219,6 +221,8 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
         deletionSucceeded = true
         savedGuideIds.remove(guideId)
         savedGuideIdsDuringDelete.remove(guideId)
+        pendingFavorites.remove(guideId)
+        favoritesSettledWhileDeleting.remove(guideId)
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
@@ -226,6 +230,7 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
       } finally {
         pendingGuideDeletes.remove(guideId)
         val saveSucceededDuringDelete = savedGuideIdsDuringDelete.remove(guideId)
+        val settledFavorite = favoritesSettledWhileDeleting.remove(guideId)
         // A failed delete restores a previously saved guide, but a failed save remains retryable.
         if (!deletionSucceeded && (wasSavedBeforeDelete || saveSucceededDuringDelete)) {
           savedGuideIds += guideId
@@ -237,7 +242,11 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
                         ?: guideId.takeIf { saveSucceededDuringDelete },
                 guides =
                     if (previousGuide != null && state.guides.none { it.id == guideId }) {
-                      state.guides + previousGuide
+                      val restoredGuide =
+                          settledFavorite?.let { isFavorite ->
+                            previousGuide.copy(isFavorite = isFavorite)
+                          } ?: previousGuide
+                      state.guides + restoredGuide.withPendingFavorite()
                     } else {
                       state.guides
                     },
@@ -273,6 +282,7 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
         val pending = pendingFavorites[guideId]
         if (pending?.request == request) {
           pendingFavorites.remove(guideId)
+          if (guideId in pendingGuideDeletes) favoritesSettledWhileDeleting[guideId] = isFavorite
         } else if (pending != null) {
           // Writes are applied in order, so this value is now the one to restore on failure.
           pendingFavorites[guideId] = pending.copy(rollbackTo = isFavorite)
@@ -281,14 +291,26 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
         throw exception
       } catch (exception: Exception) {
         val pending = pendingFavorites[guideId]
-        if (pending != null && pending.request == request) {
-          pendingFavorites.remove(guideId)
-          _uiState.update {
-            it.withFavorite(guideId, pending.rollbackTo).copy(favoriteError = exception)
-          }
-        } else {
+        when {
+          // Writes settle in order, so no pending entry means the guide was deleted.
+          pending == null -> Unit
           // A newer request decides the final value, so only report the failure.
-          _uiState.update { it.copy(favoriteError = exception) }
+          pending.request != request -> {
+            if (guideId !in pendingGuideDeletes) {
+              _uiState.update { it.copy(favoriteError = exception) }
+            }
+          }
+          // The guide is hidden while it is deleted; remember the value to restore if that fails.
+          guideId in pendingGuideDeletes -> {
+            pendingFavorites.remove(guideId)
+            favoritesSettledWhileDeleting[guideId] = pending.rollbackTo
+          }
+          else -> {
+            pendingFavorites.remove(guideId)
+            _uiState.update {
+              it.withFavorite(guideId, pending.rollbackTo).copy(favoriteError = exception)
+            }
+          }
         }
       }
     }
