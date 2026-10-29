@@ -1,0 +1,64 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - M2
+
+jobs:
+  apk:
+    name: Generate APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            17
+
+      - name: Retrieve gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            .gradle/configuration-cache
+          key: gradle-${{ runner.os }}-apk-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'gradle.properties') }}
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          else
+            echo "::warning::GOOGLE_SERVICES secret is not set."
+          fi
+          if [ -n "$LOCAL_PROPERTIES" ]; then
+            echo "$LOCAL_PROPERTIES" | base64 --decode > ./local.properties
+          else
+            echo "::warning::LOCAL_PROPERTIES secret is not set."
+          fi
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --parallel --build-cache --configuration-cache
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Roam-M2-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
