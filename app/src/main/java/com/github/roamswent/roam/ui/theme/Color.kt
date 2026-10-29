@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.theme
 
 import androidx.compose.ui.graphics.Color
@@ -25,3 +26,5 @@ val LoadingErrorText = Color(0xFFB3261E)
 val HomeTextPrimary = Color(0xFF181D1B)
 val HomeTextSecondary = Color(0xFF6E7673)
 val HomeAccentGreen = Color(0xFF1B433E)
+val CollectionPlaceholder = Color(0xFFD5DDD9)
+val CollectionPlaceholderIcon = Color(0xFF8A9A94)
