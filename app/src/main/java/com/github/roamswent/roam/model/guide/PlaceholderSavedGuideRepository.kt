@@ -25,6 +25,14 @@ class PlaceholderSavedGuideRepository(initialGuides: List<Guide> = placeholderGu
     guides.update { current -> current.filterNot { it.id == guideId } }
   }
 
+  // Fails for a missing guide, like the Firestore update() it stands in for.
+  override suspend fun setFavorite(guideId: String, isFavorite: Boolean) {
+    guides.update { current ->
+      require(current.any { it.id == guideId }) { "No saved guide with id $guideId" }
+      current.map { if (it.id == guideId) it.copy(isFavorite = isFavorite) else it }
+    }
+  }
+
   override suspend fun getSavedGuides(): List<Guide> = guides.value
 
   override fun observeSavedGuides(): Flow<List<Guide>> = guides.asStateFlow()

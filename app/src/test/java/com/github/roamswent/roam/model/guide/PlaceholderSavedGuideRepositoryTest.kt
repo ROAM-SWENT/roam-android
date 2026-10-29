@@ -2,9 +2,11 @@
 package com.github.roamswent.roam.model.guide
 
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -57,5 +59,29 @@ class PlaceholderSavedGuideRepositoryTest {
 
     assertTrue(repository.observeSavedGuides().first().isEmpty())
     assertNull(repository.getGuide("guide-1"))
+  }
+
+  @Test
+  fun setFavoriteUpdatesOnlyThatGuideAndIsObserved() = runTest {
+    val other = guide.copy(id = "guide-2")
+    val repository = PlaceholderSavedGuideRepository(listOf(guide.copy(id = "guide-1"), other))
+
+    repository.setFavorite("guide-1", true)
+
+    assertEquals(
+        listOf(true, false),
+        repository.observeSavedGuides().first().map { it.isFavorite },
+    )
+    assertEquals(other, repository.getGuide("guide-2"))
+  }
+
+  @Test
+  fun setFavoriteOnAMissingGuideFailsAndChangesNothing() {
+    val repository = PlaceholderSavedGuideRepository(listOf(guide.copy(id = "guide-1")))
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.setFavorite("missing", true) }
+    }
+    assertEquals(listOf(guide.copy(id = "guide-1")), runBlocking { repository.getSavedGuides() })
   }
 }
