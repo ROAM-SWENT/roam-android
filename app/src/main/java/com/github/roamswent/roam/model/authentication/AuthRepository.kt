@@ -6,6 +6,7 @@ package com.github.roamswent.roam.model.authentication
 
 import androidx.credentials.Credential
 import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.flow.Flow
 
 /** Handles authentication operations such as signing in with Google and signing out. */
 interface AuthRepository {
@@ -16,6 +17,12 @@ interface AuthRepository {
    * @return A [Result] containing a [FirebaseUser] on success, or an exception on failure.
    */
   suspend fun signInWithGoogle(credential: Credential): Result<FirebaseUser>
+
+  /** Returns the currently signed-in user, or null when signed out. */
+  fun currentUser(): FirebaseUser?
+
+  /** Emits the currently signed-in user (or null when signed out) on every auth state change. */
+  fun currentUserFlow(): Flow<FirebaseUser?>
 
   /**
    * Signs out the currently authenticated user and clears the credential state.

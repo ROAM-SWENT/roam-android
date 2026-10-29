@@ -18,6 +18,8 @@ import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -258,6 +260,10 @@ class SignInViewModelTest {
             object : AuthRepository {
               override suspend fun signInWithGoogle(credential: Credential): Result<FirebaseUser> =
                   result.await()
+
+              override fun currentUser(): FirebaseUser? = null
+
+              override fun currentUserFlow(): Flow<FirebaseUser?> = emptyFlow()
 
               override fun signOut(): Result<Unit> = Result.success(Unit)
             }

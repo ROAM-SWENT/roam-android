@@ -33,6 +33,7 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.home.HomeScreen
+import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
@@ -113,9 +114,12 @@ internal fun RoamApp(
         )
       }
       composable(Routes.Home) {
+        val homeViewModel: HomeViewModel = viewModel()
+        val userName by homeViewModel.userName.collectAsState()
         HomeScreen(
             onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
             cameraAvailable = cameraAvailable,
+            userName = userName,
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }

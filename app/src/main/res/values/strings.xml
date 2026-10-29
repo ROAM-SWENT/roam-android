@@ -26,4 +26,10 @@
     <string name="home_tab_scan">Scan a monument</string>
     <string name="home_tab_profile">Profile</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>
+    <string name="home_greeting_format">Hello %s,</string>
+    <string name="home_greeting_no_name">Hello,</string>
+    <string name="home_greeting_title">Ready to explore?</string>
+    <string name="home_scan_card_title">A monument in front of you?</string>
+    <string name="home_scan_card_body">Tap the scan button to discover what you\'re looking at.</string>
+    <string name="home_scan_card_icon_description">Monument</string>
 </resources>

@@ -59,4 +59,24 @@ class HomeScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.home_bottom_bar).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.home_tab_home).assertIsDisplayed()
   }
+
+  @Test
+  fun homeScreenShowsGreetingWithUserName() {
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "Ada Lovelace") }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
+        .assertTextEquals("Hello Ada Lovelace,")
+  }
+
+  @Test
+  fun homeScreenShowsSignedOutGreeting() {
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "") } }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
+        .assertTextEquals("Hello,")
+  }
 }
