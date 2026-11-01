@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
@@ -59,9 +60,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
+import com.github.roamswent.roam.ui.theme.HomeTextPrimary
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
@@ -185,6 +188,12 @@ private fun SettingsContent(
                 .padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+      Text(
+          text = stringResource(R.string.settings_title),
+          style = MaterialTheme.typography.headlineMedium,
+          fontWeight = FontWeight.Bold,
+          color = HomeTextPrimary,
+      )
       ProfileCard(
           profile = profile,
           onSignOutClick = onSignOutClick,

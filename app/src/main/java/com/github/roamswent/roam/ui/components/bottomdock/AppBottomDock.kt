@@ -77,7 +77,10 @@ fun AppBottomDock(
               onDestinationSelected = onDestinationSelected,
           )
         }
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
+        Box(
+            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
           Text(
               text =
                   if (cameraAvailable) stringResource(R.string.home_tab_scan)
@@ -87,7 +90,7 @@ fun AppBottomDock(
               fontWeight = FontWeight.Bold,
               maxLines = 1,
               modifier =
-                  Modifier.padding(bottom = 16.dp).semantics { testTag = C.Tag.dock_scan_label },
+                  Modifier.padding(bottom = 6.dp).semantics { testTag = C.Tag.dock_scan_label },
           )
         }
         Box(
