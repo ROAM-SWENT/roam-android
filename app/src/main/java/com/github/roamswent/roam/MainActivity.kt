@@ -159,8 +159,12 @@ internal fun RoamApp(
         }
       }
       composable(Routes.Settings) {
+        // Same as Home: the screens apply their own status bar inset, so the
+        // scaffold insets must not add a second one; innerPadding is bottom-only
+        // (dock clearance) and containerColor covers the status bar strip.
         Scaffold(
             containerColor = ScreenBackground,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
               AppBottomDock(
                   selected = currentDestination,

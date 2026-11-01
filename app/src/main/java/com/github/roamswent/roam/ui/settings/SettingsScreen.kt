@@ -5,6 +5,7 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -174,7 +175,7 @@ private fun SettingsContent(
   val interests = remember { mutableStateListOf<String>().apply { addAll(sampleInterests) } }
   var showAddInterestDialog by remember { mutableStateOf(false) }
 
-  Box(modifier = Modifier.fillMaxSize()) {
+  Box(modifier = Modifier.fillMaxSize().background(ScreenBackground)) {
     Column(
         modifier =
             modifier
