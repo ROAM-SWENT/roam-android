@@ -15,6 +15,7 @@ val ScanTeal = Color(0xFF2A9D8F)
 val HomeActiveTab = Color(0xFF1B433E)
 val HomeInactiveTab = Color(0xFF6E7673)
 val ScreenBackground = Color(0xFFF2F4F3)
+val DockOutline = Color(0xFFDDE3E0)
 val ShutterHalo = Color(0x99000000)
 val ShutterWhite = Color.White
 val CameraCaptureOverlay = Color.Black.copy(alpha = 0.35f)

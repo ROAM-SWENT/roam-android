@@ -4,6 +4,7 @@
 
 package com.github.roamswent.roam.ui.components.bottomdock
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -30,7 +31,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.DockOutline
 import com.github.roamswent.roam.ui.theme.HomeActiveTab
 import com.github.roamswent.roam.ui.theme.HomeInactiveTab
 import com.github.roamswent.roam.ui.theme.ScanTeal
@@ -142,6 +147,27 @@ fun AppBottomDock(
             modifier = Modifier.size(28.dp),
         )
       }
+    }
+
+    // 1.dp outline along the bar's top edge and the halo's upper arc, drawn on
+    // top of the white bar and halo; the slot area beside the halo stays clear.
+    Canvas(modifier = Modifier.matchParentSize()) {
+      val barTop = (haloSize / 2).toPx()
+      val radius = haloSize.toPx() / 2f
+      val centerX = size.width / 2f
+      val outline =
+          Path().apply {
+            moveTo(0f, barTop)
+            lineTo(centerX - radius, barTop)
+            arcTo(
+                Rect(centerX - radius, barTop - radius, centerX + radius, barTop + radius),
+                180f,
+                180f,
+                false,
+            )
+            lineTo(size.width, barTop)
+          }
+      drawPath(path = outline, color = DockOutline, style = Stroke(width = 1.dp.toPx()))
     }
   }
 }
