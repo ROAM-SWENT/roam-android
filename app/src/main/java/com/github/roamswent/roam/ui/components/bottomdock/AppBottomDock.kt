@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.filled.NoPhotography
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -56,22 +56,30 @@ fun AppBottomDock(
     cameraAvailable: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+  val barContentHeight = 80.dp
   val haloSize = 72.dp
+  val fabSize = 56.dp
+  // How far the halo rises above the white bar's top edge.
+  val protrusion = haloSize / 2
 
+  // Outer container is fully transparent; only the bar and the halo paint white.
   Box(
       modifier =
-          modifier.fillMaxWidth().height(haloSize / 2 + 80.dp).semantics {
+          modifier.fillMaxWidth().background(Color.Transparent).semantics {
             testTag = C.Tag.dock_container
           }
   ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter),
-        color = Color.White,
+    // White bar. padding(top = protrusion) comes BEFORE background(White), so the
+    // top 36.dp stay transparent and the pure white starts exactly at y = 36.dp.
+    Box(
+        modifier =
+            Modifier.fillMaxWidth()
+                .padding(top = protrusion)
+                .background(Color.White)
+                .navigationBarsPadding()
+                .height(barContentHeight),
     ) {
-      Row(
-          modifier = Modifier.fillMaxWidth().navigationBarsPadding().height(80.dp),
-          verticalAlignment = Alignment.Bottom,
-      ) {
+      Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.Bottom) {
         Box(
             modifier = Modifier.weight(1f).padding(bottom = 10.dp),
             contentAlignment = Alignment.Center,
@@ -111,6 +119,9 @@ fun AppBottomDock(
       }
     }
 
+    // Halo: TopCenter of the outer Box, so the 72.dp circle spans y=0..72 and its
+    // center sits exactly on the bar's top edge (y = 36.dp). The 56.dp FAB is
+    // centered in the halo, so it spans y=8..64 and clears the label at the bottom.
     Box(
         modifier =
             Modifier.align(Alignment.TopCenter)
@@ -127,7 +138,7 @@ fun AppBottomDock(
           onClick = onScanClick,
           enabled = cameraAvailable,
           modifier =
-              Modifier.size(56.dp)
+              Modifier.size(fabSize)
                   .background(
                       color =
                           if (cameraAvailable) ScanTeal
@@ -149,18 +160,18 @@ fun AppBottomDock(
       }
     }
 
-    // 1.dp outline along the bar's top edge and the halo's upper arc, drawn on
-    // top of the white bar and halo; the slot area beside the halo stays clear.
+    // 1.dp outline drawn last: bar top edge on both sides of the halo plus the
+    // halo's upper semicircle, locked to y = protrusion (the bar's top edge).
     Canvas(modifier = Modifier.matchParentSize()) {
-      val barTop = (haloSize / 2).toPx()
-      val radius = haloSize.toPx() / 2f
+      val barTop = protrusion.toPx()
+      val haloRadius = haloSize.toPx() / 2f
       val centerX = size.width / 2f
       val outline =
           Path().apply {
             moveTo(0f, barTop)
-            lineTo(centerX - radius, barTop)
+            lineTo(centerX - haloRadius, barTop)
             arcTo(
-                Rect(centerX - radius, barTop - radius, centerX + radius, barTop + radius),
+                Rect(centerX - haloRadius, 0f, centerX + haloRadius, haloSize.toPx()),
                 180f,
                 180f,
                 false,

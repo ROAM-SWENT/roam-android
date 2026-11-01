@@ -103,7 +103,16 @@ internal fun RoamApp(
   val onScanClick = { if (cameraAvailable) permissionController.requestPermission() }
   val onDockDestinationSelected = { destination: DockDestination ->
     if (destination.route != currentBackStackEntry?.destination?.route) {
-      navController.navigate(destination.route) { launchSingleTop = true }
+      // Home is the navigation root: pop everything above it so system back
+      // from Settings always returns to Home (and back on Home exits the app).
+      navController.navigate(destination.route) {
+        popUpTo(Routes.Home) {
+          inclusive = false
+          saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+      }
     }
   }
   Surface(
