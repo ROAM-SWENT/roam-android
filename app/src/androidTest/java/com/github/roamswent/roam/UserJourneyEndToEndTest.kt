@@ -528,5 +528,11 @@ private class FakeAuthRepository : AuthRepository {
   ): Result<com.google.firebase.auth.FirebaseUser> =
       Result.failure(AssertionError("The fake sign-in override should handle this interaction"))
 
+  override fun currentUser(): com.google.firebase.auth.FirebaseUser? = null
+
+  override fun currentUserFlow():
+      kotlinx.coroutines.flow.Flow<com.google.firebase.auth.FirebaseUser?> =
+      kotlinx.coroutines.flow.flowOf(null)
+
   override fun signOut(): Result<Unit> = Result.success(Unit)
 }
