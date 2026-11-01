@@ -236,7 +236,7 @@ class UserJourneyEndToEndTest {
 
   private fun enterCapture() {
     // Open the camera from Home. On the first visit, accept Android's camera permission prompt.
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     if (!hasPermission(Manifest.permission.CAMERA)) {
       acceptPermissionDialog(
           resourceNames = listOf("permission_allow_button"),
