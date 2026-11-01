@@ -23,8 +23,8 @@ class HomeScreenTest {
     composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}) } }
 
     composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_label, useUnmergedTree = true).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertIsDisplayed()
   }
 
   @Test
@@ -32,7 +32,7 @@ class HomeScreenTest {
     var clicks = 0
     composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = { clicks++ }) } }
 
-    val button = composeTestRule.onNodeWithTag(C.Tag.home_scan_button)
+    val button = composeTestRule.onNodeWithTag(C.Tag.dock_scan_button)
     button.performClick()
     assertEquals(1, clicks)
     button.performClick()
@@ -45,19 +45,19 @@ class HomeScreenTest {
       SampleAppTheme { HomeScreen(onScanClicked = {}, cameraAvailable = false) }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
     composeTestRule
-        .onNodeWithTag(C.Tag.home_scan_label, useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.dock_scan_label)
         .assertIsDisplayed()
         .assertTextEquals("No camera detected on this device")
   }
 
   @Test
-  fun homeScreenShowsBottomBar() {
+  fun homeScreenShowsDock() {
     composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}) } }
 
-    composeTestRule.onNodeWithTag(C.Tag.home_bottom_bar).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.home_tab_home).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsDisplayed()
   }
 
   @Test

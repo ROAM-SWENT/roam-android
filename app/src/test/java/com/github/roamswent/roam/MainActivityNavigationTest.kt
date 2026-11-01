@@ -189,30 +189,30 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun settingsHomeButtonNavigatesToHome() {
+  fun settingsDockHomeTabNavigatesToHome() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
     navigateToSettings(navController)
-    waitAndAssertDisplayed(C.Tag.settings_home_button)
-    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.waitUntil { navController.currentDestination?.route == Routes.Home }
   }
 
   @Test
-  fun homeProfileButtonNavigatesToSettingsAndHomeButtonReturnsHome() {
+  fun dockSettingsTabNavigatesToSettingsAndHomeTabReturnsHome() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
-    composeTestRule.onNodeWithTag(C.Tag.home_tab_profile).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_home_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
     composeTestRule.runOnIdle {
       assertEquals(Routes.Settings, navController.currentDestination?.route)
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
   }
@@ -295,7 +295,7 @@ class MainActivityNavigationTest {
     shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
     showAuthenticatedHome()
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
 
     composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
@@ -307,8 +307,8 @@ class MainActivityNavigationTest {
   fun scanEntryNavigatesToScanDestination() {
     showAuthenticatedHome()
     shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
     waitForGone(C.Tag.home_screen_container)
@@ -317,8 +317,8 @@ class MainActivityNavigationTest {
   @Test
   fun denyShowsPermissionDialogWithoutNavigating() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     dispatchCameraPermissionResult()
 
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
@@ -329,8 +329,8 @@ class MainActivityNavigationTest {
   @Test
   fun dismissingPermissionDialogLeavesHomeDisplayed() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
 
@@ -344,8 +344,8 @@ class MainActivityNavigationTest {
   @Test
   fun denialAfterDismissShowsDialogAgain() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     val firstPermissionRequest = dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
     waitForGone(C.Tag.scan_camera_screen)
@@ -356,7 +356,7 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     waitForGone(C.Tag.scan_camera_screen)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     val secondPermissionRequest = permissionRequest()
     assertNotSame(firstPermissionRequest, secondPermissionRequest)
     dispatchCameraPermissionResult(secondPermissionRequest)
@@ -370,9 +370,9 @@ class MainActivityNavigationTest {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
+    waitFor(C.Tag.dock_scan_button)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
 
     waitForGone(C.Tag.camera_permission_dialog)
     waitForGone(C.Tag.scan_camera_screen)
@@ -384,17 +384,17 @@ class MainActivityNavigationTest {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
+    waitFor(C.Tag.dock_scan_button)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
   }
 
   @Test
   fun openingSettingsFromPermissionDialog() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
+    waitFor(C.Tag.dock_scan_button)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
 
     dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)

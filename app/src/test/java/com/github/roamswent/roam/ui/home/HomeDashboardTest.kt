@@ -95,7 +95,7 @@ class HomeDashboardTest {
   }
 
   @Test
-  fun homeScreenShowsDashboardAboveBottomBar() {
+  fun homeScreenShowsDashboardAboveDock() {
     composeTestRule.setContent {
       SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "Test User") }
     }
@@ -104,6 +104,6 @@ class HomeDashboardTest {
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
         .assertTextEquals("Hello Test User,")
     composeTestRule.onNodeWithTag(C.Tag.home_scan_card).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.home_bottom_bar).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
   }
 }
