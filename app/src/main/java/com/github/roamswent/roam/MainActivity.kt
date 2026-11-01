@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -159,12 +160,14 @@ internal fun RoamApp(
         }
       }
       composable(Routes.Settings) {
-        // Same as Home: the screens apply their own status bar inset, so the
-        // scaffold insets must not add a second one; innerPadding is bottom-only
-        // (dock clearance) and containerColor covers the status bar strip.
+        // Same as Home: the screens apply their own status bar inset, so the top
+        // inset stays 0 and containerColor covers the status bar strip. With a
+        // bottomBar present, Scaffold reports the full dock height (116.dp) as
+        // innerPadding.bottom, but only the 80.dp bar is opaque: pad the content
+        // by 96.dp (bar + 16.dp) so it scrolls underneath the transparent bump.
         Scaffold(
             containerColor = ScreenBackground,
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
             bottomBar = {
               AppBottomDock(
                   selected = currentDestination,
@@ -175,7 +178,11 @@ internal fun RoamApp(
             },
         ) { innerPadding ->
           SettingsScreen(
-              modifier = Modifier.padding(innerPadding),
+              modifier =
+                  Modifier.padding(
+                      top = innerPadding.calculateTopPadding(),
+                      bottom = 96.dp,
+                  ),
               settingsViewModel = settingsViewModel,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,

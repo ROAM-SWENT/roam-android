@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -144,9 +145,12 @@ fun SettingsScreen(
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
+  // The screen applies its own statusBarsPadding, so this inner scaffold must
+  // not add the system bar insets again on top of the route scaffold's padding.
   Scaffold(
       modifier = modifier.fillMaxSize(),
       containerColor = ScreenBackground,
+      contentWindowInsets = WindowInsets(0, 0, 0, 0),
   ) { contentPadding ->
     SettingsContent(
         modifier = Modifier.padding(contentPadding),

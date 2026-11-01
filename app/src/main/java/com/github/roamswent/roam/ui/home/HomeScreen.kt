@@ -34,7 +34,12 @@ fun HomeScreen(
             testTag = C.Tag.home_screen_container
           }
   ) {
-    Column(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp)) {
+    Column(
+        modifier =
+            Modifier.fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, bottom = 96.dp)
+    ) {
       HomeGreetingHeader(userName = userName)
       ScanPromptCard(onPromptClick = {})
     }
