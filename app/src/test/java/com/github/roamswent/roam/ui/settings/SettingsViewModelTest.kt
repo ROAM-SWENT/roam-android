@@ -1,5 +1,6 @@
 /*
  * Portions of this code were generated with the help of GitHub Copilot.
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
 
 package com.github.roamswent.roam.ui.settings
@@ -7,6 +8,8 @@ package com.github.roamswent.roam.ui.settings
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.UserProfile
 import kotlinx.coroutines.CompletableDeferred
@@ -39,12 +42,14 @@ class SettingsViewModelTest {
   private lateinit var repository: AuthRepository
   private lateinit var profileRepository: ProfileRepository
   private lateinit var credentialManager: CredentialManager
+  private lateinit var userInterestsRepository: FakeUserInterestsRepository
 
   @Before
   fun setUp() {
     Dispatchers.setMain(dispatcher)
     repository = mock()
     profileRepository = mock()
+    userInterestsRepository = FakeUserInterestsRepository()
     credentialManager = mock()
     runBlocking {
       doReturn(Unit)
@@ -61,7 +66,41 @@ class SettingsViewModelTest {
   /** Verifies that the ViewModel starts with the default settings UI state. */
   @Test
   fun initialState_isEmpty() {
-    assertEquals(SettingsUIState(), SettingsViewModel(repository, profileRepository).uiState.value)
+    assertEquals(
+        SettingsUIState(),
+        SettingsViewModel(repository, profileRepository, userInterestsRepository).uiState.value,
+    )
+  }
+
+  @Test
+  fun initialState_loadsPersistedInterests() {
+    userInterestsRepository.updateInterests(listOf("Architecture", "History"))
+
+    val viewModel = newViewModel()
+
+    assertEquals(listOf("Architecture", "History"), viewModel.uiState.value.interests)
+  }
+
+  @Test
+  fun addInterest_persistsAndUpdatesState() {
+    val viewModel = newViewModel()
+
+    viewModel.addInterest("Architecture")
+
+    assertEquals(listOf("Architecture"), userInterestsRepository.getUserInterests().interests)
+    assertEquals(listOf("Architecture"), viewModel.uiState.value.interests)
+    assertEquals(false, userInterestsRepository.getUserInterests().hasBeenAsked)
+  }
+
+  @Test
+  fun removeInterest_persistsAndUpdatesState() {
+    userInterestsRepository.updateInterests(listOf("Architecture", "History"))
+    val viewModel = newViewModel()
+
+    viewModel.removeInterest("Architecture")
+
+    assertEquals(listOf("History"), userInterestsRepository.getUserInterests().interests)
+    assertEquals(listOf("History"), viewModel.uiState.value.interests)
   }
 
   /** Verifies that clearing an error removes it from the observable UI state. */
@@ -70,7 +109,7 @@ class SettingsViewModelTest {
       runTest(dispatcher) {
         whenever(profileRepository.loadProfile())
             .thenReturn(Result.failure(IllegalStateException("Profile unavailable")))
-        val viewModel = SettingsViewModel(repository, profileRepository)
+        val viewModel = newViewModel()
 
         viewModel.loadProfile()
         advanceUntilIdle()
@@ -85,7 +124,7 @@ class SettingsViewModelTest {
   /** Verifies that camera and location permission updates support granting and revoking access. */
   @Test
   fun permissionUpdates_updateBothStatuses() {
-    val viewModel = SettingsViewModel(repository, profileRepository)
+    val viewModel = newViewModel()
 
     viewModel.setCameraPermissionGranted(true)
     viewModel.setLocationPermissionGranted(true)
@@ -109,7 +148,7 @@ class SettingsViewModelTest {
   fun signOut_success_marksSignedOutAndClearsCredentials() =
       runTest(dispatcher) {
         whenever(repository.signOut()).thenReturn(Result.success(Unit))
-        val viewModel = SettingsViewModel(repository, profileRepository)
+        val viewModel = newViewModel()
 
         viewModel.signOut(credentialManager)
         advanceUntilIdle()
@@ -126,7 +165,7 @@ class SettingsViewModelTest {
       runTest(dispatcher) {
         whenever(repository.signOut())
             .thenReturn(Result.failure(IllegalStateException("Unable to log out")))
-        val viewModel = SettingsViewModel(repository, profileRepository)
+        val viewModel = newViewModel()
 
         viewModel.signOut(credentialManager)
         advanceUntilIdle()
@@ -143,7 +182,7 @@ class SettingsViewModelTest {
       runTest(dispatcher) {
         val profile = UserProfile("Victor", "victor@epfl.ch", "Google")
         whenever(profileRepository.loadProfile()).thenReturn(Result.success(profile))
-        val viewModel = SettingsViewModel(repository, profileRepository)
+        val viewModel = newViewModel()
 
         viewModel.loadProfile()
         assertTrue(viewModel.uiState.value.profileLoading.not())
@@ -161,7 +200,7 @@ class SettingsViewModelTest {
       runTest(dispatcher) {
         whenever(profileRepository.loadProfile())
             .thenReturn(Result.failure(IllegalStateException("Profile unavailable")))
-        val viewModel = SettingsViewModel(repository, profileRepository)
+        val viewModel = newViewModel()
 
         viewModel.loadProfile()
         advanceUntilIdle()
@@ -185,7 +224,8 @@ class SettingsViewModelTest {
                 return result.await()
               }
             }
-        val viewModel = SettingsViewModel(repository, blockingProfileRepository)
+        val viewModel =
+            SettingsViewModel(repository, blockingProfileRepository, userInterestsRepository)
 
         viewModel.loadProfile()
         runCurrent()
@@ -195,4 +235,28 @@ class SettingsViewModelTest {
         result.complete(Result.success(UserProfile("Victor", "victor@epfl.ch", "Google")))
         advanceUntilIdle()
       }
+
+  private fun newViewModel() =
+      SettingsViewModel(repository, profileRepository, userInterestsRepository)
+
+  private class FakeUserInterestsRepository(
+      private var hasBeenAsked: Boolean = false,
+      private var interests: List<String> = emptyList(),
+  ) : UserInterestsRepository {
+    override fun getUserInterests() = UserInterestsState(hasBeenAsked, interests)
+
+    override fun updateInterests(interests: List<String>) {
+      this.interests = interests
+    }
+
+    override fun saveInterests(interests: List<String>) {
+      hasBeenAsked = true
+      this.interests = interests
+    }
+
+    override fun skipInterests() {
+      hasBeenAsked = true
+      interests = emptyList()
+    }
+  }
 }

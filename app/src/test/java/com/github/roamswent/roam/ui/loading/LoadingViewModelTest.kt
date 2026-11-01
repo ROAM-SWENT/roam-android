@@ -369,6 +369,10 @@ class LoadingViewModelTest {
   ) : UserInterestsRepository {
     override fun getUserInterests() = UserInterestsState(hasBeenAsked, interests)
 
+    override fun updateInterests(interests: List<String>) {
+      this.interests = interests
+    }
+
     override fun saveInterests(interests: List<String>) {
       hasBeenAsked = true
       this.interests = interests

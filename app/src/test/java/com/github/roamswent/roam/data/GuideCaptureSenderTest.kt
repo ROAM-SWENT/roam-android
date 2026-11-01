@@ -121,6 +121,10 @@ class GuideCaptureSenderTest {
       UserInterestsRepository {
     override fun getUserInterests() = UserInterestsState(hasBeenAsked = true, interests = interests)
 
+    override fun updateInterests(interests: List<String>) {
+      this.interests = interests
+    }
+
     override fun saveInterests(interests: List<String>) {
       this.interests = interests
     }
