@@ -189,7 +189,7 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun settingsDockHomeTabNavigatesToHome() {
+  fun dockHomeTabFromSettingsPopsBackToSingleHomeEntry() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
@@ -198,7 +198,7 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
-    composeTestRule.waitUntil { navController.currentDestination?.route == Routes.Home }
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
   }
 
   @Test
@@ -215,6 +215,108 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
+  }
+
+  /**
+   * Pins the bottom dock navigation contract: the back stack after each step. Sign-in pops SignIn
+   * inclusively, tabs stack Settings above the Home root, the Home tab pops back to that root, and
+   * no flow ever duplicates entries.
+   */
+  @Test
+  fun signInToHomeLeavesSingleHomeEntryOnBackStack() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockSettingsTabFromHomeStacksSettingsAboveHome() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun alternatingDockTabsNeverDuplicateBackStackEntries() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun systemBackFromSettingsReturnsToSingleHomeEntry() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+    navigateToSettings(navController)
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun systemBackFromHomeFinishesActivity() {
+    showAuthenticatedHome()
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    composeTestRule.waitUntil { composeTestRule.activity.isFinishing }
+  }
+
+  @Test
+  fun tappingSelectedDockTabLeavesBackStackUnchanged() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+
+    navigateToSettings(navController)
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockIsAbsentOnSignIn() {
+    renderApp(MutableStateFlow(AuthUIState()))
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
+  }
+
+  @Test
+  fun dockIsAbsentOnScanAndScanReview() {
+    shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_camera_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
+
+    composeTestRule.runOnIdle {
+      navController.navigate("${Routes.ScanReview}?uri=${Uri.encode("content://test/photo.jpg")}")
+    }
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
   }
 
   @Test
@@ -532,6 +634,15 @@ class MainActivityNavigationTest {
   private fun navigateToSettings(navController: NavHostController) {
     composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
   }
+
+  /**
+   * Returns the screen routes on the navigation back stack, read on the UI thread. The NavGraph
+   * root entry has a null route and is not a screen, so it is filtered out.
+   */
+  private fun backStackRoutes(navController: NavHostController): List<String> =
+      composeTestRule.runOnIdle {
+        navController.currentBackStack.value.mapNotNull { it.destination.route }
+      }
 
   private fun renderApp(
       authState: MutableStateFlow<AuthUIState>,
