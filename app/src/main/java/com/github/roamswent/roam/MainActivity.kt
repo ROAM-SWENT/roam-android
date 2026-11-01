@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +52,7 @@ import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -133,12 +136,20 @@ internal fun RoamApp(
       composable(Routes.Home) {
         val homeViewModel: HomeViewModel = viewModel()
         val userName by homeViewModel.userName.collectAsState()
-        HomeScreen(
-            onScanClicked = onScanClick,
-            cameraAvailable = cameraAvailable,
-            userName = userName,
-            onProfileClicked = { navController.navigate(Routes.Settings) },
-        )
+        // HomeScreen and the dock apply their own status/nav bar insets, so the
+        // scaffold only contributes the ScreenBackground behind the status bar.
+        Scaffold(
+            containerColor = ScreenBackground,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        ) { innerPadding ->
+          HomeScreen(
+              modifier = Modifier.padding(innerPadding).background(ScreenBackground),
+              onScanClicked = onScanClick,
+              cameraAvailable = cameraAvailable,
+              userName = userName,
+              onProfileClicked = { navController.navigate(Routes.Settings) },
+          )
+        }
       }
       composable(Routes.Scan) { ScanRoute(navController) }
       composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
@@ -149,6 +160,7 @@ internal fun RoamApp(
       }
       composable(Routes.Settings) {
         Scaffold(
+            containerColor = ScreenBackground,
             bottomBar = {
               AppBottomDock(
                   selected = currentDestination,
@@ -156,7 +168,7 @@ internal fun RoamApp(
                   onScanClick = onScanClick,
                   cameraAvailable = cameraAvailable,
               )
-            }
+            },
         ) { innerPadding ->
           SettingsScreen(
               modifier = Modifier.padding(innerPadding),
@@ -164,7 +176,6 @@ internal fun RoamApp(
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               onManagePermissionsClick = { permissionController.openAppSettings() },
-              onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
               onSignedOut = {
                 authViewModel.clearSignedInUser()
                 navController.navigate(Routes.SignIn) {

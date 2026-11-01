@@ -43,15 +43,6 @@ import com.github.roamswent.roam.ui.theme.HomeActiveTab
 import com.github.roamswent.roam.ui.theme.HomeInactiveTab
 import com.github.roamswent.roam.ui.theme.ScanTeal
 
-// Legacy home_* tags stay on the interactive nodes so existing home screen
-// tests keep resolving the dock's tabs, scan button and label.
-private val DockDestination.legacyTag: String
-  get() =
-      when (this) {
-        DockDestination.HOME -> C.Tag.home_tab_home
-        DockDestination.SETTINGS -> C.Tag.home_tab_profile
-      }
-
 @Composable
 fun AppBottomDock(
     selected: DockDestination,
@@ -62,13 +53,14 @@ fun AppBottomDock(
 ) {
   val haloSize = 72.dp
 
-  Box(modifier = modifier.fillMaxWidth().semantics { testTag = C.Tag.dock_container }) {
+  Box(
+      modifier =
+          modifier.fillMaxWidth().height(haloSize / 2 + 80.dp).semantics {
+            testTag = C.Tag.dock_container
+          }
+  ) {
     Surface(
-        modifier =
-            Modifier.fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(top = haloSize / 2)
-                .semantics { testTag = C.Tag.home_bottom_bar },
+        modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter),
         color = Color.White,
     ) {
       Row(
@@ -76,10 +68,7 @@ fun AppBottomDock(
           verticalAlignment = Alignment.Bottom,
       ) {
         Box(
-            modifier =
-                Modifier.weight(1f).padding(bottom = 10.dp).semantics {
-                  testTag = DockDestination.HOME.tag
-                },
+            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
             contentAlignment = Alignment.Center,
         ) {
           DockTabItem(
@@ -88,10 +77,7 @@ fun AppBottomDock(
               onDestinationSelected = onDestinationSelected,
           )
         }
-        Box(
-            modifier = Modifier.weight(1f).semantics { testTag = C.Tag.dock_scan_label },
-            contentAlignment = Alignment.BottomCenter,
-        ) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
           Text(
               text =
                   if (cameraAvailable) stringResource(R.string.home_tab_scan)
@@ -101,14 +87,11 @@ fun AppBottomDock(
               fontWeight = FontWeight.Bold,
               maxLines = 1,
               modifier =
-                  Modifier.padding(bottom = 16.dp).semantics { testTag = C.Tag.home_scan_label },
+                  Modifier.padding(bottom = 16.dp).semantics { testTag = C.Tag.dock_scan_label },
           )
         }
         Box(
-            modifier =
-                Modifier.weight(1f).padding(bottom = 10.dp).semantics {
-                  testTag = DockDestination.SETTINGS.tag
-                },
+            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
             contentAlignment = Alignment.Center,
         ) {
           DockTabItem(
@@ -124,7 +107,6 @@ fun AppBottomDock(
         modifier =
             Modifier.align(Alignment.TopCenter)
                 .size(haloSize)
-                .semantics { testTag = C.Tag.dock_scan_button }
                 .background(
                     color =
                         if (cameraAvailable) Color.White
@@ -144,7 +126,7 @@ fun AppBottomDock(
                           else MaterialTheme.colorScheme.surfaceVariant,
                       shape = CircleShape,
                   )
-                  .semantics { testTag = C.Tag.home_scan_button },
+                  .semantics { testTag = C.Tag.dock_scan_button },
       ) {
         Icon(
             imageVector =
@@ -175,7 +157,7 @@ private fun DockTabItem(
           Modifier.defaultMinSize(minWidth = 68.dp, minHeight = 56.dp)
               .clip(RoundedCornerShape(12.dp))
               .clickable(enabled = !selected) { onDestinationSelected(destination) }
-              .semantics { testTag = destination.legacyTag }
+              .semantics { testTag = destination.tag }
               .padding(horizontal = 12.dp, vertical = 6.dp),
   ) {
     Icon(
