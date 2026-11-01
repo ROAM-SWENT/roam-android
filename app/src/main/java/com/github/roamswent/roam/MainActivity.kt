@@ -103,15 +103,21 @@ internal fun RoamApp(
   val onScanClick = { if (cameraAvailable) permissionController.requestPermission() }
   val onDockDestinationSelected = { destination: DockDestination ->
     if (destination.route != currentBackStackEntry?.destination?.route) {
-      // Home is the navigation root: pop everything above it so system back
-      // from Settings always returns to Home (and back on Home exits the app).
-      navController.navigate(destination.route) {
-        popUpTo(Routes.Home) {
-          inclusive = false
-          saveState = true
+      if (destination.route == Routes.Home) {
+        // Home is the navigation root: pop back to it instead of navigating,
+        // which launchSingleTop would swallow because popUpTo(Home) already
+        // leaves Home as the current destination.
+        navController.popBackStack(Routes.Home, inclusive = false)
+      } else {
+        // Other tabs stack above Home so system back returns to it.
+        navController.navigate(destination.route) {
+          popUpTo(Routes.Home) {
+            inclusive = false
+            saveState = true
+          }
+          launchSingleTop = true
+          restoreState = true
         }
-        launchSingleTop = true
-        restoreState = true
       }
     }
   }
