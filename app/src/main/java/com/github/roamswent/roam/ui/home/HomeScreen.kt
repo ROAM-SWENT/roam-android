@@ -15,11 +15,14 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
+import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
 fun HomeScreen(
+    modifier: Modifier = Modifier,
     onScanClicked: () -> Unit,
     cameraAvailable: Boolean = true,
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
@@ -27,7 +30,7 @@ fun HomeScreen(
 ) {
   Box(
       modifier =
-          Modifier.fillMaxSize().background(ScreenBackground).semantics {
+          modifier.fillMaxSize().background(ScreenBackground).semantics {
             testTag = C.Tag.home_screen_container
           }
   ) {
@@ -37,9 +40,11 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) {
-      HomeBottomBar(
-          selectedTab = HomeBottomTab.HOME,
-          onTabSelected = { tab -> if (tab == HomeBottomTab.PROFILE) onProfileClicked() },
+      AppBottomDock(
+          selected = DockDestination.HOME,
+          onDestinationSelected = { destination ->
+            if (destination == DockDestination.SETTINGS) onProfileClicked()
+          },
           onScanClick = onScanClicked,
           cameraAvailable = cameraAvailable,
       )

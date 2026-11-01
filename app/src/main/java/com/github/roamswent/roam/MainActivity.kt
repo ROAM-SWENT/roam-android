@@ -9,7 +9,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -25,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
@@ -32,6 +35,8 @@ import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
+import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
@@ -85,6 +90,18 @@ internal fun RoamApp(
     }
   }
   val permissionState by permissionController.state.collectAsState()
+  val currentBackStackEntry by navController.currentBackStackEntryAsState()
+  val currentDestination =
+      when (currentBackStackEntry?.destination?.route) {
+        Routes.Settings -> DockDestination.SETTINGS
+        else -> DockDestination.HOME
+      }
+  val onScanClick = { if (cameraAvailable) permissionController.requestPermission() }
+  val onDockDestinationSelected = { destination: DockDestination ->
+    if (destination.route != currentBackStackEntry?.destination?.route) {
+      navController.navigate(destination.route) { launchSingleTop = true }
+    }
+  }
   Surface(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
       color = MaterialTheme.colorScheme.background,
@@ -117,7 +134,7 @@ internal fun RoamApp(
         val homeViewModel: HomeViewModel = viewModel()
         val userName by homeViewModel.userName.collectAsState()
         HomeScreen(
-            onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
+            onScanClicked = onScanClick,
             cameraAvailable = cameraAvailable,
             userName = userName,
             onProfileClicked = { navController.navigate(Routes.Settings) },
@@ -131,19 +148,31 @@ internal fun RoamApp(
         }
       }
       composable(Routes.Settings) {
-        SettingsScreen(
-            settingsViewModel = settingsViewModel,
-            cameraPermissionController = permissionController,
-            locationPermissionController = locationPermissionController,
-            onManagePermissionsClick = { permissionController.openAppSettings() },
-            onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
-            onSignedOut = {
-              authViewModel.clearSignedInUser()
-              navController.navigate(Routes.SignIn) {
-                popUpTo(navController.graph.id) { inclusive = true }
-              }
-            },
-        )
+        Scaffold(
+            bottomBar = {
+              AppBottomDock(
+                  selected = currentDestination,
+                  onDestinationSelected = onDockDestinationSelected,
+                  onScanClick = onScanClick,
+                  cameraAvailable = cameraAvailable,
+              )
+            }
+        ) { innerPadding ->
+          SettingsScreen(
+              modifier = Modifier.padding(innerPadding),
+              settingsViewModel = settingsViewModel,
+              cameraPermissionController = permissionController,
+              locationPermissionController = locationPermissionController,
+              onManagePermissionsClick = { permissionController.openAppSettings() },
+              onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
+              onSignedOut = {
+                authViewModel.clearSignedInUser()
+                navController.navigate(Routes.SignIn) {
+                  popUpTo(navController.graph.id) { inclusive = true }
+                }
+              },
+          )
+        }
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
