@@ -26,7 +26,7 @@ fun HomeScreen(
     onScanClicked: () -> Unit,
     cameraAvailable: Boolean = true,
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
-    onProfileClicked: () -> Unit = {},
+    onDockDestinationSelected: (DockDestination) -> Unit = {},
 ) {
   Box(
       modifier =
@@ -47,9 +47,7 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) {
       AppBottomDock(
           selected = DockDestination.HOME,
-          onDestinationSelected = { destination ->
-            if (destination == DockDestination.SETTINGS) onProfileClicked()
-          },
+          onDestinationSelected = onDockDestinationSelected,
           onScanClick = onScanClicked,
           cameraAvailable = cameraAvailable,
       )

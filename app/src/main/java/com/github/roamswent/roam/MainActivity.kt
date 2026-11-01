@@ -163,7 +163,7 @@ internal fun RoamApp(
               onScanClicked = onScanClick,
               cameraAvailable = cameraAvailable,
               userName = userName,
-              onProfileClicked = { navController.navigate(Routes.Settings) },
+              onDockDestinationSelected = onDockDestinationSelected,
           )
         }
       }
