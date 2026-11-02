@@ -16,7 +16,6 @@ import androidx.compose.ui.test.swipeUp
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -107,12 +106,6 @@ class MonumentDetailScreenTest {
         .onNodeWithTag(C.Tag.monument_detail_location)
         .assertIsDisplayed()
         .assertTextEquals("48.8584° N, 2.2945° E")
-  }
-
-  @Test
-  fun formatCoordinatesUsesHemispheresForNegativeValues() {
-    assertEquals("33.8568° S, 151.2153° E", formatCoordinates(Coordinates(-33.8568, 151.2153)))
-    assertEquals("40.6892° N, 74.0445° W", formatCoordinates(Coordinates(40.6892, -74.0445)))
   }
 
   @Test

@@ -35,10 +35,9 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
-import com.github.roamswent.roam.ui.collection.formatDiscoveryDate
+import com.github.roamswent.roam.ui.common.formatCoordinates
+import com.github.roamswent.roam.ui.common.formatDiscoveryDate
 import com.github.roamswent.roam.ui.theme.ScreenBackground
-import java.util.Locale
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -195,20 +194,6 @@ private fun MonumentDetailInfo(text: String, tag: String) {
       fontSize = 14.sp,
       color = Color.Gray,
       modifier = Modifier.padding(bottom = 16.dp).semantics { testTag = tag },
-  )
-}
-
-/** Formats [coordinates] like "48.8584° N, 2.2945° E". */
-internal fun formatCoordinates(coordinates: Coordinates): String {
-  val latitudeHemisphere = if (coordinates.latitude < 0) "S" else "N"
-  val longitudeHemisphere = if (coordinates.longitude < 0) "W" else "E"
-  return String.format(
-      Locale.US,
-      "%.4f° %s, %.4f° %s",
-      abs(coordinates.latitude),
-      latitudeHemisphere,
-      abs(coordinates.longitude),
-      longitudeHemisphere,
   )
 }
 
