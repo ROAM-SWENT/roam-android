@@ -71,6 +71,15 @@ class GuideDetailRouteTest {
   }
 
   @Test
+  fun showsTheGuideWhenItsPhotoCannotBeDecoded() {
+    val guide = eiffelTower.copy(photoBytes = byteArrayOf(1, 2, 3))
+    setRoute(FakeSavedGuideRepository(listOf(guide)), guideId = "eiffel")
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_picture).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Eiffel Tower")
+  }
+
+  @Test
   fun showsNotFoundWhenTheGuideIsMissing() {
     setRoute(FakeSavedGuideRepository(listOf(eiffelTower)), guideId = "deleted")
 

@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -31,6 +32,9 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailBackButton
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
+import com.github.roamswent.roam.ui.monumentDetail.PhotoPlaceholderPainter
+import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
+import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
@@ -73,7 +77,11 @@ fun GuideDetailRoute(
 
 @Composable
 private fun SavedGuideDetail(guide: Guide, onBackClick: () -> Unit, modifier: Modifier) {
-  val placeholder = rememberVectorPainter(Icons.Filled.AccountBalance)
+  val icon = rememberVectorPainter(Icons.Filled.AccountBalance)
+  val placeholder =
+      remember(icon) {
+        PhotoPlaceholderPainter(icon, CollectionPlaceholder, CollectionPlaceholderIcon, 72.dp)
+      }
   MonumentDetailScreen(
       image =
           rememberAsyncImagePainter(
