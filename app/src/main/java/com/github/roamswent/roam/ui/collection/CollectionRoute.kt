@@ -7,24 +7,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.roamswent.roam.model.guide.PlaceholderSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 
 /**
- * Loads the saved guides and shows them in [CollectionScreen]. Until the collection is wired to
- * Firestore (#87), a null [repository] falls back to placeholder data, created once with the
- * ViewModel so it shares its lifetime.
+ * Loads the guides saved in [repository] and shows them in [CollectionScreen]. The ViewModel is
+ * created once with the first [repository] and keeps it for its lifetime.
  */
 @Composable
 fun CollectionRoute(
+    repository: SavedGuideRepository,
     modifier: Modifier = Modifier,
-    repository: SavedGuideRepository? = null,
     onGuideClick: (String) -> Unit = {},
 ) {
-  val viewModel: SavedGuidesViewModel = viewModel {
-    SavedGuidesViewModel(repository ?: PlaceholderSavedGuideRepository())
-  }
+  val viewModel: SavedGuidesViewModel = viewModel { SavedGuidesViewModel(repository) }
   val state by viewModel.uiState.collectAsState()
 
   LaunchedEffect(viewModel) { viewModel.loadSavedGuides() }
