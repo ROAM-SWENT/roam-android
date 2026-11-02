@@ -76,6 +76,7 @@ object C {
     const val guide_detail_loading = "guide_detail_loading"
     const val guide_detail_not_found = "guide_detail_not_found"
     const val guide_detail_error = "guide_detail_error"
+    const val guide_detail_retry = "guide_detail_retry"
     const val loading_screen_image = "loading_screen_image"
     const val loading_screen_progress = "loading_screen_progress"
     const val loading_screen_title = "loading_screen_title"

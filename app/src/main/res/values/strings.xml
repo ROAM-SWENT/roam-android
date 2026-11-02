@@ -25,6 +25,7 @@
     <string name="monument_detail_discovered">Discovered on %1$s</string>
     <string name="guide_detail_not_found">This guide is no longer in your collection.</string>
     <string name="guide_detail_error">Couldn’t load this guide. Please try again.</string>
+    <string name="guide_detail_retry">Try again</string>
     <string name="home_tab_home">Home</string>
     <string name="home_tab_scan">Scan a monument</string>
     <string name="home_tab_profile">Profile</string>

@@ -100,6 +100,43 @@ class GuideDetailRouteTest {
   }
 
   @Test
+  fun retryLoadsTheGuideAgainAfterAnError() {
+    val repository =
+        FakeSavedGuideRepository(listOf(eiffelTower)).apply {
+          loadError = IllegalStateException("offline")
+        }
+    setRoute(repository, guideId = "eiffel")
+    composeTestRule.onNodeWithTag(C.Tag.guide_detail_error).assertIsDisplayed()
+
+    repository.loadError = null
+    composeTestRule.onNodeWithTag(C.Tag.guide_detail_retry).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Eiffel Tower")
+    composeTestRule.onNodeWithTag(C.Tag.guide_detail_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun retryKeepsShowingTheErrorWhileTheGuideStillFailsToLoad() {
+    val repository =
+        FakeSavedGuideRepository(listOf(eiffelTower)).apply {
+          loadError = IllegalStateException("offline")
+        }
+    setRoute(repository, guideId = "eiffel")
+
+    composeTestRule.onNodeWithTag(C.Tag.guide_detail_retry).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.guide_detail_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_screen_container).assertDoesNotExist()
+  }
+
+  @Test
+  fun noRetryButtonWhenTheGuideLoads() {
+    setRoute(FakeSavedGuideRepository(listOf(eiffelTower)), guideId = "eiffel")
+
+    composeTestRule.onNodeWithTag(C.Tag.guide_detail_retry).assertDoesNotExist()
+  }
+
+  @Test
   fun showsSpinnerWhileTheGuideLoads() {
     val repository = mockk<SavedGuideRepository>()
     coEvery { repository.getGuide("eiffel") } coAnswers { awaitCancellation() }

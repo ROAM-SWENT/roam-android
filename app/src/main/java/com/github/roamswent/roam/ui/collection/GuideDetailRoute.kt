@@ -3,10 +3,12 @@ package com.github.roamswent.roam.ui.collection
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,7 +68,16 @@ fun GuideDetailRoute(
         }
     state.guideError != null ->
         GuideDetailMessage(onBackClick, modifier) {
-          GuideDetailText(R.string.guide_detail_error, C.Tag.guide_detail_error)
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            GuideDetailText(R.string.guide_detail_error, C.Tag.guide_detail_error)
+            Button(
+                onClick = { viewModel.loadGuide(guideId) },
+                modifier =
+                    Modifier.padding(top = 16.dp).semantics { testTag = C.Tag.guide_detail_retry },
+            ) {
+              Text(stringResource(R.string.guide_detail_retry))
+            }
+          }
         }
     else ->
         GuideDetailMessage(onBackClick, modifier) {
