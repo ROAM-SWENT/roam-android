@@ -163,7 +163,7 @@ internal fun RoamApp(
         )
       }
       composable(Routes.GuideDetail) { backStackEntry ->
-        val guideId = backStackEntry.arguments?.getString(Routes.GUIDE_ID_ARG)
+        val guideId = backStackEntry.arguments?.getString(Routes.GuideIdArg)
         if (guideId != null) {
           GuideDetailRoute(
               guideId = guideId,
