@@ -69,6 +69,9 @@ class UserJourneyEndToEndTest {
           ApplicationProvider.getApplicationContext()
       )
   private var latestCapturedPhoto: File? = null
+  // Set once the interests prompt is answered or loading is known to have started, so later
+  // validate taps skip the prompt poll.
+  private var interestsPromptHandled = false
 
   private fun captureFiles(): List<File> {
     val directory = File(ApplicationProvider.getApplicationContext<Context>().cacheDir, "captures")
@@ -184,7 +187,9 @@ class UserJourneyEndToEndTest {
     val cancelledPhoto = readCapturedPhoto()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
     skipInterestsPromptIfShown()
-    composeTestRule.waitUntil { services.gemini.secondCallStarted.isCompleted }
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      services.gemini.secondCallStarted.isCompleted
+    }
     assertEquals(2, services.gemini.calls)
     assertPhotoWasScreened(services, 2, cancelledPhoto)
     assertGuideRequestIncludedPreciseLocation(services, 1)
@@ -282,8 +287,12 @@ class UserJourneyEndToEndTest {
 
   // A fresh install answers the real first-run interests prompt on the first validate tap,
   // before the loading screen may start. Poll briefly and tap the prompt's Skip action when it
-  // appears; when the prompt is absent the journey continues immediately without failing.
+  // appears; when the prompt is absent the journey continues immediately without failing. Once
+  // the prompt is answered, later validate taps return immediately instead of polling again.
   private fun skipInterestsPromptIfShown() {
+    if (interestsPromptHandled) {
+      return
+    }
     val deadline = System.currentTimeMillis() + INTERESTS_PROMPT_POLL_MS
     while (System.currentTimeMillis() < deadline) {
       if (
@@ -293,6 +302,7 @@ class UserJourneyEndToEndTest {
               .isNotEmpty()
       ) {
         composeTestRule.onNodeWithTag(C.Tag.scan_interests_skip).performClick()
+        interestsPromptHandled = true
         return
       }
       Thread.sleep(INTERESTS_PROMPT_POLL_INTERVAL_MS)
@@ -301,7 +311,8 @@ class UserJourneyEndToEndTest {
 
   // Under the fake, the screening stage lasts 150-470 ms, so the progress view is a transient
   // that is never asserted. Wait for the loading flow's terminal state instead: the expected
-  // error text or the monument detail screen.
+  // error text or the monument detail screen. A terminal state also proves that loading
+  // started, so the interests prompt cannot appear anymore.
   private fun waitForLoadingTerminalState(vararg terminalTexts: String) {
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       val errorShown = terminalTexts.any { text ->
@@ -314,6 +325,7 @@ class UserJourneyEndToEndTest {
               .isNotEmpty()
       errorShown || monumentShown
     }
+    interestsPromptHandled = true
   }
 
   private fun acceptPreciseLocationPermission() {
