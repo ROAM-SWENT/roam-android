@@ -13,7 +13,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
-import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import org.junit.Assert.assertTrue
@@ -28,13 +27,12 @@ class MonumentDetailScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   private val guide =
-      MonumentGuide(
+      MonumentDetailContent(
           monumentName = "Eiffel Tower",
           confidence = 0.92,
           history = "Built in 1889 as the entrance arch for the World's Fair.",
           facts = listOf("330 meters tall", "Repainted every seven years"),
           culture = "The globally recognized symbol of Paris and France.",
-          language = "en",
       )
 
   @Test

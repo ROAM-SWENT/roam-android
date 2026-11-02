@@ -57,6 +57,7 @@ import coil.request.ImageRequest
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
+import com.github.roamswent.roam.ui.monumentDetail.toDetailContent
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.ShutterWhite
 
@@ -80,7 +81,7 @@ fun ScanReviewScreen(
   if (state is ScanReviewUiState.Sent) {
     MonumentDetailScreen(
         image = rememberAsyncImagePainter(state.uri),
-        guide = state.guide,
+        guide = state.guide.toDetailContent(),
         onBackClick = onHomeClick,
     )
     return

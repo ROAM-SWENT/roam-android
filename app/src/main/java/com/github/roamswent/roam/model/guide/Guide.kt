@@ -2,7 +2,6 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
-import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 
 /** A saved guide, including the photo and all information shown on the detail screen. */
@@ -48,17 +47,3 @@ data class Guide(
     return result
   }
 }
-
-/**
- * The AI-written part of this guide, as shown by the detail screen. A saved guide does not keep the
- * guide language, so [MonumentGuide.language] is left blank.
- */
-fun Guide.toMonumentGuide(): MonumentGuide =
-    MonumentGuide(
-        monumentName = monumentName,
-        confidence = confidence,
-        history = history,
-        facts = facts,
-        culture = culture,
-        language = "",
-    )

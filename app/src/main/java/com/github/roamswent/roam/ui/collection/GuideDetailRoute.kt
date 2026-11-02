@@ -29,12 +29,12 @@ import coil.compose.rememberAsyncImagePainter
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
-import com.github.roamswent.roam.model.guide.toMonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailBackButton
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.monumentDetail.PhotoPlaceholderPainter
+import com.github.roamswent.roam.ui.monumentDetail.toDetailContent
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
@@ -100,7 +100,7 @@ private fun SavedGuideDetail(guide: Guide, onBackClick: () -> Unit, modifier: Mo
               placeholder = placeholder,
               error = placeholder,
           ),
-      guide = guide.toMonumentGuide(),
+      guide = guide.toDetailContent(),
       onBackClick = onBackClick,
       modifier = modifier,
       discoveryDate = guide.discoveryDate,

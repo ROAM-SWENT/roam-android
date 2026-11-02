@@ -32,7 +32,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
-import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.common.formatCoordinates
@@ -47,7 +46,7 @@ import kotlin.math.roundToInt
 @Composable
 fun MonumentDetailScreen(
     image: Painter,
-    guide: MonumentGuide,
+    guide: MonumentDetailContent,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     discoveryDate: Long? = null,
@@ -225,7 +224,7 @@ fun PreviewMonumentDetailScreen() {
     MonumentDetailScreen(
         image = painterResource(id = android.R.drawable.ic_menu_gallery),
         guide =
-            MonumentGuide(
+            MonumentDetailContent(
                 monumentName = "Eiffel Tower",
                 confidence = 0.92,
                 history =
@@ -241,7 +240,6 @@ fun PreviewMonumentDetailScreen() {
                 culture =
                     "The globally recognized symbol of Paris and France, epitomizing romance, " +
                         "elegance, and 19th-century industrial architecture.",
-                language = "en",
             ),
         onBackClick = {},
     )
