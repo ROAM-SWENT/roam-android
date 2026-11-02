@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
+import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.resources.C
@@ -152,13 +154,20 @@ private fun GuidePhoto(guide: Guide) {
     PhotoPlaceholder(photoModifier, C.Tag.collection_card_photo_placeholder)
     return
   }
-  var photoState by
-      remember(guide.photoBytes) {
-        mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty)
+  // Every Firestore snapshot hands out a new array for the same photo, so the photo is identified
+  // by
+  // its contents. Keying on the array itself would restart the decode (and the spinner) each time.
+  val photoKey = remember(guide.photoBytes) { "${guide.id}:${guide.photoBytes.contentHashCode()}" }
+  val context = LocalContext.current
+  val request =
+      remember(photoKey) {
+        ImageRequest.Builder(context).data(guide.photoBytes).memoryCacheKey(photoKey).build()
       }
+  var photoState by
+      remember(photoKey) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
   Box(contentAlignment = Alignment.Center, modifier = photoModifier) {
     AsyncImage(
-        model = guide.photoBytes,
+        model = request,
         contentDescription =
             stringResource(R.string.collection_photo_description, guide.monumentName),
         contentScale = ContentScale.Crop,

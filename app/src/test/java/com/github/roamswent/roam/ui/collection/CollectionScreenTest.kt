@@ -2,6 +2,9 @@
 package com.github.roamswent.roam.ui.collection
 
 import android.graphics.Bitmap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -18,9 +21,11 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -180,6 +185,53 @@ class CollectionScreenTest {
         .onNodeWithTag(C.Tag.collection_card_photo_loading, useUnmergedTree = true)
         .assertDoesNotExist()
   }
+
+  @Test
+  fun keepsDecodedPhotoWhenAnotherGuideIsAddedAndTheArrayIsRebuilt() {
+    val requests = AtomicInteger()
+    // Only the first request may finish, so a second one would leave the spinner up.
+    Coil.setImageLoader(
+        ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components {
+              add(
+                  Interceptor { chain ->
+                    if (requests.getAndIncrement() == 0) chain.proceed(chain.request)
+                    else awaitCancellation()
+                  }
+              )
+            }
+            .build()
+    )
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
+    composeTestRule.waitUntil(TIMEOUT_MILLIS) {
+      hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
+    }
+
+    // Another guide is added; the snapshot rebuilds the first guide with a new array of equal
+    // bytes.
+    state = SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()), olderGuide))
+    composeTestRule.waitForIdle()
+
+    assertEquals(1, requests.get())
+    assertFalse(hasTag(C.Tag.collection_card_photo_loading))
+    assertFalse(hasTag(C.Tag.collection_card_photo_error))
+  }
+
+  @Test
+  fun decodesAgainWhenThePhotoOfAGuideChanges() {
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
+    composeTestRule.waitUntil(TIMEOUT_MILLIS) {
+      hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
+    }
+
+    state = SavedGuidesUiState(guides = listOf(guideWithPhoto(byteArrayOf(1, 2, 3))))
+
+    waitForTag(C.Tag.collection_card_photo_error)
+  }
+
+  private fun guideWithPhoto(photoBytes: ByteArray) = newerGuide.copy(photoBytes = photoBytes)
 
   private fun waitForTag(tag: String) {
     composeTestRule.waitUntil(TIMEOUT_MILLIS) { hasTag(tag) }
