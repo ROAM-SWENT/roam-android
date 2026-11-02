@@ -2,6 +2,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -21,6 +22,21 @@ class GuideTest {
           location = Coordinates(48.8584, 2.2945),
           discoveryDate = 1_798_000_000_000,
       )
+
+  @Test
+  fun toMonumentGuideKeepsTheAiWrittenFields() {
+    assertEquals(
+        MonumentGuide(
+            monumentName = "Eiffel Tower",
+            confidence = 0.92,
+            history = "Built in 1889.",
+            facts = listOf("330 meters tall"),
+            culture = "A symbol of Paris.",
+            language = "",
+        ),
+        guide.toMonumentGuide(),
+    )
+  }
 
   @Test
   fun equalityAndHashCodeUsePhotoContentsAndAllGuideFields() {

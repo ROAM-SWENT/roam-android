@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.ui.graphics.Color
@@ -13,7 +14,9 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -71,6 +74,45 @@ class MonumentDetailScreenTest {
       swipeUp()
       swipeDown()
     }
+  }
+
+  @Test
+  fun hidesDiscoveryDateAndLocationWhenUnknown() {
+    composeTestRule.setContent {
+      MonumentDetailScreen(image = ColorPainter(Color.LightGray), guide = guide, onBackClick = {})
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_date).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_location).assertDoesNotExist()
+  }
+
+  @Test
+  fun showsDiscoveryDateAndLocationWhenKnown() {
+    composeTestRule.setContent {
+      MonumentDetailScreen(
+          image = ColorPainter(Color.LightGray),
+          guide = guide,
+          onBackClick = {},
+          // Noon UTC, so the formatted day is the same in any time zone the tests run in.
+          discoveryDate = 1_791_806_400_000,
+          location = Coordinates(48.8584, 2.2945),
+      )
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_date)
+        .assertIsDisplayed()
+        .assertTextEquals("Discovered on 12 Oct 2026")
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_location)
+        .assertIsDisplayed()
+        .assertTextEquals("48.8584° N, 2.2945° E")
+  }
+
+  @Test
+  fun formatCoordinatesUsesHemispheresForNegativeValues() {
+    assertEquals("33.8568° S, 151.2153° E", formatCoordinates(Coordinates(-33.8568, 151.2153)))
+    assertEquals("40.6892° N, 74.0445° W", formatCoordinates(Coordinates(40.6892, -74.0445)))
   }
 
   @Test

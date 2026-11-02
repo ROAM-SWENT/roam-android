@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.foundation.Image
@@ -32,16 +33,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.formatDiscoveryDate
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/**
+ * Shows [image] above the full [guide]. A saved guide also passes its [discoveryDate] and
+ * [location], each shown only when known.
+ */
 @Composable
 fun MonumentDetailScreen(
     image: Painter,
     guide: MonumentGuide,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    discoveryDate: Long? = null,
+    location: Coordinates? = null,
 ) {
   val textBackgroundColor = ScreenBackground
   val cornerRadius = 32.dp
@@ -121,6 +132,19 @@ fun MonumentDetailScreen(
                     testTag = C.Tag.monument_detail_confidence
                   },
           )
+          discoveryDate?.let { date ->
+            MonumentDetailInfo(
+                text =
+                    stringResource(R.string.monument_detail_discovered, formatDiscoveryDate(date)),
+                tag = C.Tag.monument_detail_date,
+            )
+          }
+          location?.let { coordinates ->
+            MonumentDetailInfo(
+                text = formatCoordinates(coordinates),
+                tag = C.Tag.monument_detail_location,
+            )
+          }
           Text(
               text = guide.history,
               fontSize = 16.sp,
@@ -162,6 +186,30 @@ fun MonumentDetailScreen(
         modifier = Modifier.align(Alignment.TopStart),
     )
   }
+}
+
+@Composable
+private fun MonumentDetailInfo(text: String, tag: String) {
+  Text(
+      text = text,
+      fontSize = 14.sp,
+      color = Color.Gray,
+      modifier = Modifier.padding(bottom = 16.dp).semantics { testTag = tag },
+  )
+}
+
+/** Formats [coordinates] like "48.8584° N, 2.2945° E". */
+internal fun formatCoordinates(coordinates: Coordinates): String {
+  val latitudeHemisphere = if (coordinates.latitude < 0) "S" else "N"
+  val longitudeHemisphere = if (coordinates.longitude < 0) "W" else "E"
+  return String.format(
+      Locale.US,
+      "%.4f° %s, %.4f° %s",
+      abs(coordinates.latitude),
+      latitudeHemisphere,
+      abs(coordinates.longitude),
+      longitudeHemisphere,
+  )
 }
 
 @Composable
