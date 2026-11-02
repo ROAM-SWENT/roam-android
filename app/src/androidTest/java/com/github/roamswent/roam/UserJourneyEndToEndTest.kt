@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
 
 package com.github.roamswent.roam
@@ -149,9 +150,9 @@ class UserJourneyEndToEndTest {
     capturePhoto()
     val rejectedPhoto = readCapturedPhoto()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.loading_screen_progress)
+    skipInterestsPromptIfShown()
     val notMonumentError = composeTestRule.activity.getString(R.string.loading_error_not_identified)
-    waitForText(notMonumentError)
+    waitForLoadingTerminalState(notMonumentError)
     composeTestRule.onNodeWithText(notMonumentError).assertIsDisplayed()
     assertEquals(1, services.imageScreen.calls)
     assertPhotoWasScreened(services, 0, rejectedPhoto)
@@ -165,9 +166,9 @@ class UserJourneyEndToEndTest {
     capturePhoto()
     val networkFailurePhoto = readCapturedPhoto()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.loading_screen_progress)
+    skipInterestsPromptIfShown()
     val networkError = composeTestRule.activity.getString(R.string.loading_error_network)
-    waitForText(networkError)
+    waitForLoadingTerminalState(networkError)
     composeTestRule.onNodeWithText(networkError).assertIsDisplayed()
     assertEquals(1, services.gemini.calls)
     assertEquals(2, services.imageScreen.calls)
@@ -182,7 +183,7 @@ class UserJourneyEndToEndTest {
     capturePhoto()
     val cancelledPhoto = readCapturedPhoto()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.loading_screen_progress)
+    skipInterestsPromptIfShown()
     composeTestRule.waitUntil { services.gemini.secondCallStarted.isCompleted }
     assertEquals(2, services.gemini.calls)
     assertPhotoWasScreened(services, 2, cancelledPhoto)
@@ -199,6 +200,7 @@ class UserJourneyEndToEndTest {
     capturePhoto()
     val firstGuidePhoto = readCapturedPhoto()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    skipInterestsPromptIfShown()
     waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_picture).assertIsDisplayed()
     composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
@@ -217,6 +219,7 @@ class UserJourneyEndToEndTest {
     capturePhoto()
     val secondGuidePhoto = readCapturedPhoto()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    skipInterestsPromptIfShown()
     waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_picture).assertIsDisplayed()
     composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
@@ -277,10 +280,39 @@ class UserJourneyEndToEndTest {
     composeTestRule.onNodeWithTag(tag).assertIsDisplayed()
   }
 
-  private fun waitForText(text: String) {
-    // Wait for the loading flow to show its error message.
+  // A fresh install answers the real first-run interests prompt on the first validate tap,
+  // before the loading screen may start. Poll briefly and tap the prompt's Skip action when it
+  // appears; when the prompt is absent the journey continues immediately without failing.
+  private fun skipInterestsPromptIfShown() {
+    val deadline = System.currentTimeMillis() + INTERESTS_PROMPT_POLL_MS
+    while (System.currentTimeMillis() < deadline) {
+      if (
+          composeTestRule
+              .onAllNodesWithTag(C.Tag.scan_interests_prompt)
+              .fetchSemanticsNodes()
+              .isNotEmpty()
+      ) {
+        composeTestRule.onNodeWithTag(C.Tag.scan_interests_skip).performClick()
+        return
+      }
+      Thread.sleep(INTERESTS_PROMPT_POLL_INTERVAL_MS)
+    }
+  }
+
+  // Under the fake, the screening stage lasts 150-470 ms, so the progress view is a transient
+  // that is never asserted. Wait for the loading flow's terminal state instead: the expected
+  // error text or the monument detail screen.
+  private fun waitForLoadingTerminalState(vararg terminalTexts: String) {
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
-      composeTestRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+      val errorShown = terminalTexts.any { text ->
+        composeTestRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+      }
+      val monumentShown =
+          composeTestRule
+              .onAllNodesWithTag(C.Tag.monument_detail_screen_container)
+              .fetchSemanticsNodes()
+              .isNotEmpty()
+      errorShown || monumentShown
     }
   }
 
@@ -319,7 +351,7 @@ class UserJourneyEndToEndTest {
         (buttonLabels + "While using the app" + "Only this time").distinct().map { By.text(it) }
     val selectors = textSelectors + resourceSelectors
     val selector =
-        selectors.firstOrNull { device.wait(Until.hasObject(it), SELECTOR_TIMEOUT_MS) }
+        waitForPermissionSelector(device, selectors)
             ?: run {
               val hierarchy = File.createTempFile("permission-dialog", ".xml")
               try {
@@ -334,6 +366,22 @@ class UserJourneyEndToEndTest {
             }
     checkNotNull(device.findObject(selector)) { "Permission dialog's Allow button disappeared" }
         .click()
+  }
+
+  // The system dialog can appear later than one pass over the selectors allows, so retry the
+  // whole pass until the permission dialog timeout instead of a single 3 s pass.
+  private fun waitForPermissionSelector(
+      device: UiDevice,
+      selectors: List<BySelector>,
+  ): BySelector? {
+    val deadline = System.currentTimeMillis() + PERMISSION_DIALOG_TIMEOUT_MS
+    do {
+      val found = selectors.firstOrNull { device.wait(Until.hasObject(it), SELECTOR_TIMEOUT_MS) }
+      if (found != null) {
+        return found
+      }
+    } while (System.currentTimeMillis() < deadline)
+    return null
   }
 
   private fun waitForPermissionObject(device: UiDevice, selector: BySelector): UiObject2 {
@@ -387,6 +435,8 @@ class UserJourneyEndToEndTest {
     const val PERMISSION_CONTROLLER_PACKAGE = "com.android.permissioncontroller"
     const val PERMISSION_DIALOG_TIMEOUT_MS = 10_000L
     private const val SELECTOR_TIMEOUT_MS = 500L
+    private const val INTERESTS_PROMPT_POLL_MS = 2_000L
+    private const val INTERESTS_PROMPT_POLL_INTERVAL_MS = 50L
 
     @BeforeClass
     @JvmStatic
