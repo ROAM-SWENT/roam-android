@@ -104,7 +104,7 @@ fun AppBottomDock(
         )
         Box(
             modifier = Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
-            contentAlignment = Alignment.BottomCenter,
+            contentAlignment = Alignment.TopCenter,
         ) {
           AutoResizedTabLabel(
               text =
@@ -113,7 +113,7 @@ fun AppBottomDock(
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               fontWeight = FontWeight.SemiBold,
               modifier =
-                  Modifier.wrapContentWidth(unbounded = true).padding(bottom = 6.dp).semantics {
+                  Modifier.wrapContentWidth(unbounded = true).padding(top = 34.dp).semantics {
                     testTag = C.Tag.dock_scan_label
                   },
           )
