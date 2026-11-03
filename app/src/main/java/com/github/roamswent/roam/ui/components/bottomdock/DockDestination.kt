@@ -98,10 +98,10 @@ private val ExplorerIcon =
               fill = SolidColor(Color.Black),
               pathFillType = PathFillType.NonZero,
           ) {
-            moveTo(10.5f, 9.5f)
-            lineTo(14.8f, 9.2f)
-            lineTo(13.5f, 14.5f)
-            lineTo(9.2f, 14.8f)
+            moveTo(9.88f, 9.88f)
+            lineTo(16f, 8f)
+            lineTo(14.12f, 14.12f)
+            lineTo(8f, 16f)
             close()
           }
         }
