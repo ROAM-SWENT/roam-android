@@ -91,7 +91,10 @@ fun AppBottomDock(
                 .navigationBarsPadding()
                 .height(barContentHeight),
     ) {
-      Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.Bottom) {
+      Row(
+          modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+          verticalAlignment = Alignment.Bottom,
+      ) {
         DockTabSlot(
             destination = DockDestination.HOME,
             selected = selected,
@@ -103,7 +106,7 @@ fun AppBottomDock(
             onDestinationSelected = onDestinationSelected,
         )
         Box(
-            modifier = Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
+            modifier = Modifier.weight(1.75f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
           AutoResizedTabLabel(
