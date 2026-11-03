@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -105,6 +106,8 @@ private fun SavedGuideDetail(guide: Guide, onBackClick: () -> Unit, modifier: Mo
       modifier = modifier,
       discoveryDate = guide.discoveryDate,
       location = guide.location,
+      backIcon = Icons.AutoMirrored.Filled.ArrowBack,
+      backDescription = R.string.guide_detail_back_description,
   )
 }
 
@@ -121,7 +124,12 @@ private fun GuideDetailMessage(
     ) {
       content()
     }
-    MonumentDetailBackButton(onClick = onBackClick, modifier = Modifier.align(Alignment.TopStart))
+    MonumentDetailBackButton(
+        onClick = onBackClick,
+        modifier = Modifier.align(Alignment.TopStart),
+        icon = Icons.AutoMirrored.Filled.ArrowBack,
+        description = R.string.guide_detail_back_description,
+    )
   }
 }
 

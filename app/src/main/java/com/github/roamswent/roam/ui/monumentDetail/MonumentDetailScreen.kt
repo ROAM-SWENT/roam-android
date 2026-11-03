@@ -1,6 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -51,6 +53,8 @@ fun MonumentDetailScreen(
     modifier: Modifier = Modifier,
     discoveryDate: Long? = null,
     location: Coordinates? = null,
+    backIcon: ImageVector = Icons.Filled.Home,
+    @StringRes backDescription: Int = R.string.monument_detail_home_description,
 ) {
   val textBackgroundColor = ScreenBackground
   val cornerRadius = 32.dp
@@ -182,6 +186,8 @@ fun MonumentDetailScreen(
     MonumentDetailBackButton(
         onClick = onBackClick,
         modifier = Modifier.align(Alignment.TopStart),
+        icon = backIcon,
+        description = backDescription,
     )
   }
 }
@@ -197,7 +203,12 @@ private fun MonumentDetailInfo(text: String, tag: String) {
 }
 
 @Composable
-fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun MonumentDetailBackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Filled.Home,
+    @StringRes description: Int = R.string.monument_detail_home_description,
+) {
   IconButton(
       onClick = onClick,
       modifier =
@@ -211,8 +222,8 @@ fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier)
           ),
   ) {
     Icon(
-        imageVector = Icons.Filled.Home,
-        contentDescription = stringResource(R.string.monument_detail_home_description),
+        imageVector = icon,
+        contentDescription = stringResource(description),
     )
   }
 }
