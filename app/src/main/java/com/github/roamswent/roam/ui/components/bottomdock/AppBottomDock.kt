@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
@@ -94,7 +96,7 @@ fun AppBottomDock(
             onDestinationSelected = onDestinationSelected,
         )
         Box(
-            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
+            modifier = Modifier.weight(1.7f).padding(bottom = 10.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
           Text(
@@ -103,10 +105,14 @@ fun AppBottomDock(
                   else stringResource(R.string.home_scan_unavailable),
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               fontSize = 11.sp,
-              fontWeight = FontWeight.Bold,
+              fontWeight = FontWeight.SemiBold,
+              textAlign = TextAlign.Center,
               maxLines = 1,
+              softWrap = false,
               modifier =
-                  Modifier.padding(bottom = 6.dp).semantics { testTag = C.Tag.dock_scan_label },
+                  Modifier.wrapContentWidth(unbounded = true).padding(bottom = 6.dp).semantics {
+                    testTag = C.Tag.dock_scan_label
+                  },
           )
         }
         DockTabSlot(
