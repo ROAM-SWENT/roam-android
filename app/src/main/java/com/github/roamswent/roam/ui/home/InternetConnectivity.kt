@@ -31,10 +31,6 @@ internal fun rememberInternetConnectivity(): Boolean {
   DisposableEffect(connectivityManager) {
     val callback =
         object : ConnectivityManager.NetworkCallback() {
-          override fun onAvailable(network: Network) {
-            isConnected = connectivityManager.hasValidatedInternetConnection()
-          }
-
           override fun onCapabilitiesChanged(
               network: Network,
               networkCapabilities: NetworkCapabilities,
@@ -43,7 +39,7 @@ internal fun rememberInternetConnectivity(): Boolean {
           }
 
           override fun onLost(network: Network) {
-            isConnected = connectivityManager.hasValidatedInternetConnection()
+            isConnected = false
           }
         }
 
