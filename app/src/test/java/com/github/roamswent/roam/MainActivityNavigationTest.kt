@@ -322,6 +322,22 @@ class MainActivityNavigationTest {
     assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
   }
 
+  /**
+   * The dock carries five slots on the authenticated screens: home, explore, the scan action,
+   * collection and settings all render, and the two tabs whose routes are not wired yet stay
+   * disabled on both screens.
+   */
+  @Test
+  fun dockShowsAllFiveSlotsWithUnwiredTabsDisabledOnHomeAndSettings() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+    assertDockShowsAllFiveSlotsWithUnwiredTabsDisabled()
+
+    navigateToSettings(navController)
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    assertDockShowsAllFiveSlotsWithUnwiredTabsDisabled()
+  }
+
   @Test
   fun dockIsAbsentOnSignIn() {
     renderApp(MutableStateFlow(AuthUIState()))
@@ -698,6 +714,17 @@ class MainActivityNavigationTest {
 
   private fun navigateToSettings(navController: NavHostController) {
     composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
+  }
+
+  /** Asserts the five dock slots render and the unwired explore and collection tabs are inert. */
+  private fun assertDockShowsAllFiveSlotsWithUnwiredTabsDisabled() {
+    waitAndAssertDisplayed(C.Tag.dock_tab_home)
+    waitAndAssertDisplayed(C.Tag.dock_tab_explore)
+    waitAndAssertDisplayed(C.Tag.dock_scan_button)
+    waitAndAssertDisplayed(C.Tag.dock_tab_collection)
+    waitAndAssertDisplayed(C.Tag.dock_tab_settings)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsNotEnabled()
   }
 
   /**
