@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
@@ -82,16 +83,16 @@ fun AppBottomDock(
                 .height(barContentHeight),
     ) {
       Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.Bottom) {
-        Box(
-            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-          DockTabItem(
-              destination = DockDestination.HOME,
-              selected = selected == DockDestination.HOME,
-              onDestinationSelected = onDestinationSelected,
-          )
-        }
+        DockTabSlot(
+            destination = DockDestination.HOME,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
+        DockTabSlot(
+            destination = DockDestination.EXPLORE,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
         Box(
             modifier = Modifier.weight(1f).padding(bottom = 10.dp),
             contentAlignment = Alignment.BottomCenter,
@@ -108,16 +109,16 @@ fun AppBottomDock(
                   Modifier.padding(bottom = 6.dp).semantics { testTag = C.Tag.dock_scan_label },
           )
         }
-        Box(
-            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-          DockTabItem(
-              destination = DockDestination.SETTINGS,
-              selected = selected == DockDestination.SETTINGS,
-              onDestinationSelected = onDestinationSelected,
-          )
-        }
+        DockTabSlot(
+            destination = DockDestination.COLLECTION,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
+        DockTabSlot(
+            destination = DockDestination.SETTINGS,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
       }
     }
 
@@ -186,6 +187,24 @@ fun AppBottomDock(
 }
 
 @Composable
+private fun RowScope.DockTabSlot(
+    destination: DockDestination,
+    selected: DockDestination,
+    onDestinationSelected: (DockDestination) -> Unit,
+) {
+  Box(
+      modifier = Modifier.weight(1f).padding(bottom = 10.dp),
+      contentAlignment = Alignment.Center,
+  ) {
+    DockTabItem(
+        destination = destination,
+        selected = selected == destination,
+        onDestinationSelected = onDestinationSelected,
+    )
+  }
+}
+
+@Composable
 private fun DockTabItem(
     destination: DockDestination,
     selected: Boolean,
@@ -198,7 +217,9 @@ private fun DockTabItem(
       modifier =
           Modifier.defaultMinSize(minWidth = 68.dp, minHeight = 56.dp)
               .clip(RoundedCornerShape(12.dp))
-              .clickable(enabled = !selected) { onDestinationSelected(destination) }
+              .clickable(enabled = destination.route.isNotEmpty() && !selected) {
+                onDestinationSelected(destination)
+              }
               .semantics { testTag = destination.tag }
               .padding(horizontal = 12.dp, vertical = 6.dp),
   ) {
