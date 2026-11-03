@@ -43,7 +43,8 @@ data class AuthUIState(
 class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFirebase()) :
     ViewModel() {
 
-  private val _uiState = MutableStateFlow(AuthUIState())
+  // Firebase restores the cached user locally, including when the device is offline.
+  private val _uiState = MutableStateFlow(AuthUIState(user = repository.currentUser()))
   val uiState: StateFlow<AuthUIState> = _uiState
 
   /** Clears the error message in the UI state. */
