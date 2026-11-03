@@ -79,16 +79,16 @@ class AppBottomDockTest {
   }
 
   /**
-   * AutoResizedTabLabel shrinks overlong labels instead of wrapping them. The dock is squeezed far
-   * below the width its labels need, so "Explore" and "Collection" overflow their slots at the
-   * initial font size and must scale down. The full text stays exposed through semantics, and
-   * because every tab column settles at the same height while its label is a single line, a wrapped
-   * label would make its tab strictly taller than the home tab. Equal heights pin the one-line
-   * contract without pixel assertions.
+   * AutoResizedTabLabel shrinks overlong labels instead of wrapping them. The dock is squeezed just
+   * enough that "Home" still fits at the initial font size while "Explore" and "Collection"
+   * overflow their slots and must scale down: home is the untouched single-line baseline and the
+   * overlong labels take the autosize path in the same render. The full text stays exposed through
+   * semantics, and because a wrapped label would grow its tab column past the single-line height
+   * the home tab pins, an overlong tab taller than home betrays a wrap. No pixel assertions.
    */
   @Test
   fun narrowedDockKeepsOverlongTabLabelsOnOneLine() {
-    setDock(modifier = Modifier.width(200.dp))
+    setDock(modifier = Modifier.width(340.dp))
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertTextEquals("Explore")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertTextEquals("Collection")
