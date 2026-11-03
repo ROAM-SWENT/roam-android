@@ -11,6 +11,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -18,6 +20,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -25,6 +28,7 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.profile.UserProfile
+import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
@@ -75,6 +79,7 @@ class SettingsScreenTest {
 
     composeTestRule.onNodeWithText("Victor").assertIsDisplayed()
     composeTestRule.onNodeWithText("App Permissions").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.settings_theme_auto).assertCountEquals(1)
     composeTestRule.onNodeWithTag(C.Tag.settings_manage_permissions_button).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_sign_out_button).assertIsDisplayed()
     composeTestRule.onNodeWithText("victor@epfl.ch").assertIsDisplayed()
@@ -88,6 +93,41 @@ class SettingsScreenTest {
     composeTestRule
         .onNodeWithTag("Location permission", useUnmergedTree = true)
         .assert(hasAnyChild(hasText("Denied")))
+  }
+
+  @Test
+  fun themeSegmentedButtons_allowSelectingOneTheme() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    val (cameraController, locationController) = permissionControllers()
+    var themeMode by mutableStateOf(ThemeMode.AUTO)
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+            themeMode = themeMode,
+            onThemeModeSelected = { themeMode = it },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Theme").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_auto).performScrollTo().assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).assertIsNotSelected()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).assertIsNotSelected()
+
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_auto).assertIsNotSelected()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).assertIsNotSelected()
+
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_auto).assertIsNotSelected()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).assertIsNotSelected()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).assertIsSelected()
   }
 
   /** Verifies that an empty display name falls back to the default profile label. */

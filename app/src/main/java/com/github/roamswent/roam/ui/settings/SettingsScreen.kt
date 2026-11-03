@@ -30,12 +30,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,6 +66,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -102,6 +107,8 @@ fun SettingsScreen(
     onManagePermissionsClick: () -> Unit = {},
     onSignedOut: () -> Unit = {},
     onHomeClick: () -> Unit = {},
+    themeMode: ThemeMode = ThemeMode.AUTO,
+    onThemeModeSelected: (ThemeMode) -> Unit = {},
 ) {
 
   val resolvedSettingsViewModel = settingsViewModel ?: viewModel<SettingsViewModel>()
@@ -164,6 +171,8 @@ fun SettingsScreen(
         onManagePermissionsClick = onManagePermissionsClick,
         onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
         onHomeClick = onHomeClick,
+        themeMode = themeMode,
+        onThemeModeSelected = onThemeModeSelected,
     )
   }
 }
@@ -176,6 +185,8 @@ private fun SettingsContent(
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
     onHomeClick: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeSelected: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
   val interests = remember { mutableStateListOf<String>().apply { addAll(sampleInterests) } }
@@ -204,6 +215,7 @@ private fun SettingsContent(
           onRemoveInterest = { interests.remove(it) },
           onAddInterestClick = { showAddInterestDialog = true },
       )
+      ThemeCard(themeMode = themeMode, onThemeSelected = onThemeModeSelected)
     }
 
     IconButton(
@@ -263,6 +275,48 @@ private fun SettingsContent(
           }
         },
     )
+  }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ThemeCard(
+    themeMode: ThemeMode,
+    onThemeSelected: (ThemeMode) -> Unit,
+) {
+  Card(
+      modifier = Modifier.fillMaxWidth(),
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = Color.White),
+  ) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(
+          text = "Theme",
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold,
+      )
+      val themes =
+          listOf(
+              Triple(ThemeMode.AUTO, "Auto", C.Tag.settings_theme_auto),
+              Triple(ThemeMode.LIGHT, "Light", C.Tag.settings_theme_light),
+              Triple(ThemeMode.DARK, "Dark", C.Tag.settings_theme_dark),
+          )
+      SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        themes.forEachIndexed { index, (mode, label, testTag) ->
+          SegmentedButton(
+              selected = themeMode == mode,
+              onClick = { onThemeSelected(mode) },
+              shape = SegmentedButtonDefaults.itemShape(index = index, count = themes.size),
+              modifier = Modifier.testTag(testTag),
+          ) {
+            Text(label)
+          }
+        }
+      }
+    }
   }
 }
 
