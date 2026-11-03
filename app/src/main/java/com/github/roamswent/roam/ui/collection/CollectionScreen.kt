@@ -56,6 +56,7 @@ import com.github.roamswent.roam.ui.theme.LoadingErrorText
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -157,7 +158,7 @@ private fun GuidePhoto(guide: Guide) {
   // Every Firestore snapshot hands out a new array for the same photo, so the photo is identified
   // by
   // its contents. Keying on the array itself would restart the decode (and the spinner) each time.
-  val photoKey = remember(guide.photoBytes) { "${guide.id}:${guide.photoBytes.contentHashCode()}" }
+  val photoKey = remember(guide.photoBytes) { "${guide.id}:${guide.photoBytes.sha256Hex()}" }
   val context = LocalContext.current
   val request =
       remember(photoKey) {
@@ -190,6 +191,9 @@ private fun GuidePhoto(guide: Guide) {
     }
   }
 }
+
+private fun ByteArray.sha256Hex(): String =
+    MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { "%02x".format(it) }
 
 @Composable
 private fun PhotoPlaceholder(modifier: Modifier, tag: String) {
