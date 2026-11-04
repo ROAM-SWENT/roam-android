@@ -1,3 +1,5 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.ui.scan
 
 import android.view.View
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +52,7 @@ import com.github.roamswent.roam.ui.theme.ShutterWhite
 fun ScanScreen(
     state: ScanUiState,
     onCapture: () -> Unit,
+    onPickImage: () -> Unit,
     onGoBack: () -> Unit,
     modifier: Modifier = Modifier,
     previewView: View? = null,
@@ -111,6 +116,27 @@ fun ScanScreen(
             }
           }
           Spacer(Modifier.size(40.dp))
+        }
+        Row(
+            modifier =
+                Modifier.align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(start = 16.dp, bottom = 40.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(percent = 50))
+                    .clickable(enabled = shutterEnabled, onClick = onPickImage)
+                    .semantics { testTag = C.Tag.scan_gallery_button }
+                    .padding(horizontal = 16.dp)
+                    .height(48.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Icon(
+              imageVector = Icons.Rounded.PhotoLibrary,
+              contentDescription = null,
+              tint = Color.White,
+              modifier = Modifier.size(20.dp),
+          )
+          Text("Gallery", color = Color.White, style = MaterialTheme.typography.labelLarge)
         }
         ExpressiveFloatingButton(
             onClick = onCapture,

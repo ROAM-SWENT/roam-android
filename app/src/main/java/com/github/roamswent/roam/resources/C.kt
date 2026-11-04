@@ -45,6 +45,7 @@ object C {
     const val scan_camera_screen = "scan_camera_screen"
     const val scan_camera_viewfinder = "scan_camera_viewfinder"
     const val scan_shutter_button = "scan_shutter_button"
+    const val scan_gallery_button = "scan_gallery_button"
     const val scan_camera_revoked_container = "scan_camera_revoked_container"
     const val scan_camera_revoked_back = "scan_camera_revoked_back"
     const val scan_close_button = "scan_close_button"

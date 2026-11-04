@@ -172,7 +172,7 @@ internal fun RoamApp(
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }
-      composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
+      composable("${Routes.ScanReview}?uri={uri}&gallery={gallery}") { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
         if (uri != null) {
           ScanReviewRoute(
@@ -182,6 +182,12 @@ internal fun RoamApp(
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
+          )
+          ScanReviewRoute(
+              navController,
+              uri,
+              captureSenderOverride,
+              isGalleryImage = backStackEntry.arguments?.getString("gallery") == "true",
           )
         }
       }
