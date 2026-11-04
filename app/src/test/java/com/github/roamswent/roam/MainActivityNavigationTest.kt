@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
 
 package com.github.roamswent.roam
@@ -362,11 +363,21 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
     waitForGone(C.Tag.offline_action_dialog)
 
+    // The dock tabs succeeded the navigation affordances main gated with
+    // OPEN_PROFILE (the profile tab) and RETURN_HOME (the settings home
+    // button), and the merge dropped those gate calls: offline, navigation
+    // between Home and Settings stays ungated in both directions.
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
     composeTestRule.runOnIdle {
       assertEquals(Routes.Settings, navController.currentDestination?.route)
     }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
   }
 
   @Test
