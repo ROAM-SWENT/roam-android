@@ -103,42 +103,35 @@ class AppBottomDockTest {
   /**
    * The dock exposes the selection through the click affordance: only the unselected tab accepts
    * taps. Tab tint and weight are paint-only details that semantics cannot observe, so the enabled
-   * state is the real contract.
+   * state is the real contract: the selected tab is disabled and every other tab stays enabled.
    */
+  private fun assertTabSelectionMarked(selected: DockDestination) {
+    setDock(selected = selected)
+
+    composeTestRule.onNodeWithTag(selected.tag).assertIsNotEnabled()
+    DockDestination.entries
+        .filterNot { it == selected }
+        .forEach { destination -> composeTestRule.onNodeWithTag(destination.tag).assertIsEnabled() }
+  }
+
   @Test
   fun selectedHomeTabIsMarkedByDisablingIt() {
-    setDock(selected = DockDestination.HOME)
-
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
+    assertTabSelectionMarked(DockDestination.HOME)
   }
 
   @Test
   fun selectedSettingsTabIsMarkedByDisablingIt() {
-    setDock(selected = DockDestination.SETTINGS)
-
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsNotEnabled()
+    assertTabSelectionMarked(DockDestination.SETTINGS)
   }
 
   @Test
   fun selectedExploreTabIsMarkedByDisablingIt() {
-    setDock(selected = DockDestination.EXPLORE)
-
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
+    assertTabSelectionMarked(DockDestination.EXPLORE)
   }
 
   @Test
   fun selectedCollectionTabIsMarkedByDisablingIt() {
-    setDock(selected = DockDestination.COLLECTION)
-
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
+    assertTabSelectionMarked(DockDestination.COLLECTION)
   }
 
   @Test
