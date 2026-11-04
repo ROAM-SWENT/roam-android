@@ -1,3 +1,5 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.ui.scan
 
 import android.view.View
@@ -51,6 +53,23 @@ class ScanScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_shutter_button).performClick()
 
     assertEquals(1, captures)
+  }
+
+  @Test
+  fun streamingShowsGalleryButtonAndInvokesPicker() {
+    var pickerLaunches = 0
+    setContent(ScanUiState.Streaming, onPickImage = { pickerLaunches++ })
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_gallery_button).assertIsDisplayed().performClick()
+
+    assertEquals(1, pickerLaunches)
+  }
+
+  @Test
+  fun galleryButtonIsDisabledWhileCapturing() {
+    setContent(ScanUiState.Capturing)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_gallery_button).assertIsNotEnabled()
   }
 
   @Test
@@ -140,6 +159,13 @@ class ScanScreenTest {
   }
 
   @Test
+  fun revokedDoesNotShowGalleryButton() {
+    setContent(ScanUiState.Revoked)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_gallery_button).assertDoesNotExist()
+  }
+
+  @Test
   fun capturingShowsPromptPill() {
     setContent(ScanUiState.Capturing)
 
@@ -188,6 +214,7 @@ class ScanScreenTest {
   private fun setContent(
       state: ScanUiState,
       onCapture: () -> Unit = {},
+      onPickImage: () -> Unit = {},
       onGoBack: () -> Unit = {},
   ) {
     composeTestRule.setContent {
@@ -195,6 +222,7 @@ class ScanScreenTest {
         ScanScreen(
             state = state,
             onCapture = onCapture,
+            onPickImage = onPickImage,
             onGoBack = onGoBack,
             previewView = View(ApplicationProvider.getApplicationContext()),
         )

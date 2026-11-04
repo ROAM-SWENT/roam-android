@@ -179,6 +179,22 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun galleryReviewRetakeReturnsToScanWithoutDeletingImage() {
+    showReviewRoute(
+        captureSender =
+            object : CaptureSender {
+              override suspend fun send(uri: Uri): Result<MonumentGuide> =
+                  Result.failure(UnsupportedOperationException())
+            },
+        isGalleryImage = true,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.scan_camera_screen)
+  }
+
+  @Test
   fun reviewRouteCancelDuringLoadingReturnsToCaptureAndCancelsRequest() {
     val requestStarted = AtomicBoolean(false)
     val requestCancelled = AtomicBoolean(false)
@@ -436,6 +452,7 @@ class ScanReviewScreenTest {
   private fun showReviewRoute(
       captureSender: CaptureSender,
       userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
+      isGalleryImage: Boolean = false,
   ) {
     val photo =
         File.createTempFile(
@@ -459,12 +476,13 @@ class ScanReviewScreenTest {
             Box(Modifier.fillMaxSize().testTag(C.Tag.home_screen_container))
           }
           composable(Routes.Scan) { Box(Modifier.fillMaxSize().testTag(C.Tag.scan_camera_screen)) }
-          composable("${Routes.ScanReview}?uri={uri}") { entry ->
+          composable("${Routes.ScanReview}?uri={uri}&gallery={gallery}") { entry ->
             ScanReviewRoute(
                 navController = controller,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
+                isGalleryImage = isGalleryImage,
             )
           }
         }
