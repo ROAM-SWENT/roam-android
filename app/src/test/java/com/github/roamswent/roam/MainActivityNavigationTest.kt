@@ -21,6 +21,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
@@ -321,6 +322,199 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
     composeTestRule.waitForIdle()
     assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockCollectionTabFromHomeStacksCollectionAboveHome() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+
+    assertEquals(listOf(Routes.Home, Routes.Collection), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockExploreTabFromHomeStacksExploreAboveHome() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+
+    assertEquals(listOf(Routes.Home, Routes.Explore), backStackRoutes(navController))
+  }
+
+  @Test
+  fun crossDockTabTapReplacesDestinationWithoutStacking() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+
+    assertEquals(listOf(Routes.Home, Routes.Explore), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockHomeTabFromCollectionPopsBackToSingleHomeEntry() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockHomeTabFromExplorePopsBackToSingleHomeEntry() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun systemBackFromCollectionReturnsToSingleHomeEntry() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun systemBackFromExploreReturnsToSingleHomeEntry() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun tappingSelectedDockTabOnCollectionAndExploreLeavesStackUnchanged() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(listOf(Routes.Home, Routes.Collection), backStackRoutes(navController))
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(listOf(Routes.Home, Routes.Explore), backStackRoutes(navController))
+  }
+
+  @Test
+  fun alternatingAllDockTabsNeverDuplicatesBackStackEntries() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    assertEquals(listOf(Routes.Home, Routes.Collection), backStackRoutes(navController))
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    assertEquals(listOf(Routes.Home, Routes.Explore), backStackRoutes(navController))
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun exploreBackArrowReturnsToSingleHomeEntry() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithContentDescription("Back").performClick()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  /**
+   * Like the settings and home tabs, the collection and explore tab navigations are not gated on
+   * connectivity: offline, tapping them navigates without the offline dialog.
+   */
+  @Test
+  fun offlineCollectionAndExploreTabsRemainAccessible() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+        isOnlineOverride = false,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Collection, navController.currentDestination?.route)
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Explore, navController.currentDestination?.route)
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
   }
 
   /**
