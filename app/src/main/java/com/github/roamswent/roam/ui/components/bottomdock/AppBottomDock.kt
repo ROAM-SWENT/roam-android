@@ -229,9 +229,7 @@ private fun DockTabItem(
       modifier =
           Modifier.defaultMinSize(minWidth = 68.dp, minHeight = 56.dp)
               .clip(RoundedCornerShape(12.dp))
-              .clickable(enabled = destination.route.isNotEmpty() && !selected) {
-                onDestinationSelected(destination)
-              }
+              .clickable(enabled = !selected) { onDestinationSelected(destination) }
               .semantics { testTag = destination.tag }
               .padding(horizontal = 12.dp, vertical = 6.dp),
   ) {
