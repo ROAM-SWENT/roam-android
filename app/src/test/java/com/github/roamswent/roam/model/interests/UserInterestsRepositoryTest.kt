@@ -98,4 +98,29 @@ class UserInterestsRepositoryTest {
         repository.getUserInterests(),
     )
   }
+
+  @Test
+  fun updateInterests_persistsInterestsWithoutMarkingPromptAsked() {
+    val repository = SharedPreferencesUserInterestsRepository(context)
+
+    repository.updateInterests(listOf("Architecture", "History"))
+
+    assertEquals(
+        UserInterestsState(hasBeenAsked = false, interests = listOf("Architecture", "History")),
+        repository.getUserInterests(),
+    )
+  }
+
+  @Test
+  fun updateInterests_preservesAlreadyAskedState() {
+    val repository = SharedPreferencesUserInterestsRepository(context)
+    repository.skipInterests()
+
+    repository.updateInterests(listOf("Nature"))
+
+    assertEquals(
+        UserInterestsState(hasBeenAsked = true, interests = listOf("Nature")),
+        repository.getUserInterests(),
+    )
+  }
 }

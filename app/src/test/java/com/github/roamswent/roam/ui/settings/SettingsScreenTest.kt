@@ -23,6 +23,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.resources.C
@@ -58,6 +59,7 @@ class SettingsScreenTest {
                     cameraPermissionGranted = true,
                     locationPermissionGranted = false,
                     profile = UserProfile("Victor", "victor@epfl.ch", "Google"),
+                    interests = listOf("Architecture"),
                 )
             )
         )
@@ -80,6 +82,7 @@ class SettingsScreenTest {
     composeTestRule.onNodeWithText("victor@epfl.ch").assertIsDisplayed()
     composeTestRule.onNodeWithText("Google").assertIsDisplayed()
     composeTestRule.onNodeWithText("My Interests (AI Guide)").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Architecture").assertIsDisplayed()
     composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
     composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
     composeTestRule
@@ -223,7 +226,8 @@ class SettingsScreenTest {
   @Test
   fun interests_canBeAddedAndRemoved() {
     val viewModel = mock<SettingsViewModel>()
-    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    whenever(viewModel.uiState)
+        .thenReturn(MutableStateFlow(SettingsUIState(interests = listOf("Architecture"))))
     val (cameraController, locationController) = permissionControllers()
 
     composeTestRule.setContent {
@@ -237,31 +241,30 @@ class SettingsScreenTest {
     }
 
     composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_cancel_button).performClick()
     composeTestRule
-        .onAllNodesWithTag(C.Tag.settings_interest_option_prefix + "Museums")
+        .onAllNodesWithTag(C.Tag.settings_interest_option_prefix + "Architecture")
         .assertCountEquals(0)
-
-    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.settings_interest_option_prefix + "Museums").performClick()
     composeTestRule
-        .onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Museums")
+        .onNodeWithTag(C.Tag.settings_interest_option_prefix + "History")
+        .assertIsDisplayed()
+        .performClick()
+    verify(viewModel).addInterest("History")
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Architecture")
         .assertIsDisplayed()
 
-    composeTestRule.onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Museums").performClick()
     composeTestRule
-        .onAllNodesWithTag(C.Tag.settings_interest_remove_prefix + "Museums")
+        .onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Architecture")
+        .performClick()
+    verify(viewModel).removeInterest("Architecture")
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.settings_interest_remove_prefix + "Ancient history")
         .assertCountEquals(0)
-
-    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-    composeTestRule
-        .onNodeWithTag(C.Tag.settings_interest_option_prefix + "Museums")
-        .assertIsDisplayed()
   }
 
-  /** Verifies that the interest dialog handles the case where every sample interest is selected. */
+  /** Verifies the empty state and canonical interest options. */
   @Test
-  fun interests_whenAllSelected_showsEmptyStateMessage() {
+  fun interests_emptyStateAndCanonicalOptionsAreDisplayed() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
     val (cameraController, locationController) = permissionControllers()
@@ -276,21 +279,40 @@ class SettingsScreenTest {
       }
     }
 
-    listOf(
-            "Museums",
-            "Nature",
-            "Food & drink",
-            "Local culture",
+    composeTestRule.onNodeWithText("No interests selected yet.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    UserInterestCategories.all.forEach { interest ->
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_interest_option_prefix + interest)
+          .assertIsDisplayed()
+    }
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.settings_interest_option_prefix + "Museums")
+        .assertCountEquals(0)
+  }
+
+  /** Verifies that the add dialog handles the case where every canonical interest is selected. */
+  @Test
+  fun interests_whenAllSelected_showsEmptyStateMessage() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState)
+        .thenReturn(MutableStateFlow(SettingsUIState(interests = UserInterestCategories.all)))
+    val (cameraController, locationController) = permissionControllers()
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
         )
-        .forEach { interest ->
-          composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-          composeTestRule
-              .onNodeWithTag(C.Tag.settings_interest_option_prefix + interest)
-              .performClick()
-        }
+      }
+    }
 
     composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-    composeTestRule.onNodeWithText("You have added all the sample interests.").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText("All available interests are already selected.")
+        .assertIsDisplayed()
   }
 
   /** Verifies that an initially available error is shown as a toast and then cleared. */
