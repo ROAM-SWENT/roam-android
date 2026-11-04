@@ -216,7 +216,7 @@ internal fun RoamApp(
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
-        CollectionRoute(repository = savedGuideRepository)
+        CollectionRoute(repository = savedGuideRepository, isDarkTheme = isDarkTheme)
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {

@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.collection
 
 import androidx.compose.ui.test.assertCountEquals
@@ -79,7 +80,9 @@ class CollectionRouteTest {
   }
 
   private fun setRoute(repository: FakeSavedGuideRepository) {
-    composeTestRule.setContent { SampleAppTheme { CollectionRoute(repository = repository) } }
+    composeTestRule.setContent {
+      SampleAppTheme { CollectionRoute(repository = repository, isDarkTheme = false) }
+    }
   }
 
   private fun guide(id: String, name: String, discoveryDate: Long) =
