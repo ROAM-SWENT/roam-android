@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Mistral Vibe <vibe@mistral.ai>
 package com.github.roamswent.roam.ui.theme
 
 import androidx.compose.ui.graphics.Color
@@ -16,6 +17,8 @@ val HomeActiveTab = Color(0xFF1B433E)
 val HomeInactiveTab = Color(0xFF6E7673)
 val ScreenBackground = Color(0xFFF2F4F3)
 val DockOutline = Color(0xFFDDE3E0)
+val DockBarBackground = Color.White
+val DockScanIcon = Color.White
 val ShutterHalo = Color(0x99000000)
 val ShutterWhite = Color.White
 val CameraCaptureOverlay = Color.Black.copy(alpha = 0.35f)

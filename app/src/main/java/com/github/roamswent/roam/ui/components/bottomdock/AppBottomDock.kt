@@ -43,7 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.DockBarBackground
 import com.github.roamswent.roam.ui.theme.DockOutline
+import com.github.roamswent.roam.ui.theme.DockScanIcon
 import com.github.roamswent.roam.ui.theme.HomeActiveTab
 import com.github.roamswent.roam.ui.theme.HomeInactiveTab
 import com.github.roamswent.roam.ui.theme.ScanTeal
@@ -75,7 +77,7 @@ fun AppBottomDock(
         modifier =
             Modifier.fillMaxWidth()
                 .padding(top = protrusion)
-                .background(Color.White)
+                .background(DockBarBackground)
                 .navigationBarsPadding()
                 .height(barContentHeight),
     ) {
@@ -128,7 +130,7 @@ fun AppBottomDock(
                 .size(haloSize)
                 .background(
                     color =
-                        if (cameraAvailable) Color.White
+                        if (cameraAvailable) DockBarBackground
                         else MaterialTheme.colorScheme.surfaceVariant,
                     shape = CircleShape,
                 ),
@@ -154,7 +156,7 @@ fun AppBottomDock(
             contentDescription =
                 if (cameraAvailable) stringResource(R.string.home_tab_scan)
                 else stringResource(R.string.home_scan_unavailable),
-            tint = Color.White,
+            tint = DockScanIcon,
             modifier = Modifier.size(28.dp),
         )
       }
