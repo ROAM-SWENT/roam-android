@@ -2,6 +2,7 @@
 package com.github.roamswent.roam.ui.scan
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -442,7 +443,11 @@ class ScanReviewScreenTest {
             ".jpg",
             ApplicationProvider.getApplicationContext<Context>().cacheDir,
         )
-    photo.writeBytes(byteArrayOf(1, 2, 3, 4))
+    val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+
+    photo.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it) }
+
+    bitmap.recycle()
     photoFile = photo
     photoUri = Uri.fromFile(photo)
     composeTestRule.activity.setContent {
