@@ -15,6 +15,7 @@ import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
 import io.mockk.every
 import io.mockk.mockk
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -152,6 +153,30 @@ class GuideCaptureSenderTest {
     val image = requireNotNull(repository.lastRequest).image
     assertEquals("image/png", image.mimeType)
     assertTrue(image.bytes.contentEquals(pngBytes))
+  }
+
+  @Test
+  fun sendReturnsFailureWhenImageFormatIsUnknown() = runTest {
+    val uri = Uri.parse("content://example/invalid")
+    val invalidBytes = byteArrayOf(1, 2, 3, 4)
+
+    every { contentResolver.getType(uri) } returns null
+
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { invalidBytes },
+        )
+
+    val result = sender.send(uri)
+
+    assertTrue(result.isFailure)
+    val exception = result.exceptionOrNull()
+    assertTrue(exception is IOException)
+    assertEquals("Unsupported image format", exception?.message)
   }
 
   @Test

@@ -71,6 +71,23 @@ class ContentResolverImageReaderTest {
   }
 
   @Test
+  fun readThrowsForUnknownImageFormat() = runTest {
+    val uri = Uri.parse("content://example/invalid")
+    val invalidBytes = byteArrayOf(1, 2, 3, 4)
+
+    every { contentResolver.getType(uri) } returns null
+    every { contentResolver.openInputStream(uri) } returns ByteArrayInputStream(invalidBytes)
+
+    val reader = ContentResolverImageReader(contentResolver)
+
+    val result = runCatching { reader.read(uri) }
+
+    assertTrue(result.isFailure)
+    assertTrue(result.exceptionOrNull() is IOException)
+    assertEquals("Unsupported image format", result.exceptionOrNull()?.message)
+  }
+
+  @Test
   fun nullStreamThrowsUserFacingError() = runTest {
     every { contentResolver.openInputStream(uri) } returns null
     every { contentResolver.getType(uri) } returns "image/jpeg"
