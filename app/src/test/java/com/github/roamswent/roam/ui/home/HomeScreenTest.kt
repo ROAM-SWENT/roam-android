@@ -5,6 +5,7 @@
 package com.github.roamswent.roam.ui.home
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertIsDisplayed
@@ -19,6 +20,7 @@ import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -142,6 +144,41 @@ class HomeScreenTest {
   }
 
   @Test
+  fun darkThemeUsesDarkSurfaceAndReadableContentForOfflineNotice() {
+    var expectedCardColor = 0
+    var expectedContentColor = 0
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        expectedCardColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
+        expectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+        HomeScreen(
+            onScanClicked = {},
+            isConnectedToInternet = false,
+            isDarkTheme = true,
+        )
+      }
+    }
+
+    val card =
+        composeTestRule.onNodeWithTag(C.Tag.home_offline_card).captureToImage().asAndroidBitmap()
+    val message =
+        composeTestRule
+            .onNodeWithTag(C.Tag.home_offline_card_message, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+    val icon =
+        composeTestRule
+            .onNodeWithTag(C.Tag.home_offline_card_icon, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+
+    assertEquals(expectedCardColor, card.getPixel(0, 0))
+    assertNotEquals(Color(0xFFFFE9E6).toArgb(), card.getPixel(0, 0))
+    assertTrue(containsColor(message, expectedContentColor))
+    assertTrue(containsColor(icon, expectedContentColor))
+  }
+
+  @Test
   fun darkThemeUsesThemeBackgroundAndBottomBarSurface() {
     var expectedBackground = 0
     var expectedSurface = 0
@@ -169,5 +206,14 @@ class HomeScreenTest {
     assertEquals(expectedBackground, screen.getPixel(0, 0))
     assertNotEquals(ScreenBackground.toArgb(), screen.getPixel(0, 0))
     assertEquals(expectedSurface, bottomBar.getPixel(0, bottomBar.height - 1))
+  }
+
+  private fun containsColor(bitmap: android.graphics.Bitmap, color: Int): Boolean {
+    for (y in 0 until bitmap.height) {
+      for (x in 0 until bitmap.width) {
+        if (bitmap.getPixel(x, y) == color) return true
+      }
+    }
+    return false
   }
 }

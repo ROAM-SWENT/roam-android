@@ -200,6 +200,36 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun populatedCollectionPreviewRendersGuideCards() {
+    composeTestRule.setContent { PreviewCollectionScreen() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_grid).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(4)
+  }
+
+  @Test
+  fun populatedDarkCollectionPreviewRendersGuideCards() {
+    composeTestRule.setContent { PreviewCollectionScreenDark() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_grid).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(4)
+  }
+
+  @Test
+  fun emptyCollectionPreviewRendersEmptyState() {
+    composeTestRule.setContent { PreviewCollectionScreenEmpty() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertIsDisplayed()
+  }
+
+  @Test
+  fun emptyDarkCollectionPreviewRendersEmptyState() {
+    composeTestRule.setContent { PreviewCollectionScreenEmptyDark() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertIsDisplayed()
+  }
+
+  @Test
   fun showsStoredPhotoOnceDecoded() {
     setScreen(SavedGuidesUiState(guides = listOf(newerGuide.copy(photoBytes = pngBytes()))))
 

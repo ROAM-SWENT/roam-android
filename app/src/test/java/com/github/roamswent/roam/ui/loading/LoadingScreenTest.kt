@@ -125,11 +125,17 @@ class LoadingScreenTest {
     var isDarkTheme by mutableStateOf(false)
     var expectedDarkBackground = 0
     var darkTextColor = 0
+    var darkSubtitleColor = 0
+    var darkProgressColor = 0
+    var darkProgressTrackColor = 0
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
         if (isDarkTheme) {
           expectedDarkBackground = MaterialTheme.colorScheme.background.toArgb()
           darkTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+          darkSubtitleColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+          darkProgressColor = MaterialTheme.colorScheme.primary.toArgb()
+          darkProgressTrackColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
         }
         LoadingScreen(
             image = ColorPainter(Color.LightGray),
@@ -155,10 +161,60 @@ class LoadingScreenTest {
             .asAndroidBitmap()
     val title =
         composeTestRule.onNodeWithTag(C.Tag.loading_screen_title).captureToImage().asAndroidBitmap()
+    val subtitle =
+        composeTestRule
+            .onNodeWithTag(C.Tag.loading_screen_subtitle)
+            .captureToImage()
+            .asAndroidBitmap()
+    val progress =
+        composeTestRule
+            .onNodeWithTag(C.Tag.loading_screen_progress)
+            .captureToImage()
+            .asAndroidBitmap()
+    val cancelButton =
+        composeTestRule
+            .onNodeWithTag(C.Tag.loading_screen_cancel_button)
+            .captureToImage()
+            .asAndroidBitmap()
 
     assertEquals(expectedDarkBackground, darkBackground.getPixel(0, 0))
     assertNotEquals(ScreenBackground.toArgb(), darkBackground.getPixel(0, 0))
     assertTrue(containsColor(title, darkTextColor))
+    assertTrue(containsColor(subtitle, darkSubtitleColor))
+    assertTrue(containsColor(progress, darkProgressColor))
+    assertTrue(containsColor(progress, darkProgressTrackColor))
+    assertTrue(containsColor(cancelButton, darkTextColor))
+  }
+
+  @Test
+  fun darkThemeUsesErrorColorsForDiscoveryFailure() {
+    var darkErrorColor = 0
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        darkErrorColor = MaterialTheme.colorScheme.error.toArgb()
+        LoadingScreen(
+            image = ColorPainter(Color.LightGray),
+            onCancel = {},
+            errorMessage = "Gemini is unavailable",
+            isDarkTheme = true,
+        )
+      }
+    }
+
+    val errorIcon =
+        composeTestRule
+            .onNodeWithTag(C.Tag.loading_screen_error_icon)
+            .captureToImage()
+            .asAndroidBitmap()
+    val errorMessage =
+        composeTestRule
+            .onNodeWithTag(C.Tag.loading_screen_subtitle)
+            .captureToImage()
+            .asAndroidBitmap()
+
+    assertTrue(containsColor(errorIcon, darkErrorColor))
+    assertTrue(containsColor(errorMessage, darkErrorColor))
+    composeTestRule.onAllNodesWithTag(C.Tag.loading_screen_progress).assertCountEquals(0)
   }
 
   private fun containsColor(bitmap: android.graphics.Bitmap, color: Int): Boolean {
