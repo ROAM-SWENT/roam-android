@@ -34,6 +34,8 @@ import com.github.roamswent.roam.model.ai.ImageScreen
 import com.github.roamswent.roam.model.ai.NetworkUnavailableException
 import com.github.roamswent.roam.model.ai.ScreenVerdict
 import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
@@ -106,6 +108,7 @@ class UserJourneyEndToEndTest {
           RoamApp(
               authViewModel = authViewModel,
               captureSenderOverride = services.captureSender,
+              savedGuideRepositoryOverride = FakeSavedGuideRepository(),
               onSignInClickOverride = auth::signIn,
           )
         }
@@ -234,6 +237,16 @@ class UserJourneyEndToEndTest {
     assertGuideRequestIncludedPreciseLocation(services, 3)
 
     pressSystemBack()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // The dock reaches the collection and explore screens, and the Home tab returns.
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     // Home is the first screen after sign-in. Android's Back button should close the app here.
@@ -597,4 +610,23 @@ private class FakeAuthRepository : AuthRepository {
       kotlinx.coroutines.flow.flowOf(null)
 
   override fun signOut(): Result<Unit> = Result.success(Unit)
+}
+
+/**
+ * An empty in-memory collection. The journey's collection stop is a navigation smoke that only
+ * renders the real screen and dock, so saved guides come from the fake instead of Firestore.
+ */
+private class FakeSavedGuideRepository : SavedGuideRepository {
+  override suspend fun addGuide(guide: Guide): Guide = guide
+
+  override suspend fun removeGuide(guideId: String) = Unit
+
+  override suspend fun setFavorite(guideId: String, isFavorite: Boolean) = Unit
+
+  override suspend fun getSavedGuides(): List<Guide> = emptyList()
+
+  override fun observeSavedGuides() =
+      kotlinx.coroutines.flow.MutableStateFlow<List<Guide>>(emptyList())
+
+  override suspend fun getGuide(guideId: String): Guide? = null
 }
