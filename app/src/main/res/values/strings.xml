@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">MainActivity</string>
-    <string name="title_activity_second">SecondActivity</string>
     <string name="sign_in_title">Roam</string>
     <string name="sign_in_tagline">Snap a monument, discover its story.</string>
     <string name="sign_in_google_button">Continue with Google</string>
@@ -35,6 +34,16 @@
     <string name="home_scan_card_icon_description">Monument</string>
     <string name="home_offline_card_message">You are not connected to the internet.</string>
     <string name="home_offline_card_icon_description">Wi-Fi disconnected</string>
+    <string name="explore_title">Explore</string>
+    <string name="explore_back_description">Back</string>
+    <string name="explore_user_location">Your location</string>
+    <string name="explore_loading_location">Loading your location…</string>
+    <string name="explore_permission_required">Please activate location permission to explore nearby places.</string>
+    <string name="explore_location_unavailable">We could not determine your location.</string>
+    <string name="explore_retry">Retry</string>
+    <string name="offline_action_required_title">Internet connection required</string>
+    <string name="offline_action_required_message">An internet connection is required to perform this action.</string>
+    <string name="offline_action_required_dismiss">OK</string>
     <string name="collection_title">History</string>
     <string name="collection_empty_title">No monuments yet</string>
     <string name="collection_empty_subtitle">Scan a monument to start your collection.</string>
