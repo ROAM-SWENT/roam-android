@@ -56,6 +56,7 @@ object ImageValidator {
     val canonical = if (normalised == "image/jpg") "image/jpeg" else normalised
     return ImageFormat.entries.firstOrNull { it.mimeType == canonical }
   }
+
   fun detectFormat(bytes: ByteArray): ImageFormat? =
       when {
         bytes.matchesAt(0, JPEG_SIGNATURE) -> ImageFormat.JPEG

@@ -17,14 +17,14 @@ internal class ContentResolverImageReader(
 ) {
   suspend fun read(uri: Uri): ImagePayload =
       withContext(dispatcher) {
-          val stream =
+        val stream =
             contentResolver.openInputStream(uri)
                 ?: throw IOException("Could not load the photo. Please try again.")
-          val bytes = stream.use { it.readBytes() }
-          val mimeType =
-              contentResolver.getType(uri)
-                  ?: ImageValidator.detectFormat(bytes)?.mimeType
-                  ?: throw IOException("Unsupported image format")
-          ImagePayload(bytes, mimeType)
+        val bytes = stream.use { it.readBytes() }
+        val mimeType =
+            contentResolver.getType(uri)
+                ?: ImageValidator.detectFormat(bytes)?.mimeType
+                ?: throw IOException("Unsupported image format")
+        ImagePayload(bytes, mimeType)
       }
 }

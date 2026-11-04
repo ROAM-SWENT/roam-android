@@ -12,9 +12,9 @@ import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.ai.UserPreferences
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.repository.CaptureSender
+import java.io.IOException
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
-import java.io.IOException
 
 /**
  * Sends the captured photo through the AI discovery pipeline. [readBytes] is injectable so tests
@@ -32,15 +32,15 @@ class GuideCaptureSender(
 
   override suspend fun send(uri: Uri): Result<MonumentGuide> =
       try {
-          val bytes = readBytes(uri)
-          val mimType = context.contentResolver.getType(uri)
-              ?: ImageValidator.detectFormat(bytes)?.mimeType
-              ?: throw IOException("Unsupported image format")
+        val bytes = readBytes(uri)
+        val mimType =
+            context.contentResolver.getType(uri)
+                ?: ImageValidator.detectFormat(bytes)?.mimeType
+                ?: throw IOException("Unsupported image format")
         Result.success(
             guideRepository.guideFor(
                 DiscoveryRequest(
-                    image =
-                        ImagePayload( bytes, mimType),
+                    image = ImagePayload(bytes, mimType),
                     location = null,
                     preferences =
                         UserPreferences(
