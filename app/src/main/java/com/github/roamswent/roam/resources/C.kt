@@ -19,6 +19,8 @@ object C {
     const val sign_in_screen_container = "sign_in_screen_container"
     const val sign_in_google_button = "sign_in_google_button"
     const val settings_home_button = "settings_home_button"
+    const val settings_profile_card = "settings_profile_card"
+    const val settings_screen_container = "settings_screen_container"
     const val settings_sign_out_button = "settings_sign_out_button"
     const val settings_manage_permissions_button = "settings_manage_permissions_button"
     const val settings_theme_auto = "settings_theme_auto"

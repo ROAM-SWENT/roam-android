@@ -4,15 +4,21 @@
 
 package com.github.roamswent.roam.ui.settings
 
+import android.graphics.Bitmap
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -36,8 +42,11 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,6 +55,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
@@ -75,6 +85,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -111,6 +122,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
             themeMode = themeMode,
             onThemeModeSelected = { themeMode = it },
         )
@@ -133,6 +145,63 @@ class SettingsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).assertIsSelected()
   }
 
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  fun settingsScreenPreservesLightColorsAndUsesDarkThemeSurfaces() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    val (cameraController, locationController) = permissionControllers()
+    var isDarkTheme by mutableStateOf(false)
+    var darkBackgroundColor = 0
+    var darkSurfaceColor = 0
+
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
+        if (isDarkTheme) {
+          darkBackgroundColor = MaterialTheme.colorScheme.background.toArgb()
+          darkSurfaceColor = MaterialTheme.colorScheme.surface.toArgb()
+        }
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+            isDarkTheme = isDarkTheme,
+        )
+      }
+    }
+
+    val lightBackground =
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_screen_container)
+            .captureToImage()
+            .asAndroidBitmap()
+    val lightProfileCard =
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_profile_card)
+            .captureToImage()
+            .asAndroidBitmap()
+
+    assertEquals(ScreenBackground.toArgb(), lightBackground.getPixel(0, 0))
+    assertTrue(containsColor(lightProfileCard, Color.White.toArgb()))
+
+    composeTestRule.runOnIdle { isDarkTheme = true }
+
+    val darkBackground =
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_screen_container)
+            .captureToImage()
+            .asAndroidBitmap()
+    val darkProfileCard =
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_profile_card)
+            .captureToImage()
+            .asAndroidBitmap()
+
+    assertEquals(darkBackgroundColor, darkBackground.getPixel(0, 0))
+    assertNotEquals(ScreenBackground.toArgb(), darkBackground.getPixel(0, 0))
+    assertTrue(containsColor(darkProfileCard, darkSurfaceColor))
+  }
+
   /** Verifies that an empty display name falls back to the default profile label. */
   @Test
   fun emptyProfileName_usesTravelerFallback() {
@@ -151,6 +220,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -174,6 +244,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -204,6 +275,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
             onManagePermissionsClick = { managePermissionsClicks++ },
         )
       }
@@ -228,6 +300,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
             onHomeClick = { homeClicks++ },
         )
       }
@@ -253,6 +326,7 @@ class SettingsScreenTest {
             credentialManager = credentialManager,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -276,6 +350,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -315,6 +390,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -345,6 +421,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -369,6 +446,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -393,6 +471,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
         )
       }
     }
@@ -423,6 +502,7 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
+            isDarkTheme = false,
             onSignedOut = { signedOutCallbacks++ },
         )
       }
@@ -451,6 +531,7 @@ class SettingsScreenTest {
               settingsViewModel = viewModel,
               cameraPermissionController = cameraController,
               locationPermissionController = locationController,
+              isDarkTheme = false,
           )
         }
       }
@@ -491,6 +572,7 @@ class SettingsScreenTest {
                 settingsViewModel = viewModel,
                 cameraPermissionController = cameraController,
                 locationPermissionController = locationController,
+                isDarkTheme = false,
             )
           }
         }
@@ -525,6 +607,15 @@ class SettingsScreenTest {
         )
 
     return cameraController to locationController
+  }
+
+  private fun containsColor(bitmap: Bitmap, color: Int): Boolean {
+    for (y in 0 until bitmap.height) {
+      for (x in 0 until bitmap.width) {
+        if (bitmap.getPixel(x, y) == color) return true
+      }
+    }
+    return false
   }
 
   private fun assertPermissionStatuses(cameraGranted: Boolean, locationGranted: Boolean) {

@@ -195,6 +195,7 @@ internal fun RoamApp(
             cameraPermissionController = permissionController,
             locationPermissionController = locationPermissionController,
             themeMode = themeMode,
+            isDarkTheme = isDarkTheme,
             onThemeModeSelected = onThemeModeSelected,
             onManagePermissionsClick = { permissionController.openAppSettings() },
             onHomeClick = {
