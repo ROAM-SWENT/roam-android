@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
               authViewModel = authViewModel,
               themeMode = selectedTheme,
               onThemeModeSelected = themeViewModel::setThemeMode,
+              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -100,6 +101,7 @@ internal fun RoamApp(
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
+    isDarkTheme: Boolean = themeMode == ThemeMode.DARK,
 ) {
   val context = LocalContext.current
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
@@ -141,6 +143,7 @@ internal fun RoamApp(
         SignInScreen(
             authViewModel = authViewModel,
             onSignedIn = onSignedIn,
+            isDarkTheme = isDarkTheme,
             onSignInClickOverride =
                 onSignInClickOverride?.let { signIn ->
                   {
