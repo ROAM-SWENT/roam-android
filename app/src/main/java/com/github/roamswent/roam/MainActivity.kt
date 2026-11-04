@@ -182,11 +182,6 @@ internal fun RoamApp(
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
-          )
-          ScanReviewRoute(
-              navController,
-              uri,
-              captureSenderOverride,
               isGalleryImage = backStackEntry.arguments?.getString("gallery") == "true",
           )
         }
