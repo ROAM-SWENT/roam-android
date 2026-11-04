@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.ui.home
 
 import androidx.compose.ui.test.assertIsDisplayed
@@ -20,7 +24,9 @@ class HomeScreenTest {
 
   @Test
   fun homeScreenDisplaysScanEntry() {
-    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}) } }
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, isConnectedToInternet = true) }
+    }
 
     composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsDisplayed()
@@ -73,10 +79,36 @@ class HomeScreenTest {
 
   @Test
   fun homeScreenShowsSignedOutGreeting() {
-    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "") } }
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "", isConnectedToInternet = true) }
+    }
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
         .assertTextEquals("Hello,")
+  }
+
+  @Test
+  fun homeScreenShowsOfflineNoticeWhenInternetIsUnavailable() {
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, isConnectedToInternet = false) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.home_offline_card).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_offline_card_message, useUnmergedTree = true)
+        .assertTextEquals("You are not connected to the internet.")
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_offline_card_icon, useUnmergedTree = true)
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun homeScreenHidesOfflineNoticeWhenInternetIsAvailable() {
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, isConnectedToInternet = true) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.home_offline_card).assertDoesNotExist()
   }
 }

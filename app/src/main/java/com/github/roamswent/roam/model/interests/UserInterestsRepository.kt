@@ -16,6 +16,8 @@ data class UserInterestsState(val hasBeenAsked: Boolean, val interests: List<Str
 interface UserInterestsRepository {
   fun getUserInterests(): UserInterestsState
 
+  fun updateInterests(interests: List<String>)
+
   fun saveInterests(interests: List<String>)
 
   fun skipInterests()
@@ -51,6 +53,10 @@ class SharedPreferencesUserInterestsRepository(context: Context) : UserInterests
         .putBoolean(HAS_BEEN_ASKED_KEY, true)
         .putString(INTERESTS_KEY, JSONArray(interests).toString())
         .apply()
+  }
+
+  override fun updateInterests(interests: List<String>) {
+    preferences.edit().putString(INTERESTS_KEY, JSONArray(interests).toString()).apply()
   }
 
   override fun skipInterests() {

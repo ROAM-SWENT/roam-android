@@ -29,6 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,6 +61,7 @@ fun SignInScreen(
   val context = LocalContext.current
   val uiState by authViewModel.uiState.collectAsState()
   val signInSuccessMessage = stringResource(R.string.sign_in_success)
+  var isRestoredUser by remember { mutableStateOf(uiState.user != null) }
 
   // Show error message if login fails
   LaunchedEffect(uiState.errorMsg) {
@@ -70,8 +74,13 @@ fun SignInScreen(
   // Navigate screen on successful login
   LaunchedEffect(uiState.user) {
     uiState.user?.let {
-      Toast.makeText(context, signInSuccessMessage, Toast.LENGTH_SHORT).show()
+      if (!isRestoredUser) {
+        Toast.makeText(context, signInSuccessMessage, Toast.LENGTH_SHORT).show()
+      }
       onSignedIn()
+    }
+    if (uiState.user == null) {
+      isRestoredUser = false
     }
   }
 

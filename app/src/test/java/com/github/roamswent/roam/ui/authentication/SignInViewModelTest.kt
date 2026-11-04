@@ -70,9 +70,19 @@ class SignInViewModelTest {
   /** Verifies that the ViewModel starts with the default authentication UI state. */
   @Test
   fun initialState_isEmpty() {
+    whenever(repository.currentUser()).thenReturn(null)
     val viewModel = SignInViewModel(repository)
 
     assertEquals(AuthUIState(), viewModel.uiState.value)
+  }
+
+  @Test
+  fun initialState_restoresPersistedUser() {
+    whenever(repository.currentUser()).thenReturn(user)
+
+    val viewModel = SignInViewModel(repository)
+
+    assertEquals(AuthUIState(user = user), viewModel.uiState.value)
   }
 
   /**

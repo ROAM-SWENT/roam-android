@@ -1,6 +1,7 @@
 /*
  * Portions of this code were generated with the help of GitHub Copilot.
  * Portions of this code were adapted from the bootcamp solution provided for SWENT.
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
 
 package com.github.roamswent.roam.ui.settings
@@ -13,6 +14,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
+import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.UserProfile
@@ -29,14 +31,19 @@ data class SettingsUIState(
     val locationPermissionGranted: Boolean = false,
     val profileLoading: Boolean = false,
     val profile: UserProfile? = null,
+    val interests: List<String> = emptyList(),
 )
 
 class SettingsViewModel(
     private val authRepository: AuthRepository = AuthRepositoryFirebase(),
     private val profileRepository: ProfileRepository = ProfileRepositoryFirebase(),
+    private val userInterestsRepository: UserInterestsRepository,
 ) : ViewModel() {
 
-  private val _uiState = MutableStateFlow(SettingsUIState())
+  private val _uiState =
+      MutableStateFlow(
+          SettingsUIState(interests = userInterestsRepository.getUserInterests().interests)
+      )
   val uiState: StateFlow<SettingsUIState> = _uiState.asStateFlow()
 
   /** Clears the error message in the UI state. */
@@ -52,6 +59,24 @@ class SettingsViewModel(
   /** Updates the location permission status reported by the UI permission controller. */
   fun setLocationPermissionGranted(granted: Boolean) {
     _uiState.update { it.copy(locationPermissionGranted = granted) }
+  }
+
+  /** Adds an interest and persists the updated list without changing first-scan prompt state. */
+  fun addInterest(interest: String) {
+    val interests = _uiState.value.interests
+    if (interest in interests) return
+    val updatedInterests = interests + interest
+    userInterestsRepository.updateInterests(updatedInterests)
+    _uiState.update { it.copy(interests = updatedInterests) }
+  }
+
+  /** Removes an interest and persists the updated list without changing first-scan prompt state. */
+  fun removeInterest(interest: String) {
+    val interests = _uiState.value.interests
+    if (interest !in interests) return
+    val updatedInterests = interests - interest
+    userInterestsRepository.updateInterests(updatedInterests)
+    _uiState.update { it.copy(interests = updatedInterests) }
   }
 
   /** Loads the authenticated user's profile and preferences from the backend. */

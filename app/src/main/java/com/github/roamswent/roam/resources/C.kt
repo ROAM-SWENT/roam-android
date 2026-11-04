@@ -1,14 +1,14 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.resources
 
 // Like R, but C
 object C {
   object Tag {
-    const val greeting = "main_screen_greeting"
-    const val greeting_robo = "second_screen_greeting"
-
     const val main_screen_container = "main_screen_container"
-    const val second_screen_container = "second_screen_container"
     const val home_screen_container = "home_screen_container"
     const val dock_container = "dock_container"
     const val dock_tab_home = "dock_tab_home"
@@ -29,6 +29,12 @@ object C {
     const val home_scan_card_title = "home_scan_card_title"
     const val home_scan_card_body = "home_scan_card_body"
     const val home_scan_card_icon = "home_scan_card_icon"
+    const val home_offline_card = "home_offline_card"
+    const val home_offline_card_message = "home_offline_card_message"
+    const val home_offline_card_icon = "home_offline_card_icon"
+    const val explore_screen_container = "explore_screen_container"
+    const val offline_action_dialog = "offline_action_dialog"
+    const val offline_action_dialog_dismiss = "offline_action_dialog_dismiss"
     const val scan_camera_screen = "scan_camera_screen"
     const val scan_camera_viewfinder = "scan_camera_viewfinder"
     const val scan_shutter_button = "scan_shutter_button"
@@ -79,6 +85,9 @@ object C {
     const val collection_title = "collection_title"
     const val collection_grid = "collection_grid"
     const val collection_card = "collection_card"
+    const val collection_card_photo = "collection_card_photo"
+    const val collection_card_photo_loading = "collection_card_photo_loading"
+    const val collection_card_photo_error = "collection_card_photo_error"
     const val collection_card_photo_placeholder = "collection_card_photo_placeholder"
     const val collection_card_name = "collection_card_name"
     const val collection_card_date = "collection_card_date"

@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam
@@ -25,6 +26,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.resources.C
@@ -202,6 +205,30 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun collectionDestinationShowsSavedGuides() {
+    lateinit var navController: NavHostController
+    val guide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(guide)),
+    )
+
+    composeTestRule.runOnIdle { navController.navigate(Routes.Collection) }
+
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+  }
+
+  @Test
   fun dockSettingsTabNavigatesToSettingsAndHomeTabReturnsHome() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
@@ -317,6 +344,29 @@ class MainActivityNavigationTest {
     }
     waitAndAssertDisplayed(C.Tag.scan_review_screen)
     composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
+  }
+
+  @Test
+  fun offlineScanIsBlockedButProfileRemainsAccessible() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        isOnlineOverride = false,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
+    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
+    waitForGone(C.Tag.offline_action_dialog)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Settings, navController.currentDestination?.route)
+    }
   }
 
   @Test
@@ -622,11 +672,15 @@ class MainActivityNavigationTest {
 
   private fun showAuthenticatedHome(
       onNavControllerReady: (NavHostController) -> Unit = {},
+      savedGuideRepository: FakeSavedGuideRepository? = null,
+      isOnlineOverride: Boolean? = true,
   ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = onNavControllerReady,
+        savedGuideRepository = savedGuideRepository,
+        isOnlineOverride = isOnlineOverride,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
@@ -649,6 +703,8 @@ class MainActivityNavigationTest {
       onSignInClickOverride: (() -> Unit)? = null,
       onNavControllerReady: (NavHostController) -> Unit = {},
       settingsViewModel: SettingsViewModel? = null,
+      savedGuideRepository: FakeSavedGuideRepository? = null,
+      isOnlineOverride: Boolean? = true,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -667,6 +723,8 @@ class MainActivityNavigationTest {
             navController = navController,
             onSignInClickOverride = onSignInClickOverride,
             settingsViewModel = settingsViewModel,
+            savedGuideRepositoryOverride = savedGuideRepository,
+            isOnlineOverride = isOnlineOverride,
         )
       }
     }

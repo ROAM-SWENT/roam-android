@@ -36,6 +36,7 @@ fun ScanReviewRoute(
     uri: Uri,
     captureSenderOverride: CaptureSender? = null,
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
+    onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
   val context = LocalContext.current
   val capturedImageManager = remember(context) { FileCapturedImageManager(context, Dispatchers.IO) }
@@ -123,8 +124,8 @@ fun ScanReviewRoute(
           onRetakeCancel = viewModel::cancelRetake,
           onRetryDelete = viewModel::onRetryDelete,
           onDismissDeleteError = viewModel::onDismissDeleteError,
-          onSend = loadingViewModel::beginLoading,
-          onRetrySend = viewModel::onRetrySend,
+          onSend = { onStartDiscovery(loadingViewModel::beginLoading) },
+          onRetrySend = { onStartDiscovery(viewModel::onRetrySend) },
           onDismissSendError = viewModel::onDismissSendError,
           onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
           showInterestsPrompt = showInterestsPrompt,

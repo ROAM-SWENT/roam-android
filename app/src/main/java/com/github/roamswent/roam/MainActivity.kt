@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam
@@ -32,17 +33,23 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
+import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
+import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
@@ -74,8 +81,12 @@ internal fun RoamApp(
     captureSenderOverride: CaptureSender? = null,
     onSignInClickOverride: (() -> Unit)? = null,
     settingsViewModel: SettingsViewModel? = null,
+    isOnlineOverride: Boolean? = null,
+    savedGuideRepositoryOverride: SavedGuideRepository? = null,
 ) {
   val context = LocalContext.current
+  val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
+  val runOfflineAction = rememberOfflineActionGate(isOnline)
   val locationPermissionDecisionRepository =
       remember(context.applicationContext) {
         SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
@@ -88,7 +99,7 @@ internal fun RoamApp(
   var showPermissionDialog by remember { mutableStateOf(false) }
   val permissionController = rememberCameraPermissionController { granted ->
     if (granted) {
-      navController.navigate(Routes.Scan)
+      runOfflineAction(OfflineAction.OPEN_SCAN) { navController.navigate(Routes.Scan) }
     } else {
       showPermissionDialog = true
     }
@@ -100,7 +111,11 @@ internal fun RoamApp(
         Routes.Settings -> DockDestination.SETTINGS
         else -> DockDestination.HOME
       }
-  val onScanClick = { if (cameraAvailable) permissionController.requestPermission() }
+  val onScanClick = {
+    if (cameraAvailable) {
+      runOfflineAction(OfflineAction.OPEN_SCAN) { permissionController.requestPermission() }
+    }
+  }
   val onDockDestinationSelected = { destination: DockDestination ->
     if (destination.route != currentBackStackEntry?.destination?.route) {
       if (destination.route == Routes.Home) {
@@ -164,6 +179,7 @@ internal fun RoamApp(
               cameraAvailable = cameraAvailable,
               userName = userName,
               onDockDestinationSelected = onDockDestinationSelected,
+              isConnectedToInternet = isOnline,
           )
         }
       }
@@ -171,7 +187,14 @@ internal fun RoamApp(
       composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
         if (uri != null) {
-          ScanReviewRoute(navController, uri, captureSenderOverride)
+          ScanReviewRoute(
+              navController,
+              uri,
+              captureSenderOverride,
+              onStartDiscovery = { proceed ->
+                runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
+              },
+          )
         }
       }
       composable(Routes.Settings) {
@@ -210,6 +233,12 @@ internal fun RoamApp(
               },
           )
         }
+      }
+      composable(Routes.Collection) {
+        val savedGuideRepository = remember {
+          savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
+        }
+        CollectionRoute(repository = savedGuideRepository)
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {

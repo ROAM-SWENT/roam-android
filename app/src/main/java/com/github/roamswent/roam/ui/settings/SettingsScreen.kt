@@ -44,7 +44,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -62,6 +61,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
+import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -76,23 +77,6 @@ private data class ProfileDisplayData(
     val provider: String,
 )
 
-private val sampleInterests =
-    listOf(
-        "Architecture",
-        "Ancient history",
-        "Unusual anecdotes",
-        "Art & Sculpture",
-        "Local legends",
-    )
-
-private val additionalSampleInterests =
-    listOf(
-        "Museums",
-        "Nature",
-        "Food & drink",
-        "Local culture",
-    )
-
 @Composable
 fun SettingsScreen(
     cameraPermissionController: CameraPermissionController,
@@ -104,8 +88,14 @@ fun SettingsScreen(
     onSignedOut: () -> Unit = {},
 ) {
 
-  val resolvedSettingsViewModel = settingsViewModel ?: viewModel<SettingsViewModel>()
   val context = LocalContext.current
+  val userInterestsRepository =
+      remember(context.applicationContext) {
+        SharedPreferencesUserInterestsRepository(context.applicationContext)
+      }
+  val resolvedSettingsViewModel =
+      settingsViewModel
+          ?: viewModel { SettingsViewModel(userInterestsRepository = userInterestsRepository) }
   val uiState by resolvedSettingsViewModel.uiState.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -166,6 +156,9 @@ fun SettingsScreen(
             ),
         onManagePermissionsClick = onManagePermissionsClick,
         onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
+        interests = uiState.interests,
+        onAddInterest = resolvedSettingsViewModel::addInterest,
+        onRemoveInterest = resolvedSettingsViewModel::removeInterest,
     )
   }
 }
@@ -177,9 +170,11 @@ private fun SettingsContent(
     profile: ProfileDisplayData,
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
+    interests: List<String>,
+    onAddInterest: (String) -> Unit,
+    onRemoveInterest: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-  val interests = remember { mutableStateListOf<String>().apply { addAll(sampleInterests) } }
   var showAddInterestDialog by remember { mutableStateOf(false) }
 
   Box(modifier = Modifier.fillMaxSize().background(ScreenBackground)) {
@@ -209,7 +204,7 @@ private fun SettingsContent(
       )
       InterestsCard(
           interests = interests,
-          onRemoveInterest = { interests.remove(it) },
+          onRemoveInterest = onRemoveInterest,
           onAddInterestClick = { showAddInterestDialog = true },
       )
     }
@@ -220,16 +215,15 @@ private fun SettingsContent(
         onDismissRequest = { showAddInterestDialog = false },
         title = { Text("Add an interest") },
         text = {
-          val availableInterests =
-              (sampleInterests + additionalSampleInterests).filterNot { it in interests }
+          val availableInterests = UserInterestCategories.all.filterNot { it in interests }
           if (availableInterests.isEmpty()) {
-            Text("You have added all the sample interests.")
+            Text("All available interests are already selected.")
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
               availableInterests.forEach { interest ->
                 TextButton(
                     onClick = {
-                      interests.add(interest)
+                      onAddInterest(interest)
                       showAddInterestDialog = false
                     },
                     modifier =
@@ -397,8 +391,16 @@ private fun InterestsCard(
           horizontalArrangement = Arrangement.spacedBy(8.dp),
           verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        interests.forEach { interest ->
-          InterestChip(interest = interest, onRemove = { onRemoveInterest(interest) })
+        if (interests.isEmpty()) {
+          Text(
+              text = "No interests selected yet.",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        } else {
+          interests.forEach { interest ->
+            InterestChip(interest = interest, onRemove = { onRemoveInterest(interest) })
+          }
         }
         OutlinedButton(
             onClick = onAddInterestClick,

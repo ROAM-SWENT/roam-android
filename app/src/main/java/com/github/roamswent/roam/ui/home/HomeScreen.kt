@@ -1,3 +1,7 @@
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.ui.home
 
 import androidx.compose.foundation.background
@@ -27,7 +31,10 @@ fun HomeScreen(
     cameraAvailable: Boolean = true,
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     onDockDestinationSelected: (DockDestination) -> Unit = {},
+    isConnectedToInternet: Boolean? = null,
 ) {
+  val isOnline = isConnectedToInternet ?: rememberInternetConnectivity()
+
   Box(
       modifier =
           modifier.fillMaxSize().background(ScreenBackground).semantics {
@@ -41,6 +48,9 @@ fun HomeScreen(
                 .padding(start = 20.dp, end = 20.dp, bottom = 96.dp)
     ) {
       HomeGreetingHeader(userName = userName)
+      if (!isOnline) {
+        OfflineNoticeCard(modifier = Modifier.padding(bottom = 12.dp))
+      }
       ScanPromptCard(onPromptClick = {})
     }
 

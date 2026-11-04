@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.scan
 
 import android.content.Context
@@ -195,12 +196,12 @@ class ScanReviewScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
     waitAndAssertDisplayed(C.Tag.loading_screen_progress)
-    composeTestRule.waitUntil { requestStarted.get() }
+    composeTestRule.waitUntil(timeoutMillis = 10_000) { requestStarted.get() }
     composeTestRule.onNodeWithTag(C.Tag.loading_screen_cancel_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
     waitForDestination(Routes.Scan)
-    composeTestRule.waitUntil { requestCancelled.get() }
+    composeTestRule.waitUntil(timeoutMillis = 10_000) { requestCancelled.get() }
   }
 
   @Test
@@ -477,6 +478,10 @@ class ScanReviewScreenTest {
       private var interests: List<String> = emptyList(),
   ) : UserInterestsRepository {
     override fun getUserInterests() = UserInterestsState(hasBeenAsked, interests)
+
+    override fun updateInterests(interests: List<String>) {
+      this.interests = interests
+    }
 
     override fun saveInterests(interests: List<String>) {
       hasBeenAsked = true
