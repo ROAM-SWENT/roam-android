@@ -36,6 +36,7 @@ fun ScanReviewRoute(
     uri: Uri,
     captureSenderOverride: CaptureSender? = null,
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
+    isDarkTheme: Boolean,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
   val context = LocalContext.current
@@ -119,6 +120,7 @@ fun ScanReviewRoute(
     currentState?.let {
       ScanReviewScreen(
           state = it,
+          isDarkTheme = isDarkTheme,
           onRetake = viewModel::onRetake,
           onRetakeConfirm = viewModel::confirmRetake,
           onRetakeCancel = viewModel::cancelRetake,

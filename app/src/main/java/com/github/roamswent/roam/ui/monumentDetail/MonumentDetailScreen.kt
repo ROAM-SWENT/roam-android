@@ -1,5 +1,6 @@
 package com.github.roamswent.roam.ui.monumentDetail
 
+import android.content.res.Configuration
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlin.math.roundToInt
 
@@ -41,9 +43,12 @@ fun MonumentDetailScreen(
     image: Painter,
     guide: MonumentGuide,
     onBackClick: () -> Unit,
+    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
-  val textBackgroundColor = ScreenBackground
+  val textBackgroundColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground
+  val textColor = if (isDarkTheme) Color.White else Color.Black
+  val secondaryTextColor = if (isDarkTheme) Color.White else Color.Gray
   val cornerRadius = 32.dp
 
   BoxWithConstraints(
@@ -71,6 +76,7 @@ fun MonumentDetailScreen(
                 .align(Alignment.BottomCenter)
                 .clip(RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius))
                 .background(textBackgroundColor)
+                .semantics { testTag = C.Tag.monument_detail_panel }
     ) {
       Column(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -109,13 +115,13 @@ fun MonumentDetailScreen(
               text = guide.monumentName,
               fontSize = 22.sp,
               fontWeight = FontWeight.Bold,
-              color = Color.Black,
+              color = textColor,
               modifier = Modifier.semantics { testTag = C.Tag.monument_detail_title },
           )
           Text(
               text = "${(guide.confidence * 100).roundToInt()}% match",
               fontSize = 14.sp,
-              color = Color.Gray,
+              color = secondaryTextColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
                     testTag = C.Tag.monument_detail_confidence
@@ -125,7 +131,7 @@ fun MonumentDetailScreen(
               text = guide.history,
               fontSize = 16.sp,
               lineHeight = 24.sp,
-              color = Color.Black,
+              color = textColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
                     testTag = C.Tag.monument_detail_history
@@ -136,7 +142,7 @@ fun MonumentDetailScreen(
                 text = "• $fact",
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
-                color = Color.Black,
+                color = textColor,
                 modifier =
                     Modifier.padding(bottom = 4.dp).semantics {
                       testTag = C.Tag.monument_detail_fact_item
@@ -147,7 +153,7 @@ fun MonumentDetailScreen(
               text = guide.culture,
               fontSize = 16.sp,
               lineHeight = 24.sp,
-              color = Color.Black,
+              color = textColor,
               modifier =
                   Modifier.padding(top = 12.dp).semantics {
                     testTag = C.Tag.monument_detail_culture
@@ -188,7 +194,7 @@ fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier)
 @Preview(showBackground = true)
 @Composable
 fun PreviewMonumentDetailScreen() {
-  MaterialTheme {
+  SampleAppTheme(darkTheme = false, dynamicColor = false) {
     MonumentDetailScreen(
         image = painterResource(id = android.R.drawable.ic_menu_gallery),
         guide =
@@ -211,6 +217,7 @@ fun PreviewMonumentDetailScreen() {
                 language = "en",
             ),
         onBackClick = {},
+        isDarkTheme = false,
     )
   }
 }

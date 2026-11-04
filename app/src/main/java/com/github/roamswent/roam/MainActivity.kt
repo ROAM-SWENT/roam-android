@@ -183,6 +183,7 @@ internal fun RoamApp(
               navController,
               uri,
               captureSenderOverride,
+              isDarkTheme = isDarkTheme,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },

@@ -75,6 +75,7 @@ object C {
     const val camera_permission_settings_button = "camera_permission_settings_button"
     const val camera_permission_dismiss_button = "camera_permission_dismiss_button"
     const val monument_detail_screen_container = "monument_detail_screen_container"
+    const val monument_detail_panel = "monument_detail_panel"
     const val monument_detail_picture = "monument_detail_picture"
     const val monument_detail_text = "monument_detail_text"
     const val monument_detail_drag_handle = "monument_detail_drag_handle"
