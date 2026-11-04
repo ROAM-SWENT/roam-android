@@ -19,6 +19,7 @@ internal class ContentResolverImageReader(
         val stream =
             contentResolver.openInputStream(uri)
                 ?: throw IOException("Could not load the captured photo. Please try again.")
-        ImagePayload(stream.use { it.readBytes() }, "image/jpeg")
+        val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+        ImagePayload(stream.use { it.readBytes() }, mimeType)
       }
 }

@@ -1,3 +1,5 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.data
 
 import android.content.Context
@@ -31,7 +33,11 @@ class GuideCaptureSender(
         Result.success(
             guideRepository.guideFor(
                 DiscoveryRequest(
-                    image = ImagePayload(readBytes(uri), "image/jpeg"),
+                    image =
+                        ImagePayload(
+                            readBytes(uri),
+                            context.contentResolver.getType(uri) ?: "image/jpeg",
+                        ),
                     location = null,
                     preferences =
                         UserPreferences(

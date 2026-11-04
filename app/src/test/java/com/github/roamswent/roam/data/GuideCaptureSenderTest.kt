@@ -4,28 +4,32 @@
 
 package com.github.roamswent.roam.data
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.model.ai.DiscoveryRequest
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.ai.MonumentNotIdentifiedException
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class GuideCaptureSenderTest {
-  private val context = ApplicationProvider.getApplicationContext<Context>()
+  private val context = mockk<Context>()
+  private val contentResolver = mockk<ContentResolver>()
   private val uri = Uri.parse("content://example/capture.jpg")
   private val bytes = byteArrayOf(1, 2, 3)
   private val guide =
@@ -38,8 +42,15 @@ class GuideCaptureSenderTest {
           language = "en",
       )
 
+  @Before
+  fun setUp() {
+    every { context.contentResolver } returns contentResolver
+    every { contentResolver.getType(uri) } returns null
+  }
+
   @Test
   fun sendReadsBytesAndReturnsTheGuide() = runTest {
+    every { contentResolver.getType(uri) } returns "image/jpeg"
     val repository = FakeMonumentGuideRepository { guide }
     val sender =
         GuideCaptureSender(
@@ -57,6 +68,59 @@ class GuideCaptureSenderTest {
     assertTrue(request.image.bytes.contentEquals(bytes))
     assertNull(request.location)
     assertTrue(request.preferences.interests.isEmpty())
+  }
+
+  @Test
+  fun sendForwardsPngMimeTypeFromContentResolver() = runTest {
+    val pngUri = Uri.parse("content://example/image.png")
+    every { contentResolver.getType(pngUri) } returns "image/png"
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+        )
+
+    val result = sender.send(pngUri)
+
+    assertEquals(Result.success(guide), result)
+    assertEquals("image/png", requireNotNull(repository.lastRequest).image.mimeType)
+  }
+
+  @Test
+  fun sendForwardsJpegMimeTypeFromContentResolver() = runTest {
+    every { contentResolver.getType(uri) } returns "image/jpeg"
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+        )
+
+    sender.send(uri)
+
+    assertEquals("image/jpeg", requireNotNull(repository.lastRequest).image.mimeType)
+  }
+
+  @Test
+  fun sendFallsBackToJpegWhenMimeTypeIsUnavailable() = runTest {
+    every { contentResolver.getType(uri) } returns null
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+        )
+
+    sender.send(uri)
+
+    assertEquals("image/jpeg", requireNotNull(repository.lastRequest).image.mimeType)
   }
 
   @Test
