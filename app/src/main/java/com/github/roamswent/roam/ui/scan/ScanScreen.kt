@@ -1,3 +1,5 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.ui.scan
 
 import android.view.View
@@ -24,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +51,7 @@ import com.github.roamswent.roam.ui.theme.ShutterWhite
 fun ScanScreen(
     state: ScanUiState,
     onCapture: () -> Unit,
+    onPickImage: () -> Unit,
     onGoBack: () -> Unit,
     modifier: Modifier = Modifier,
     previewView: View? = null,
@@ -112,6 +116,24 @@ fun ScanScreen(
           }
           Spacer(Modifier.size(40.dp))
         }
+        Box(
+            modifier =
+                Modifier.align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(start = 16.dp, bottom = 40.dp)
+                    .size(48.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                    .clickable(enabled = shutterEnabled, onClick = onPickImage)
+                    .semantics { testTag = C.Tag.scan_gallery_button },
+            contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+              imageVector = Icons.Rounded.PhotoLibrary,
+              contentDescription = "Choose photo from gallery",
+              tint = Color.White,
+              modifier = Modifier.size(20.dp),
+          )
+        }
         ExpressiveFloatingButton(
             onClick = onCapture,
             enabled = shutterEnabled,
@@ -139,6 +161,12 @@ fun ScanScreen(
           verticalArrangement = Arrangement.Center,
       ) {
         Text("Camera access was disabled.")
+        Button(
+            onClick = onPickImage,
+            modifier = Modifier.semantics { testTag = C.Tag.scan_gallery_button },
+        ) {
+          Text("Choose photo from gallery")
+        }
         Button(
             onClick = onGoBack,
             modifier =
