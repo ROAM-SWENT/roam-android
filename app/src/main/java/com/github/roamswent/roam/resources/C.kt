@@ -1,4 +1,8 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+/*
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ */
+
 package com.github.roamswent.roam.resources
 
 // Like R, but C
@@ -34,6 +38,8 @@ object C {
     const val home_offline_card = "home_offline_card"
     const val home_offline_card_message = "home_offline_card_message"
     const val home_offline_card_icon = "home_offline_card_icon"
+    const val offline_action_dialog = "offline_action_dialog"
+    const val offline_action_dialog_dismiss = "offline_action_dialog_dismiss"
     const val scan_camera_screen = "scan_camera_screen"
     const val scan_camera_viewfinder = "scan_camera_viewfinder"
     const val scan_shutter_button = "scan_shutter_button"

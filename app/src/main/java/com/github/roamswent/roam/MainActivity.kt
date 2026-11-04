@@ -38,7 +38,10 @@ import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
+import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
+import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
@@ -69,9 +72,12 @@ internal fun RoamApp(
     captureSenderOverride: CaptureSender? = null,
     onSignInClickOverride: (() -> Unit)? = null,
     settingsViewModel: SettingsViewModel? = null,
+    isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
 ) {
   val context = LocalContext.current
+  val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
+  val runOfflineAction = rememberOfflineActionGate(isOnline)
   val locationPermissionDecisionRepository =
       remember(context.applicationContext) {
         SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
@@ -84,7 +90,7 @@ internal fun RoamApp(
   var showPermissionDialog by remember { mutableStateOf(false) }
   val permissionController = rememberCameraPermissionController { granted ->
     if (granted) {
-      navController.navigate(Routes.Scan)
+      runOfflineAction(OfflineAction.OPEN_SCAN) { navController.navigate(Routes.Scan) }
     } else {
       showPermissionDialog = true
     }
@@ -122,17 +128,35 @@ internal fun RoamApp(
         val homeViewModel: HomeViewModel = viewModel()
         val userName by homeViewModel.userName.collectAsState()
         HomeScreen(
-            onScanClicked = { if (cameraAvailable) permissionController.requestPermission() },
+            onScanClicked = {
+              if (cameraAvailable) {
+                runOfflineAction(OfflineAction.OPEN_SCAN) {
+                  permissionController.requestPermission()
+                }
+              }
+            },
             cameraAvailable = cameraAvailable,
             userName = userName,
-            onProfileClicked = { navController.navigate(Routes.Settings) },
+            onProfileClicked = {
+              runOfflineAction(OfflineAction.OPEN_PROFILE) {
+                navController.navigate(Routes.Settings)
+              }
+            },
+            isConnectedToInternet = isOnline,
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }
       composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
         if (uri != null) {
-          ScanReviewRoute(navController, uri, captureSenderOverride)
+          ScanReviewRoute(
+              navController,
+              uri,
+              captureSenderOverride,
+              onStartDiscovery = { proceed ->
+                runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
+              },
+          )
         }
       }
       composable(Routes.Settings) {
@@ -141,7 +165,11 @@ internal fun RoamApp(
             cameraPermissionController = permissionController,
             locationPermissionController = locationPermissionController,
             onManagePermissionsClick = { permissionController.openAppSettings() },
-            onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
+            onHomeClick = {
+              runOfflineAction(OfflineAction.RETURN_HOME) {
+                navController.popBackStack(Routes.Home, inclusive = false)
+              }
+            },
             onSignedOut = {
               authViewModel.clearSignedInUser()
               navController.navigate(Routes.SignIn) {
