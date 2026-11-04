@@ -75,6 +75,7 @@ fun ScanReviewScreen(
     showInterestsPrompt: Boolean = false,
     onSaveInterests: (List<String>) -> Unit = {},
     onSkipInterests: () -> Unit = {},
+    isGalleryImage: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
   if (state is ScanReviewUiState.Sent) {
@@ -150,7 +151,11 @@ fun ScanReviewScreen(
           shape = RoundedCornerShape(24.dp),
           modifier = Modifier.size(80.dp).semantics { testTag = C.Tag.scan_retake_button },
       ) {
-        Icon(Icons.Default.Refresh, contentDescription = "Retake", tint = ShutterWhite)
+        Icon(
+            Icons.Default.Refresh,
+            contentDescription = if (isGalleryImage) "Choose another photo" else "Retake",
+            tint = ShutterWhite,
+        )
       }
       ExpressiveFloatingButton(
           onClick = onSend,

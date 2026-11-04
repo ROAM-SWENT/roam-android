@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -117,26 +116,23 @@ fun ScanScreen(
           }
           Spacer(Modifier.size(40.dp))
         }
-        Row(
+        Box(
             modifier =
                 Modifier.align(Alignment.BottomStart)
                     .navigationBarsPadding()
                     .padding(start = 16.dp, bottom = 40.dp)
-                    .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(percent = 50))
+                    .size(48.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
                     .clickable(enabled = shutterEnabled, onClick = onPickImage)
-                    .semantics { testTag = C.Tag.scan_gallery_button }
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                    .semantics { testTag = C.Tag.scan_gallery_button },
+            contentAlignment = Alignment.Center,
         ) {
           Icon(
               imageVector = Icons.Rounded.PhotoLibrary,
-              contentDescription = null,
+              contentDescription = "Choose photo from gallery",
               tint = Color.White,
               modifier = Modifier.size(20.dp),
           )
-          Text("Gallery", color = Color.White, style = MaterialTheme.typography.labelLarge)
         }
         ExpressiveFloatingButton(
             onClick = onCapture,
@@ -165,6 +161,12 @@ fun ScanScreen(
           verticalArrangement = Arrangement.Center,
       ) {
         Text("Camera access was disabled.")
+        Button(
+            onClick = onPickImage,
+            modifier = Modifier.semantics { testTag = C.Tag.scan_gallery_button },
+        ) {
+          Text("Choose photo from gallery")
+        }
         Button(
             onClick = onGoBack,
             modifier =

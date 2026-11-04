@@ -107,10 +107,10 @@ fun ScanReviewRoute(
     Unit
   }
   BackHandler(enabled = !showLoading && !showInterestsPrompt) {
-    if (isGalleryImage) {
-      returnToScan()
-    } else if (discoveredGuide != null) {
+    if (discoveredGuide != null) {
       navController.popBackStack(Routes.Home, inclusive = false)
+    } else if (isGalleryImage) {
+      returnToScan()
     } else {
       viewModel.onRetake()
     }
@@ -138,6 +138,7 @@ fun ScanReviewRoute(
           onDismissSendError = viewModel::onDismissSendError,
           onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
           showInterestsPrompt = showInterestsPrompt,
+          isGalleryImage = isGalleryImage,
           onSaveInterests = loadingViewModel::onSaveInterests,
           onSkipInterests = loadingViewModel::onSkipInterests,
       )

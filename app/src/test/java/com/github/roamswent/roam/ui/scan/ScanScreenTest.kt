@@ -159,10 +159,10 @@ class ScanScreenTest {
   }
 
   @Test
-  fun revokedDoesNotShowGalleryButton() {
+  fun revokedDoesShowGalleryButton() {
     setContent(ScanUiState.Revoked)
 
-    composeTestRule.onNodeWithTag(C.Tag.scan_gallery_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.scan_gallery_button).assertIsDisplayed()
   }
 
   @Test
