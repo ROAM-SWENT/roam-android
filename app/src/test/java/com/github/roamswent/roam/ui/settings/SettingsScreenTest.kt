@@ -153,13 +153,13 @@ class SettingsScreenTest {
     val (cameraController, locationController) = permissionControllers()
     var isDarkTheme by mutableStateOf(false)
     var darkBackgroundColor = 0
-    var darkSurfaceColor = 0
+    var darkCardColor = 0
 
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
         if (isDarkTheme) {
           darkBackgroundColor = MaterialTheme.colorScheme.background.toArgb()
-          darkSurfaceColor = MaterialTheme.colorScheme.surface.toArgb()
+          darkCardColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
         }
         SettingsScreen(
             settingsViewModel = viewModel,
@@ -196,10 +196,27 @@ class SettingsScreenTest {
             .onNodeWithTag(C.Tag.settings_profile_card)
             .captureToImage()
             .asAndroidBitmap()
+    val darkPermissionsCard =
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_permissions_card)
+            .captureToImage()
+            .asAndroidBitmap()
+    val darkInterestsCard =
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_interests_card)
+            .captureToImage()
+            .asAndroidBitmap()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_card).performScrollTo()
+    val darkThemeCard =
+        composeTestRule.onNodeWithTag(C.Tag.settings_theme_card).captureToImage().asAndroidBitmap()
 
     assertEquals(darkBackgroundColor, darkBackground.getPixel(0, 0))
     assertNotEquals(ScreenBackground.toArgb(), darkBackground.getPixel(0, 0))
-    assertTrue(containsColor(darkProfileCard, darkSurfaceColor))
+    assertNotEquals(darkBackgroundColor, darkCardColor)
+    assertTrue(containsColor(darkProfileCard, darkCardColor))
+    assertTrue(containsColor(darkPermissionsCard, darkCardColor))
+    assertTrue(containsColor(darkInterestsCard, darkCardColor))
+    assertTrue(containsColor(darkThemeCard, darkCardColor))
   }
 
   /** Verifies that an empty display name falls back to the default profile label. */

@@ -292,11 +292,12 @@ private fun ThemeCard(
     isDarkTheme: Boolean,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_theme_card),
       shape = RoundedCornerShape(20.dp),
       colors =
           CardDefaults.cardColors(
-              containerColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else Color.White
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
           ),
   ) {
     Column(
@@ -341,7 +342,8 @@ private fun ProfileCard(
       shape = RoundedCornerShape(20.dp),
       colors =
           CardDefaults.cardColors(
-              containerColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else Color.White
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
           ),
   ) {
     Column(
@@ -356,7 +358,7 @@ private fun ProfileCard(
         Surface(
             modifier = Modifier.size(56.dp),
             shape = CircleShape,
-            color = if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else ScreenBackground,
+            color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
         ) {
           androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
             Text(
@@ -380,8 +382,7 @@ private fun ProfileCard(
           )
           Surface(
               shape = RoundedCornerShape(50),
-              color =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else ScreenBackground,
+              color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
           ) {
             Row(
                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -427,11 +428,12 @@ private fun PermissionsCard(
     isDarkTheme: Boolean,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_permissions_card),
       shape = RoundedCornerShape(20.dp),
       colors =
           CardDefaults.cardColors(
-              containerColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else Color.White
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
           ),
   ) {
     Column(
@@ -463,11 +465,12 @@ private fun InterestsCard(
     isDarkTheme: Boolean,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_interests_card),
       shape = RoundedCornerShape(20.dp),
       colors =
           CardDefaults.cardColors(
-              containerColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else Color.White
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
           ),
   ) {
     Column(
@@ -522,7 +525,7 @@ private fun InterestsCard(
 private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Boolean) {
   Surface(
       shape = RoundedCornerShape(50),
-      color = if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else ScreenBackground,
+      color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
   ) {
     Row(
         modifier = Modifier.padding(start = 12.dp, end = 4.dp),
