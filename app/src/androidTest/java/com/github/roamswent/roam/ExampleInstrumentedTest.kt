@@ -7,6 +7,7 @@ package com.github.roamswent.roam
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.roamswent.roam.resources.C
@@ -21,9 +22,11 @@ class MainActivityTest {
 
   @Test
   fun startsAtSignInBeforeHomeOrScan() {
-    composeTestRule
-        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
-        .assertIsDisplayed()
+    val signInTitle = composeTestRule.activity.getString(R.string.sign_in_title)
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithText(signInTitle).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText(signInTitle).assertIsDisplayed()
     composeTestRule.waitUntil {
       composeTestRule.onAllNodesWithTag(C.Tag.home_screen_container).fetchSemanticsNodes().isEmpty()
     }

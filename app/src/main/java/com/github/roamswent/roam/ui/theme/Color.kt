@@ -15,10 +15,14 @@ val Pink40 = Color(0xFF7D5260)
 val ScanTeal = Color(0xFF2A9D8F)
 val HomeActiveTab = Color(0xFF1B433E)
 val HomeInactiveTab = Color(0xFF6E7673)
+val HomeActiveTabDark = ScanTeal
+val HomeInactiveTabDark = Color(0xFF8A9A94)
 val ScreenBackground = Color(0xFFF2F4F3)
 val DockOutline = Color(0xFFDDE3E0)
 val DockBarBackground = Color.White
 val DockScanIcon = Color.White
+val DockOutlineDark = Color(0xFF3B4240)
+val DockBarBackgroundDark = Color(0xFF1C1B1F)
 val ShutterHalo = Color(0x99000000)
 val ShutterWhite = Color.White
 val CameraCaptureOverlay = Color.Black.copy(alpha = 0.35f)

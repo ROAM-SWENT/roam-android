@@ -44,10 +44,14 @@ import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.DockBarBackground
+import com.github.roamswent.roam.ui.theme.DockBarBackgroundDark
 import com.github.roamswent.roam.ui.theme.DockOutline
+import com.github.roamswent.roam.ui.theme.DockOutlineDark
 import com.github.roamswent.roam.ui.theme.DockScanIcon
 import com.github.roamswent.roam.ui.theme.HomeActiveTab
+import com.github.roamswent.roam.ui.theme.HomeActiveTabDark
 import com.github.roamswent.roam.ui.theme.HomeInactiveTab
+import com.github.roamswent.roam.ui.theme.HomeInactiveTabDark
 import com.github.roamswent.roam.ui.theme.ScanTeal
 
 @Composable
@@ -56,13 +60,18 @@ fun AppBottomDock(
     onDestinationSelected: (DockDestination) -> Unit,
     onScanClick: () -> Unit,
     cameraAvailable: Boolean = true,
+    darkTheme: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
   val barContentHeight = 80.dp
   val haloSize = 72.dp
   val fabSize = 56.dp
-  // How far the halo rises above the white bar's top edge.
+  // How far the halo rises above the bar's top edge.
   val protrusion = haloSize / 2
+  val barBackground = if (darkTheme) DockBarBackgroundDark else DockBarBackground
+  val outlineColor = if (darkTheme) DockOutlineDark else DockOutline
+  val activeTabColor = if (darkTheme) HomeActiveTabDark else HomeActiveTab
+  val inactiveTabColor = if (darkTheme) HomeInactiveTabDark else HomeInactiveTab
 
   // Outer container is fully transparent; only the bar and the halo paint white.
   Box(
@@ -77,7 +86,7 @@ fun AppBottomDock(
         modifier =
             Modifier.fillMaxWidth()
                 .padding(top = protrusion)
-                .background(DockBarBackground)
+                .background(barBackground)
                 .navigationBarsPadding()
                 .height(barContentHeight),
     ) {
@@ -90,6 +99,8 @@ fun AppBottomDock(
               destination = DockDestination.HOME,
               selected = selected == DockDestination.HOME,
               onDestinationSelected = onDestinationSelected,
+              activeTabColor = activeTabColor,
+              inactiveTabColor = inactiveTabColor,
           )
         }
         Box(
@@ -116,6 +127,8 @@ fun AppBottomDock(
               destination = DockDestination.SETTINGS,
               selected = selected == DockDestination.SETTINGS,
               onDestinationSelected = onDestinationSelected,
+              activeTabColor = activeTabColor,
+              inactiveTabColor = inactiveTabColor,
           )
         }
       }
@@ -130,7 +143,7 @@ fun AppBottomDock(
                 .size(haloSize)
                 .background(
                     color =
-                        if (cameraAvailable) DockBarBackground
+                        if (cameraAvailable) barBackground
                         else MaterialTheme.colorScheme.surfaceVariant,
                     shape = CircleShape,
                 ),
@@ -180,7 +193,7 @@ fun AppBottomDock(
             )
             lineTo(size.width, barTop)
           }
-      drawPath(path = outline, color = DockOutline, style = Stroke(width = 1.dp.toPx()))
+      drawPath(path = outline, color = outlineColor, style = Stroke(width = 1.dp.toPx()))
     }
   }
 }
@@ -190,8 +203,10 @@ private fun DockTabItem(
     destination: DockDestination,
     selected: Boolean,
     onDestinationSelected: (DockDestination) -> Unit,
+    activeTabColor: Color,
+    inactiveTabColor: Color,
 ) {
-  val color = if (selected) HomeActiveTab else HomeInactiveTab
+  val color = if (selected) activeTabColor else inactiveTabColor
 
   Column(
       horizontalAlignment = Alignment.CenterHorizontally,

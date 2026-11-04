@@ -32,6 +32,7 @@ fun HomeScreen(
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     onDockDestinationSelected: (DockDestination) -> Unit = {},
     isConnectedToInternet: Boolean? = null,
+    darkTheme: Boolean = false,
 ) {
   val isOnline = isConnectedToInternet ?: rememberInternetConnectivity()
 
@@ -60,6 +61,7 @@ fun HomeScreen(
           onDestinationSelected = onDockDestinationSelected,
           onScanClick = onScanClicked,
           cameraAvailable = cameraAvailable,
+          darkTheme = darkTheme,
       )
     }
   }
