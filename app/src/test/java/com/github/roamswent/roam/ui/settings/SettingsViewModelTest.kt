@@ -72,6 +72,7 @@ class SettingsViewModelTest {
     )
   }
 
+  /** Verifies that persisted interests are loaded into the initial UI state. */
   @Test
   fun initialState_loadsPersistedInterests() {
     userInterestsRepository.updateInterests(listOf("Architecture", "History"))
@@ -81,8 +82,9 @@ class SettingsViewModelTest {
     assertEquals(listOf("Architecture", "History"), viewModel.uiState.value.interests)
   }
 
+  /** Verifies that adding an interest updates state without answering the first-scan prompt. */
   @Test
-  fun addInterest_persistsAndUpdatesState() {
+  fun addInterest_persistsAndPreservesFirstScanPromptState() {
     val viewModel = newViewModel()
 
     viewModel.addInterest("Architecture")
@@ -92,6 +94,7 @@ class SettingsViewModelTest {
     assertEquals(false, userInterestsRepository.getUserInterests().hasBeenAsked)
   }
 
+  /** Verifies that removing an interest updates both persisted data and UI state. */
   @Test
   fun removeInterest_persistsAndUpdatesState() {
     userInterestsRepository.updateInterests(listOf("Architecture", "History"))

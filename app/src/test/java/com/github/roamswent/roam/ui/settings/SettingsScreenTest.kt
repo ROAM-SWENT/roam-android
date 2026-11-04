@@ -83,9 +83,6 @@ class SettingsScreenTest {
     composeTestRule.onNodeWithText("Google").assertIsDisplayed()
     composeTestRule.onNodeWithText("My Interests (AI Guide)").assertIsDisplayed()
     composeTestRule.onNodeWithText("Architecture").assertIsDisplayed()
-    composeTestRule
-        .onAllNodesWithTag(C.Tag.settings_interest_remove_prefix + "Ancient history")
-        .assertCountEquals(0)
     composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
     composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
     composeTestRule
@@ -261,10 +258,11 @@ class SettingsScreenTest {
         .performClick()
     verify(viewModel).removeInterest("Architecture")
     composeTestRule
-        .onAllNodesWithTag(C.Tag.settings_interest_remove_prefix + "Nature")
+        .onAllNodesWithTag(C.Tag.settings_interest_remove_prefix + "Ancient history")
         .assertCountEquals(0)
   }
 
+  /** Verifies the empty state and canonical interest options. */
   @Test
   fun interests_emptyStateAndCanonicalOptionsAreDisplayed() {
     val viewModel = mock<SettingsViewModel>()
