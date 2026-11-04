@@ -27,6 +27,7 @@ import org.robolectric.RobolectricTestRunner
 class ExploreScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
+  /** Verifies that tapping the back button invokes the navigation callback. */
   @Test
   fun backButtonInvokesCallback() {
     var backClicks = 0
@@ -52,6 +53,7 @@ class ExploreScreenTest {
     assertEquals(1, backClicks)
   }
 
+  /** Verifies that permission state changes are forwarded to the ExploreViewModel. */
   @Test
   fun permissionStateChangesAreForwardedToViewModel() {
     val exploreViewModel = mock<ExploreViewModel>()
