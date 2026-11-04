@@ -245,6 +245,29 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun offlineScanIsBlockedButProfileRemainsAccessible() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        isOnlineOverride = false,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
+
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
+    waitForGone(C.Tag.offline_action_dialog)
+
+    composeTestRule.onNodeWithTag(C.Tag.home_tab_profile).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_home_button)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Settings, navController.currentDestination?.route)
+    }
+  }
+
+  @Test
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authState = MutableStateFlow(AuthUIState(user = mock()))
@@ -548,12 +571,14 @@ class MainActivityNavigationTest {
   private fun showAuthenticatedHome(
       onNavControllerReady: (NavHostController) -> Unit = {},
       savedGuideRepository: FakeSavedGuideRepository? = null,
+      isOnlineOverride: Boolean? = true,
   ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = onNavControllerReady,
         savedGuideRepository = savedGuideRepository,
+        isOnlineOverride = isOnlineOverride,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
@@ -568,6 +593,7 @@ class MainActivityNavigationTest {
       onNavControllerReady: (NavHostController) -> Unit = {},
       settingsViewModel: SettingsViewModel? = null,
       savedGuideRepository: FakeSavedGuideRepository? = null,
+      isOnlineOverride: Boolean? = true,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -587,6 +613,7 @@ class MainActivityNavigationTest {
             onSignInClickOverride = onSignInClickOverride,
             settingsViewModel = settingsViewModel,
             savedGuideRepositoryOverride = savedGuideRepository,
+            isOnlineOverride = isOnlineOverride,
         )
       }
     }
