@@ -5,6 +5,7 @@ package com.github.roamswent.roam.ui.loading
 import android.content.ContentResolver
 import android.net.Uri
 import com.github.roamswent.roam.model.ai.ImagePayload
+import com.github.roamswent.roam.model.ai.ImageValidator
 import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -18,7 +19,12 @@ internal class ContentResolverImageReader(
       withContext(dispatcher) {
         val stream =
             contentResolver.openInputStream(uri)
-                ?: throw IOException("Could not load the captured photo. Please try again.")
-        ImagePayload(stream.use { it.readBytes() }, "image/jpeg")
+                ?: throw IOException("Could not load the photo. Please try again.")
+        val bytes = stream.use { it.readBytes() }
+        val mimeType =
+            contentResolver.getType(uri)
+                ?: ImageValidator.detectFormat(bytes)?.mimeType
+                ?: throw IOException("Unsupported image format")
+        ImagePayload(bytes, mimeType)
       }
 }
