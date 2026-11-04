@@ -49,6 +49,7 @@ import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.common.formatDiscoveryDate
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
@@ -57,10 +58,6 @@ import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import java.security.MessageDigest
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * Shows the user's saved guides as a two-column grid of cards, newest first. Guides already loaded
@@ -261,16 +258,6 @@ private fun CollectionError() {
       textAlign = TextAlign.Center,
   )
 }
-
-private val discoveryDateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")
-
-/** Formats [epochMillis] like "12 Oct 2026", in [zone] and [locale]. */
-internal fun formatDiscoveryDate(
-    epochMillis: Long,
-    zone: ZoneId = ZoneId.systemDefault(),
-    locale: Locale = Locale.getDefault(),
-): String =
-    discoveryDateFormatter.withLocale(locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
 
 /** Sorts [guides] by discovery date, most recent first; guides without a date come last. */
 internal fun newestFirst(guides: List<Guide>): List<Guide> =

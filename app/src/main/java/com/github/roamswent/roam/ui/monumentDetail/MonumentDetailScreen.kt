@@ -1,5 +1,7 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -20,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -31,17 +34,27 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
-import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.common.formatCoordinates
+import com.github.roamswent.roam.ui.common.formatDiscoveryDate
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlin.math.roundToInt
 
+/**
+ * Shows [image] above the full [guide]. A saved guide also passes its [discoveryDate] and
+ * [location], each shown only when known.
+ */
 @Composable
 fun MonumentDetailScreen(
     image: Painter,
-    guide: MonumentGuide,
+    guide: MonumentDetailContent,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    discoveryDate: Long? = null,
+    location: Coordinates? = null,
+    backIcon: ImageVector = Icons.Filled.Home,
+    @StringRes backDescription: Int = R.string.monument_detail_home_description,
 ) {
   val textBackgroundColor = ScreenBackground
   val cornerRadius = 32.dp
@@ -121,6 +134,19 @@ fun MonumentDetailScreen(
                     testTag = C.Tag.monument_detail_confidence
                   },
           )
+          discoveryDate?.let { date ->
+            MonumentDetailInfo(
+                text =
+                    stringResource(R.string.monument_detail_discovered, formatDiscoveryDate(date)),
+                tag = C.Tag.monument_detail_date,
+            )
+          }
+          location?.let { coordinates ->
+            MonumentDetailInfo(
+                text = formatCoordinates(coordinates),
+                tag = C.Tag.monument_detail_location,
+            )
+          }
           Text(
               text = guide.history,
               fontSize = 16.sp,
@@ -160,12 +186,29 @@ fun MonumentDetailScreen(
     MonumentDetailBackButton(
         onClick = onBackClick,
         modifier = Modifier.align(Alignment.TopStart),
+        icon = backIcon,
+        description = backDescription,
     )
   }
 }
 
 @Composable
-fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun MonumentDetailInfo(text: String, tag: String) {
+  Text(
+      text = text,
+      fontSize = 14.sp,
+      color = Color.Gray,
+      modifier = Modifier.padding(bottom = 16.dp).semantics { testTag = tag },
+  )
+}
+
+@Composable
+fun MonumentDetailBackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Filled.Home,
+    @StringRes description: Int = R.string.monument_detail_home_description,
+) {
   IconButton(
       onClick = onClick,
       modifier =
@@ -179,8 +222,8 @@ fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier)
           ),
   ) {
     Icon(
-        imageVector = Icons.Filled.Home,
-        contentDescription = stringResource(R.string.monument_detail_home_description),
+        imageVector = icon,
+        contentDescription = stringResource(description),
     )
   }
 }
@@ -192,7 +235,7 @@ fun PreviewMonumentDetailScreen() {
     MonumentDetailScreen(
         image = painterResource(id = android.R.drawable.ic_menu_gallery),
         guide =
-            MonumentGuide(
+            MonumentDetailContent(
                 monumentName = "Eiffel Tower",
                 confidence = 0.92,
                 history =
@@ -208,7 +251,6 @@ fun PreviewMonumentDetailScreen() {
                 culture =
                     "The globally recognized symbol of Paris and France, epitomizing romance, " +
                         "elegance, and 19th-century industrial architecture.",
-                language = "en",
             ),
         onBackClick = {},
     )

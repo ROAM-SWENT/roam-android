@@ -17,6 +17,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -226,6 +227,42 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_grid)
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+  }
+
+  @Test
+  fun collectionCardOpensGuideDetailAndBackReturnsToCollection() {
+    lateinit var navController: NavHostController
+    val guide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(guide)),
+    )
+    composeTestRule.runOnIdle { navController.navigate(Routes.Collection) }
+    waitFor(C.Tag.collection_card)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Eiffel Tower")
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.GuideDetail, navController.currentDestination?.route)
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Collection, navController.currentDestination?.route)
+    }
   }
 
   @Test

@@ -36,6 +36,7 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.collection.CollectionRoute
+import com.github.roamswent.roam.ui.collection.GuideDetailRoute
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
@@ -90,6 +91,11 @@ internal fun RoamApp(
     }
   }
   val permissionState by permissionController.state.collectAsState()
+  // Lazy, so Firebase is only touched once a saved-guide screen is opened.
+  val savedGuideRepository =
+      remember(savedGuideRepositoryOverride) {
+        lazy { savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository() }
+      }
   Surface(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
       color = MaterialTheme.colorScheme.background,
@@ -151,10 +157,20 @@ internal fun RoamApp(
         )
       }
       composable(Routes.Collection) {
-        val savedGuideRepository = remember {
-          savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
+        CollectionRoute(
+            repository = savedGuideRepository.value,
+            onGuideClick = { guideId -> navController.navigate(Routes.guideDetail(guideId)) },
+        )
+      }
+      composable(Routes.GuideDetail) { backStackEntry ->
+        val guideId = backStackEntry.arguments?.getString(Routes.GuideIdArg)
+        if (guideId != null) {
+          GuideDetailRoute(
+              guideId = guideId,
+              repository = savedGuideRepository.value,
+              onBackClick = { navController.popBackStack() },
+          )
         }
-        CollectionRoute(repository = savedGuideRepository)
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
