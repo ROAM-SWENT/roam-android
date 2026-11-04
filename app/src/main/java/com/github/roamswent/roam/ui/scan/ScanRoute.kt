@@ -1,3 +1,5 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
 package com.github.roamswent.roam.ui.scan
 
 import android.content.Context
@@ -52,6 +54,13 @@ fun ScanRoute(
     ScanViewModel(capturedImageManager, cameraController, Dispatchers.Main.immediate)
   }
   val state by viewModel.state.collectAsState()
+  val pickGalleryImage = rememberGalleryImagePicker { uri ->
+    uri?.let {
+      navController.navigate(
+          "${Routes.ScanReview}?uri=${Uri.encode(it.toString())}&gallery=true",
+      )
+    }
+  }
 
   LaunchedEffect(viewModel, navController) {
     viewModel.navigationEvents.collect { event ->
@@ -90,6 +99,7 @@ fun ScanRoute(
   ScanScreen(
       state = state,
       onCapture = viewModel::onCapture,
+      onPickImage = pickGalleryImage,
       onGoBack = {
         cameraController.stop()
         navController.popBackStack()

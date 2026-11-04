@@ -26,9 +26,11 @@ import androidx.compose.ui.semantics.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
@@ -172,7 +174,16 @@ internal fun RoamApp(
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }
-      composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
+      composable(
+          "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
+          arguments =
+              listOf(
+                  navArgument("gallery") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                  }
+              ),
+      ) { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
         if (uri != null) {
           ScanReviewRoute(
@@ -182,6 +193,7 @@ internal fun RoamApp(
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
+              isGalleryImage = backStackEntry.arguments?.getBoolean("gallery") ?: false,
           )
         }
       }
