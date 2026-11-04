@@ -1,3 +1,5 @@
+import java.io.FileInputStream
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -13,6 +15,13 @@ android {
   namespace = "com.github.roamswent.roam"
   compileSdk = 37
 
+  // Load the API key from local.properties
+  val localProperties = Properties()
+  val localPropertiesFile = rootProject.file("local.properties")
+  if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+  }
+
   defaultConfig {
     applicationId = "com.github.roamswent.roam"
     minSdk = 29
@@ -22,6 +31,7 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     vectorDrawables { useSupportLibrary = true }
+    manifestPlaceholders["MAPS_API_KEY"] = localProperties.getProperty("MAPS_API_KEY", "")
   }
 
   // Shared, committed debug keystore so every build (local or CI) is signed with the
@@ -163,6 +173,7 @@ dependencies {
 
   // ---------- Location ----------
   implementation(libs.play.services.location)
+  implementation(libs.maps.compose)
 
   // ---------- Google Sign-In / Credential Manager ----------
   implementation(libs.credentials)
