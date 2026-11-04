@@ -34,6 +34,8 @@
     <string name="home_scan_card_icon_description">Monument</string>
     <string name="home_offline_card_message">You are not connected to the internet.</string>
     <string name="home_offline_card_icon_description">Wi-Fi disconnected</string>
+    <string name="explore_title">Explore</string>
+    <string name="explore_back_description">Back</string>
     <string name="offline_action_required_title">Internet connection required</string>
     <string name="offline_action_required_message">An internet connection is required to perform this action.</string>
     <string name="offline_action_required_dismiss">OK</string>

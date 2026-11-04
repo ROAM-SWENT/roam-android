@@ -34,6 +34,7 @@ object C {
     const val home_offline_card = "home_offline_card"
     const val home_offline_card_message = "home_offline_card_message"
     const val home_offline_card_icon = "home_offline_card_icon"
+    const val explore_screen_container = "explore_screen_container"
     const val offline_action_dialog = "offline_action_dialog"
     const val offline_action_dialog_dismiss = "offline_action_dialog_dismiss"
     const val scan_camera_screen = "scan_camera_screen"
