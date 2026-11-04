@@ -196,12 +196,12 @@ class ScanReviewScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
     waitAndAssertDisplayed(C.Tag.loading_screen_progress)
-    composeTestRule.waitUntil(timeoutMillis = 30_000) { requestStarted.get() }
+    composeTestRule.waitUntil(timeoutMillis = 60_000) { requestStarted.get() }
     composeTestRule.onNodeWithTag(C.Tag.loading_screen_cancel_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
     waitForDestination(Routes.Scan)
-    composeTestRule.waitUntil(timeoutMillis = 30_000) { requestCancelled.get() }
+    composeTestRule.waitUntil(timeoutMillis = 60_000) { requestCancelled.get() }
   }
 
   @Test

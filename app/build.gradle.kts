@@ -148,6 +148,8 @@ dependencies {
   implementation(libs.androidx.appcompat)
   implementation(libs.material)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  implementation(libs.androidx.datastore.preferences)
   implementation(libs.kotlinx.serialization.json)
 
   // Firebase: AI Logic for Gemini, App Check for attestation

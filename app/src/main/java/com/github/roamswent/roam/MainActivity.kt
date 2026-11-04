@@ -11,6 +11,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -40,6 +42,8 @@ import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
+import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
+import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
@@ -66,14 +70,34 @@ import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.ThemeViewModel
+import com.github.roamswent.roam.ui.theme.ThemeViewModelFactory
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContent {
-      SampleAppTheme {
-        val authViewModel: SignInViewModel = viewModel()
-        RoamApp(authViewModel)
+      val themeRepository = remember { DataStoreThemePreferencesRepository(applicationContext) }
+      val themeViewModel: ThemeViewModel =
+          viewModel(factory = remember(themeRepository) { ThemeViewModelFactory(themeRepository) })
+      val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
+
+      if (themeMode != null) {
+        val selectedTheme = requireNotNull(themeMode)
+        val isDarkTheme =
+            when (selectedTheme) {
+              ThemeMode.AUTO -> isSystemInDarkTheme()
+              ThemeMode.LIGHT -> false
+              ThemeMode.DARK -> true
+            }
+        SampleAppTheme(darkTheme = isDarkTheme) {
+          val authViewModel: SignInViewModel = viewModel()
+          RoamApp(
+              authViewModel = authViewModel,
+              themeMode = selectedTheme,
+              onThemeModeSelected = themeViewModel::setThemeMode,
+          )
+        }
       }
     }
   }
@@ -86,6 +110,8 @@ internal fun RoamApp(
     captureSenderOverride: CaptureSender? = null,
     onSignInClickOverride: (() -> Unit)? = null,
     settingsViewModel: SettingsViewModel? = null,
+    themeMode: ThemeMode = ThemeMode.AUTO,
+    onThemeModeSelected: (ThemeMode) -> Unit = {},
     isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
 ) {
@@ -231,6 +257,8 @@ internal fun RoamApp(
               settingsViewModel = settingsViewModel,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
+              themeMode = themeMode,
+              onThemeModeSelected = onThemeModeSelected,
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
                 authViewModel.clearSignedInUser()
