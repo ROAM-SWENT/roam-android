@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
 
 package com.github.roamswent.roam
@@ -109,6 +110,7 @@ internal fun RoamApp(
   val currentDestination =
       when (currentBackStackEntry?.destination?.route) {
         Routes.Settings -> DockDestination.SETTINGS
+        Routes.Collection -> DockDestination.COLLECTION
         else -> DockDestination.HOME
       }
   val onScanClick = {
@@ -238,7 +240,23 @@ internal fun RoamApp(
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
-        CollectionRoute(repository = savedGuideRepository)
+        Scaffold(
+            containerColor = ScreenBackground,
+            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
+            bottomBar = {
+              AppBottomDock(
+                  selected = currentDestination,
+                  onDestinationSelected = onDockDestinationSelected,
+                  onScanClick = onScanClick,
+                  cameraAvailable = cameraAvailable,
+              )
+            },
+        ) { innerPadding ->
+          CollectionRoute(
+              repository = savedGuideRepository,
+              modifier = Modifier.padding(innerPadding),
+          )
+        }
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
