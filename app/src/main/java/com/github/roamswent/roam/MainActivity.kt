@@ -112,12 +112,6 @@ internal fun RoamApp(
 ) {
   val context = LocalContext.current
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
-  val darkTheme =
-      when (themeMode) {
-        ThemeMode.AUTO -> isSystemInDarkTheme()
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-      }
   val runOfflineAction = rememberOfflineActionGate(isOnline)
   val locationPermissionDecisionRepository =
       remember(context.applicationContext) {
@@ -212,7 +206,6 @@ internal fun RoamApp(
               userName = userName,
               onDockDestinationSelected = onDockDestinationSelected,
               isConnectedToInternet = isOnline,
-              darkTheme = darkTheme,
           )
         }
       }
@@ -245,7 +238,6 @@ internal fun RoamApp(
                   onDestinationSelected = onDockDestinationSelected,
                   onScanClick = onScanClick,
                   cameraAvailable = cameraAvailable,
-                  darkTheme = darkTheme,
               )
             },
         ) { innerPadding ->
