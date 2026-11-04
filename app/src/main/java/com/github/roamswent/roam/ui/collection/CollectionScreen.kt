@@ -25,11 +25,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -40,9 +44,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
-import com.github.roamswent.roam.model.guide.placeholderGuides
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
@@ -51,6 +56,7 @@ import com.github.roamswent.roam.ui.theme.LoadingErrorText
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -138,33 +144,62 @@ private fun GuideCard(guide: Guide, onClick: () -> Unit) {
   }
 }
 
-/** Shows the guide's photo, or a placeholder when it has none or the photo cannot be decoded. */
+/**
+ * Shows the guide's stored photo, with a spinner while it decodes. A guide without a photo, or
+ * whose photo cannot be decoded, shows a placeholder instead.
+ */
 @Composable
 private fun GuidePhoto(guide: Guide) {
   val photoModifier = Modifier.fillMaxWidth().aspectRatio(1f)
   if (guide.photoBytes.isEmpty()) {
-    PhotoPlaceholder(photoModifier)
-  } else {
-    val placeholder = rememberVectorPainter(Icons.Filled.AccountBalance)
+    PhotoPlaceholder(photoModifier, C.Tag.collection_card_photo_placeholder)
+    return
+  }
+  // Every Firestore snapshot hands out a new array for the same photo, so the photo is identified
+  // by
+  // its contents. Keying on the array itself would restart the decode (and the spinner) each time.
+  val photoKey = remember(guide.photoBytes) { "${guide.id}:${guide.photoBytes.sha256Hex()}" }
+  val context = LocalContext.current
+  val request =
+      remember(photoKey) {
+        ImageRequest.Builder(context).data(guide.photoBytes).memoryCacheKey(photoKey).build()
+      }
+  var photoState by
+      remember(photoKey) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+  Box(contentAlignment = Alignment.Center, modifier = photoModifier) {
     AsyncImage(
-        model = guide.photoBytes,
+        model = request,
         contentDescription =
             stringResource(R.string.collection_photo_description, guide.monumentName),
         contentScale = ContentScale.Crop,
-        error = placeholder,
-        modifier = photoModifier.background(CollectionPlaceholder),
+        onState = { photoState = it },
+        modifier =
+            Modifier.matchParentSize().background(CollectionPlaceholder).semantics {
+              testTag = C.Tag.collection_card_photo
+            },
     )
+    when (photoState) {
+      is AsyncImagePainter.State.Empty,
+      is AsyncImagePainter.State.Loading ->
+          CircularProgressIndicator(
+              modifier =
+                  Modifier.size(32.dp).semantics { testTag = C.Tag.collection_card_photo_loading }
+          )
+      is AsyncImagePainter.State.Error ->
+          PhotoPlaceholder(Modifier.matchParentSize(), C.Tag.collection_card_photo_error)
+      is AsyncImagePainter.State.Success -> Unit
+    }
   }
 }
 
+private fun ByteArray.sha256Hex(): String =
+    MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { "%02x".format(it) }
+
 @Composable
-private fun PhotoPlaceholder(modifier: Modifier) {
+private fun PhotoPlaceholder(modifier: Modifier, tag: String) {
   Box(
       contentAlignment = Alignment.Center,
-      modifier =
-          modifier.background(CollectionPlaceholder).semantics {
-            testTag = C.Tag.collection_card_photo_placeholder
-          },
+      modifier = modifier.background(CollectionPlaceholder).semantics { testTag = tag },
   ) {
     Icon(
         imageVector = Icons.Filled.AccountBalance,
@@ -241,10 +276,28 @@ internal fun formatDiscoveryDate(
 internal fun newestFirst(guides: List<Guide>): List<Guide> =
     guides.sortedWith(compareByDescending(nullsFirst()) { it.discoveryDate })
 
+private val previewGuides: List<Guide> =
+    listOf("Eiffel Tower", "Colosseum", "Sagrada Família", "Big Ben").mapIndexed { index, name ->
+      Guide(
+          id = "preview-$index",
+          photoBytes = ByteArray(0),
+          monumentName = name,
+          confidence = 0.9,
+          history = "",
+          facts = emptyList(),
+          culture = "",
+          discoveryDate = PREVIEW_LATEST_DISCOVERY - index * DAY_MILLIS,
+      )
+    }
+
+/** 12 Oct 2026, 12:00 UTC. */
+private const val PREVIEW_LATEST_DISCOVERY = 1_791_806_400_000L
+private const val DAY_MILLIS = 24L * 60 * 60 * 1000
+
 @Preview(showBackground = true)
 @Composable
 fun PreviewCollectionScreen() {
-  MaterialTheme { CollectionScreen(state = SavedGuidesUiState(guides = placeholderGuides)) }
+  MaterialTheme { CollectionScreen(state = SavedGuidesUiState(guides = previewGuides)) }
 }
 
 @Preview(showBackground = true)

@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam
@@ -26,12 +27,15 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
@@ -65,6 +69,7 @@ internal fun RoamApp(
     captureSenderOverride: CaptureSender? = null,
     onSignInClickOverride: (() -> Unit)? = null,
     settingsViewModel: SettingsViewModel? = null,
+    savedGuideRepositoryOverride: SavedGuideRepository? = null,
 ) {
   val context = LocalContext.current
   val locationPermissionDecisionRepository =
@@ -144,6 +149,12 @@ internal fun RoamApp(
               }
             },
         )
+      }
+      composable(Routes.Collection) {
+        val savedGuideRepository = remember {
+          savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
+        }
+        CollectionRoute(repository = savedGuideRepository)
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {

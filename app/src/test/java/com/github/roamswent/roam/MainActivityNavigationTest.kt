@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam
@@ -25,6 +26,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.resources.C
@@ -199,6 +202,30 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.waitUntil { navController.currentDestination?.route == Routes.Home }
+  }
+
+  @Test
+  fun collectionDestinationShowsSavedGuides() {
+    lateinit var navController: NavHostController
+    val guide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(guide)),
+    )
+
+    composeTestRule.runOnIdle { navController.navigate(Routes.Collection) }
+
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
   }
 
   @Test
@@ -520,11 +547,13 @@ class MainActivityNavigationTest {
 
   private fun showAuthenticatedHome(
       onNavControllerReady: (NavHostController) -> Unit = {},
+      savedGuideRepository: FakeSavedGuideRepository? = null,
   ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = onNavControllerReady,
+        savedGuideRepository = savedGuideRepository,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
@@ -538,6 +567,7 @@ class MainActivityNavigationTest {
       onSignInClickOverride: (() -> Unit)? = null,
       onNavControllerReady: (NavHostController) -> Unit = {},
       settingsViewModel: SettingsViewModel? = null,
+      savedGuideRepository: FakeSavedGuideRepository? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -556,6 +586,7 @@ class MainActivityNavigationTest {
             navController = navController,
             onSignInClickOverride = onSignInClickOverride,
             settingsViewModel = settingsViewModel,
+            savedGuideRepositoryOverride = savedGuideRepository,
         )
       }
     }

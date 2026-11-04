@@ -1,6 +1,10 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.collection
 
+import android.graphics.Bitmap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -8,23 +12,39 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import coil.Coil
+import coil.ImageLoader
+import coil.intercept.Interceptor
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.awaitCancellation
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class CollectionScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   // Noon UTC, so the formatted day is the same in any time zone the tests run in.
   private val olderGuide = guide("older", "Colosseum", discoveryDate = 1_791_720_000_000)
   private val newerGuide = guide("newer", "Eiffel Tower", discoveryDate = 1_791_806_400_000)
+
+  @After
+  fun resetImageLoader() {
+    Coil.reset()
+  }
 
   @Test
   fun showsOneCardPerGuideWithNamePlaceholderPhotoAndDate() {
@@ -121,6 +141,116 @@ class CollectionScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.collection_error).assertDoesNotExist()
   }
 
+  @Test
+  fun showsStoredPhotoOnceDecoded() {
+    setScreen(SavedGuidesUiState(guides = listOf(newerGuide.copy(photoBytes = pngBytes()))))
+
+    waitForTag(C.Tag.collection_card_photo)
+    composeTestRule.waitUntil(TIMEOUT_MILLIS) {
+      !hasTag(C.Tag.collection_card_photo_loading) && !hasTag(C.Tag.collection_card_photo_error)
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_photo_placeholder, useUnmergedTree = true)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun showsSpinnerWhilePhotoIsLoading() {
+    Coil.setImageLoader(
+        ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components { add(Interceptor { awaitCancellation() }) }
+            .build()
+    )
+    setScreen(SavedGuidesUiState(guides = listOf(newerGuide.copy(photoBytes = pngBytes()))))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_photo_loading, useUnmergedTree = true)
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_photo_error, useUnmergedTree = true)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun showsErrorPlaceholderWhenPhotoCannotBeDecoded() {
+    setScreen(
+        SavedGuidesUiState(guides = listOf(newerGuide.copy(photoBytes = byteArrayOf(1, 2, 3))))
+    )
+
+    waitForTag(C.Tag.collection_card_photo_error)
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_photo_error, useUnmergedTree = true)
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_photo_loading, useUnmergedTree = true)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun keepsDecodedPhotoWhenAnotherGuideIsAddedAndTheArrayIsRebuilt() {
+    val requests = AtomicInteger()
+    // Only the first request may finish, so a second one would leave the spinner up.
+    Coil.setImageLoader(
+        ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components {
+              add(
+                  Interceptor { chain ->
+                    if (requests.getAndIncrement() == 0) chain.proceed(chain.request)
+                    else awaitCancellation()
+                  }
+              )
+            }
+            .build()
+    )
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
+    composeTestRule.waitUntil(TIMEOUT_MILLIS) {
+      hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
+    }
+
+    // Another guide is added; the snapshot rebuilds the first guide with a new array of equal
+    // bytes.
+    state = SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()), olderGuide))
+    composeTestRule.waitForIdle()
+
+    assertEquals(1, requests.get())
+    assertFalse(hasTag(C.Tag.collection_card_photo_loading))
+    assertFalse(hasTag(C.Tag.collection_card_photo_error))
+  }
+
+  @Test
+  fun decodesAgainWhenThePhotoOfAGuideChanges() {
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
+    composeTestRule.waitUntil(TIMEOUT_MILLIS) {
+      hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
+    }
+
+    state = SavedGuidesUiState(guides = listOf(guideWithPhoto(byteArrayOf(1, 2, 3))))
+
+    waitForTag(C.Tag.collection_card_photo_error)
+  }
+
+  private fun guideWithPhoto(photoBytes: ByteArray) = newerGuide.copy(photoBytes = photoBytes)
+
+  private fun waitForTag(tag: String) {
+    composeTestRule.waitUntil(TIMEOUT_MILLIS) { hasTag(tag) }
+  }
+
+  private fun hasTag(tag: String): Boolean =
+      composeTestRule
+          .onAllNodesWithTag(tag, useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+
+  private fun pngBytes(): ByteArray {
+    val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+    return ByteArrayOutputStream().use { stream ->
+      bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+      stream.toByteArray()
+    }
+  }
+
   private fun setScreen(state: SavedGuidesUiState, onGuideClick: (String) -> Unit = {}) {
     composeTestRule.setContent {
       SampleAppTheme { CollectionScreen(state = state, onGuideClick = onGuideClick) }
@@ -138,4 +268,8 @@ class CollectionScreenTest {
           culture = "Culture",
           discoveryDate = discoveryDate,
       )
+
+  private companion object {
+    const val TIMEOUT_MILLIS = 5_000L
+  }
 }

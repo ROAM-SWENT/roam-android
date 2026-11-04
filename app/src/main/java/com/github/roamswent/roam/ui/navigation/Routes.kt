@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.navigation
 
 object Routes {
@@ -6,4 +7,5 @@ object Routes {
   const val Scan = "scan"
   const val ScanReview = "scan_review"
   const val Settings = "settings"
+  const val Collection = "collection"
 }
