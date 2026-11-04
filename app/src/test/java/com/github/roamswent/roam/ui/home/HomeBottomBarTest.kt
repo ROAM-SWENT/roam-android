@@ -36,6 +36,7 @@ class HomeBottomBarTest {
             onTabSelected = onTabSelected,
             onScanClick = onScanClick,
             cameraAvailable = cameraAvailable,
+            isDarkTheme = false,
         )
       }
     }

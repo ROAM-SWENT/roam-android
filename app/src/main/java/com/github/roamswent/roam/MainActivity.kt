@@ -172,6 +172,7 @@ internal fun RoamApp(
               }
             },
             isConnectedToInternet = isOnline,
+            isDarkTheme = isDarkTheme,
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }

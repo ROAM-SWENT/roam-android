@@ -49,6 +49,7 @@ fun HomeBottomBar(
     onTabSelected: (HomeBottomTab) -> Unit = {},
     onScanClick: () -> Unit = {},
     cameraAvailable: Boolean = true,
+    isDarkTheme: Boolean,
 ) {
   val haloSize = 72.dp
 
@@ -56,7 +57,7 @@ fun HomeBottomBar(
     Surface(
         modifier =
             Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(top = haloSize / 2),
-        color = Color.White,
+        color = if (isDarkTheme) MaterialTheme.colorScheme.surface else Color.White,
     ) {
       Row(
           modifier = Modifier.fillMaxWidth().navigationBarsPadding().height(80.dp),
@@ -70,6 +71,7 @@ fun HomeBottomBar(
               tab = HomeBottomTab.HOME,
               selected = selectedTab == HomeBottomTab.HOME,
               onTabSelected = onTabSelected,
+              isDarkTheme = isDarkTheme,
           )
         }
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) {
@@ -93,6 +95,7 @@ fun HomeBottomBar(
               tab = HomeBottomTab.PROFILE,
               selected = selectedTab == HomeBottomTab.PROFILE,
               onTabSelected = onTabSelected,
+              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -105,7 +108,8 @@ fun HomeBottomBar(
                 .semantics { testTag = C.Tag.home_tab_scan }
                 .background(
                     color =
-                        if (cameraAvailable) Color.White
+                        if (cameraAvailable && !isDarkTheme) Color.White
+                        else if (cameraAvailable) MaterialTheme.colorScheme.surface
                         else MaterialTheme.colorScheme.surfaceVariant,
                     shape = CircleShape,
                 ),
@@ -144,8 +148,15 @@ private fun HomeBottomTabItem(
     tab: HomeBottomTab,
     selected: Boolean,
     onTabSelected: (HomeBottomTab) -> Unit,
+    isDarkTheme: Boolean,
 ) {
-  val color = if (selected) HomeActiveTab else HomeInactiveTab
+  val color =
+      when {
+        isDarkTheme && selected -> MaterialTheme.colorScheme.onSurface
+        isDarkTheme -> MaterialTheme.colorScheme.onSurfaceVariant
+        selected -> HomeActiveTab
+        else -> HomeInactiveTab
+      }
 
   Column(
       horizontalAlignment = Alignment.CenterHorizontally,

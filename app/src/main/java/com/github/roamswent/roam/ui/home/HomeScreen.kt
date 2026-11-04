@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,19 +30,25 @@ fun HomeScreen(
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     onProfileClicked: () -> Unit = {},
     isConnectedToInternet: Boolean? = null,
+    isDarkTheme: Boolean,
 ) {
   val isOnline = isConnectedToInternet ?: rememberInternetConnectivity()
 
   Box(
       modifier =
-          Modifier.fillMaxSize().background(ScreenBackground).semantics {
-            testTag = C.Tag.home_screen_container
-          }
+          Modifier.fillMaxSize()
+              .background(
+                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+              )
+              .semantics { testTag = C.Tag.home_screen_container }
   ) {
     Column(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp)) {
-      HomeGreetingHeader(userName = userName)
+      HomeGreetingHeader(userName = userName, isDarkTheme = isDarkTheme)
       if (!isOnline) {
-        OfflineNoticeCard(modifier = Modifier.padding(bottom = 12.dp))
+        OfflineNoticeCard(
+            modifier = Modifier.padding(bottom = 12.dp),
+            isDarkTheme = isDarkTheme,
+        )
       }
       ScanPromptCard(onPromptClick = {})
     }
@@ -52,6 +59,7 @@ fun HomeScreen(
           onTabSelected = { tab -> if (tab == HomeBottomTab.PROFILE) onProfileClicked() },
           onScanClick = onScanClicked,
           cameraAvailable = cameraAvailable,
+          isDarkTheme = isDarkTheme,
       )
     }
   }
@@ -60,5 +68,5 @@ fun HomeScreen(
 @Preview(showBackground = true)
 @Composable
 fun HomeScreenPreview() {
-  SampleAppTheme { HomeScreen(onScanClicked = {}) }
+  SampleAppTheme { HomeScreen(onScanClicked = {}, isDarkTheme = false) }
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -27,8 +28,11 @@ import com.github.roamswent.roam.ui.theme.HomeTextSecondary
 fun HomeGreetingHeader(
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     modifier: Modifier = Modifier,
+    isDarkTheme: Boolean,
 ) {
   val displayName = userName.trim()
+  val secondaryTextColor =
+      if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant else HomeTextSecondary
 
   Column(modifier = modifier.fillMaxWidth().padding(top = 16.dp, bottom = 20.dp)) {
     Text(
@@ -37,7 +41,7 @@ fun HomeGreetingHeader(
             else stringResource(R.string.home_greeting_format, displayName),
         fontSize = 15.sp,
         fontWeight = FontWeight.Normal,
-        color = HomeTextSecondary,
+        color = secondaryTextColor,
         modifier = Modifier.semantics { testTag = C.Tag.home_greeting_subtitle },
     )
     Spacer(modifier = Modifier.height(4.dp))
@@ -45,7 +49,7 @@ fun HomeGreetingHeader(
         text = stringResource(R.string.home_greeting_title),
         fontSize = 26.sp,
         fontWeight = FontWeight.Bold,
-        color = HomeTextPrimary,
+        color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else HomeTextPrimary,
         modifier = Modifier.semantics { testTag = C.Tag.home_greeting_title },
     )
   }
