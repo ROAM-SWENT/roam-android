@@ -59,11 +59,13 @@ class ContentResolverImageReaderTest {
     val galleryUri = Uri.parse("content://gallery/image.png")
     val pngBytes = pngImageBytes()
     every { contentResolver.openInputStream(galleryUri) } returns ByteArrayInputStream(pngBytes)
-    every { contentResolver.getType(galleryUri) } returns "image/png"
+    every { contentResolver.getType(galleryUri) } returns null
 
     val rawPayload = ContentResolverImageReader(contentResolver).read(galleryUri)
     val preparedPayload = ImagePreparer().prepare(rawPayload.bytes, rawPayload.mimeType)
 
+    assertEquals("image/png", rawPayload.mimeType)
+    assertArrayEquals(pngBytes, rawPayload.bytes)
     assertEquals("image/jpeg", preparedPayload.mimeType)
     assertTrue(preparedPayload.bytes.isNotEmpty())
   }
@@ -83,7 +85,7 @@ class ContentResolverImageReaderTest {
 
     assertNotNull(exception)
     assertEquals(
-        "Could not load the captured photo. Please try again.",
+        "Could not load the photo. Please try again.",
         exception?.message,
     )
   }

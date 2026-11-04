@@ -31,7 +31,7 @@ class GuideCaptureSenderTest {
   private val context = mockk<Context>()
   private val contentResolver = mockk<ContentResolver>()
   private val uri = Uri.parse("content://example/capture.jpg")
-  private val bytes = byteArrayOf(1, 2, 3)
+  private val bytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte())
   private val guide =
       MonumentGuide(
           monumentName = "Eiffel Tower",
@@ -121,6 +121,37 @@ class GuideCaptureSenderTest {
     sender.send(uri)
 
     assertEquals("image/jpeg", requireNotNull(repository.lastRequest).image.mimeType)
+  }
+
+  @Test
+  fun sendDetectsPngMimeTypeWhenContentResolverTypeIsUnavailable() = runTest {
+    val pngUri = Uri.parse("content://example/image.png")
+    val pngBytes =
+        byteArrayOf(
+            0x89.toByte(),
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+        ) + ByteArray(16)
+    every { contentResolver.getType(pngUri) } returns null
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { pngBytes },
+        )
+
+    sender.send(pngUri)
+
+    val image = requireNotNull(repository.lastRequest).image
+    assertEquals("image/png", image.mimeType)
+    assertTrue(image.bytes.contentEquals(pngBytes))
   }
 
   @Test
