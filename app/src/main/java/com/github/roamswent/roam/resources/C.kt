@@ -37,6 +37,8 @@ object C {
     const val explore_screen_container = "explore_screen_container"
     const val offline_action_dialog = "offline_action_dialog"
     const val offline_action_dialog_dismiss = "offline_action_dialog_dismiss"
+    const val explore_map = "explore_map"
+    const val explore_location_card = "explore_location_card"
     const val scan_camera_screen = "scan_camera_screen"
     const val scan_camera_viewfinder = "scan_camera_viewfinder"
     const val scan_shutter_button = "scan_shutter_button"
