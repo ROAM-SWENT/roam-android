@@ -25,88 +25,88 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class ExploreScreenTest {
-    @get:Rule val composeTestRule = createComposeRule()
+  @get:Rule val composeTestRule = createComposeRule()
 
-    /** Verifies that tapping the back button invokes the navigation callback. */
-    @Test
-    fun backButtonInvokesCallback() {
-        var backClicks = 0
-        val exploreViewModel = mock<ExploreViewModel>()
-        whenever(exploreViewModel.uiState)
-            .thenReturn(
-                MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
-            )
-        val locationPermissionController = permissionController(granted = false)
-        composeTestRule.setContent {
-            SampleAppTheme {
-                ExploreScreen(
-                    onBackClick = { backClicks++ },
-                    exploreViewModel = exploreViewModel,
-                    locationPermissionController = locationPermissionController,
-                )
-            }
-        }
-
-        val backButton = composeTestRule.onNodeWithContentDescription("Back")
-        backButton.assertIsDisplayed().performClick()
-
-        assertEquals(1, backClicks)
+  /** Verifies that tapping the back button invokes the navigation callback. */
+  @Test
+  fun backButtonInvokesCallback() {
+    var backClicks = 0
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
+        )
+    val locationPermissionController = permissionController(granted = false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = { backClicks++ },
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = locationPermissionController,
+        )
+      }
     }
 
-    /** Verifies that permission state changes are forwarded to the ExploreViewModel. */
-    @Test
-    fun permissionStateChangesAreForwardedToViewModel() {
-        val exploreViewModel = mock<ExploreViewModel>()
-        whenever(exploreViewModel.uiState)
-            .thenReturn(
-                MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
+    val backButton = composeTestRule.onNodeWithContentDescription("Back")
+    backButton.assertIsDisplayed().performClick()
+
+    assertEquals(1, backClicks)
+  }
+
+  /** Verifies that permission state changes are forwarded to the ExploreViewModel. */
+  @Test
+  fun permissionStateChangesAreForwardedToViewModel() {
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
+        )
+    val permissionState =
+        MutableStateFlow(
+            LocationPermissionState(
+                isGranted = false,
+                decision = LocationPermissionDecision.DENIED,
             )
-        val permissionState =
+        )
+    val locationPermissionController = mock<LocationPermissionController>()
+    whenever(locationPermissionController.state).thenReturn(permissionState)
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = locationPermissionController,
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    verify(exploreViewModel).onPermissionStateChanged(false, LocationPermissionDecision.DENIED)
+    permissionState.value =
+        LocationPermissionState(
+            isGranted = true,
+            decision = LocationPermissionDecision.GRANTED,
+        )
+    composeTestRule.waitForIdle()
+
+    verify(exploreViewModel, times(1))
+        .onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
+  }
+
+  private fun permissionController(granted: Boolean): LocationPermissionController {
+    val controller = mock<LocationPermissionController>()
+    whenever(controller.state)
+        .thenReturn(
             MutableStateFlow(
                 LocationPermissionState(
-                    isGranted = false,
-                    decision = LocationPermissionDecision.DENIED,
+                    isGranted = granted,
+                    decision =
+                        if (granted) LocationPermissionDecision.GRANTED
+                        else LocationPermissionDecision.DENIED,
                 )
             )
-        val locationPermissionController = mock<LocationPermissionController>()
-        whenever(locationPermissionController.state).thenReturn(permissionState)
-
-        composeTestRule.setContent {
-            SampleAppTheme {
-                ExploreScreen(
-                    onBackClick = {},
-                    exploreViewModel = exploreViewModel,
-                    locationPermissionController = locationPermissionController,
-                )
-            }
-        }
-        composeTestRule.waitForIdle()
-
-        verify(exploreViewModel).onPermissionStateChanged(false, LocationPermissionDecision.DENIED)
-        permissionState.value =
-            LocationPermissionState(
-                isGranted = true,
-                decision = LocationPermissionDecision.GRANTED,
-            )
-        composeTestRule.waitForIdle()
-
-        verify(exploreViewModel, times(1))
-            .onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
-    }
-
-    private fun permissionController(granted: Boolean): LocationPermissionController {
-        val controller = mock<LocationPermissionController>()
-        whenever(controller.state)
-            .thenReturn(
-                MutableStateFlow(
-                    LocationPermissionState(
-                        isGranted = granted,
-                        decision =
-                            if (granted) LocationPermissionDecision.GRANTED
-                            else LocationPermissionDecision.DENIED,
-                    )
-                )
-            )
-        return controller
-    }
+        )
+    return controller
+  }
 }

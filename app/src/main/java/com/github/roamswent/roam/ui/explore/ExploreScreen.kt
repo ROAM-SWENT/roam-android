@@ -37,42 +37,42 @@ fun ExploreScreen(
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
 ) {
-    val permissionState by locationPermissionController.state.collectAsState()
+  val permissionState by locationPermissionController.state.collectAsState()
 
-    LaunchedEffect(permissionState) {
-        exploreViewModel.onPermissionStateChanged(
-            isGranted = permissionState.isGranted,
-            decision = permissionState.decision,
-        )
-    }
+  LaunchedEffect(permissionState) {
+    exploreViewModel.onPermissionStateChanged(
+        isGranted = permissionState.isGranted,
+        decision = permissionState.decision,
+    )
+  }
 
-    Scaffold(
-        containerColor = ScreenBackground,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.explore_title),
-                        color = HomeTextPrimary,
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.explore_back_description),
-                        )
-                    }
-                },
-            )
-        },
-    ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier.fillMaxSize().padding(paddingValues).semantics {
-                    testTag = C.Tag.explore_screen_container
-                }
+  Scaffold(
+      containerColor = ScreenBackground,
+      topBar = {
+        CenterAlignedTopAppBar(
+            title = {
+              Text(
+                  text = stringResource(R.string.explore_title),
+                  color = HomeTextPrimary,
+                  fontWeight = FontWeight.Bold,
+              )
+            },
+            navigationIcon = {
+              IconButton(onClick = onBackClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.explore_back_description),
+                )
+              }
+            },
         )
-    }
+      },
+  ) { paddingValues ->
+    Box(
+        modifier =
+            Modifier.fillMaxSize().padding(paddingValues).semantics {
+              testTag = C.Tag.explore_screen_container
+            }
+    )
+  }
 }
