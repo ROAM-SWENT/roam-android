@@ -151,7 +151,12 @@ enum class DockDestination(
     val tag: String,
 ) {
   HOME(Routes.Home, R.string.home_tab_home, HomeDockIcon, C.Tag.dock_tab_home),
-  EXPLORE("", R.string.home_tab_explore, ExplorerIcon, C.Tag.dock_tab_explore),
+  EXPLORE(
+      Routes.Explore,
+      R.string.home_tab_explore,
+      ExplorerIcon,
+      C.Tag.dock_tab_explore,
+  ),
   COLLECTION(
       Routes.Collection,
       R.string.home_tab_collection,
