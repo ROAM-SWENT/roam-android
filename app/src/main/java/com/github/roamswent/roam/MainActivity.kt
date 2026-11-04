@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -169,6 +170,28 @@ internal fun RoamApp(
       }
     }
   }
+  // Screens apply their own status bar inset, so the top inset stays 0 and
+  // containerColor covers the status bar strip. With a bottomBar present,
+  // Scaffold reports the full dock height (116.dp) as innerPadding.bottom, but
+  // only the 80.dp bar is opaque: pad the content by 96.dp (bar + 16.dp) so it
+  // scrolls underneath the transparent bump.
+  @Composable
+  fun DockedScaffold(content: @Composable (PaddingValues) -> Unit) {
+    Scaffold(
+        containerColor = ScreenBackground,
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
+        bottomBar = {
+          AppBottomDock(
+              selected = currentDestination,
+              onDestinationSelected = onDockDestinationSelected,
+              onScanClick = onScanClick,
+              cameraAvailable = cameraAvailable,
+          )
+        },
+    ) { innerPadding ->
+      content(innerPadding)
+    }
+  }
   Surface(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
       color = MaterialTheme.colorScheme.background,
@@ -231,23 +254,7 @@ internal fun RoamApp(
         }
       }
       composable(Routes.Settings) {
-        // Same as Home: the screens apply their own status bar inset, so the top
-        // inset stays 0 and containerColor covers the status bar strip. With a
-        // bottomBar present, Scaffold reports the full dock height (116.dp) as
-        // innerPadding.bottom, but only the 80.dp bar is opaque: pad the content
-        // by 96.dp (bar + 16.dp) so it scrolls underneath the transparent bump.
-        Scaffold(
-            containerColor = ScreenBackground,
-            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
-            bottomBar = {
-              AppBottomDock(
-                  selected = currentDestination,
-                  onDestinationSelected = onDockDestinationSelected,
-                  onScanClick = onScanClick,
-                  cameraAvailable = cameraAvailable,
-              )
-            },
-        ) { innerPadding ->
+        DockedScaffold { innerPadding ->
           SettingsScreen(
               modifier =
                   Modifier.padding(
@@ -273,18 +280,7 @@ internal fun RoamApp(
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
-        Scaffold(
-            containerColor = ScreenBackground,
-            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
-            bottomBar = {
-              AppBottomDock(
-                  selected = currentDestination,
-                  onDestinationSelected = onDockDestinationSelected,
-                  onScanClick = onScanClick,
-                  cameraAvailable = cameraAvailable,
-              )
-            },
-        ) { innerPadding ->
+        DockedScaffold { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository,
               modifier = Modifier.padding(innerPadding),
@@ -301,18 +297,7 @@ internal fun RoamApp(
                   SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
                 },
             )
-        Scaffold(
-            containerColor = ScreenBackground,
-            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
-            bottomBar = {
-              AppBottomDock(
-                  selected = currentDestination,
-                  onDestinationSelected = onDockDestinationSelected,
-                  onScanClick = onScanClick,
-                  cameraAvailable = cameraAvailable,
-              )
-            },
-        ) { innerPadding ->
+        DockedScaffold { innerPadding ->
           Box(modifier = Modifier.padding(innerPadding)) {
             ExploreScreen(
                 onBackClick = { navController.popBackStack() },
