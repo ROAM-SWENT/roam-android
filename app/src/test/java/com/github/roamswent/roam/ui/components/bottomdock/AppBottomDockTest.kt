@@ -121,19 +121,24 @@ class AppBottomDockTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsNotEnabled()
   }
 
-  /**
-   * The selection marking is a live-tab contract. Passing an unwired destination as selected marks
-   * no tab: both live tabs stay enabled and the unwired ones stay disabled, so the enum entries
-   * without a route can never pose as the highlighted tab.
-   */
   @Test
-  fun selectingUnwiredDestinationMarksNoLiveTab() {
+  fun selectedExploreTabIsMarkedByDisablingIt() {
     setDock(selected = DockDestination.EXPLORE)
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
+  }
+
+  @Test
+  fun selectedCollectionTabIsMarkedByDisablingIt() {
+    setDock(selected = DockDestination.COLLECTION)
+
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
   }
 
   @Test
@@ -169,25 +174,25 @@ class AppBottomDockTest {
     assertTrue(destinations.isEmpty())
   }
 
-  /**
-   * EXPLORE and COLLECTION have no route yet, so their tabs must stay inert: disabled, and taps
-   * never reach onDestinationSelected. Once their routes are wired this contract converts into live
-   * navigation tests. The settings tab stays enabled in the same render, pinning that the unwired
-   * slots do not leak their state onto the live ones.
-   */
   @Test
-  fun unwiredTabsAreDisabledAndIgnoreTaps() {
+  fun tappingExploreAndCollectionTabsInvokesCallbackPerTap() {
     val destinations = mutableListOf<DockDestination>()
     setDock(onDestinationSelected = { destinations.add(it) })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsEnabled()
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    assertEquals(listOf(DockDestination.EXPLORE), destinations)
 
-    assertTrue(destinations.isEmpty())
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    assertEquals(listOf(DockDestination.EXPLORE, DockDestination.COLLECTION), destinations)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    assertEquals(
+        listOf(DockDestination.EXPLORE, DockDestination.COLLECTION, DockDestination.EXPLORE),
+        destinations,
+    )
   }
 
   @Test
@@ -230,9 +235,18 @@ class AppBottomDockTest {
         onDestinationSelected = { destinations.add(it) },
     )
 
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsEnabled()
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
 
-    assertEquals(listOf(DockDestination.SETTINGS), destinations)
+    assertEquals(
+        listOf(DockDestination.EXPLORE, DockDestination.COLLECTION, DockDestination.SETTINGS),
+        destinations,
+    )
   }
 
   /**
