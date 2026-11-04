@@ -21,7 +21,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -40,6 +39,7 @@ class ExploreViewModelTest {
     Dispatchers.resetMain()
   }
 
+  /** Verifies that the initial state requires location permission that has not been requested. */
   @Test
   fun initialStateRequiresPermissionNotYetAsked() =
       runTest(dispatcher) {
@@ -53,10 +53,20 @@ class ExploreViewModelTest {
         assertEquals(0, provider.calls)
       }
 
+  /** Verifies that a not-yet-asked permission snapshot restores the permission-required state. */
   @Test
   fun notAskedPermissionSnapshotRequiresPermission() =
       runTest(dispatcher) {
         val viewModel = ExploreViewModel(FakeLocationProvider { null })
+
+        viewModel.onPermissionStateChanged(
+            isGranted = false,
+            decision = LocationPermissionDecision.DENIED,
+        )
+        assertEquals(
+            ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED),
+            viewModel.uiState.value,
+        )
 
         viewModel.onPermissionStateChanged(
             isGranted = false,
@@ -69,6 +79,7 @@ class ExploreViewModelTest {
         )
       }
 
+  /** Verifies that a denied permission snapshot exposes the permission-required state. */
   @Test
   fun deniedPermissionSnapshotRequiresPermission() =
       runTest(dispatcher) {
@@ -85,6 +96,7 @@ class ExploreViewModelTest {
         )
       }
 
+  /** Verifies that granted permission loads and exposes the returned coordinates. */
   @Test
   fun grantedPermissionLoadsAndExposesCoordinates() =
       runTest(dispatcher) {
@@ -105,6 +117,7 @@ class ExploreViewModelTest {
         assertEquals(ExploreUiState.LocationAvailable(coordinates), viewModel.uiState.value)
       }
 
+  /** Verifies that a null location result exposes the unavailable state. */
   @Test
   fun nullCoordinatesExposeUnavailableState() =
       runTest(dispatcher) {
@@ -122,6 +135,7 @@ class ExploreViewModelTest {
         assertEquals(ExploreUiState.LocationUnavailable, viewModel.uiState.value)
       }
 
+  /** Verifies that granting permission after it was not granted starts location retrieval. */
   @Test
   fun transitionFromNotGrantedToGrantedStartsRetrieval() =
       runTest(dispatcher) {
@@ -136,6 +150,7 @@ class ExploreViewModelTest {
         assertEquals(ExploreUiState.LocationUnavailable, viewModel.uiState.value)
       }
 
+  /** Verifies that a repeated granted snapshot does not start another location retrieval. */
   @Test
   fun repeatedGrantedSnapshotDoesNotStartAnotherRetrieval() =
       runTest(dispatcher) {
@@ -152,6 +167,7 @@ class ExploreViewModelTest {
         assertEquals(ExploreUiState.Loading, viewModel.uiState.value)
       }
 
+  /** Verifies that a stale request result cannot replace the result of a retry. */
   @Test
   fun staleRequestResultDoesNotReplaceRetryResult() =
       runTest(dispatcher) {
@@ -188,6 +204,7 @@ class ExploreViewModelTest {
         assertEquals(ExploreUiState.LocationAvailable(coordinatesB), viewModel.uiState.value)
       }
 
+  /** Verifies that a stale location result cannot replace the state after permission is revoked. */
   @Test
   fun revokedPermissionPreventsStaleLocationFromReplacingPermissionState() =
       runTest(dispatcher) {
@@ -223,14 +240,11 @@ class ExploreViewModelTest {
         )
       }
 
+  /** Verifies that retrying after an unavailable result starts another location retrieval. */
   @Test
   fun retryAfterUnavailableStartsAnotherRetrieval() =
       runTest(dispatcher) {
-        var attempts = 0
-        val provider = FakeLocationProvider {
-          attempts++
-          null
-        }
+        val provider = FakeLocationProvider { null }
         val viewModel = ExploreViewModel(provider)
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         advanceUntilIdle()
@@ -239,11 +253,11 @@ class ExploreViewModelTest {
         viewModel.retryLocation()
         advanceUntilIdle()
 
-        assertEquals(2, attempts)
         assertEquals(2, provider.calls)
         assertEquals(ExploreUiState.LocationUnavailable, viewModel.uiState.value)
       }
 
+  /** Verifies that retrying without granted permission does not request a location. */
   @Test
   fun retryDoesNothingWhenPermissionIsNotGranted() =
       runTest(dispatcher) {
@@ -255,7 +269,6 @@ class ExploreViewModelTest {
         advanceUntilIdle()
 
         assertEquals(0, provider.calls)
-        assertFalse(viewModel.uiState.value is ExploreUiState.Loading)
         assertEquals(
             ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED),
             viewModel.uiState.value,
