@@ -114,6 +114,7 @@ fun ScanReviewRoute(
         onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
         onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
         loadingViewModel = loadingViewModel,
+        isDarkTheme = isDarkTheme,
     )
   } else {
     val currentState = discoveredGuide?.let { ScanReviewUiState.Sent(uri, it) } ?: state

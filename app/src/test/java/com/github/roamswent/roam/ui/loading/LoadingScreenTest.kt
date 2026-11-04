@@ -2,22 +2,35 @@ package com.github.roamswent.roam.ui.loading
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.ScreenBackground
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @RunWith(RobolectricTestRunner::class)
 class LoadingScreenTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
@@ -25,7 +38,7 @@ class LoadingScreenTest {
   @Test
   fun displaysTheImageProgressAndDefaultCopy() {
     composeTestRule.setContent {
-      LoadingScreen(image = ColorPainter(Color.LightGray), onCancel = {})
+      LoadingScreen(image = ColorPainter(Color.LightGray), onCancel = {}, isDarkTheme = false)
     }
 
     composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
@@ -53,6 +66,7 @@ class LoadingScreenTest {
           onCancel = { cancelCount++ },
           title = "Finding a landmark",
           subtitle = "This can take a moment.",
+          isDarkTheme = false,
       )
     }
 
@@ -77,6 +91,7 @@ class LoadingScreenTest {
           onCancel = {},
           subtitle = "Identifying your monument.",
           errorMessage = "Gemini is unavailable",
+          isDarkTheme = false,
       )
     }
 
@@ -96,11 +111,62 @@ class LoadingScreenTest {
       LoadingScreen(
           image = ColorPainter(Color.LightGray),
           onCancel = { cancelCount++ },
+          isDarkTheme = false,
       )
     }
 
     composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
 
     assertEquals(1, cancelCount)
+  }
+
+  @Test
+  fun darkThemeUsesThemeBackgroundAndKeepsLoadingCopyReadable() {
+    var isDarkTheme by mutableStateOf(false)
+    var expectedDarkBackground = 0
+    var darkTextColor = 0
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
+        if (isDarkTheme) {
+          expectedDarkBackground = MaterialTheme.colorScheme.background.toArgb()
+          darkTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+        }
+        LoadingScreen(
+            image = ColorPainter(Color.LightGray),
+            onCancel = {},
+            isDarkTheme = isDarkTheme,
+        )
+      }
+    }
+
+    val lightBackground =
+        composeTestRule
+            .onNodeWithTag(C.Tag.loading_screen_container)
+            .captureToImage()
+            .asAndroidBitmap()
+    assertEquals(ScreenBackground.toArgb(), lightBackground.getPixel(0, 0))
+
+    composeTestRule.runOnIdle { isDarkTheme = true }
+
+    val darkBackground =
+        composeTestRule
+            .onNodeWithTag(C.Tag.loading_screen_container)
+            .captureToImage()
+            .asAndroidBitmap()
+    val title =
+        composeTestRule.onNodeWithTag(C.Tag.loading_screen_title).captureToImage().asAndroidBitmap()
+
+    assertEquals(expectedDarkBackground, darkBackground.getPixel(0, 0))
+    assertNotEquals(ScreenBackground.toArgb(), darkBackground.getPixel(0, 0))
+    assertTrue(containsColor(title, darkTextColor))
+  }
+
+  private fun containsColor(bitmap: android.graphics.Bitmap, color: Int): Boolean {
+    for (y in 0 until bitmap.height) {
+      for (x in 0 until bitmap.width) {
+        if (bitmap.getPixel(x, y) == color) return true
+      }
+    }
+    return false
   }
 }

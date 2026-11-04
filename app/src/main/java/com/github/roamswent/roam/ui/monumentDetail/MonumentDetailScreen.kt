@@ -1,6 +1,5 @@
 package com.github.roamswent.roam.ui.monumentDetail
 
-import android.content.res.Configuration
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures

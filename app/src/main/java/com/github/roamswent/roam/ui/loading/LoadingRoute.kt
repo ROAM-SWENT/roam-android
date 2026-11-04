@@ -19,6 +19,7 @@ fun LoadingRoute(
     onCancel: () -> Unit,
     onDiscoverySuccess: (MonumentGuide, Uri) -> Unit,
     loadingViewModel: LoadingViewModel,
+    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
   val state by loadingViewModel.uiState.collectAsState()
@@ -41,5 +42,6 @@ fun LoadingRoute(
       onCancel = loadingViewModel::onCancel,
       modifier = modifier,
       errorMessage = (state as? LoadingUiState.Error)?.messageResId?.let { stringResource(it) },
+      isDarkTheme = isDarkTheme,
   )
 }
