@@ -24,6 +24,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
@@ -46,6 +47,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -224,6 +226,33 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_grid)
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+  }
+
+  @Test
+  fun dockedScreenContentReachesIntoDockBumpOnEveryDockedScreen() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    assertContentReachesDockBump(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_screen_container)
+    assertContentReachesDockBump(C.Tag.settings_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    assertContentReachesDockBump(C.Tag.collection_screen)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    assertContentReachesDockBump(C.Tag.explore_screen_container)
+
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Explore, navController.currentDestination?.route)
+    }
   }
 
   @Test
@@ -881,6 +910,29 @@ class MainActivityNavigationTest {
 
   private fun navigateToSettings(navController: NavHostController) {
     composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
+  }
+
+  private fun assertContentReachesDockBump(contentTag: String) {
+    val contentBottom =
+        composeTestRule
+            .onAllNodesWithTag(contentTag)
+            .fetchSemanticsNodes(atLeastOneRootRequired = true)
+            .single()
+            .boundsInRoot
+            .bottom
+    val dockTop =
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.dock_container)
+            .fetchSemanticsNodes(atLeastOneRootRequired = true)
+            .single()
+            .boundsInRoot
+            .top
+    val bumpTop = dockTop + with(composeTestRule.density) { 36.dp.toPx() }
+
+    assertTrue(
+        "$contentTag bottom $contentBottom must reach dock bar top $bumpTop",
+        contentBottom >= bumpTop,
+    )
   }
 
   /** Asserts the five dock slots render: home, explore, the scan action, collection, settings. */

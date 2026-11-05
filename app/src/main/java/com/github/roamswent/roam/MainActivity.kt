@@ -301,10 +301,15 @@ internal fun RoamApp(
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
+        val dockClearance = dockContentClearance()
         DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository,
-              modifier = Modifier.padding(innerPadding),
+              modifier =
+                  Modifier.padding(
+                      top = innerPadding.calculateTopPadding(),
+                      bottom = dockClearance,
+                  ),
               isDarkTheme = isDarkTheme,
           )
         }
@@ -319,8 +324,15 @@ internal fun RoamApp(
                   SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
                 },
             )
+        val dockClearance = dockContentClearance()
         DockedScaffold(containerDark = false) { innerPadding ->
-          Box(modifier = Modifier.padding(innerPadding)) {
+          Box(
+              modifier =
+                  Modifier.padding(
+                      top = innerPadding.calculateTopPadding(),
+                      bottom = dockClearance,
+                  )
+          ) {
             ExploreScreen(
                 onBackClick = { navController.popBackStack() },
                 exploreViewModel = exploreViewModel,
