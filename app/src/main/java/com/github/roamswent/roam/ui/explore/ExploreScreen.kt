@@ -26,6 +26,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
@@ -46,7 +47,6 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
-import com.github.roamswent.roam.ui.theme.HomeTextPrimary
 import com.github.roamswent.roam.ui.theme.HomeTextSecondary
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
@@ -87,7 +87,7 @@ fun ExploreScreen(
             title = {
               Text(
                   text = stringResource(R.string.explore_title),
-                  color = HomeTextPrimary,
+                  color = MaterialTheme.colorScheme.onSurface,
                   fontWeight = FontWeight.Bold,
               )
             },
