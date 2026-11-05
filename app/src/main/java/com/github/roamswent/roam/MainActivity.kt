@@ -178,9 +178,13 @@ internal fun RoamApp(
   // Screens apply their own status bar inset, so the top inset stays 0 and
   // containerColor covers the status bar strip.
   @Composable
-  fun DockedScaffold(content: @Composable (PaddingValues) -> Unit) {
+  fun DockedScaffold(
+      containerDark: Boolean,
+      content: @Composable (PaddingValues) -> Unit,
+  ) {
     Scaffold(
-        containerColor = ScreenBackground,
+        containerColor =
+            if (containerDark) MaterialTheme.colorScheme.background else ScreenBackground,
         contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, dockContentClearance()),
         bottomBar = {
           AppBottomDock(
@@ -270,7 +274,7 @@ internal fun RoamApp(
       }
       composable(Routes.Settings) {
         val dockClearance = dockContentClearance()
-        DockedScaffold { innerPadding ->
+        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
           SettingsScreen(
               modifier =
                   Modifier.padding(
@@ -297,7 +301,7 @@ internal fun RoamApp(
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
-        DockedScaffold { innerPadding ->
+        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository,
               modifier = Modifier.padding(innerPadding),
@@ -315,7 +319,7 @@ internal fun RoamApp(
                   SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
                 },
             )
-        DockedScaffold { innerPadding ->
+        DockedScaffold(containerDark = false) { innerPadding ->
           Box(modifier = Modifier.padding(innerPadding)) {
             ExploreScreen(
                 onBackClick = { navController.popBackStack() },
