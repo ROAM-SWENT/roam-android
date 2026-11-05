@@ -2,7 +2,7 @@ package com.github.roamswent.roam
 
 import com.google.firebase.Firebase
 import com.google.firebase.appcheck.appCheck
-import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 
 /**
  * Debug builds use the App Check debug provider. It accepts a registered debug token instead of a
@@ -11,6 +11,8 @@ import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 internal object AppCheckInstaller {
 
   fun install() {
-    Firebase.appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance())
+    Firebase.appCheck.installAppCheckProviderFactory(
+        PlayIntegrityAppCheckProviderFactory.getInstance()
+    )
   }
 }

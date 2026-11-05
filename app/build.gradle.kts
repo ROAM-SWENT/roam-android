@@ -159,6 +159,7 @@ dependencies {
   implementation(libs.guava)
   implementation(libs.kotlinx.coroutines.play.services)
   debugImplementation(libs.firebase.appcheck.debug)
+  implementation(libs.firebase.appcheck.playintegrity)
 
   implementation(libs.androidx.camera.core)
   implementation(libs.androidx.camera.camera2)
