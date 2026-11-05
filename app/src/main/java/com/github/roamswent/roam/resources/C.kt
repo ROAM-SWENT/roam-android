@@ -13,6 +13,8 @@ object C {
     const val dock_container = "dock_container"
     const val dock_tab_home = "dock_tab_home"
     const val dock_tab_settings = "dock_tab_settings"
+    const val dock_tab_collection = "dock_tab_collection"
+    const val dock_tab_explore = "dock_tab_explore"
     const val dock_scan_button = "dock_scan_button"
     const val dock_scan_label = "dock_scan_label"
     const val sign_in_screen_container = "sign_in_screen_container"

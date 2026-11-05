@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
 
 package com.github.roamswent.roam
@@ -11,6 +12,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -39,6 +42,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
@@ -51,6 +55,8 @@ import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
+import com.github.roamswent.roam.ui.explore.ExploreScreen
+import com.github.roamswent.roam.ui.explore.ExploreViewModel
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
@@ -140,6 +146,8 @@ internal fun RoamApp(
   val currentDestination =
       when (currentBackStackEntry?.destination?.route) {
         Routes.Settings -> DockDestination.SETTINGS
+        Routes.Collection -> DockDestination.COLLECTION
+        Routes.Explore -> DockDestination.EXPLORE
         else -> DockDestination.HOME
       }
   val onScanClick = {
@@ -165,6 +173,29 @@ internal fun RoamApp(
           restoreState = true
         }
       }
+    }
+  }
+  // Screens apply their own status bar inset, so the top inset stays 0 and
+  // containerColor covers the status bar strip.
+  @Composable
+  fun DockedScaffold(
+      containerDark: Boolean,
+      content: @Composable (PaddingValues) -> Unit,
+  ) {
+    Scaffold(
+        containerColor =
+            if (containerDark) MaterialTheme.colorScheme.background else ScreenBackground,
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, dockContentClearance()),
+        bottomBar = {
+          AppBottomDock(
+              selected = currentDestination,
+              onDestinationSelected = onDockDestinationSelected,
+              onScanClick = onScanClick,
+              cameraAvailable = cameraAvailable,
+          )
+        },
+    ) { innerPadding ->
+      content(innerPadding)
     }
   }
   Surface(
@@ -243,20 +274,7 @@ internal fun RoamApp(
       }
       composable(Routes.Settings) {
         val dockClearance = dockContentClearance()
-        // Same as Home: the screens apply their own status bar inset, so the top
-        // inset stays 0 and containerColor covers the status bar strip.
-        Scaffold(
-            containerColor = ScreenBackground,
-            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, dockClearance),
-            bottomBar = {
-              AppBottomDock(
-                  selected = currentDestination,
-                  onDestinationSelected = onDockDestinationSelected,
-                  onScanClick = onScanClick,
-                  cameraAvailable = cameraAvailable,
-              )
-            },
-        ) { innerPadding ->
+        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
           SettingsScreen(
               modifier =
                   Modifier.padding(
@@ -283,7 +301,33 @@ internal fun RoamApp(
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
-        CollectionRoute(repository = savedGuideRepository, isDarkTheme = isDarkTheme)
+        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
+          CollectionRoute(
+              repository = savedGuideRepository,
+              modifier = Modifier.padding(innerPadding),
+              isDarkTheme = isDarkTheme,
+          )
+        }
+      }
+      composable(Routes.Explore) {
+        val exploreViewModel: ExploreViewModel = viewModel {
+          ExploreViewModel(AndroidLocationProvider(context))
+        }
+        val explorePermissionController =
+            rememberLocationPermissionController(
+                remember(context.applicationContext) {
+                  SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
+                },
+            )
+        DockedScaffold(containerDark = false) { innerPadding ->
+          Box(modifier = Modifier.padding(innerPadding)) {
+            ExploreScreen(
+                onBackClick = { navController.popBackStack() },
+                exploreViewModel = exploreViewModel,
+                locationPermissionController = explorePermissionController,
+            )
+          }
+        }
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {

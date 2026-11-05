@@ -4,6 +4,7 @@ package com.github.roamswent.roam.ui.scan
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class ScanReviewScreenTest {
@@ -214,12 +216,18 @@ class ScanReviewScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
     waitAndAssertDisplayed(C.Tag.loading_screen_progress)
-    composeTestRule.waitUntil(timeoutMillis = 60_000) { requestStarted.get() }
+    composeTestRule.waitUntil(timeoutMillis = 60_000) {
+      shadowOf(Looper.getMainLooper()).idle()
+      requestStarted.get()
+    }
     composeTestRule.onNodeWithTag(C.Tag.loading_screen_cancel_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
     waitForDestination(Routes.Scan)
-    composeTestRule.waitUntil(timeoutMillis = 60_000) { requestCancelled.get() }
+    composeTestRule.waitUntil(timeoutMillis = 60_000) {
+      shadowOf(Looper.getMainLooper()).idle()
+      requestCancelled.get()
+    }
   }
 
   @Test

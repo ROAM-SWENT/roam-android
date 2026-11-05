@@ -4,6 +4,8 @@
 
 package com.github.roamswent.roam.ui.components.bottomdock
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import org.junit.Assert.assertEquals
@@ -34,6 +37,7 @@ class AppBottomDockTest {
   private fun setDock(
       selected: DockDestination = DockDestination.HOME,
       cameraAvailable: Boolean = true,
+      modifier: Modifier = Modifier,
       onDestinationSelected: (DockDestination) -> Unit = {},
       onScanClick: () -> Unit = {},
   ) {
@@ -44,6 +48,7 @@ class AppBottomDockTest {
             onDestinationSelected = onDestinationSelected,
             onScanClick = onScanClick,
             cameraAvailable = cameraAvailable,
+            modifier = modifier,
         )
       }
     }
@@ -55,8 +60,10 @@ class AppBottomDockTest {
 
     composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsDisplayed()
   }
 
@@ -65,29 +72,66 @@ class AppBottomDockTest {
     setDock()
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertTextEquals("Home")
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertTextEquals("Explore")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertTextEquals("Profile")
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertTextEquals("Collection")
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan a monument")
+  }
+
+  /**
+   * AutoResizedTabLabel shrinks overlong labels instead of wrapping them. The dock is squeezed just
+   * enough that "Home" still fits at the initial font size while "Explore" and "Collection"
+   * overflow their slots and must scale down: home is the untouched single-line baseline and the
+   * overlong labels take the autosize path in the same render. The full text stays exposed through
+   * semantics, and because a wrapped label would grow its tab column past the single-line height
+   * the home tab pins, an overlong tab taller than home betrays a wrap. No pixel assertions.
+   */
+  @Test
+  fun narrowedDockKeepsOverlongTabLabelsOnOneLine() {
+    setDock(modifier = Modifier.width(340.dp))
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertTextEquals("Explore")
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertTextEquals("Collection")
+
+    val homeTabHeight =
+        composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).fetchSemanticsNode().size.height
+    val collectionTabHeight =
+        composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).fetchSemanticsNode().size.height
+    assertTrue(collectionTabHeight <= homeTabHeight)
   }
 
   /**
    * The dock exposes the selection through the click affordance: only the unselected tab accepts
    * taps. Tab tint and weight are paint-only details that semantics cannot observe, so the enabled
-   * state is the real contract.
+   * state is the real contract: the selected tab is disabled and every other tab stays enabled.
    */
+  private fun assertTabSelectionMarked(selected: DockDestination) {
+    setDock(selected = selected)
+
+    composeTestRule.onNodeWithTag(selected.tag).assertIsNotEnabled()
+    DockDestination.entries
+        .filterNot { it == selected }
+        .forEach { destination -> composeTestRule.onNodeWithTag(destination.tag).assertIsEnabled() }
+  }
+
   @Test
   fun selectedHomeTabIsMarkedByDisablingIt() {
-    setDock(selected = DockDestination.HOME)
-
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsEnabled()
+    assertTabSelectionMarked(DockDestination.HOME)
   }
 
   @Test
   fun selectedSettingsTabIsMarkedByDisablingIt() {
-    setDock(selected = DockDestination.SETTINGS)
+    assertTabSelectionMarked(DockDestination.SETTINGS)
+  }
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsNotEnabled()
+  @Test
+  fun selectedExploreTabIsMarkedByDisablingIt() {
+    assertTabSelectionMarked(DockDestination.EXPLORE)
+  }
+
+  @Test
+  fun selectedCollectionTabIsMarkedByDisablingIt() {
+    assertTabSelectionMarked(DockDestination.COLLECTION)
   }
 
   @Test
@@ -121,6 +165,27 @@ class AppBottomDockTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
 
     assertTrue(destinations.isEmpty())
+  }
+
+  @Test
+  fun tappingExploreAndCollectionTabsInvokesCallbackPerTap() {
+    val destinations = mutableListOf<DockDestination>()
+    setDock(onDestinationSelected = { destinations.add(it) })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsEnabled()
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    assertEquals(listOf(DockDestination.EXPLORE), destinations)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    assertEquals(listOf(DockDestination.EXPLORE, DockDestination.COLLECTION), destinations)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    assertEquals(
+        listOf(DockDestination.EXPLORE, DockDestination.COLLECTION, DockDestination.EXPLORE),
+        destinations,
+    )
   }
 
   @Test
@@ -163,9 +228,18 @@ class AppBottomDockTest {
         onDestinationSelected = { destinations.add(it) },
     )
 
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsEnabled()
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
 
-    assertEquals(listOf(DockDestination.SETTINGS), destinations)
+    assertEquals(
+        listOf(DockDestination.EXPLORE, DockDestination.COLLECTION, DockDestination.SETTINGS),
+        destinations,
+    )
   }
 
   /**

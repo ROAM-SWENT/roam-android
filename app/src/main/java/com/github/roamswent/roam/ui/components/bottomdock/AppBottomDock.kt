@@ -10,14 +10,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,9 +31,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -39,6 +47,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
@@ -81,43 +91,46 @@ fun AppBottomDock(
                 .navigationBarsPadding()
                 .height(barContentHeight),
     ) {
-      Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.Bottom) {
+      Row(
+          modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+          verticalAlignment = Alignment.Bottom,
+      ) {
+        DockTabSlot(
+            destination = DockDestination.HOME,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
+        DockTabSlot(
+            destination = DockDestination.EXPLORE,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
         Box(
-            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
-            contentAlignment = Alignment.Center,
+            modifier = Modifier.weight(1.75f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
+            contentAlignment = Alignment.TopCenter,
         ) {
-          DockTabItem(
-              destination = DockDestination.HOME,
-              selected = selected == DockDestination.HOME,
-              onDestinationSelected = onDestinationSelected,
-          )
-        }
-        Box(
-            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-          Text(
+          AutoResizedTabLabel(
               text =
                   if (cameraAvailable) stringResource(R.string.home_tab_scan)
                   else stringResource(R.string.home_scan_unavailable),
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
-              fontSize = 11.sp,
-              fontWeight = FontWeight.Bold,
-              maxLines = 1,
+              fontWeight = FontWeight.SemiBold,
               modifier =
-                  Modifier.padding(bottom = 6.dp).semantics { testTag = C.Tag.dock_scan_label },
+                  Modifier.wrapContentWidth(unbounded = true).padding(top = 34.dp).semantics {
+                    testTag = C.Tag.dock_scan_label
+                  },
           )
         }
-        Box(
-            modifier = Modifier.weight(1f).padding(bottom = 10.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-          DockTabItem(
-              destination = DockDestination.SETTINGS,
-              selected = selected == DockDestination.SETTINGS,
-              onDestinationSelected = onDestinationSelected,
-          )
-        }
+        DockTabSlot(
+            destination = DockDestination.COLLECTION,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
+        DockTabSlot(
+            destination = DockDestination.SETTINGS,
+            selected = selected,
+            onDestinationSelected = onDestinationSelected,
+        )
       }
     }
 
@@ -186,6 +199,24 @@ fun AppBottomDock(
 }
 
 @Composable
+private fun RowScope.DockTabSlot(
+    destination: DockDestination,
+    selected: DockDestination,
+    onDestinationSelected: (DockDestination) -> Unit,
+) {
+  Box(
+      modifier = Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
+      contentAlignment = Alignment.TopCenter,
+  ) {
+    DockTabItem(
+        destination = destination,
+        selected = selected == destination,
+        onDestinationSelected = onDestinationSelected,
+    )
+  }
+}
+
+@Composable
 private fun DockTabItem(
     destination: DockDestination,
     selected: Boolean,
@@ -209,11 +240,42 @@ private fun DockTabItem(
         modifier = Modifier.size(24.dp),
     )
     Spacer(modifier = Modifier.height(4.dp))
-    Text(
+    AutoResizedTabLabel(
         text = stringResource(destination.labelRes),
         color = color,
-        fontSize = 11.sp,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
     )
   }
+}
+
+@Composable
+private fun AutoResizedTabLabel(
+    text: String,
+    color: Color,
+    fontWeight: FontWeight,
+    modifier: Modifier = Modifier,
+    initialFontSize: TextUnit = 11.sp,
+    minFontSize: TextUnit = 8.5.sp,
+) {
+  var readyToDraw by remember(text) { mutableStateOf(false) }
+  var scaledFontSize by remember(text) { mutableStateOf(initialFontSize) }
+
+  Text(
+      text = text,
+      color = color,
+      fontSize = scaledFontSize,
+      fontWeight = fontWeight,
+      textAlign = TextAlign.Center,
+      maxLines = 1,
+      softWrap = false,
+      onTextLayout = { textLayoutResult ->
+        if (textLayoutResult.didOverflowWidth && scaledFontSize > minFontSize) {
+          scaledFontSize = (scaledFontSize.value - 0.5f).sp
+          readyToDraw = false
+        } else {
+          readyToDraw = true
+        }
+      },
+      modifier = modifier.then(Modifier.drawWithContent { if (readyToDraw) drawContent() }),
+  )
 }
