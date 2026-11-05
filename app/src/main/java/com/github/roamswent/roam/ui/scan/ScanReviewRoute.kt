@@ -38,6 +38,7 @@ fun ScanReviewRoute(
     uri: Uri,
     captureSenderOverride: CaptureSender? = null,
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
+    isDarkTheme: Boolean,
     isGalleryImage: Boolean = false,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
@@ -122,12 +123,14 @@ fun ScanReviewRoute(
         onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
         onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
         loadingViewModel = loadingViewModel,
+        isDarkTheme = isDarkTheme,
     )
   } else {
     val currentState = discoveredGuide?.let { ScanReviewUiState.Sent(uri, it) } ?: state
     currentState?.let {
       ScanReviewScreen(
           state = it,
+          isDarkTheme = isDarkTheme,
           onRetake = if (isGalleryImage) returnToScan else viewModel::onRetake,
           onRetakeConfirm = viewModel::confirmRetake,
           onRetakeCancel = viewModel::cancelRetake,

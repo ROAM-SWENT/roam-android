@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
               authViewModel = authViewModel,
               themeMode = selectedTheme,
               onThemeModeSelected = themeViewModel::setThemeMode,
+              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -102,6 +103,7 @@ internal fun RoamApp(
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
+    isDarkTheme: Boolean = themeMode == ThemeMode.DARK,
 ) {
   val context = LocalContext.current
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
@@ -143,6 +145,7 @@ internal fun RoamApp(
         SignInScreen(
             authViewModel = authViewModel,
             onSignedIn = onSignedIn,
+            isDarkTheme = isDarkTheme,
             onSignInClickOverride =
                 onSignInClickOverride?.let { signIn ->
                   {
@@ -171,6 +174,7 @@ internal fun RoamApp(
               }
             },
             isConnectedToInternet = isOnline,
+            isDarkTheme = isDarkTheme,
         )
       }
       composable(Routes.Scan) { ScanRoute(navController) }
@@ -190,6 +194,7 @@ internal fun RoamApp(
               navController,
               uri,
               captureSenderOverride,
+              isDarkTheme = isDarkTheme,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
@@ -203,6 +208,7 @@ internal fun RoamApp(
             cameraPermissionController = permissionController,
             locationPermissionController = locationPermissionController,
             themeMode = themeMode,
+            isDarkTheme = isDarkTheme,
             onThemeModeSelected = onThemeModeSelected,
             onManagePermissionsClick = { permissionController.openAppSettings() },
             onHomeClick = {
@@ -222,7 +228,7 @@ internal fun RoamApp(
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
-        CollectionRoute(repository = savedGuideRepository)
+        CollectionRoute(repository = savedGuideRepository, isDarkTheme = isDarkTheme)
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {

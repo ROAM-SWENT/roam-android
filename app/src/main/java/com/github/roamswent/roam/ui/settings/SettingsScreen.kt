@@ -93,6 +93,7 @@ fun SettingsScreen(
     onHomeClick: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
+    isDarkTheme: Boolean,
 ) {
 
   val context = LocalContext.current
@@ -143,8 +144,8 @@ fun SettingsScreen(
   }
 
   Scaffold(
-      modifier = modifier.fillMaxSize(),
-      containerColor = ScreenBackground,
+      modifier = modifier.fillMaxSize().testTag(C.Tag.settings_screen_container),
+      containerColor = if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground,
   ) { contentPadding ->
     SettingsContent(
         modifier = Modifier.padding(contentPadding),
@@ -163,6 +164,7 @@ fun SettingsScreen(
         onHomeClick = onHomeClick,
         themeMode = themeMode,
         onThemeModeSelected = onThemeModeSelected,
+        isDarkTheme = isDarkTheme,
         interests = uiState.interests,
         onAddInterest = resolvedSettingsViewModel::addInterest,
         onRemoveInterest = resolvedSettingsViewModel::removeInterest,
@@ -180,6 +182,7 @@ private fun SettingsContent(
     onHomeClick: () -> Unit,
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
+    isDarkTheme: Boolean,
     interests: List<String>,
     onAddInterest: (String) -> Unit,
     onRemoveInterest: (String) -> Unit,
@@ -199,18 +202,25 @@ private fun SettingsContent(
       ProfileCard(
           profile = profile,
           onSignOutClick = onSignOutClick,
+          isDarkTheme = isDarkTheme,
       )
       PermissionsCard(
           cameraPermissionGranted = cameraPermissionGranted,
           locationPermissionGranted = locationPermissionGranted,
           onManagePermissionsClick = onManagePermissionsClick,
+          isDarkTheme = isDarkTheme,
       )
       InterestsCard(
           interests = interests,
           onRemoveInterest = onRemoveInterest,
           onAddInterestClick = { showAddInterestDialog = true },
+          isDarkTheme = isDarkTheme,
       )
-      ThemeCard(themeMode = themeMode, onThemeSelected = onThemeModeSelected)
+      ThemeCard(
+          themeMode = themeMode,
+          onThemeSelected = onThemeModeSelected,
+          isDarkTheme = isDarkTheme,
+      )
     }
 
     IconButton(
@@ -223,7 +233,9 @@ private fun SettingsContent(
                 .testTag(C.Tag.settings_home_button),
         colors =
             IconButtonDefaults.iconButtonColors(
-                containerColor = Color.Gray.copy(alpha = 0.6f),
+                containerColor =
+                    if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant
+                    else Color.Gray.copy(alpha = 0.6f),
                 contentColor = Color.White,
             ),
     ) {
@@ -277,11 +289,16 @@ private fun SettingsContent(
 private fun ThemeCard(
     themeMode: ThemeMode,
     onThemeSelected: (ThemeMode) -> Unit,
+    isDarkTheme: Boolean,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_theme_card),
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
+      colors =
+          CardDefaults.cardColors(
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+          ),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -318,11 +335,16 @@ private fun ThemeCard(
 private fun ProfileCard(
     profile: ProfileDisplayData,
     onSignOutClick: () -> Unit,
+    isDarkTheme: Boolean,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_profile_card),
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
+      colors =
+          CardDefaults.cardColors(
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+          ),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -336,7 +358,7 @@ private fun ProfileCard(
         Surface(
             modifier = Modifier.size(56.dp),
             shape = CircleShape,
-            color = ScreenBackground,
+            color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
         ) {
           androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
             Text(
@@ -360,7 +382,7 @@ private fun ProfileCard(
           )
           Surface(
               shape = RoundedCornerShape(50),
-              color = ScreenBackground,
+              color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
           ) {
             Row(
                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -383,8 +405,11 @@ private fun ProfileCard(
           shape = RoundedCornerShape(14.dp),
           colors =
               ButtonDefaults.buttonColors(
-                  containerColor = Color(0xFFFFF1F0),
-                  contentColor = Color(0xFFDB4038),
+                  containerColor =
+                      if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant
+                      else Color(0xFFFFF1F0),
+                  contentColor =
+                      if (isDarkTheme) MaterialTheme.colorScheme.error else Color(0xFFDB4038),
               ),
       ) {
         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
@@ -400,11 +425,16 @@ private fun PermissionsCard(
     cameraPermissionGranted: Boolean,
     locationPermissionGranted: Boolean,
     onManagePermissionsClick: () -> Unit,
+    isDarkTheme: Boolean,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_permissions_card),
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
+      colors =
+          CardDefaults.cardColors(
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+          ),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -432,11 +462,16 @@ private fun InterestsCard(
     interests: List<String>,
     onRemoveInterest: (String) -> Unit,
     onAddInterestClick: () -> Unit,
+    isDarkTheme: Boolean,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_interests_card),
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
+      colors =
+          CardDefaults.cardColors(
+              containerColor =
+                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+          ),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -465,7 +500,11 @@ private fun InterestsCard(
           )
         } else {
           interests.forEach { interest ->
-            InterestChip(interest = interest, onRemove = { onRemoveInterest(interest) })
+            InterestChip(
+                interest = interest,
+                onRemove = { onRemoveInterest(interest) },
+                isDarkTheme = isDarkTheme,
+            )
           }
         }
         OutlinedButton(
@@ -483,10 +522,10 @@ private fun InterestsCard(
 }
 
 @Composable
-private fun InterestChip(interest: String, onRemove: () -> Unit) {
+private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Boolean) {
   Surface(
       shape = RoundedCornerShape(50),
-      color = ScreenBackground,
+      color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
   ) {
     Row(
         modifier = Modifier.padding(start = 12.dp, end = 4.dp),

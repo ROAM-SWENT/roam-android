@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,14 +32,18 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 
 @Composable
-fun OfflineNoticeCard(modifier: Modifier = Modifier) {
+fun OfflineNoticeCard(modifier: Modifier = Modifier, isDarkTheme: Boolean) {
+  val backgroundColor =
+      if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFFFE9E6)
+  val contentColor =
+      if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF7A271A)
   Row(
       modifier =
           modifier
               .fillMaxWidth()
               .heightIn(min = 76.dp)
               .clip(RoundedCornerShape(20.dp))
-              .background(Color(0xFFFFE9E6))
+              .background(backgroundColor)
               .padding(horizontal = 20.dp, vertical = 16.dp)
               .semantics { testTag = C.Tag.home_offline_card },
       horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -47,12 +52,12 @@ fun OfflineNoticeCard(modifier: Modifier = Modifier) {
     Icon(
         imageVector = Icons.Filled.WifiOff,
         contentDescription = stringResource(R.string.home_offline_card_icon_description),
-        tint = Color(0xFFB3261E),
+        tint = contentColor,
         modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.home_offline_card_icon },
     )
     Text(
         text = stringResource(R.string.home_offline_card_message),
-        color = Color(0xFF7A271A),
+        color = contentColor,
         fontSize = 15.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.semantics { testTag = C.Tag.home_offline_card_message },

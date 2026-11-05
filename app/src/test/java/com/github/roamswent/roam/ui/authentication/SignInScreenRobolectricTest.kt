@@ -7,7 +7,14 @@
 package com.github.roamswent.roam.ui.authentication
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -18,6 +25,8 @@ import androidx.credentials.CredentialManager
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -29,7 +38,9 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @RunWith(RobolectricTestRunner::class)
 class SignInScreenRobolectricTest {
 
@@ -48,7 +59,11 @@ class SignInScreenRobolectricTest {
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
 
     composeTestRule.setContent {
-      SignInScreen(authViewModel = viewModel, credentialManager = mock<CredentialManager>())
+      SignInScreen(
+          authViewModel = viewModel,
+          credentialManager = mock<CredentialManager>(),
+          isDarkTheme = false,
+      )
     }
 
     composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).assertIsDisplayed().performClick()
@@ -61,7 +76,7 @@ class SignInScreenRobolectricTest {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
 
     composeTestRule
         .onNodeWithContentDescription(context.getString(R.string.sign_in_logo_description))
@@ -79,7 +94,7 @@ class SignInScreenRobolectricTest {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(isLoading = true)))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
 
     assertTrue(
         composeTestRule
@@ -96,7 +111,7 @@ class SignInScreenRobolectricTest {
     whenever(viewModel.uiState)
         .thenReturn(MutableStateFlow(AuthUIState(errorMsg = "Unable to sign in")))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
     composeTestRule.waitForIdle()
 
     verify(viewModel).clearErrorMsg()
@@ -113,7 +128,11 @@ class SignInScreenRobolectricTest {
     var callbackCount = 0
 
     composeTestRule.setContent {
-      SignInScreen(authViewModel = viewModel, onSignedIn = { callbackCount++ })
+      SignInScreen(
+          authViewModel = viewModel,
+          onSignedIn = { callbackCount++ },
+          isDarkTheme = false,
+      )
     }
     composeTestRule.waitForIdle()
 
@@ -135,6 +154,7 @@ class SignInScreenRobolectricTest {
       SignInScreen(
           authViewModel = viewModel,
           onSignedIn = { navigationCount++ },
+          isDarkTheme = false,
       )
     }
     composeTestRule.waitForIdle()
@@ -154,5 +174,70 @@ class SignInScreenRobolectricTest {
             .fetchSemanticsNodes()
             .isEmpty()
     )
+  }
+
+  @Test
+  fun lightTheme_preservesExistingBackgroundAndLogoColors() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = false, dynamicColor = false) {
+        SignInScreen(authViewModel = viewModel, isDarkTheme = false)
+      }
+    }
+
+    val background =
+        composeTestRule
+            .onNodeWithTag(C.Tag.sign_in_screen_container)
+            .captureToImage()
+            .asAndroidBitmap()
+    val logo =
+        composeTestRule
+            .onNodeWithContentDescription(context.getString(R.string.sign_in_logo_description))
+            .captureToImage()
+            .asAndroidBitmap()
+
+    assertEquals(ScreenBackground.toArgb(), background.getPixel(0, 0))
+    assertTrue(containsColor(logo, AndroidColor.rgb(0x2E, 0x4D, 0x4C)))
+  }
+
+  @Test
+  fun darkTheme_usesDarkBackgroundAndContrastingLogo() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+    var expectedBackground = Color.Unspecified
+    var expectedLogoColor = Color.Unspecified
+
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        expectedBackground = MaterialTheme.colorScheme.background
+        expectedLogoColor = MaterialTheme.colorScheme.onSurface
+        SignInScreen(authViewModel = viewModel, isDarkTheme = true)
+      }
+    }
+
+    val background =
+        composeTestRule
+            .onNodeWithTag(C.Tag.sign_in_screen_container)
+            .captureToImage()
+            .asAndroidBitmap()
+    val logo =
+        composeTestRule
+            .onNodeWithContentDescription(context.getString(R.string.sign_in_logo_description))
+            .captureToImage()
+            .asAndroidBitmap()
+
+    assertEquals(expectedBackground.toArgb(), background.getPixel(0, 0))
+    assertTrue(containsColor(logo, expectedLogoColor.toArgb()))
+  }
+
+  private fun containsColor(bitmap: Bitmap, color: Int): Boolean {
+    for (y in 0 until bitmap.height) {
+      for (x in 0 until bitmap.width) {
+        if (bitmap.getPixel(x, y) == color) return true
+      }
+    }
+    return false
   }
 }

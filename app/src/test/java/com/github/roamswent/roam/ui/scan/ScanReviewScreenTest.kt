@@ -164,6 +164,7 @@ class ScanReviewScreenTest {
             ScanReviewRoute(
                 navController = navController,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
+                isDarkTheme = false,
             )
           }
         }
@@ -253,6 +254,7 @@ class ScanReviewScreenTest {
             onRetakeCancel = {},
             onSend = {},
             showInterestsPrompt = true,
+            isDarkTheme = false,
         )
       }
     }
@@ -482,6 +484,7 @@ class ScanReviewScreenTest {
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
+                isDarkTheme = false,
                 isGalleryImage = isGalleryImage,
             )
           }
@@ -589,6 +592,7 @@ class ScanReviewScreenTest {
             onRetrySend = onRetrySend,
             onDismissSendError = onDismissSendError,
             onHomeClick = onHomeClick,
+            isDarkTheme = false,
         )
       }
     }
