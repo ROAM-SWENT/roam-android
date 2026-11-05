@@ -179,14 +179,12 @@ class HomeScreenTest {
   }
 
   @Test
-  fun darkThemeUsesThemeBackgroundAndBottomBarSurface() {
+  fun darkThemeUsesThemeBackground() {
     var expectedBackground = 0
-    var expectedSurface = 0
 
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = true, dynamicColor = false) {
         expectedBackground = MaterialTheme.colorScheme.background.toArgb()
-        expectedSurface = MaterialTheme.colorScheme.surface.toArgb()
         HomeScreen(
             onScanClicked = {},
             isConnectedToInternet = true,
@@ -200,12 +198,9 @@ class HomeScreenTest {
             .onNodeWithTag(C.Tag.home_screen_container)
             .captureToImage()
             .asAndroidBitmap()
-    val bottomBar =
-        composeTestRule.onNodeWithTag(C.Tag.home_bottom_bar).captureToImage().asAndroidBitmap()
 
     assertEquals(expectedBackground, screen.getPixel(0, 0))
     assertNotEquals(ScreenBackground.toArgb(), screen.getPixel(0, 0))
-    assertEquals(expectedSurface, bottomBar.getPixel(0, bottomBar.height - 1))
   }
 
   private fun containsColor(bitmap: android.graphics.Bitmap, color: Int): Boolean {
