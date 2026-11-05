@@ -176,15 +176,12 @@ internal fun RoamApp(
     }
   }
   // Screens apply their own status bar inset, so the top inset stays 0 and
-  // containerColor covers the status bar strip. With a bottomBar present,
-  // Scaffold reports the full dock height (116.dp) as innerPadding.bottom, but
-  // only the 80.dp bar is opaque: pad the content by 96.dp (bar + 16.dp) so it
-  // scrolls underneath the transparent bump.
+  // containerColor covers the status bar strip.
   @Composable
   fun DockedScaffold(content: @Composable (PaddingValues) -> Unit) {
     Scaffold(
         containerColor = ScreenBackground,
-        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, dockContentClearance()),
         bottomBar = {
           AppBottomDock(
               selected = currentDestination,
@@ -327,7 +324,6 @@ internal fun RoamApp(
             )
           }
         }
-      }
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {
