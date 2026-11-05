@@ -18,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -46,8 +45,8 @@ fun MonumentDetailScreen(
     modifier: Modifier = Modifier,
 ) {
   val textBackgroundColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground
-  val textColor = if (isDarkTheme) Color.White else Color.Black
-  val secondaryTextColor = if (isDarkTheme) Color.White else Color.Gray
+  val textColor = MaterialTheme.colorScheme.onSurface
+  val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
   val cornerRadius = 32.dp
 
   BoxWithConstraints(
@@ -97,7 +96,7 @@ fun MonumentDetailScreen(
                   Modifier.width(40.dp)
                       .height(5.dp)
                       .clip(RoundedCornerShape(50))
-                      .background(Color.Gray.copy(alpha = 0.5f))
+                      .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
           )
         }
 
@@ -179,8 +178,8 @@ fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier)
           },
       colors =
           IconButtonDefaults.iconButtonColors(
-              containerColor = Color.Gray.copy(alpha = 0.6f),
-              contentColor = Color.White,
+              containerColor = MaterialTheme.colorScheme.inverseSurface,
+              contentColor = MaterialTheme.colorScheme.inverseOnSurface,
           ),
   ) {
     Icon(

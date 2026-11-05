@@ -112,14 +112,20 @@ class MonumentDetailScreenTest {
   }
 
   @Test
-  fun darkThemeShowsWhiteGuideTextOnDarkPanelAndKeepsLightPanelUnchanged() {
+  fun darkThemeUsesThemeTextColorsOnDarkPanelAndKeepsLightPanelUnchanged() {
     val image = ColorPainter(Color.LightGray)
     var isDarkTheme by mutableStateOf(false)
     var darkSurface = 0
+    var darkOnSurface = 0
+    var darkOnSurfaceVariant = 0
 
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) darkSurface = MaterialTheme.colorScheme.surface.toArgb()
+        if (isDarkTheme) {
+          darkSurface = MaterialTheme.colorScheme.surface.toArgb()
+          darkOnSurface = MaterialTheme.colorScheme.onSurface.toArgb()
+          darkOnSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+        }
         MonumentDetailScreen(
             image = image,
             guide = guide,
@@ -145,7 +151,8 @@ class MonumentDetailScreenTest {
             .asAndroidBitmap()
     assertEquals(darkSurface, darkPanel.getPixel(0, darkPanel.height / 2))
     assertNotEquals(Color.White.toArgb(), darkPanel.getPixel(0, darkPanel.height / 2))
-    assertTrue(containsColor(darkPanel, android.graphics.Color.WHITE))
+    assertTrue(containsColor(darkPanel, darkOnSurface))
+    assertTrue(containsColor(darkPanel, darkOnSurfaceVariant))
   }
 
   private fun containsColor(bitmap: Bitmap, color: Int): Boolean {
