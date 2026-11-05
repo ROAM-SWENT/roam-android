@@ -2,10 +2,8 @@
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
 
-package com.github.roamswent.roam.ui.home
+package com.github.roamswent.roam.ui.components.bottomdock
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -15,10 +13,11 @@ import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.navigation.Routes
 
-private val HomeTabIcon =
+private val HomeDockIcon =
     ImageVector.Builder(
-            name = "HomeTabIcon",
+            name = "HomeDockIcon",
             defaultWidth = 24.dp,
             defaultHeight = 24.dp,
             viewportWidth = 24f,
@@ -42,9 +41,9 @@ private val HomeTabIcon =
         }
         .build()
 
-private val ProfileTabIcon =
+private val ProfileDockIcon =
     ImageVector.Builder(
-            name = "ProfileTabIcon",
+            name = "ProfileDockIcon",
             defaultWidth = 24.dp,
             defaultHeight = 24.dp,
             viewportWidth = 24f,
@@ -71,8 +70,12 @@ private val ProfileTabIcon =
         }
         .build()
 
-enum class HomeBottomTab(val labelRes: Int, val icon: ImageVector, val tag: String) {
-  HOME(R.string.home_tab_home, HomeTabIcon, C.Tag.home_tab_home),
-  SCAN(R.string.home_tab_scan, Icons.Filled.CenterFocusStrong, C.Tag.home_tab_scan),
-  PROFILE(R.string.home_tab_profile, ProfileTabIcon, C.Tag.home_tab_profile),
+enum class DockDestination(
+    val route: String,
+    val labelRes: Int,
+    val icon: ImageVector,
+    val tag: String,
+) {
+  HOME(Routes.Home, R.string.home_tab_home, HomeDockIcon, C.Tag.dock_tab_home),
+  SETTINGS(Routes.Settings, R.string.home_tab_profile, ProfileDockIcon, C.Tag.dock_tab_settings),
 }

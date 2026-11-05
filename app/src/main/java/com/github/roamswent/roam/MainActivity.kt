@@ -9,9 +9,13 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -23,12 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
@@ -42,6 +48,9 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.collection.CollectionRoute
+import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
+import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
+import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
@@ -58,6 +67,7 @@ import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.ThemeViewModel
 import com.github.roamswent.roam.ui.theme.ThemeViewModelFactory
 
@@ -126,6 +136,37 @@ internal fun RoamApp(
     }
   }
   val permissionState by permissionController.state.collectAsState()
+  val currentBackStackEntry by navController.currentBackStackEntryAsState()
+  val currentDestination =
+      when (currentBackStackEntry?.destination?.route) {
+        Routes.Settings -> DockDestination.SETTINGS
+        else -> DockDestination.HOME
+      }
+  val onScanClick = {
+    if (cameraAvailable) {
+      runOfflineAction(OfflineAction.OPEN_SCAN) { permissionController.requestPermission() }
+    }
+  }
+  val onDockDestinationSelected = { destination: DockDestination ->
+    if (destination.route != currentBackStackEntry?.destination?.route) {
+      if (destination.route == Routes.Home) {
+        // Home is the navigation root: pop back to it instead of navigating,
+        // which launchSingleTop would swallow because popUpTo(Home) already
+        // leaves Home as the current destination.
+        navController.popBackStack(Routes.Home, inclusive = false)
+      } else {
+        // Other tabs stack above Home so system back returns to it.
+        navController.navigate(destination.route) {
+          popUpTo(Routes.Home) {
+            inclusive = false
+            saveState = true
+          }
+          launchSingleTop = true
+          restoreState = true
+        }
+      }
+    }
+  }
   Surface(
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
       color = MaterialTheme.colorScheme.background,
@@ -158,24 +199,22 @@ internal fun RoamApp(
       composable(Routes.Home) {
         val homeViewModel: HomeViewModel = viewModel()
         val userName by homeViewModel.userName.collectAsState()
-        HomeScreen(
-            onScanClicked = {
-              if (cameraAvailable) {
-                runOfflineAction(OfflineAction.OPEN_SCAN) {
-                  permissionController.requestPermission()
-                }
-              }
-            },
-            cameraAvailable = cameraAvailable,
-            userName = userName,
-            onProfileClicked = {
-              runOfflineAction(OfflineAction.OPEN_PROFILE) {
-                navController.navigate(Routes.Settings)
-              }
-            },
-            isConnectedToInternet = isOnline,
-            isDarkTheme = isDarkTheme,
-        )
+        // HomeScreen and the dock apply their own status/nav bar insets, so the
+        // scaffold only contributes the ScreenBackground behind the status bar.
+        Scaffold(
+            containerColor = ScreenBackground,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        ) { innerPadding ->
+          HomeScreen(
+              modifier = Modifier.padding(innerPadding).background(ScreenBackground),
+              onScanClicked = onScanClick,
+              cameraAvailable = cameraAvailable,
+              userName = userName,
+              onDockDestinationSelected = onDockDestinationSelected,
+              isConnectedToInternet = isOnline,
+              isDarkTheme = isDarkTheme,
+          )
+        }
       }
       composable(Routes.Scan) { ScanRoute(navController) }
       composable(
@@ -203,26 +242,42 @@ internal fun RoamApp(
         }
       }
       composable(Routes.Settings) {
-        SettingsScreen(
-            settingsViewModel = settingsViewModel,
-            cameraPermissionController = permissionController,
-            locationPermissionController = locationPermissionController,
-            themeMode = themeMode,
-            isDarkTheme = isDarkTheme,
-            onThemeModeSelected = onThemeModeSelected,
-            onManagePermissionsClick = { permissionController.openAppSettings() },
-            onHomeClick = {
-              runOfflineAction(OfflineAction.RETURN_HOME) {
-                navController.popBackStack(Routes.Home, inclusive = false)
-              }
+        val dockClearance = dockContentClearance()
+        // Same as Home: the screens apply their own status bar inset, so the top
+        // inset stays 0 and containerColor covers the status bar strip.
+        Scaffold(
+            containerColor = ScreenBackground,
+            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, dockClearance),
+            bottomBar = {
+              AppBottomDock(
+                  selected = currentDestination,
+                  onDestinationSelected = onDockDestinationSelected,
+                  onScanClick = onScanClick,
+                  cameraAvailable = cameraAvailable,
+              )
             },
-            onSignedOut = {
-              authViewModel.clearSignedInUser()
-              navController.navigate(Routes.SignIn) {
-                popUpTo(navController.graph.id) { inclusive = true }
-              }
-            },
-        )
+        ) { innerPadding ->
+          SettingsScreen(
+              modifier =
+                  Modifier.padding(
+                      top = innerPadding.calculateTopPadding(),
+                      bottom = dockClearance,
+                  ),
+              settingsViewModel = settingsViewModel,
+              cameraPermissionController = permissionController,
+              locationPermissionController = locationPermissionController,
+              themeMode = themeMode,
+              isDarkTheme = isDarkTheme,
+              onThemeModeSelected = onThemeModeSelected,
+              onManagePermissionsClick = { permissionController.openAppSettings() },
+              onSignedOut = {
+                authViewModel.clearSignedInUser()
+                navController.navigate(Routes.SignIn) {
+                  popUpTo(navController.graph.id) { inclusive = true }
+                }
+              },
+          )
+        }
       }
       composable(Routes.Collection) {
         val savedGuideRepository = remember {

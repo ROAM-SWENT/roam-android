@@ -14,13 +14,13 @@ class MainScreen(semanticsProvider: SemanticsNodeInteractionsProvider) :
   val scanButton: KNode =
       child<KNode> {
         hasAnyAncestor(androidx.compose.ui.test.hasTestTag(C.Tag.home_screen_container))
-        hasTestTag(C.Tag.home_scan_button)
+        hasTestTag(C.Tag.dock_scan_button)
       }
 
   val scanLabel: KNode =
       child<KNode> {
         useUnmergedTree = true
         hasAnyAncestor(androidx.compose.ui.test.hasTestTag(C.Tag.home_screen_container))
-        hasTestTag(C.Tag.home_scan_label)
+        hasTestTag(C.Tag.dock_scan_label)
       }
 }

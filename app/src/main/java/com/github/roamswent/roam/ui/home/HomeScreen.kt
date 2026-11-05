@@ -20,15 +20,19 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
+import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
+import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
 fun HomeScreen(
+    modifier: Modifier = Modifier,
     onScanClicked: () -> Unit,
     cameraAvailable: Boolean = true,
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
-    onProfileClicked: () -> Unit = {},
+    onDockDestinationSelected: (DockDestination) -> Unit = {},
     isConnectedToInternet: Boolean? = null,
     isDarkTheme: Boolean,
 ) {
@@ -36,13 +40,19 @@ fun HomeScreen(
 
   Box(
       modifier =
-          Modifier.fillMaxSize()
+          modifier
+              .fillMaxSize()
               .background(
                   if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
               )
               .semantics { testTag = C.Tag.home_screen_container }
   ) {
-    Column(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp)) {
+    Column(
+        modifier =
+            Modifier.fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, bottom = dockContentClearance())
+    ) {
       HomeGreetingHeader(userName = userName, isDarkTheme = isDarkTheme)
       if (!isOnline) {
         OfflineNoticeCard(
@@ -54,9 +64,9 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) {
-      HomeBottomBar(
-          selectedTab = HomeBottomTab.HOME,
-          onTabSelected = { tab -> if (tab == HomeBottomTab.PROFILE) onProfileClicked() },
+      AppBottomDock(
+          selected = DockDestination.HOME,
+          onDestinationSelected = onDockDestinationSelected,
           onScanClick = onScanClicked,
           cameraAvailable = cameraAvailable,
       )

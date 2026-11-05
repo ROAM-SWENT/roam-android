@@ -5,12 +5,14 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -24,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,7 +34,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -71,6 +71,7 @@ import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
+import com.github.roamswent.roam.ui.theme.HomeTextPrimary
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
@@ -90,7 +91,6 @@ fun SettingsScreen(
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onManagePermissionsClick: () -> Unit = {},
     onSignedOut: () -> Unit = {},
-    onHomeClick: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     isDarkTheme: Boolean,
@@ -143,9 +143,12 @@ fun SettingsScreen(
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
+  // The screen applies its own statusBarsPadding, so this inner scaffold must
+  // not add the system bar insets again on top of the route scaffold's padding.
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.settings_screen_container),
       containerColor = if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground,
+      contentWindowInsets = WindowInsets(0, 0, 0, 0),
   ) { contentPadding ->
     SettingsContent(
         modifier = Modifier.padding(contentPadding),
@@ -161,7 +164,6 @@ fun SettingsScreen(
             ),
         onManagePermissionsClick = onManagePermissionsClick,
         onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
-        onHomeClick = onHomeClick,
         themeMode = themeMode,
         onThemeModeSelected = onThemeModeSelected,
         isDarkTheme = isDarkTheme,
@@ -179,7 +181,6 @@ private fun SettingsContent(
     profile: ProfileDisplayData,
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
-    onHomeClick: () -> Unit,
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
     isDarkTheme: Boolean,
@@ -190,15 +191,28 @@ private fun SettingsContent(
 ) {
   var showAddInterestDialog by remember { mutableStateOf(false) }
 
-  Box(modifier = Modifier.fillMaxSize()) {
+  Box(
+      modifier =
+          Modifier.fillMaxSize()
+              .background(
+                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+              )
+  ) {
     Column(
         modifier =
             modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, top = 72.dp, end = 20.dp, bottom = 16.dp),
+                .statusBarsPadding()
+                .padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+      Text(
+          text = stringResource(R.string.settings_title),
+          style = MaterialTheme.typography.headlineMedium,
+          fontWeight = FontWeight.Bold,
+          color = HomeTextPrimary,
+      )
       ProfileCard(
           profile = profile,
           onSignOutClick = onSignOutClick,
@@ -220,28 +234,6 @@ private fun SettingsContent(
           themeMode = themeMode,
           onThemeSelected = onThemeModeSelected,
           isDarkTheme = isDarkTheme,
-      )
-    }
-
-    IconButton(
-        onClick = onHomeClick,
-        modifier =
-            Modifier.align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(16.dp)
-                .size(44.dp)
-                .testTag(C.Tag.settings_home_button),
-        colors =
-            IconButtonDefaults.iconButtonColors(
-                containerColor =
-                    if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant
-                    else Color.Gray.copy(alpha = 0.6f),
-                contentColor = Color.White,
-            ),
-    ) {
-      Icon(
-          imageVector = Icons.Filled.Home,
-          contentDescription = stringResource(R.string.settings_home_description),
       )
     }
   }

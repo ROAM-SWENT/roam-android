@@ -303,31 +303,6 @@ class SettingsScreenTest {
     assertEquals(1, managePermissionsClicks)
   }
 
-  /** Verifies that tapping the Home button invokes its callback. */
-  @Test
-  fun homeButton_invokesCallback() {
-    val viewModel = mock<SettingsViewModel>()
-    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
-    val (cameraController, locationController) = permissionControllers()
-    var homeClicks = 0
-
-    composeTestRule.setContent {
-      SampleAppTheme {
-        SettingsScreen(
-            settingsViewModel = viewModel,
-            cameraPermissionController = cameraController,
-            locationPermissionController = locationController,
-            isDarkTheme = false,
-            onHomeClick = { homeClicks++ },
-        )
-      }
-    }
-
-    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
-
-    assertEquals(1, homeClicks)
-  }
-
   /** Verifies that tapping Sign Out delegates to the ViewModel and credential manager. */
   @Test
   fun logOutButton_delegatesToViewModel() {

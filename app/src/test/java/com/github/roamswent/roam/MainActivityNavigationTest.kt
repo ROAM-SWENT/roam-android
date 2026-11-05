@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
 
 package com.github.roamswent.roam
@@ -192,16 +193,16 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun settingsHomeButtonNavigatesToHome() {
+  fun dockHomeTabFromSettingsPopsBackToSingleHomeEntry() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
     navigateToSettings(navController)
-    waitAndAssertDisplayed(C.Tag.settings_home_button)
-    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
-    composeTestRule.waitUntil { navController.currentDestination?.route == Routes.Home }
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
   }
 
   @Test
@@ -229,19 +230,121 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun homeProfileButtonNavigatesToSettingsAndHomeButtonReturnsHome() {
+  fun dockSettingsTabNavigatesToSettingsAndHomeTabReturnsHome() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
-    composeTestRule.onNodeWithTag(C.Tag.home_tab_profile).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_home_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
     composeTestRule.runOnIdle {
       assertEquals(Routes.Settings, navController.currentDestination?.route)
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.settings_home_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
+  }
+
+  /**
+   * Pins the bottom dock navigation contract: the back stack after each step. Sign-in pops SignIn
+   * inclusively, tabs stack Settings above the Home root, the Home tab pops back to that root, and
+   * no flow ever duplicates entries.
+   */
+  @Test
+  fun signInToHomeLeavesSingleHomeEntryOnBackStack() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockSettingsTabFromHomeStacksSettingsAboveHome() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun alternatingDockTabsNeverDuplicateBackStackEntries() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun systemBackFromSettingsReturnsToSingleHomeEntry() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+    navigateToSettings(navController)
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+  }
+
+  @Test
+  fun systemBackFromHomeFinishesActivity() {
+    showAuthenticatedHome()
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    composeTestRule.waitUntil { composeTestRule.activity.isFinishing }
+  }
+
+  @Test
+  fun tappingSelectedDockTabLeavesBackStackUnchanged() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(listOf(Routes.Home), backStackRoutes(navController))
+
+    navigateToSettings(navController)
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+  }
+
+  @Test
+  fun dockIsAbsentOnSignIn() {
+    renderApp(MutableStateFlow(AuthUIState()))
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
+  }
+
+  @Test
+  fun dockIsAbsentOnScanAndScanReview() {
+    shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_camera_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
+
+    composeTestRule.runOnIdle {
+      navController.navigate("${Routes.ScanReview}?uri=${Uri.encode("content://test/photo.jpg")}")
+    }
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
   }
 
   @Test
@@ -252,7 +355,7 @@ class MainActivityNavigationTest {
         isOnlineOverride = false,
     )
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     waitAndAssertDisplayed(C.Tag.offline_action_dialog)
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
@@ -260,11 +363,21 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
     waitForGone(C.Tag.offline_action_dialog)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_tab_profile).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_home_button)
+    // The dock tabs succeeded the navigation affordances main gated with
+    // OPEN_PROFILE (the profile tab) and RETURN_HOME (the settings home
+    // button), and the merge dropped those gate calls: offline, navigation
+    // between Home and Settings stays ungated in both directions.
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
     composeTestRule.runOnIdle {
       assertEquals(Routes.Settings, navController.currentDestination?.route)
     }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
   }
 
   @Test
@@ -345,7 +458,7 @@ class MainActivityNavigationTest {
     shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
     showAuthenticatedHome()
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
 
     composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
@@ -357,8 +470,8 @@ class MainActivityNavigationTest {
   fun scanEntryNavigatesToScanDestination() {
     showAuthenticatedHome()
     shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.CAMERA)
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
     waitForGone(C.Tag.home_screen_container)
@@ -367,8 +480,8 @@ class MainActivityNavigationTest {
   @Test
   fun denyShowsPermissionDialogWithoutNavigating() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     dispatchCameraPermissionResult()
 
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
@@ -379,8 +492,8 @@ class MainActivityNavigationTest {
   @Test
   fun dismissingPermissionDialogLeavesHomeDisplayed() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
 
@@ -394,8 +507,8 @@ class MainActivityNavigationTest {
   @Test
   fun denialAfterDismissShowsDialogAgain() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    waitFor(C.Tag.dock_scan_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     val firstPermissionRequest = dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
     waitForGone(C.Tag.scan_camera_screen)
@@ -406,7 +519,7 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     waitForGone(C.Tag.scan_camera_screen)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     val secondPermissionRequest = permissionRequest()
     assertNotSame(firstPermissionRequest, secondPermissionRequest)
     dispatchCameraPermissionResult(secondPermissionRequest)
@@ -420,9 +533,9 @@ class MainActivityNavigationTest {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
+    waitFor(C.Tag.dock_scan_button)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
 
     waitForGone(C.Tag.camera_permission_dialog)
     waitForGone(C.Tag.scan_camera_screen)
@@ -434,17 +547,17 @@ class MainActivityNavigationTest {
     val application: Application = ApplicationProvider.getApplicationContext()
     shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_CAMERA_ANY, false)
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
+    waitFor(C.Tag.dock_scan_button)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
   }
 
   @Test
   fun openingSettingsFromPermissionDialog() {
     showAuthenticatedHome()
-    waitFor(C.Tag.home_scan_button)
+    waitFor(C.Tag.dock_scan_button)
 
-    composeTestRule.onNodeWithTag(C.Tag.home_scan_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
 
     dispatchCameraPermissionResult()
     waitAndAssertDisplayed(C.Tag.camera_permission_dialog)
@@ -586,6 +699,15 @@ class MainActivityNavigationTest {
   private fun navigateToSettings(navController: NavHostController) {
     composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
   }
+
+  /**
+   * Returns the screen routes on the navigation back stack, read on the UI thread. The NavGraph
+   * root entry has a null route and is not a screen, so it is filtered out.
+   */
+  private fun backStackRoutes(navController: NavHostController): List<String> =
+      composeTestRule.runOnIdle {
+        navController.currentBackStack.value.mapNotNull { it.destination.route }
+      }
 
   private fun renderApp(
       authState: MutableStateFlow<AuthUIState>,
