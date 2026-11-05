@@ -59,7 +59,6 @@ fun HomeScreen(
           onTabSelected = { tab -> if (tab == HomeBottomTab.PROFILE) onProfileClicked() },
           onScanClick = onScanClicked,
           cameraAvailable = cameraAvailable,
-          isDarkTheme = isDarkTheme,
       )
     }
   }
