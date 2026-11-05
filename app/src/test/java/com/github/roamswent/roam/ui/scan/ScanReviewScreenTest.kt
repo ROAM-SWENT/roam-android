@@ -2,6 +2,7 @@
 package com.github.roamswent.roam.ui.scan
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -163,6 +164,7 @@ class ScanReviewScreenTest {
             ScanReviewRoute(
                 navController = navController,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
+                isDarkTheme = false,
             )
           }
         }
@@ -175,6 +177,22 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_review_screen).assertIsDisplayed()
     composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_dialog).assertIsDisplayed()
+  }
+
+  @Test
+  fun galleryReviewRetakeReturnsToScanWithoutDeletingImage() {
+    showReviewRoute(
+        captureSender =
+            object : CaptureSender {
+              override suspend fun send(uri: Uri): Result<MonumentGuide> =
+                  Result.failure(UnsupportedOperationException())
+            },
+        isGalleryImage = true,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.scan_camera_screen)
   }
 
   @Test
@@ -236,6 +254,7 @@ class ScanReviewScreenTest {
             onRetakeCancel = {},
             onSend = {},
             showInterestsPrompt = true,
+            isDarkTheme = false,
         )
       }
     }
@@ -435,6 +454,7 @@ class ScanReviewScreenTest {
   private fun showReviewRoute(
       captureSender: CaptureSender,
       userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
+      isGalleryImage: Boolean = false,
   ) {
     val photo =
         File.createTempFile(
@@ -442,7 +462,11 @@ class ScanReviewScreenTest {
             ".jpg",
             ApplicationProvider.getApplicationContext<Context>().cacheDir,
         )
-    photo.writeBytes(byteArrayOf(1, 2, 3, 4))
+    val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+
+    photo.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it) }
+
+    bitmap.recycle()
     photoFile = photo
     photoUri = Uri.fromFile(photo)
     composeTestRule.activity.setContent {
@@ -454,12 +478,14 @@ class ScanReviewScreenTest {
             Box(Modifier.fillMaxSize().testTag(C.Tag.home_screen_container))
           }
           composable(Routes.Scan) { Box(Modifier.fillMaxSize().testTag(C.Tag.scan_camera_screen)) }
-          composable("${Routes.ScanReview}?uri={uri}") { entry ->
+          composable("${Routes.ScanReview}?uri={uri}&gallery={gallery}") { entry ->
             ScanReviewRoute(
                 navController = controller,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
+                isDarkTheme = false,
+                isGalleryImage = isGalleryImage,
             )
           }
         }
@@ -566,6 +592,7 @@ class ScanReviewScreenTest {
             onRetrySend = onRetrySend,
             onDismissSendError = onDismissSendError,
             onHomeClick = onHomeClick,
+            isDarkTheme = false,
         )
       }
     }

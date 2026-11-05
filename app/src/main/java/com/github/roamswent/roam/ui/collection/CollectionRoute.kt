@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.collection
 
 import androidx.compose.runtime.Composable
@@ -17,6 +18,7 @@ import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 @Composable
 fun CollectionRoute(
     repository: SavedGuideRepository,
+    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
 ) {
@@ -25,5 +27,10 @@ fun CollectionRoute(
 
   LaunchedEffect(viewModel) { viewModel.loadSavedGuides() }
 
-  CollectionScreen(state = state, modifier = modifier, onGuideClick = onGuideClick)
+  CollectionScreen(
+      state = state,
+      isDarkTheme = isDarkTheme,
+      modifier = modifier,
+      onGuideClick = onGuideClick,
+  )
 }

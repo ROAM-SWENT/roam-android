@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +44,7 @@ import com.github.roamswent.roam.ui.theme.LoadingProgressAccent
 import com.github.roamswent.roam.ui.theme.LoadingProgressTrack
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
+import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
 @Composable
@@ -53,6 +55,7 @@ fun LoadingScreen(
     title: String? = null,
     subtitle: String? = null,
     errorMessage: String? = null,
+    isDarkTheme: Boolean,
 ) {
   BackHandler(onBack = onCancel)
   val isLoading = errorMessage == null
@@ -63,7 +66,10 @@ fun LoadingScreen(
       modifier =
           modifier
               .fillMaxSize()
-              .background(ScreenBackground)
+              .background(
+                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+              )
+              .semantics { testTag = C.Tag.loading_screen_container }
               .statusBarsPadding()
               .navigationBarsPadding()
   ) {
@@ -87,8 +93,9 @@ fun LoadingScreen(
       if (isLoading) {
         CircularProgressIndicator(
             modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_progress },
-            color = LoadingProgressAccent,
-            trackColor = LoadingProgressTrack,
+            color = if (isDarkTheme) MaterialTheme.colorScheme.primary else LoadingProgressAccent,
+            trackColor =
+                if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else LoadingProgressTrack,
             strokeWidth = 3.dp,
         )
 
@@ -97,7 +104,7 @@ fun LoadingScreen(
         Text(
             text = displayedTitle,
             modifier = Modifier.semantics { testTag = C.Tag.loading_screen_title },
-            color = LoadingTextPrimary,
+            color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -107,7 +114,7 @@ fun LoadingScreen(
         Icon(
             imageVector = Icons.Filled.ErrorOutline,
             contentDescription = "Error",
-            tint = LoadingErrorText,
+            tint = if (isDarkTheme) MaterialTheme.colorScheme.error else LoadingErrorText,
             modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_error_icon },
         )
 
@@ -117,7 +124,13 @@ fun LoadingScreen(
       Text(
           text = errorMessage ?: displayedSubtitle,
           modifier = Modifier.semantics { testTag = C.Tag.loading_screen_subtitle },
-          color = if (errorMessage == null) LoadingTextSecondary else LoadingErrorText,
+          color =
+              when {
+                isDarkTheme && errorMessage != null -> MaterialTheme.colorScheme.error
+                isDarkTheme -> MaterialTheme.colorScheme.onSurfaceVariant
+                errorMessage == null -> LoadingTextSecondary
+                else -> LoadingErrorText
+              },
           fontSize = 14.sp,
       )
     }
@@ -131,7 +144,7 @@ fun LoadingScreen(
     ) {
       Text(
           text = stringResource(R.string.loading_cancel),
-          color = LoadingTextPrimary,
+          color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
           fontSize = 14.sp,
           fontWeight = FontWeight.SemiBold,
       )
@@ -142,8 +155,23 @@ fun LoadingScreen(
 @Preview(showBackground = true, widthDp = 360, heightDp = 760)
 @Composable
 private fun LoadingScreenPreview() {
-  LoadingScreen(
-      image = painterResource(android.R.drawable.ic_menu_gallery),
-      onCancel = {},
-  )
+  SampleAppTheme {
+    LoadingScreen(
+        image = painterResource(android.R.drawable.ic_menu_gallery),
+        onCancel = {},
+        isDarkTheme = false,
+    )
+  }
+}
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 760, name = "Loading screen (dark)")
+@Composable
+private fun LoadingScreenDarkPreview() {
+  SampleAppTheme(darkTheme = true, dynamicColor = false) {
+    LoadingScreen(
+        image = painterResource(android.R.drawable.ic_menu_gallery),
+        onCancel = {},
+        isDarkTheme = true,
+    )
+  }
 }

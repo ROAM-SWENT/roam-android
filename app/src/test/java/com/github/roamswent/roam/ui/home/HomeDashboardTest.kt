@@ -25,7 +25,7 @@ class HomeDashboardTest {
 
   @Test
   fun greetingHeaderDisplaysDefaultTexts() {
-    composeTestRule.setContent { SampleAppTheme { HomeGreetingHeader() } }
+    composeTestRule.setContent { SampleAppTheme { HomeGreetingHeader(isDarkTheme = false) } }
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
@@ -37,7 +37,9 @@ class HomeDashboardTest {
 
   @Test
   fun greetingHeaderDisplaysCustomUserName() {
-    composeTestRule.setContent { SampleAppTheme { HomeGreetingHeader(userName = "Amélie Dupont") } }
+    composeTestRule.setContent {
+      SampleAppTheme { HomeGreetingHeader(userName = "Amélie Dupont", isDarkTheme = false) }
+    }
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
@@ -47,7 +49,9 @@ class HomeDashboardTest {
   @Test
   fun blankUserNameFallsBackToDefault() {
     val userName = mutableStateOf("")
-    composeTestRule.setContent { SampleAppTheme { HomeGreetingHeader(userName = userName.value) } }
+    composeTestRule.setContent {
+      SampleAppTheme { HomeGreetingHeader(userName = userName.value, isDarkTheme = false) }
+    }
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
@@ -97,7 +101,7 @@ class HomeDashboardTest {
   @Test
   fun homeScreenShowsDashboardAboveDock() {
     composeTestRule.setContent {
-      SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "Test User") }
+      SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "Test User", isDarkTheme = false) }
     }
 
     composeTestRule
