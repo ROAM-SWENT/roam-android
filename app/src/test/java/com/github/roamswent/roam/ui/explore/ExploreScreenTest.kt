@@ -4,8 +4,12 @@
 
 package com.github.roamswent.roam.ui.explore
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -20,6 +24,7 @@ import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +33,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 class ExploreScreenTest {
@@ -54,6 +60,37 @@ class ExploreScreenTest {
 
     composeTestRule.onNodeWithText("Explore").assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+  }
+
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  fun exploreTitleUsesOnSurfaceColorInDarkTheme() {
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
+    val locationPermissionController = permissionController(granted = true)
+    var onSurfaceColor = 0
+
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        onSurfaceColor = MaterialTheme.colorScheme.onSurface.toArgb()
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = locationPermissionController,
+        )
+      }
+    }
+
+    val title = composeTestRule.onNodeWithText("Explore")
+    title.assertIsDisplayed()
+    val titleImage = title.captureToImage().asAndroidBitmap()
+    var foundOnSurfaceColor = false
+    for (y in 0 until titleImage.height) {
+      for (x in 0 until titleImage.width) {
+        if (titleImage.getPixel(x, y) == onSurfaceColor) foundOnSurfaceColor = true
+      }
+    }
+    assertTrue(foundOnSurfaceColor)
   }
 
   /** Verifies that clicking the back button invokes the provided callback. */

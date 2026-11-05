@@ -71,7 +71,6 @@ import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
-import com.github.roamswent.roam.ui.theme.HomeTextPrimary
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
@@ -211,7 +210,7 @@ private fun SettingsContent(
           text = stringResource(R.string.settings_title),
           style = MaterialTheme.typography.headlineMedium,
           fontWeight = FontWeight.Bold,
-          color = HomeTextPrimary,
+          color = MaterialTheme.colorScheme.onSurface,
       )
       ProfileCard(
           profile = profile,

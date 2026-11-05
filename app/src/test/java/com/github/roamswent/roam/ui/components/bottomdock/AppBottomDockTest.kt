@@ -5,7 +5,13 @@
 package com.github.roamswent.roam.ui.components.bottomdock
 
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -18,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -65,6 +72,35 @@ class AppBottomDockTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsDisplayed()
+  }
+
+  @Test
+  fun dockSurfaceFollowsLightAndDarkTheme() {
+    var isDarkTheme by mutableStateOf(false)
+    var lightSurface = 0
+    var darkSurface = 0
+
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
+        if (isDarkTheme) darkSurface = MaterialTheme.colorScheme.surface.toArgb()
+        else lightSurface = MaterialTheme.colorScheme.surface.toArgb()
+        AppBottomDock(
+            selected = DockDestination.HOME,
+            onDestinationSelected = {},
+            onScanClick = {},
+        )
+      }
+    }
+
+    val dock = composeTestRule.onNodeWithTag(C.Tag.dock_container)
+    val lightDock = dock.captureToImage().asAndroidBitmap()
+    assertEquals(lightSurface, lightDock.getPixel(0, lightDock.height - 1))
+
+    composeTestRule.runOnIdle { isDarkTheme = true }
+
+    val darkDock = dock.captureToImage().asAndroidBitmap()
+    assertEquals(darkSurface, darkDock.getPixel(0, darkDock.height - 1))
+    assertNotEquals(lightSurface, darkSurface)
   }
 
   @Test

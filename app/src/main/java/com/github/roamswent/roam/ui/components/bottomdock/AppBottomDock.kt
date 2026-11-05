@@ -53,11 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
-import com.github.roamswent.roam.ui.theme.DockBarBackground
-import com.github.roamswent.roam.ui.theme.DockOutline
 import com.github.roamswent.roam.ui.theme.DockScanIcon
-import com.github.roamswent.roam.ui.theme.HomeActiveTab
-import com.github.roamswent.roam.ui.theme.HomeInactiveTab
 import com.github.roamswent.roam.ui.theme.ScanTeal
 
 @Composable
@@ -71,23 +67,22 @@ fun AppBottomDock(
   val barContentHeight = 80.dp
   val haloSize = 72.dp
   val fabSize = 56.dp
-  // How far the halo rises above the white bar's top edge.
+  // How far the halo rises above the bar's top edge.
   val protrusion = haloSize / 2
 
-  // Outer container is fully transparent; only the bar and the halo paint white.
+  // Outer container is fully transparent; only the bar and the halo paint a surface.
   Box(
       modifier =
           modifier.fillMaxWidth().background(Color.Transparent).semantics {
             testTag = C.Tag.dock_container
           }
   ) {
-    // White bar. padding(top = protrusion) comes BEFORE background(White), so the
-    // top 36.dp stay transparent and the pure white starts exactly at y = 36.dp.
+    // The top 36.dp stay transparent; the themed surface starts at y = 36.dp.
     Box(
         modifier =
             Modifier.fillMaxWidth()
                 .padding(top = protrusion)
-                .background(DockBarBackground)
+                .background(MaterialTheme.colorScheme.surface)
                 .navigationBarsPadding()
                 .height(barContentHeight),
     ) {
@@ -143,7 +138,7 @@ fun AppBottomDock(
                 .size(haloSize)
                 .background(
                     color =
-                        if (cameraAvailable) DockBarBackground
+                        if (cameraAvailable) MaterialTheme.colorScheme.surface
                         else MaterialTheme.colorScheme.surfaceVariant,
                     shape = CircleShape,
                 ),
@@ -177,6 +172,7 @@ fun AppBottomDock(
 
     // 1.dp outline drawn last: bar top edge on both sides of the halo plus the
     // halo's upper semicircle, locked to y = protrusion (the bar's top edge).
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier = Modifier.matchParentSize()) {
       val barTop = protrusion.toPx()
       val haloRadius = haloSize.toPx() / 2f
@@ -193,7 +189,11 @@ fun AppBottomDock(
             )
             lineTo(size.width, barTop)
           }
-      drawPath(path = outline, color = DockOutline, style = Stroke(width = 1.dp.toPx()))
+      drawPath(
+          path = outline,
+          color = outlineColor,
+          style = Stroke(width = 1.dp.toPx()),
+      )
     }
   }
 }
@@ -222,7 +222,9 @@ private fun DockTabItem(
     selected: Boolean,
     onDestinationSelected: (DockDestination) -> Unit,
 ) {
-  val color = if (selected) HomeActiveTab else HomeInactiveTab
+  val color =
+      if (selected) MaterialTheme.colorScheme.onSurface
+      else MaterialTheme.colorScheme.onSurfaceVariant
 
   Column(
       horizontalAlignment = Alignment.CenterHorizontally,

@@ -154,12 +154,14 @@ class SettingsScreenTest {
     var isDarkTheme by mutableStateOf(false)
     var darkBackgroundColor = 0
     var darkCardColor = 0
+    var darkTitleColor = 0
 
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
         if (isDarkTheme) {
           darkBackgroundColor = MaterialTheme.colorScheme.background.toArgb()
           darkCardColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
+          darkTitleColor = MaterialTheme.colorScheme.onSurface.toArgb()
         }
         SettingsScreen(
             settingsViewModel = viewModel,
@@ -191,6 +193,7 @@ class SettingsScreenTest {
             .onNodeWithTag(C.Tag.settings_screen_container)
             .captureToImage()
             .asAndroidBitmap()
+    val darkTitle = composeTestRule.onNodeWithText("Profile").captureToImage().asAndroidBitmap()
     val darkProfileCard =
         composeTestRule
             .onNodeWithTag(C.Tag.settings_profile_card)
@@ -212,6 +215,7 @@ class SettingsScreenTest {
 
     assertEquals(darkBackgroundColor, darkBackground.getPixel(0, 0))
     assertNotEquals(ScreenBackground.toArgb(), darkBackground.getPixel(0, 0))
+    assertTrue(containsColor(darkTitle, darkTitleColor))
     assertNotEquals(darkBackgroundColor, darkCardColor)
     assertTrue(containsColor(darkProfileCard, darkCardColor))
     assertTrue(containsColor(darkPermissionsCard, darkCardColor))
