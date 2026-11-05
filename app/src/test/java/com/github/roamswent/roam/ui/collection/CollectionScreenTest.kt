@@ -1,13 +1,19 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.collection
 
 import android.graphics.Bitmap
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,12 +26,15 @@ import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.ScreenBackground
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -142,6 +151,85 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun screenPreservesLightColorsAndUsesDarkThemeSurfaces() {
+    val guide = guide("guide", "Eiffel Tower", discoveryDate = newerGuide.discoveryDate)
+    var isDarkTheme by mutableStateOf(false)
+    var darkBackgroundColor = 0
+    var darkCardColor = 0
+    var darkTitleColor = 0
+
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
+        if (isDarkTheme) {
+          darkBackgroundColor = MaterialTheme.colorScheme.background.toArgb()
+          darkCardColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
+          darkTitleColor = MaterialTheme.colorScheme.onSurface.toArgb()
+        }
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(guide)),
+            isDarkTheme = isDarkTheme,
+        )
+      }
+    }
+
+    val lightBackground =
+        composeTestRule.onNodeWithTag(C.Tag.collection_screen).captureToImage().asAndroidBitmap()
+    val lightCard =
+        composeTestRule.onNodeWithTag(C.Tag.collection_card).captureToImage().asAndroidBitmap()
+
+    assertEquals(ScreenBackground.toArgb(), lightBackground.getPixel(0, 0))
+    assertTrue(containsColor(lightCard, Color.White.toArgb()))
+
+    composeTestRule.runOnIdle { isDarkTheme = true }
+
+    val darkBackground =
+        composeTestRule.onNodeWithTag(C.Tag.collection_screen).captureToImage().asAndroidBitmap()
+    val darkCard =
+        composeTestRule.onNodeWithTag(C.Tag.collection_card).captureToImage().asAndroidBitmap()
+    val darkTitle =
+        composeTestRule
+            .onNodeWithTag(C.Tag.collection_card_name, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+
+    assertEquals(darkBackgroundColor, darkBackground.getPixel(0, 0))
+    assertNotEquals(ScreenBackground.toArgb(), darkBackground.getPixel(0, 0))
+    assertNotEquals(darkBackgroundColor, darkCardColor)
+    assertTrue(containsColor(darkCard, darkCardColor))
+    assertTrue(containsColor(darkTitle, darkTitleColor))
+  }
+
+  @Test
+  fun populatedCollectionPreviewRendersGuideCards() {
+    composeTestRule.setContent { PreviewCollectionScreen() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_grid).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(4)
+  }
+
+  @Test
+  fun populatedDarkCollectionPreviewRendersGuideCards() {
+    composeTestRule.setContent { PreviewCollectionScreenDark() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_grid).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(4)
+  }
+
+  @Test
+  fun emptyCollectionPreviewRendersEmptyState() {
+    composeTestRule.setContent { PreviewCollectionScreenEmpty() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertIsDisplayed()
+  }
+
+  @Test
+  fun emptyDarkCollectionPreviewRendersEmptyState() {
+    composeTestRule.setContent { PreviewCollectionScreenEmptyDark() }
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertIsDisplayed()
+  }
+
+  @Test
   fun showsStoredPhotoOnceDecoded() {
     setScreen(SavedGuidesUiState(guides = listOf(newerGuide.copy(photoBytes = pngBytes()))))
 
@@ -203,7 +291,9 @@ class CollectionScreenTest {
             .build()
     )
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
-    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
+    composeTestRule.setContent {
+      SampleAppTheme { CollectionScreen(state = state, isDarkTheme = false) }
+    }
     composeTestRule.waitUntil(TIMEOUT_MILLIS) {
       hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
     }
@@ -221,7 +311,9 @@ class CollectionScreenTest {
   @Test
   fun decodesAgainWhenThePhotoOfAGuideChanges() {
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
-    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
+    composeTestRule.setContent {
+      SampleAppTheme { CollectionScreen(state = state, isDarkTheme = false) }
+    }
     composeTestRule.waitUntil(TIMEOUT_MILLIS) {
       hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
     }
@@ -253,7 +345,9 @@ class CollectionScreenTest {
 
   private fun setScreen(state: SavedGuidesUiState, onGuideClick: (String) -> Unit = {}) {
     composeTestRule.setContent {
-      SampleAppTheme { CollectionScreen(state = state, onGuideClick = onGuideClick) }
+      SampleAppTheme {
+        CollectionScreen(state = state, isDarkTheme = false, onGuideClick = onGuideClick)
+      }
     }
   }
 
@@ -268,6 +362,15 @@ class CollectionScreenTest {
           culture = "Culture",
           discoveryDate = discoveryDate,
       )
+
+  private fun containsColor(bitmap: Bitmap, color: Int): Boolean {
+    for (x in 0 until bitmap.width) {
+      for (y in 0 until bitmap.height) {
+        if (bitmap.getPixel(x, y) == color) return true
+      }
+    }
+    return false
+  }
 
   private companion object {
     const val TIMEOUT_MILLIS = 5_000L

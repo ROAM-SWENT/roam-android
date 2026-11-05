@@ -57,7 +57,7 @@ object ImageValidator {
     return ImageFormat.entries.firstOrNull { it.mimeType == canonical }
   }
 
-  private fun detectFormat(bytes: ByteArray): ImageFormat? =
+  fun detectFormat(bytes: ByteArray): ImageFormat? =
       when {
         bytes.matchesAt(0, JPEG_SIGNATURE) -> ImageFormat.JPEG
         bytes.matchesAt(0, PNG_SIGNATURE) -> ImageFormat.PNG

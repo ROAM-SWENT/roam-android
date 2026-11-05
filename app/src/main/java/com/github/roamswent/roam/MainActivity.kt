@@ -34,10 +34,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
@@ -52,6 +54,7 @@ import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
+import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.explore.ExploreScreen
 import com.github.roamswent.roam.ui.explore.ExploreViewModel
 import com.github.roamswent.roam.ui.home.HomeScreen
@@ -97,6 +100,7 @@ class MainActivity : ComponentActivity() {
               authViewModel = authViewModel,
               themeMode = selectedTheme,
               onThemeModeSelected = themeViewModel::setThemeMode,
+              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -115,6 +119,7 @@ internal fun RoamApp(
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
+    isDarkTheme: Boolean = themeMode == ThemeMode.DARK,
 ) {
   val context = LocalContext.current
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
@@ -211,6 +216,7 @@ internal fun RoamApp(
         SignInScreen(
             authViewModel = authViewModel,
             onSignedIn = onSignedIn,
+            isDarkTheme = isDarkTheme,
             onSignInClickOverride =
                 onSignInClickOverride?.let { signIn ->
                   {
@@ -236,35 +242,49 @@ internal fun RoamApp(
               userName = userName,
               onDockDestinationSelected = onDockDestinationSelected,
               isConnectedToInternet = isOnline,
+              isDarkTheme = isDarkTheme,
           )
         }
       }
       composable(Routes.Scan) { ScanRoute(navController) }
-      composable("${Routes.ScanReview}?uri={uri}") { backStackEntry ->
+      composable(
+          "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
+          arguments =
+              listOf(
+                  navArgument("gallery") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                  }
+              ),
+      ) { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
         if (uri != null) {
           ScanReviewRoute(
               navController,
               uri,
               captureSenderOverride,
+              isDarkTheme = isDarkTheme,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
+              isGalleryImage = backStackEntry.arguments?.getBoolean("gallery") ?: false,
           )
         }
       }
       composable(Routes.Settings) {
+        val dockClearance = dockContentClearance()
         DockedScaffold { innerPadding ->
           SettingsScreen(
               modifier =
                   Modifier.padding(
                       top = innerPadding.calculateTopPadding(),
-                      bottom = 96.dp,
+                      bottom = dockClearance,
                   ),
               settingsViewModel = settingsViewModel,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               themeMode = themeMode,
+              isDarkTheme = isDarkTheme,
               onThemeModeSelected = onThemeModeSelected,
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
@@ -284,6 +304,7 @@ internal fun RoamApp(
           CollectionRoute(
               repository = savedGuideRepository,
               modifier = Modifier.padding(innerPadding),
+              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -306,6 +327,7 @@ internal fun RoamApp(
             )
           }
         }
+      }
       }
     }
     if (showPermissionDialog && permissionState == CameraPermissionState.Denied) {

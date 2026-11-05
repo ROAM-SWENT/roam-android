@@ -120,6 +120,7 @@ class LoadingRouteTest {
           onCancel = onCancel,
           onDiscoverySuccess = onSuccess,
           loadingViewModel = loadingViewModel,
+          isDarkTheme = false,
       )
     }
   }

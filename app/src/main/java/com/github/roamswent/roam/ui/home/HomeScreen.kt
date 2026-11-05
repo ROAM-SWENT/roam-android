@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
+import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
@@ -32,24 +34,31 @@ fun HomeScreen(
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     onDockDestinationSelected: (DockDestination) -> Unit = {},
     isConnectedToInternet: Boolean? = null,
+    isDarkTheme: Boolean,
 ) {
   val isOnline = isConnectedToInternet ?: rememberInternetConnectivity()
 
   Box(
       modifier =
-          modifier.fillMaxSize().background(ScreenBackground).semantics {
-            testTag = C.Tag.home_screen_container
-          }
+          modifier
+              .fillMaxSize()
+              .background(
+                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+              )
+              .semantics { testTag = C.Tag.home_screen_container }
   ) {
     Column(
         modifier =
             Modifier.fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 20.dp, end = 20.dp, bottom = 96.dp)
+                .padding(start = 20.dp, end = 20.dp, bottom = dockContentClearance())
     ) {
-      HomeGreetingHeader(userName = userName)
+      HomeGreetingHeader(userName = userName, isDarkTheme = isDarkTheme)
       if (!isOnline) {
-        OfflineNoticeCard(modifier = Modifier.padding(bottom = 12.dp))
+        OfflineNoticeCard(
+            modifier = Modifier.padding(bottom = 12.dp),
+            isDarkTheme = isDarkTheme,
+        )
       }
       ScanPromptCard(onPromptClick = {})
     }
@@ -68,5 +77,5 @@ fun HomeScreen(
 @Preview(showBackground = true)
 @Composable
 fun HomeScreenPreview() {
-  SampleAppTheme { HomeScreen(onScanClicked = {}) }
+  SampleAppTheme { HomeScreen(onScanClicked = {}, isDarkTheme = false) }
 }
