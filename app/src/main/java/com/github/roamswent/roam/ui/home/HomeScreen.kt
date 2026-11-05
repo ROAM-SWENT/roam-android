@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
+import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
@@ -45,7 +46,7 @@ fun HomeScreen(
         modifier =
             Modifier.fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 20.dp, end = 20.dp, bottom = 96.dp)
+                .padding(start = 20.dp, end = 20.dp, bottom = dockContentClearance())
     ) {
       HomeGreetingHeader(userName = userName)
       if (!isOnline) {

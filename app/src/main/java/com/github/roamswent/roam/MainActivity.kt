@@ -48,6 +48,7 @@ import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
+import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
@@ -224,14 +225,12 @@ internal fun RoamApp(
         }
       }
       composable(Routes.Settings) {
+        val dockClearance = dockContentClearance()
         // Same as Home: the screens apply their own status bar inset, so the top
-        // inset stays 0 and containerColor covers the status bar strip. With a
-        // bottomBar present, Scaffold reports the full dock height (116.dp) as
-        // innerPadding.bottom, but only the 80.dp bar is opaque: pad the content
-        // by 96.dp (bar + 16.dp) so it scrolls underneath the transparent bump.
+        // inset stays 0 and containerColor covers the status bar strip.
         Scaffold(
             containerColor = ScreenBackground,
-            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 96.dp),
+            contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, dockClearance),
             bottomBar = {
               AppBottomDock(
                   selected = currentDestination,
@@ -245,7 +244,7 @@ internal fun RoamApp(
               modifier =
                   Modifier.padding(
                       top = innerPadding.calculateTopPadding(),
-                      bottom = 96.dp,
+                      bottom = dockClearance,
                   ),
               settingsViewModel = settingsViewModel,
               cameraPermissionController = permissionController,
