@@ -98,6 +98,27 @@ class HomeScreenTest {
   }
 
   @Test
+  fun profileBubbleShowsInitialAndOpensProfileDestination() {
+    var profileClicked = false
+    composeTestRule.setContent {
+      SampleAppTheme {
+        HomeScreen(
+            onScanClicked = {},
+            userName = "Ada Lovelace",
+            onProfileClicked = { profileClicked = true },
+            isDarkTheme = false,
+        )
+      }
+    }
+
+    val profileBubble = composeTestRule.onNodeWithTag(C.Tag.home_profile_button)
+    profileBubble.assertIsDisplayed().assertTextEquals("A")
+    profileBubble.performClick()
+
+    assertTrue(profileClicked)
+  }
+
+  @Test
   fun homeScreenShowsSignedOutGreeting() {
     composeTestRule.setContent {
       SampleAppTheme {

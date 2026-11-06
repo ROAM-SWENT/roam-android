@@ -57,6 +57,7 @@ import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.explore.ExploreScreen
 import com.github.roamswent.roam.ui.explore.ExploreViewModel
+import com.github.roamswent.roam.ui.friends.FriendsScreen
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
@@ -145,7 +146,8 @@ internal fun RoamApp(
   val currentBackStackEntry by navController.currentBackStackEntryAsState()
   val currentDestination =
       when (currentBackStackEntry?.destination?.route) {
-        Routes.Settings -> DockDestination.SETTINGS
+        Routes.Friends -> DockDestination.FRIENDS
+        Routes.Settings -> null
         Routes.Collection -> DockDestination.COLLECTION
         Routes.Explore -> DockDestination.EXPLORE
         else -> DockDestination.HOME
@@ -242,6 +244,16 @@ internal fun RoamApp(
               cameraAvailable = cameraAvailable,
               userName = userName,
               onDockDestinationSelected = onDockDestinationSelected,
+              onProfileClicked = {
+                navController.navigate(Routes.Settings) {
+                  popUpTo(Routes.Home) {
+                    inclusive = false
+                    saveState = true
+                  }
+                  launchSingleTop = true
+                  restoreState = true
+                }
+              },
               isConnectedToInternet = isOnline,
               isDarkTheme = isDarkTheme,
           )
@@ -305,6 +317,19 @@ internal fun RoamApp(
         DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository,
+              modifier =
+                  Modifier.padding(
+                      top = innerPadding.calculateTopPadding(),
+                      bottom = dockClearance,
+                  ),
+              isDarkTheme = isDarkTheme,
+          )
+        }
+      }
+      composable(Routes.Friends) {
+        val dockClearance = dockContentClearance()
+        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
+          FriendsScreen(
               modifier =
                   Modifier.padding(
                       top = innerPadding.calculateTopPadding(),

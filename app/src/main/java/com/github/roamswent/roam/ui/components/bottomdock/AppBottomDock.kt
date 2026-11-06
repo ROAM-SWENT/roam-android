@@ -58,7 +58,7 @@ import com.github.roamswent.roam.ui.theme.ScanTeal
 
 @Composable
 fun AppBottomDock(
-    selected: DockDestination,
+    selected: DockDestination?,
     onDestinationSelected: (DockDestination) -> Unit,
     onScanClick: () -> Unit,
     cameraAvailable: Boolean = true,
@@ -122,7 +122,7 @@ fun AppBottomDock(
             onDestinationSelected = onDestinationSelected,
         )
         DockTabSlot(
-            destination = DockDestination.SETTINGS,
+            destination = DockDestination.FRIENDS,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
         )
@@ -201,7 +201,7 @@ fun AppBottomDock(
 @Composable
 private fun RowScope.DockTabSlot(
     destination: DockDestination,
-    selected: DockDestination,
+    selected: DockDestination?,
     onDestinationSelected: (DockDestination) -> Unit,
 ) {
   Box(
