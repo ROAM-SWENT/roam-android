@@ -16,7 +16,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.resources.C
-import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import org.junit.Assert.assertEquals
@@ -100,13 +99,13 @@ class HomeScreenTest {
 
   @Test
   fun profileBubbleShowsInitialAndOpensProfileDestination() {
-    var selectedDestination: DockDestination? = null
+    var profileClicked = false
     composeTestRule.setContent {
       SampleAppTheme {
         HomeScreen(
             onScanClicked = {},
             userName = "Ada Lovelace",
-            onDockDestinationSelected = { selectedDestination = it },
+            onProfileClicked = { profileClicked = true },
             isDarkTheme = false,
         )
       }
@@ -116,7 +115,7 @@ class HomeScreenTest {
     profileBubble.assertIsDisplayed().assertTextEquals("A")
     profileBubble.performClick()
 
-    assertEquals(DockDestination.SETTINGS, selectedDestination)
+    assertTrue(profileClicked)
   }
 
   @Test

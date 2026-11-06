@@ -12,7 +12,7 @@ object C {
     const val home_screen_container = "home_screen_container"
     const val dock_container = "dock_container"
     const val dock_tab_home = "dock_tab_home"
-    const val dock_tab_settings = "dock_tab_settings"
+    const val dock_tab_friends = "dock_tab_friends"
     const val dock_tab_collection = "dock_tab_collection"
     const val dock_tab_explore = "dock_tab_explore"
     const val dock_scan_button = "dock_scan_button"
@@ -111,5 +111,7 @@ object C {
     const val collection_empty_state = "collection_empty_state"
     const val collection_loading = "collection_loading"
     const val collection_error = "collection_error"
+    const val friends_screen_container = "friends_screen_container"
+    const val friends_title = "friends_title"
   }
 }

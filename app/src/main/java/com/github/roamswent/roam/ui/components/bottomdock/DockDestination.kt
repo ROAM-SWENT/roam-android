@@ -119,5 +119,5 @@ enum class DockDestination(
       HistoriqueIcon,
       C.Tag.dock_tab_collection,
   ),
-  SETTINGS(Routes.Settings, R.string.home_tab_profile, ProfileDockIcon, C.Tag.dock_tab_settings),
+  FRIENDS(Routes.Friends, R.string.home_tab_friends, ProfileDockIcon, C.Tag.dock_tab_friends),
 }

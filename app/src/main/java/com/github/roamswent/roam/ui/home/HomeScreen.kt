@@ -45,6 +45,7 @@ fun HomeScreen(
     cameraAvailable: Boolean = true,
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     onDockDestinationSelected: (DockDestination) -> Unit = {},
+    onProfileClicked: () -> Unit = {},
     isConnectedToInternet: Boolean? = null,
     isDarkTheme: Boolean,
 ) {
@@ -73,7 +74,7 @@ fun HomeScreen(
         )
         ProfileBubble(
             userName = userName,
-            onClick = { onDockDestinationSelected(DockDestination.SETTINGS) },
+            onClick = onProfileClicked,
             modifier = Modifier.padding(top = 16.dp),
         )
       }
