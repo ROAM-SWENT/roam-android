@@ -36,6 +36,7 @@ object C {
     const val settings_interest_remove_prefix = "settings_interest_remove_"
     const val home_greeting_subtitle = "home_greeting_subtitle"
     const val home_greeting_title = "home_greeting_title"
+    const val home_profile_button = "home_profile_button"
     const val home_scan_card = "home_scan_card"
     const val home_scan_card_title = "home_scan_card_title"
     const val home_scan_card_body = "home_scan_card_body"

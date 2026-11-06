@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import org.junit.Assert.assertEquals
@@ -95,6 +96,27 @@ class HomeScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
         .assertTextEquals("Hello Ada Lovelace,")
+  }
+
+  @Test
+  fun profileBubbleShowsInitialAndOpensProfileDestination() {
+    var selectedDestination: DockDestination? = null
+    composeTestRule.setContent {
+      SampleAppTheme {
+        HomeScreen(
+            onScanClicked = {},
+            userName = "Ada Lovelace",
+            onDockDestinationSelected = { selectedDestination = it },
+            isDarkTheme = false,
+        )
+      }
+    }
+
+    val profileBubble = composeTestRule.onNodeWithTag(C.Tag.home_profile_button)
+    profileBubble.assertIsDisplayed().assertTextEquals("A")
+    profileBubble.performClick()
+
+    assertEquals(DockDestination.SETTINGS, selectedDestination)
   }
 
   @Test
