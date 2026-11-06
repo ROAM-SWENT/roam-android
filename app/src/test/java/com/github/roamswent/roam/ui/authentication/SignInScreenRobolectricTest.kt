@@ -62,7 +62,6 @@ class SignInScreenRobolectricTest {
       SignInScreen(
           authViewModel = viewModel,
           credentialManager = mock<CredentialManager>(),
-          isDarkTheme = false,
       )
     }
 
@@ -76,7 +75,7 @@ class SignInScreenRobolectricTest {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
 
     composeTestRule
         .onNodeWithContentDescription(context.getString(R.string.sign_in_logo_description))
@@ -94,7 +93,7 @@ class SignInScreenRobolectricTest {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(isLoading = true)))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
 
     assertTrue(
         composeTestRule
@@ -111,7 +110,7 @@ class SignInScreenRobolectricTest {
     whenever(viewModel.uiState)
         .thenReturn(MutableStateFlow(AuthUIState(errorMsg = "Unable to sign in")))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
     composeTestRule.waitForIdle()
 
     verify(viewModel).clearErrorMsg()
@@ -131,7 +130,6 @@ class SignInScreenRobolectricTest {
       SignInScreen(
           authViewModel = viewModel,
           onSignedIn = { callbackCount++ },
-          isDarkTheme = false,
       )
     }
     composeTestRule.waitForIdle()
@@ -154,7 +152,6 @@ class SignInScreenRobolectricTest {
       SignInScreen(
           authViewModel = viewModel,
           onSignedIn = { navigationCount++ },
-          isDarkTheme = false,
       )
     }
     composeTestRule.waitForIdle()
@@ -183,7 +180,7 @@ class SignInScreenRobolectricTest {
 
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = false, dynamicColor = false) {
-        SignInScreen(authViewModel = viewModel, isDarkTheme = false)
+        SignInScreen(authViewModel = viewModel)
       }
     }
 
@@ -213,7 +210,7 @@ class SignInScreenRobolectricTest {
       SampleAppTheme(darkTheme = true, dynamicColor = false) {
         expectedBackground = MaterialTheme.colorScheme.background
         expectedLogoColor = MaterialTheme.colorScheme.onSurface
-        SignInScreen(authViewModel = viewModel, isDarkTheme = true)
+        SignInScreen(authViewModel = viewModel)
       }
     }
 

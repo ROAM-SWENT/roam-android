@@ -167,7 +167,6 @@ class CollectionScreenTest {
         }
         CollectionScreen(
             state = SavedGuidesUiState(guides = listOf(guide)),
-            isDarkTheme = isDarkTheme,
         )
       }
     }
@@ -291,9 +290,7 @@ class CollectionScreenTest {
             .build()
     )
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
-    composeTestRule.setContent {
-      SampleAppTheme { CollectionScreen(state = state, isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
     composeTestRule.waitUntil(TIMEOUT_MILLIS) {
       hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
     }
@@ -311,9 +308,7 @@ class CollectionScreenTest {
   @Test
   fun decodesAgainWhenThePhotoOfAGuideChanges() {
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
-    composeTestRule.setContent {
-      SampleAppTheme { CollectionScreen(state = state, isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
     composeTestRule.waitUntil(TIMEOUT_MILLIS) {
       hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
     }
@@ -345,9 +340,7 @@ class CollectionScreenTest {
 
   private fun setScreen(state: SavedGuidesUiState, onGuideClick: (String) -> Unit = {}) {
     composeTestRule.setContent {
-      SampleAppTheme {
-        CollectionScreen(state = state, isDarkTheme = false, onGuideClick = onGuideClick)
-      }
+      SampleAppTheme { CollectionScreen(state = state, onGuideClick = onGuideClick) }
     }
   }
 

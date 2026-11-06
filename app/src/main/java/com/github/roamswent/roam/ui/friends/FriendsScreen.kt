@@ -21,9 +21,10 @@ import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
-fun FriendsScreen(modifier: Modifier = Modifier, isDarkTheme: Boolean) {
+fun FriendsScreen(modifier: Modifier = Modifier) {
   Column(
       modifier =
           modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp).semantics {
@@ -34,7 +35,9 @@ fun FriendsScreen(modifier: Modifier = Modifier, isDarkTheme: Boolean) {
         text = stringResource(R.string.friends_title),
         fontSize = 28.sp,
         fontWeight = FontWeight.Bold,
-        color = if (isDarkTheme) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
+        color =
+            if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
+            else LoadingTextPrimary,
         modifier = Modifier.padding(vertical = 16.dp).semantics { testTag = C.Tag.friends_title },
     )
   }

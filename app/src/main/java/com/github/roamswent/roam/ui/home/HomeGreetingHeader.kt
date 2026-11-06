@@ -23,16 +23,16 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeTextPrimary
 import com.github.roamswent.roam.ui.theme.HomeTextSecondary
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
 fun HomeGreetingHeader(
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     modifier: Modifier = Modifier,
-    isDarkTheme: Boolean,
 ) {
   val displayName = userName.trim()
   val secondaryTextColor =
-      if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant else HomeTextSecondary
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant else HomeTextSecondary
 
   Column(modifier = modifier.fillMaxWidth().padding(top = 16.dp, bottom = 20.dp)) {
     Text(
@@ -49,7 +49,7 @@ fun HomeGreetingHeader(
         text = stringResource(R.string.home_greeting_title),
         fontSize = 26.sp,
         fontWeight = FontWeight.Bold,
-        color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else HomeTextPrimary,
+        color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface else HomeTextPrimary,
         modifier = Modifier.semantics { testTag = C.Tag.home_greeting_title },
     )
   }
