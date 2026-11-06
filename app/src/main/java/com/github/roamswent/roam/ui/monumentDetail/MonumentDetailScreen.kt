@@ -34,6 +34,7 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 import kotlin.math.roundToInt
 
 @Composable
@@ -41,10 +42,10 @@ fun MonumentDetailScreen(
     image: Painter,
     guide: MonumentGuide,
     onBackClick: () -> Unit,
-    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
-  val textBackgroundColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground
+  val textBackgroundColor =
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
   val textColor = MaterialTheme.colorScheme.onSurface
   val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
   val cornerRadius = 32.dp
@@ -215,7 +216,6 @@ fun PreviewMonumentDetailScreen() {
                 language = "en",
             ),
         onBackClick = {},
-        isDarkTheme = false,
     )
   }
 }

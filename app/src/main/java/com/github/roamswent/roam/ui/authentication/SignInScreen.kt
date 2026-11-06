@@ -50,6 +50,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
 fun SignInScreen(
@@ -57,7 +58,6 @@ fun SignInScreen(
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onSignedIn: () -> Unit = {},
     onSignInClickOverride: (() -> Unit)? = null,
-    isDarkTheme: Boolean,
 ) {
 
   val context = LocalContext.current
@@ -88,7 +88,8 @@ fun SignInScreen(
 
   Scaffold(
       modifier = Modifier.fillMaxSize().testTag(C.Tag.sign_in_screen_container),
-      containerColor = if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground,
+      containerColor =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
       bottomBar = {
         Column(
             modifier =
@@ -134,7 +135,7 @@ fun SignInScreen(
                 contentDescription = stringResource(R.string.sign_in_logo_description),
                 modifier = Modifier.size(180.dp),
                 colorFilter =
-                    if (isDarkTheme) ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                    if (MaterialTheme.isDark) ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                     else null,
             )
             Spacer(modifier = Modifier.height(20.dp))

@@ -38,7 +38,7 @@ class LoadingScreenTest {
   @Test
   fun displaysTheImageProgressAndDefaultCopy() {
     composeTestRule.setContent {
-      LoadingScreen(image = ColorPainter(Color.LightGray), onCancel = {}, isDarkTheme = false)
+      LoadingScreen(image = ColorPainter(Color.LightGray), onCancel = {})
     }
 
     composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
@@ -66,7 +66,6 @@ class LoadingScreenTest {
           onCancel = { cancelCount++ },
           title = "Finding a landmark",
           subtitle = "This can take a moment.",
-          isDarkTheme = false,
       )
     }
 
@@ -91,7 +90,6 @@ class LoadingScreenTest {
           onCancel = {},
           subtitle = "Identifying your monument.",
           errorMessage = "Gemini is unavailable",
-          isDarkTheme = false,
       )
     }
 
@@ -111,7 +109,6 @@ class LoadingScreenTest {
       LoadingScreen(
           image = ColorPainter(Color.LightGray),
           onCancel = { cancelCount++ },
-          isDarkTheme = false,
       )
     }
 
@@ -140,7 +137,6 @@ class LoadingScreenTest {
         LoadingScreen(
             image = ColorPainter(Color.LightGray),
             onCancel = {},
-            isDarkTheme = isDarkTheme,
         )
       }
     }
@@ -196,7 +192,6 @@ class LoadingScreenTest {
             image = ColorPainter(Color.LightGray),
             onCancel = {},
             errorMessage = "Gemini is unavailable",
-            isDarkTheme = true,
         )
       }
     }

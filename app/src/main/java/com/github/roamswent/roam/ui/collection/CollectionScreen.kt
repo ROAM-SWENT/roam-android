@@ -58,6 +58,7 @@ import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
@@ -71,38 +72,39 @@ import java.util.Locale
 @Composable
 fun CollectionScreen(
     state: SavedGuidesUiState,
-    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
 ) {
   Scaffold(
       modifier = modifier.fillMaxSize().semantics { testTag = C.Tag.collection_screen },
-      containerColor = if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground,
+      containerColor =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
   ) { contentPadding ->
     Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
       Text(
           text = stringResource(R.string.collection_title),
           fontSize = 28.sp,
           fontWeight = FontWeight.Bold,
-          color = if (isDarkTheme) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
+          color =
+              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
+              else LoadingTextPrimary,
           modifier =
               Modifier.padding(horizontal = 20.dp, vertical = 16.dp).semantics {
                 testTag = C.Tag.collection_title
               },
       )
       when {
-        state.guides.isNotEmpty() -> GuideGrid(newestFirst(state.guides), onGuideClick, isDarkTheme)
+        state.guides.isNotEmpty() -> GuideGrid(newestFirst(state.guides), onGuideClick)
         state.isLoadingGuides -> CollectionLoading()
-        state.guidesError != null ->
-            CollectionMessage(C.Tag.collection_error) { CollectionError(isDarkTheme) }
-        else -> CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty(isDarkTheme) }
+        state.guidesError != null -> CollectionMessage(C.Tag.collection_error) { CollectionError() }
+        else -> CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty() }
       }
     }
   }
 }
 
 @Composable
-private fun GuideGrid(guides: List<Guide>, onGuideClick: (String) -> Unit, isDarkTheme: Boolean) {
+private fun GuideGrid(guides: List<Guide>, onGuideClick: (String) -> Unit) {
   LazyVerticalGrid(
       columns = GridCells.Fixed(2),
       contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
@@ -111,30 +113,32 @@ private fun GuideGrid(guides: List<Guide>, onGuideClick: (String) -> Unit, isDar
       modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.collection_grid },
   ) {
     items(guides, key = { it.id }) { guide ->
-      GuideCard(guide, isDarkTheme, onClick = { onGuideClick(guide.id) })
+      GuideCard(guide, onClick = { onGuideClick(guide.id) })
     }
   }
 }
 
 @Composable
-private fun GuideCard(guide: Guide, isDarkTheme: Boolean, onClick: () -> Unit) {
+private fun GuideCard(guide: Guide, onClick: () -> Unit) {
   Card(
       onClick = onClick,
       shape = RoundedCornerShape(16.dp),
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
       modifier = Modifier.fillMaxWidth().semantics { testTag = C.Tag.collection_card },
   ) {
-    GuidePhoto(guide, isDarkTheme)
+    GuidePhoto(guide)
     Column(modifier = Modifier.padding(12.dp)) {
       Text(
           text = guide.monumentName,
           fontSize = 14.sp,
           fontWeight = FontWeight.Bold,
-          color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
+          color =
+              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
           maxLines = 2,
           overflow = TextOverflow.Ellipsis,
           modifier = Modifier.semantics { testTag = C.Tag.collection_card_name },
@@ -144,7 +148,7 @@ private fun GuideCard(guide: Guide, isDarkTheme: Boolean, onClick: () -> Unit) {
             text = formatDiscoveryDate(date),
             fontSize = 12.sp,
             color =
-                if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
                 else LoadingTextSecondary,
             modifier =
                 Modifier.padding(top = 4.dp).semantics { testTag = C.Tag.collection_card_date },
@@ -159,10 +163,10 @@ private fun GuideCard(guide: Guide, isDarkTheme: Boolean, onClick: () -> Unit) {
  * whose photo cannot be decoded, shows a placeholder instead.
  */
 @Composable
-private fun GuidePhoto(guide: Guide, isDarkTheme: Boolean) {
+private fun GuidePhoto(guide: Guide) {
   val photoModifier = Modifier.fillMaxWidth().aspectRatio(1f)
   if (guide.photoBytes.isEmpty()) {
-    PhotoPlaceholder(photoModifier, C.Tag.collection_card_photo_placeholder, isDarkTheme)
+    PhotoPlaceholder(photoModifier, C.Tag.collection_card_photo_placeholder)
     return
   }
   // Every Firestore snapshot hands out a new array for the same photo, so the photo is identified
@@ -186,7 +190,8 @@ private fun GuidePhoto(guide: Guide, isDarkTheme: Boolean) {
         modifier =
             Modifier.matchParentSize()
                 .background(
-                    if (isDarkTheme) MaterialTheme.colorScheme.surface else CollectionPlaceholder
+                    if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface
+                    else CollectionPlaceholder
                 )
                 .semantics { testTag = C.Tag.collection_card_photo },
     )
@@ -201,7 +206,6 @@ private fun GuidePhoto(guide: Guide, isDarkTheme: Boolean) {
           PhotoPlaceholder(
               Modifier.matchParentSize(),
               C.Tag.collection_card_photo_error,
-              isDarkTheme,
           )
       is AsyncImagePainter.State.Success -> Unit
     }
@@ -212,13 +216,14 @@ private fun ByteArray.sha256Hex(): String =
     MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { "%02x".format(it) }
 
 @Composable
-private fun PhotoPlaceholder(modifier: Modifier, tag: String, isDarkTheme: Boolean) {
+private fun PhotoPlaceholder(modifier: Modifier, tag: String) {
   Box(
       contentAlignment = Alignment.Center,
       modifier =
           modifier
               .background(
-                  if (isDarkTheme) MaterialTheme.colorScheme.surface else CollectionPlaceholder
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface
+                  else CollectionPlaceholder
               )
               .semantics { testTag = tag },
   ) {
@@ -226,7 +231,7 @@ private fun PhotoPlaceholder(modifier: Modifier, tag: String, isDarkTheme: Boole
         imageVector = Icons.Filled.AccountBalance,
         contentDescription = null,
         tint =
-            if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant
+            if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
             else CollectionPlaceholderIcon,
         modifier = Modifier.size(40.dp),
     )
@@ -255,12 +260,12 @@ private fun CollectionMessage(tag: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun CollectionEmpty(isDarkTheme: Boolean) {
+private fun CollectionEmpty() {
   Icon(
       imageVector = Icons.Filled.AccountBalance,
       contentDescription = null,
       tint =
-          if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
           else CollectionPlaceholderIcon,
       modifier = Modifier.size(56.dp),
   )
@@ -268,24 +273,27 @@ private fun CollectionEmpty(isDarkTheme: Boolean) {
       text = stringResource(R.string.collection_empty_title),
       fontSize = 18.sp,
       fontWeight = FontWeight.Bold,
-      color = if (isDarkTheme) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
+      color =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
       modifier = Modifier.padding(top = 16.dp),
   )
   Text(
       text = stringResource(R.string.collection_empty_subtitle),
       fontSize = 14.sp,
-      color = if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant else LoadingTextSecondary,
+      color =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
+          else LoadingTextSecondary,
       textAlign = TextAlign.Center,
       modifier = Modifier.padding(top = 4.dp),
   )
 }
 
 @Composable
-private fun CollectionError(isDarkTheme: Boolean) {
+private fun CollectionError() {
   Text(
       text = stringResource(R.string.collection_error),
       fontSize = 14.sp,
-      color = if (isDarkTheme) MaterialTheme.colorScheme.error else LoadingErrorText,
+      color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.error else LoadingErrorText,
       textAlign = TextAlign.Center,
   )
 }
@@ -325,22 +333,20 @@ private const val DAY_MILLIS = 24L * 60 * 60 * 1000
 @Preview(showBackground = true)
 @Composable
 fun PreviewCollectionScreen() {
-  MaterialTheme {
-    CollectionScreen(state = SavedGuidesUiState(guides = previewGuides), isDarkTheme = false)
-  }
+  MaterialTheme { CollectionScreen(state = SavedGuidesUiState(guides = previewGuides)) }
 }
 
 @Preview(showBackground = true)
 @Composable
 fun PreviewCollectionScreenEmpty() {
-  MaterialTheme { CollectionScreen(state = SavedGuidesUiState(), isDarkTheme = false) }
+  MaterialTheme { CollectionScreen(state = SavedGuidesUiState()) }
 }
 
 @Preview(name = "Collection - Dark", showBackground = true)
 @Composable
 fun PreviewCollectionScreenDark() {
   SampleAppTheme(darkTheme = true, dynamicColor = false) {
-    CollectionScreen(state = SavedGuidesUiState(guides = previewGuides), isDarkTheme = true)
+    CollectionScreen(state = SavedGuidesUiState(guides = previewGuides))
   }
 }
 
@@ -348,6 +354,6 @@ fun PreviewCollectionScreenDark() {
 @Composable
 fun PreviewCollectionScreenEmptyDark() {
   SampleAppTheme(darkTheme = true, dynamicColor = false) {
-    CollectionScreen(state = SavedGuidesUiState(), isDarkTheme = true)
+    CollectionScreen(state = SavedGuidesUiState())
   }
 }

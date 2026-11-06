@@ -59,7 +59,6 @@ class MonumentDetailScreenTest {
             image = falseImage,
             guide = guide,
             onBackClick = {},
-            isDarkTheme = false,
         )
       }
     }
@@ -102,7 +101,6 @@ class MonumentDetailScreenTest {
           image = ColorPainter(Color.LightGray),
           guide = guide,
           onBackClick = { backClicked = true },
-          isDarkTheme = false,
       )
     }
 
@@ -130,7 +128,6 @@ class MonumentDetailScreenTest {
             image = image,
             guide = guide,
             onBackClick = {},
-            isDarkTheme = isDarkTheme,
         )
       }
     }

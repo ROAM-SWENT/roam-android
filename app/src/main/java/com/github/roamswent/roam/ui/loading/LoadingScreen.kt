@@ -46,6 +46,7 @@ import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
 fun LoadingScreen(
@@ -55,7 +56,6 @@ fun LoadingScreen(
     title: String? = null,
     subtitle: String? = null,
     errorMessage: String? = null,
-    isDarkTheme: Boolean,
 ) {
   BackHandler(onBack = onCancel)
   val isLoading = errorMessage == null
@@ -67,7 +67,8 @@ fun LoadingScreen(
           modifier
               .fillMaxSize()
               .background(
-                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.background
+                  else ScreenBackground
               )
               .semantics { testTag = C.Tag.loading_screen_container }
               .statusBarsPadding()
@@ -93,9 +94,12 @@ fun LoadingScreen(
       if (isLoading) {
         CircularProgressIndicator(
             modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_progress },
-            color = if (isDarkTheme) MaterialTheme.colorScheme.primary else LoadingProgressAccent,
+            color =
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.primary
+                else LoadingProgressAccent,
             trackColor =
-                if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else LoadingProgressTrack,
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                else LoadingProgressTrack,
             strokeWidth = 3.dp,
         )
 
@@ -104,7 +108,9 @@ fun LoadingScreen(
         Text(
             text = displayedTitle,
             modifier = Modifier.semantics { testTag = C.Tag.loading_screen_title },
-            color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
+            color =
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface
+                else LoadingTextPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -114,7 +120,7 @@ fun LoadingScreen(
         Icon(
             imageVector = Icons.Filled.ErrorOutline,
             contentDescription = "Error",
-            tint = if (isDarkTheme) MaterialTheme.colorScheme.error else LoadingErrorText,
+            tint = if (MaterialTheme.isDark) MaterialTheme.colorScheme.error else LoadingErrorText,
             modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_error_icon },
         )
 
@@ -126,8 +132,8 @@ fun LoadingScreen(
           modifier = Modifier.semantics { testTag = C.Tag.loading_screen_subtitle },
           color =
               when {
-                isDarkTheme && errorMessage != null -> MaterialTheme.colorScheme.error
-                isDarkTheme -> MaterialTheme.colorScheme.onSurfaceVariant
+                MaterialTheme.isDark && errorMessage != null -> MaterialTheme.colorScheme.error
+                MaterialTheme.isDark -> MaterialTheme.colorScheme.onSurfaceVariant
                 errorMessage == null -> LoadingTextSecondary
                 else -> LoadingErrorText
               },
@@ -144,7 +150,8 @@ fun LoadingScreen(
     ) {
       Text(
           text = stringResource(R.string.loading_cancel),
-          color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
+          color =
+              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
           fontSize = 14.sp,
           fontWeight = FontWeight.SemiBold,
       )
@@ -159,7 +166,6 @@ private fun LoadingScreenPreview() {
     LoadingScreen(
         image = painterResource(android.R.drawable.ic_menu_gallery),
         onCancel = {},
-        isDarkTheme = false,
     )
   }
 }
@@ -171,7 +177,6 @@ private fun LoadingScreenDarkPreview() {
     LoadingScreen(
         image = painterResource(android.R.drawable.ic_menu_gallery),
         onCancel = {},
-        isDarkTheme = true,
     )
   }
 }

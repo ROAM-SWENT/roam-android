@@ -73,6 +73,7 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 
 private data class ProfileDisplayData(
     val initial: String,
@@ -92,7 +93,6 @@ fun SettingsScreen(
     onSignedOut: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
-    isDarkTheme: Boolean,
 ) {
 
   val context = LocalContext.current
@@ -146,7 +146,8 @@ fun SettingsScreen(
   // not add the system bar insets again on top of the route scaffold's padding.
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.settings_screen_container),
-      containerColor = if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground,
+      containerColor =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
       contentWindowInsets = WindowInsets(0, 0, 0, 0),
   ) { contentPadding ->
     SettingsContent(
@@ -165,7 +166,6 @@ fun SettingsScreen(
         onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
         themeMode = themeMode,
         onThemeModeSelected = onThemeModeSelected,
-        isDarkTheme = isDarkTheme,
         interests = uiState.interests,
         onAddInterest = resolvedSettingsViewModel::addInterest,
         onRemoveInterest = resolvedSettingsViewModel::removeInterest,
@@ -182,7 +182,6 @@ private fun SettingsContent(
     onSignOutClick: () -> Unit,
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
-    isDarkTheme: Boolean,
     interests: List<String>,
     onAddInterest: (String) -> Unit,
     onRemoveInterest: (String) -> Unit,
@@ -194,7 +193,8 @@ private fun SettingsContent(
       modifier =
           Modifier.fillMaxSize()
               .background(
-                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.background
+                  else ScreenBackground
               )
   ) {
     Column(
@@ -215,24 +215,20 @@ private fun SettingsContent(
       ProfileCard(
           profile = profile,
           onSignOutClick = onSignOutClick,
-          isDarkTheme = isDarkTheme,
       )
       PermissionsCard(
           cameraPermissionGranted = cameraPermissionGranted,
           locationPermissionGranted = locationPermissionGranted,
           onManagePermissionsClick = onManagePermissionsClick,
-          isDarkTheme = isDarkTheme,
       )
       InterestsCard(
           interests = interests,
           onRemoveInterest = onRemoveInterest,
           onAddInterestClick = { showAddInterestDialog = true },
-          isDarkTheme = isDarkTheme,
       )
       ThemeCard(
           themeMode = themeMode,
           onThemeSelected = onThemeModeSelected,
-          isDarkTheme = isDarkTheme,
       )
     }
   }
@@ -280,7 +276,6 @@ private fun SettingsContent(
 private fun ThemeCard(
     themeMode: ThemeMode,
     onThemeSelected: (ThemeMode) -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_theme_card),
@@ -288,7 +283,8 @@ private fun ThemeCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -326,7 +322,6 @@ private fun ThemeCard(
 private fun ProfileCard(
     profile: ProfileDisplayData,
     onSignOutClick: () -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_profile_card),
@@ -334,7 +329,8 @@ private fun ProfileCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -349,7 +345,8 @@ private fun ProfileCard(
         Surface(
             modifier = Modifier.size(56.dp),
             shape = CircleShape,
-            color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
+            color =
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
         ) {
           androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
             Text(
@@ -373,7 +370,8 @@ private fun ProfileCard(
           )
           Surface(
               shape = RoundedCornerShape(50),
-              color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
+              color =
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
           ) {
             Row(
                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -397,10 +395,11 @@ private fun ProfileCard(
           colors =
               ButtonDefaults.buttonColors(
                   containerColor =
-                      if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant
+                      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
                       else Color(0xFFFFF1F0),
                   contentColor =
-                      if (isDarkTheme) MaterialTheme.colorScheme.error else Color(0xFFDB4038),
+                      if (MaterialTheme.isDark) MaterialTheme.colorScheme.error
+                      else Color(0xFFDB4038),
               ),
       ) {
         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
@@ -416,7 +415,6 @@ private fun PermissionsCard(
     cameraPermissionGranted: Boolean,
     locationPermissionGranted: Boolean,
     onManagePermissionsClick: () -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_permissions_card),
@@ -424,7 +422,8 @@ private fun PermissionsCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -453,7 +452,6 @@ private fun InterestsCard(
     interests: List<String>,
     onRemoveInterest: (String) -> Unit,
     onAddInterestClick: () -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_interests_card),
@@ -461,7 +459,8 @@ private fun InterestsCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -494,7 +493,6 @@ private fun InterestsCard(
             InterestChip(
                 interest = interest,
                 onRemove = { onRemoveInterest(interest) },
-                isDarkTheme = isDarkTheme,
             )
           }
         }
@@ -513,10 +511,10 @@ private fun InterestsCard(
 }
 
 @Composable
-private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Boolean) {
+private fun InterestChip(interest: String, onRemove: () -> Unit) {
   Surface(
       shape = RoundedCornerShape(50),
-      color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
+      color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
   ) {
     Row(
         modifier = Modifier.padding(start = 12.dp, end = 4.dp),
