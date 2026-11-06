@@ -77,14 +77,12 @@ fun ScanReviewScreen(
     onSkipInterests: () -> Unit = {},
     isGalleryImage: Boolean = false,
     modifier: Modifier = Modifier,
-    isDarkTheme: Boolean,
 ) {
   if (state is ScanReviewUiState.Sent) {
     MonumentDetailScreen(
         image = rememberAsyncImagePainter(state.uri),
         guide = state.guide,
         onBackClick = onHomeClick,
-        isDarkTheme = isDarkTheme,
     )
     return
   }

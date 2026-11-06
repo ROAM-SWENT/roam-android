@@ -85,7 +85,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -122,7 +121,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
             themeMode = themeMode,
             onThemeModeSelected = { themeMode = it },
         )
@@ -167,7 +165,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = isDarkTheme,
         )
       }
     }
@@ -241,7 +238,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -265,7 +261,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -296,7 +291,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
             onManagePermissionsClick = { managePermissionsClicks++ },
         )
       }
@@ -322,7 +316,6 @@ class SettingsScreenTest {
             credentialManager = credentialManager,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -346,7 +339,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -386,7 +378,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -417,7 +408,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -442,7 +432,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -467,7 +456,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -498,7 +486,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
             onSignedOut = { signedOutCallbacks++ },
         )
       }
@@ -527,7 +514,6 @@ class SettingsScreenTest {
               settingsViewModel = viewModel,
               cameraPermissionController = cameraController,
               locationPermissionController = locationController,
-              isDarkTheme = false,
           )
         }
       }
@@ -568,7 +554,6 @@ class SettingsScreenTest {
                 settingsViewModel = viewModel,
                 cameraPermissionController = cameraController,
                 locationPermissionController = locationController,
-                isDarkTheme = false,
             )
           }
         }

@@ -77,6 +77,7 @@ import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.ThemeViewModel
 import com.github.roamswent.roam.ui.theme.ThemeViewModelFactory
+import com.github.roamswent.roam.ui.theme.isDark
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,7 +102,6 @@ class MainActivity : ComponentActivity() {
               authViewModel = authViewModel,
               themeMode = selectedTheme,
               onThemeModeSelected = themeViewModel::setThemeMode,
-              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -120,7 +120,6 @@ internal fun RoamApp(
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
-    isDarkTheme: Boolean = themeMode == ThemeMode.DARK,
 ) {
   val context = LocalContext.current
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
@@ -152,6 +151,8 @@ internal fun RoamApp(
         Routes.Explore -> DockDestination.EXPLORE
         else -> DockDestination.HOME
       }
+  val dockedScreenBackground =
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground
   val onScanClick = {
     if (cameraAvailable) {
       runOfflineAction(OfflineAction.OPEN_SCAN) { permissionController.requestPermission() }
@@ -181,12 +182,11 @@ internal fun RoamApp(
   // containerColor covers the status bar strip.
   @Composable
   fun DockedScaffold(
-      containerDark: Boolean,
+      containerColor: androidx.compose.ui.graphics.Color,
       content: @Composable (PaddingValues) -> Unit,
   ) {
     Scaffold(
-        containerColor =
-            if (containerDark) MaterialTheme.colorScheme.background else ScreenBackground,
+        containerColor = containerColor,
         contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, dockContentClearance()),
         bottomBar = {
           AppBottomDock(
@@ -219,7 +219,6 @@ internal fun RoamApp(
         SignInScreen(
             authViewModel = authViewModel,
             onSignedIn = onSignedIn,
-            isDarkTheme = isDarkTheme,
             onSignInClickOverride =
                 onSignInClickOverride?.let { signIn ->
                   {
@@ -255,7 +254,6 @@ internal fun RoamApp(
                 }
               },
               isConnectedToInternet = isOnline,
-              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -276,7 +274,6 @@ internal fun RoamApp(
               navController,
               uri,
               captureSenderOverride,
-              isDarkTheme = isDarkTheme,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
@@ -286,7 +283,7 @@ internal fun RoamApp(
       }
       composable(Routes.Settings) {
         val dockClearance = dockContentClearance()
-        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
+        DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           SettingsScreen(
               modifier =
                   Modifier.padding(
@@ -297,7 +294,6 @@ internal fun RoamApp(
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               themeMode = themeMode,
-              isDarkTheme = isDarkTheme,
               onThemeModeSelected = onThemeModeSelected,
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
@@ -314,7 +310,7 @@ internal fun RoamApp(
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
         }
         val dockClearance = dockContentClearance()
-        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
+        DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository,
               modifier =
@@ -322,20 +318,18 @@ internal fun RoamApp(
                       top = innerPadding.calculateTopPadding(),
                       bottom = dockClearance,
                   ),
-              isDarkTheme = isDarkTheme,
           )
         }
       }
       composable(Routes.Friends) {
         val dockClearance = dockContentClearance()
-        DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
+        DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           FriendsScreen(
               modifier =
                   Modifier.padding(
                       top = innerPadding.calculateTopPadding(),
                       bottom = dockClearance,
                   ),
-              isDarkTheme = isDarkTheme,
           )
         }
       }
@@ -350,7 +344,7 @@ internal fun RoamApp(
                 },
             )
         val dockClearance = dockContentClearance()
-        DockedScaffold(containerDark = false) { innerPadding ->
+        DockedScaffold(containerColor = ScreenBackground) { innerPadding ->
           Box(
               modifier =
                   Modifier.padding(
