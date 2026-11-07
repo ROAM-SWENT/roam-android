@@ -119,6 +119,7 @@ class ExternalizedStringFormattingTest {
             context.packageName,
         )
 
+    assertEquals("• %1\$s", xmlStringValue("monument_detail_fact_bullet"))
     assertEquals("• Built in 1889", context.getString(resourceId, "Built in 1889"))
   }
 
