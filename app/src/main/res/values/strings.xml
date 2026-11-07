@@ -86,4 +86,19 @@
     <string name="settings_remove_interest">Remove %1$s</string>
     <string name="loading_error_description">Error</string>
     <string name="monument_detail_picture_description">Monument picture</string>
+    <string name="scan_review_photo_title">Review your photo</string>
+    <string name="scan_review_choose_another_photo">Choose another photo</string>
+    <string name="scan_review_retake">Retake</string>
+    <string name="scan_frame_hint">Frame the monument</string>
+    <string name="settings_logout_successful">Logout successful</string>
+    <string name="settings_profile_role">Traveler</string>
+    <string name="settings_theme_auto">Auto</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_camera_permission">Camera permission</string>
+    <string name="settings_location_permission">Location permission</string>
+    <string name="settings_manage_permissions">Manage Permissions</string>
+    <string name="settings_interests_title">My Interests (AI Guide)</string>
+    <string name="settings_interests_subtitle">Used by AI to personalize your tourist guides.</string>
+    <string name="settings_interests_empty">No interests selected yet.</string>
 </resources>

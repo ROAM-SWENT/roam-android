@@ -134,7 +134,7 @@ fun ScanReviewScreen(
           modifier = Modifier.semantics { testTag = C.Tag.scan_review_prompt_pill },
       ) {
         Text(
-            "Review your photo",
+            stringResource(R.string.scan_review_photo_title),
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -157,7 +157,9 @@ fun ScanReviewScreen(
       ) {
         Icon(
             Icons.Default.Refresh,
-            contentDescription = if (isGalleryImage) "Choose another photo" else "Retake",
+            contentDescription =
+                if (isGalleryImage) stringResource(R.string.scan_review_choose_another_photo)
+                else stringResource(R.string.scan_review_retake),
             tint = ShutterWhite,
         )
       }

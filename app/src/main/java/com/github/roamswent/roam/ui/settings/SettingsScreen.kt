@@ -105,13 +105,14 @@ fun SettingsScreen(
           ?: viewModel { SettingsViewModel(userInterestsRepository = userInterestsRepository) }
   val uiState by resolvedSettingsViewModel.uiState.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
+  val logoutSuccessfulMessage = stringResource(R.string.settings_logout_successful)
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
   LaunchedEffect(uiState.signedOut) {
     if (uiState.signedOut) {
       onSignedOut()
-      Toast.makeText(context, "Logout successful", Toast.LENGTH_SHORT).show()
+      Toast.makeText(context, logoutSuccessfulMessage, Toast.LENGTH_SHORT).show()
     }
   }
 
@@ -157,7 +158,10 @@ fun SettingsScreen(
             ProfileDisplayData(
                 initial =
                     uiState.profile?.displayName?.ifBlank { "?" }?.first()?.uppercase() ?: "?",
-                name = uiState.profile?.displayName.orEmpty().ifBlank { "Traveler" },
+                name =
+                    uiState.profile?.displayName.orEmpty().ifBlank {
+                      stringResource(R.string.settings_profile_role)
+                    },
                 email = uiState.profile?.email.orEmpty(),
                 provider = uiState.profile?.provider.orEmpty(),
             ),
@@ -302,9 +306,21 @@ private fun ThemeCard(
       )
       val themes =
           listOf(
-              Triple(ThemeMode.AUTO, "Auto", C.Tag.settings_theme_auto),
-              Triple(ThemeMode.LIGHT, "Light", C.Tag.settings_theme_light),
-              Triple(ThemeMode.DARK, "Dark", C.Tag.settings_theme_dark),
+              Triple(
+                  ThemeMode.AUTO,
+                  stringResource(R.string.settings_theme_auto),
+                  C.Tag.settings_theme_auto,
+              ),
+              Triple(
+                  ThemeMode.LIGHT,
+                  stringResource(R.string.settings_theme_light),
+                  C.Tag.settings_theme_light,
+              ),
+              Triple(
+                  ThemeMode.DARK,
+                  stringResource(R.string.settings_theme_dark),
+                  C.Tag.settings_theme_dark,
+              ),
           )
       SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         themes.forEachIndexed { index, (mode, label, testTag) ->
@@ -436,13 +452,19 @@ private fun PermissionsCard(
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
-      PermissionStatus("Camera permission", cameraPermissionGranted)
-      PermissionStatus("Location permission", locationPermissionGranted)
+      PermissionStatus(
+          stringResource(R.string.settings_camera_permission),
+          cameraPermissionGranted,
+      )
+      PermissionStatus(
+          stringResource(R.string.settings_location_permission),
+          locationPermissionGranted,
+      )
       OutlinedButton(
           onClick = onManagePermissionsClick,
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_manage_permissions_button),
       ) {
-        Text(text = "Manage Permissions")
+        Text(text = stringResource(R.string.settings_manage_permissions))
       }
     }
   }
@@ -469,12 +491,12 @@ private fun InterestsCard(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
-          text = "My Interests (AI Guide)",
+          text = stringResource(R.string.settings_interests_title),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
       Text(
-          text = "Used by AI to personalize your tourist guides.",
+          text = stringResource(R.string.settings_interests_subtitle),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -485,7 +507,7 @@ private fun InterestsCard(
       ) {
         if (interests.isEmpty()) {
           Text(
-              text = "No interests selected yet.",
+              text = stringResource(R.string.settings_interests_empty),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
