@@ -3,7 +3,10 @@ package com.github.roamswent.roam.ui.permission
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -14,12 +17,25 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CameraPermissionDialogTest {
   @get:Rule val composeTestRule = createComposeRule()
+  private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
   @Test
   fun dialogShowsSettingsAndDismissButtons() {
     composeTestRule.setContent { CameraPermissionDialog(onOpenSettings = {}, onDismiss = {}) }
 
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_dialog).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.camera_permission_title))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.camera_permission_message))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.camera_permission_open_settings))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.camera_permission_dismiss))
+        .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_settings_button).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.camera_permission_dismiss_button).assertIsDisplayed()
   }

@@ -30,6 +30,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
@@ -57,6 +58,7 @@ class ScanReviewScreenTest {
   private lateinit var navController: NavHostController
   private lateinit var photoUri: Uri
   private var photoFile: File? = null
+  private val context = ApplicationProvider.getApplicationContext<Context>()
 
   @After
   fun deleteTemporaryPhoto() {
@@ -69,6 +71,9 @@ class ScanReviewScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.scan_review_screen).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_review_photo).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_photo_title))
+        .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsEnabled()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsEnabled()
   }
@@ -84,6 +89,12 @@ class ScanReviewScreenTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_dialog).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_retake_title))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_retake_message))
+        .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_confirm).performClick()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_cancel).performClick()
 
@@ -112,6 +123,30 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
     composeTestRule.onAllNodesWithTag(C.Tag.scan_retake_dialog).assertCountEquals(0)
     composeTestRule.onAllNodesWithTag(C.Tag.scan_sending_dialog).assertCountEquals(0)
+  }
+
+  @Test
+  fun interestsPromptDisplaysExternalizedTitleAndSubtitle() {
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Reviewing(uri),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            showInterestsPrompt = true,
+            isDarkTheme = false,
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_personalize_title))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_personalize_subtitle))
+        .assertIsDisplayed()
   }
 
   @Test
