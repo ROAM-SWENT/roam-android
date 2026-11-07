@@ -58,7 +58,7 @@ fun MonumentDetailScreen(
 
     Image(
         painter = image,
-        contentDescription = "Monument picture",
+        contentDescription = stringResource(R.string.monument_detail_picture_description),
         contentScale = ContentScale.Crop,
         modifier =
             Modifier.fillMaxWidth()

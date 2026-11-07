@@ -240,11 +240,11 @@ private fun SettingsContent(
   if (showAddInterestDialog) {
     AlertDialog(
         onDismissRequest = { showAddInterestDialog = false },
-        title = { Text("Add an interest") },
+        title = { Text(stringResource(R.string.settings_add_interest)) },
         text = {
           val availableInterests = UserInterestCategories.all.filterNot { it in interests }
           if (availableInterests.isEmpty()) {
-            Text("All available interests are already selected.")
+            Text(stringResource(R.string.settings_all_interests_selected))
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
               availableInterests.forEach { interest ->
@@ -268,7 +268,7 @@ private fun SettingsContent(
               onClick = { showAddInterestDialog = false },
               modifier = Modifier.testTag(C.Tag.settings_add_interest_cancel_button),
           ) {
-            Text("Cancel")
+            Text(stringResource(R.string.settings_cancel))
           }
         },
     )
@@ -405,7 +405,7 @@ private fun ProfileCard(
       ) {
         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Sign Out")
+        Text(stringResource(R.string.settings_sign_out))
       }
     }
   }
@@ -505,7 +505,7 @@ private fun InterestsCard(
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(Modifier.size(4.dp))
-          Text("Add an interest")
+          Text(stringResource(R.string.settings_add_interest))
         }
       }
     }
@@ -535,7 +535,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Bo
       ) {
         Icon(
             Icons.Default.Close,
-            contentDescription = "Remove $interest",
+            contentDescription = stringResource(R.string.settings_remove_interest, interest),
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -560,7 +560,9 @@ private fun PermissionStatus(
     )
 
     Text(
-        text = if (isGranted) "Granted" else "Denied",
+        text =
+            if (isGranted) stringResource(R.string.settings_permission_granted)
+            else stringResource(R.string.settings_permission_denied),
         style = MaterialTheme.typography.bodyLarge,
         color = if (isGranted) ScanTeal else MaterialTheme.colorScheme.error,
     )
