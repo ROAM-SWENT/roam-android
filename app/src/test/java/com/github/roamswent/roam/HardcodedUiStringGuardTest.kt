@@ -48,6 +48,24 @@ class HardcodedUiStringGuardTest {
   }
 
   @Test
+  fun oldConfidenceTemplateIsDetectedAfterExemptionRemoval() {
+    val directory = Files.createTempDirectory("ui-string-guard").toFile()
+    try {
+      File(directory, "MonumentDetailScreen.kt")
+          .writeText("Text(\"\${(guide.confidence * 100).roundToInt()}% match\")\n")
+
+      val result = UiStringScanner.scan(directory)
+
+      assertEquals(
+          listOf("MonumentDetailScreen.kt:1: \"\${(guide.confidence * 100).roundToInt()}% match\""),
+          result.violations,
+      )
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
+  @Test
   fun pureIdentifierInterpolationIsNotFlagged() {
     val directory = Files.createTempDirectory("ui-string-guard").toFile()
     try {
@@ -146,16 +164,7 @@ class HardcodedUiStringGuardTest {
     private val contentDescriptionLiteral =
         Regex("""\bcontentDescription\s*=\s*"([^"]*)""", RegexOption.DOT_MATCHES_ALL)
     private val interpolation = Regex("""\$\{[^}]*}|\$[A-Za-z_][A-Za-z0-9_]*""")
-    private val allowlist =
-        mapOf(
-            "SettingsScreen.kt" to mapOf("G" to "Google brand mark"),
-            "monumentDetail/MonumentDetailScreen.kt" to
-                mapOf(
-                    "\${(guide.confidence * 100).roundToInt()}% match" to
-                        "Preview/sample display format",
-                    "• \$fact" to "Preview/sample bullet format",
-                ),
-        )
+    private val allowlist = mapOf("SettingsScreen.kt" to mapOf("G" to "Google brand mark"))
 
     fun scan(sourceDirectory: File): ScanResult {
       if (!sourceDirectory.isDirectory) {

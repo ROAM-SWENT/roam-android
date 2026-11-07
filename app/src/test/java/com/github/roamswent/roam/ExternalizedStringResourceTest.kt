@@ -2,6 +2,7 @@ package com.github.roamswent.roam
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -83,6 +84,8 @@ class ExternalizedStringResourceTest {
             "settings_interests_empty" to "No interests selected yet.",
             "settings_theme_section_header" to "Theme",
             "settings_permissions_section_header" to "App Permissions",
+            "monument_detail_match_percent" to "%1\$d%% match",
+            "monument_detail_fact_bullet" to "• %1\$s",
         )
   }
 }
@@ -90,6 +93,34 @@ class ExternalizedStringResourceTest {
 @RunWith(RobolectricTestRunner::class)
 class ExternalizedStringFormattingTest {
   private val context = ApplicationProvider.getApplicationContext<Context>()
+
+  @Test
+  fun matchPercentHasExactXmlEscapingAndFormatsToSinglePercent() {
+    val resourceId =
+        context.resources.getIdentifier(
+            "monument_detail_match_percent",
+            "string",
+            context.packageName,
+        )
+
+    assertEquals(
+        "%1\$d%% match",
+        xmlStringValue("monument_detail_match_percent"),
+    )
+    assertEquals("87% match", context.getString(resourceId, 87))
+  }
+
+  @Test
+  fun factBulletFormatsWithBulletAndFact() {
+    val resourceId =
+        context.resources.getIdentifier(
+            "monument_detail_fact_bullet",
+            "string",
+            context.packageName,
+        )
+
+    assertEquals("• Built in 1889", context.getString(resourceId, "Built in 1889"))
+  }
 
   @Test
   fun removeInterestSubstitutesInterestWithoutBackticks() {
@@ -101,5 +132,18 @@ class ExternalizedStringFormattingTest {
         -1,
         context.getString(resourceId, "Architecture").indexOf('`'),
     )
+  }
+
+  private fun xmlStringValue(name: String): String {
+    val sourceRoot = File(System.getProperty("user.dir") ?: ".")
+    val stringsFile =
+        listOf(
+                sourceRoot.resolve("app/src/main/res/values/strings.xml"),
+                sourceRoot.resolve("src/main/res/values/strings.xml"),
+            )
+            .firstOrNull(File::isFile)
+    checkNotNull(stringsFile) { "Production strings.xml not found" }
+    val line = stringsFile.readLines().first { it.contains("<string name=\"$name\">") }
+    return line.substringAfter("\">").substringBefore("</string>")
   }
 }
