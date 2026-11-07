@@ -296,7 +296,7 @@ private fun ThemeCard(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
-          text = "Theme",
+          text = stringResource(R.string.settings_theme_section_header),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
@@ -447,7 +447,7 @@ private fun PermissionsCard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       Text(
-          text = "App Permissions",
+          text = stringResource(R.string.settings_permissions_section_header),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
