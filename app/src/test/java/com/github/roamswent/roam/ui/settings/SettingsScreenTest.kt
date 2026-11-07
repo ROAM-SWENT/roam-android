@@ -34,6 +34,7 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
@@ -41,6 +42,8 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
+import com.github.roamswent.roam.ui.permission.NotificationPermissionController
+import com.github.roamswent.roam.ui.permission.NotificationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -280,6 +283,43 @@ class SettingsScreenTest {
     state.value = SettingsUIState(cameraPermissionGranted = false, locationPermissionGranted = true)
     composeTestRule.waitForIdle()
     assertPermissionStatuses(cameraGranted = false, locationGranted = true)
+  }
+
+  @Test
+  fun notificationPermissionStateChanges_updateGrantedAndDeniedStatuses() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    val (cameraController, locationController) = permissionControllers()
+    val notificationController = mock<NotificationPermissionController>()
+    val notificationState =
+        MutableStateFlow(
+            NotificationPermissionState(
+                isGranted = false,
+                decision = NotificationPermissionDecision.DENIED,
+            )
+        )
+    whenever(notificationController.state).thenReturn(notificationState)
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+            notificationPermissionController = notificationController,
+            isDarkTheme = false,
+        )
+      }
+    }
+
+    assertNotificationPermissionStatus("Denied")
+    notificationState.value =
+        NotificationPermissionState(
+            isGranted = true,
+            decision = NotificationPermissionDecision.GRANTED,
+        )
+    composeTestRule.waitForIdle()
+    assertNotificationPermissionStatus("Granted")
   }
 
   /** Verifies that tapping Manage Permissions invokes the provided callback. */
@@ -630,6 +670,12 @@ class SettingsScreenTest {
     composeTestRule
         .onNodeWithTag("Location permission", useUnmergedTree = true)
         .assert(hasAnyChild(hasText(locationStatus)))
+  }
+
+  private fun assertNotificationPermissionStatus(status: String) {
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_notification_permission, useUnmergedTree = true)
+        .assert(hasAnyChild(hasText(status)))
   }
 
   private class TestLifecycleOwner : LifecycleOwner {

@@ -53,11 +53,10 @@ fun rememberNotificationPermissionController(
     onPermissionResult: (Boolean) -> Unit = {},
 ): NotificationPermissionController {
   val context = LocalContext.current
-  val resolvedDecisionRepository =
-      remember(context, decisionRepository) {
-        decisionRepository
-            ?: SharedPreferencesNotificationPermissionDecisionRepository(context.applicationContext)
-      }
+  val defaultDecisionRepository = remember {
+    SharedPreferencesNotificationPermissionDecisionRepository(context.applicationContext)
+  }
+  val resolvedDecisionRepository = decisionRepository ?: defaultDecisionRepository
   val currentOnPermissionResult by rememberUpdatedState(onPermissionResult)
   val permissionController =
       remember(context, resolvedDecisionRepository) {
@@ -86,7 +85,7 @@ fun rememberNotificationPermissionController(
   return permissionController
 }
 
-private class AndroidNotificationPermissionController(
+internal class AndroidNotificationPermissionController(
     private val context: Context,
     private val decisionRepository: NotificationPermissionDecisionRepository,
 ) : NotificationPermissionController {
