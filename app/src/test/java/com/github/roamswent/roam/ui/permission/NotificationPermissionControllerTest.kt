@@ -86,6 +86,21 @@ class NotificationPermissionControllerTest {
   }
 
   @Test
+  fun alreadyGrantedPermissionPersistsGrantAndReportsResultWithoutLaunchingRequest() {
+    var permissionResult: Boolean? = null
+    setUpController { permissionResult = it }
+    shadowOf(activity).grantPermissions(permission)
+
+    controller.requestPermission()
+
+    assertTrue(controller.state.value.isGranted)
+    assertEquals(NotificationPermissionDecision.GRANTED, controller.state.value.decision)
+    assertEquals(NotificationPermissionDecision.GRANTED, repository.getDecision())
+    assertEquals(true, permissionResult)
+    assertEquals(null, shadowOf(activity).lastRequestedPermission)
+  }
+
+  @Test
   fun refreshReadsCurrentAndroidPermissionWithoutChangingDecision() {
     repository.saveDecision(NotificationPermissionDecision.DENIED)
     setUpController()
@@ -97,10 +112,10 @@ class NotificationPermissionControllerTest {
     assertEquals(NotificationPermissionDecision.DENIED, controller.state.value.decision)
   }
 
-  private fun setUpController() {
+  private fun setUpController(onPermissionResult: (Boolean) -> Unit = {}) {
     composeTestRule.setContent {
       activity = LocalActivity.current!!
-      controller = rememberNotificationPermissionController(repository)
+      controller = rememberNotificationPermissionController(repository, onPermissionResult)
     }
   }
 
