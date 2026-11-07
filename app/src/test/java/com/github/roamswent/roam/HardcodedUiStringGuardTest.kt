@@ -34,6 +34,68 @@ class HardcodedUiStringGuardTest {
   }
 
   @Test
+  fun proseTemplateIsDetectedWithItsSourceLine() {
+    val directory = Files.createTempDirectory("ui-string-guard").toFile()
+    try {
+      File(directory, "Sample.kt").writeText("Text(\"Remove \$interest\")\n")
+
+      val result = UiStringScanner.scan(directory)
+
+      assertEquals(listOf("Sample.kt:1: \"Remove \$interest\""), result.violations)
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
+  @Test
+  fun pureIdentifierInterpolationIsNotFlagged() {
+    val directory = Files.createTempDirectory("ui-string-guard").toFile()
+    try {
+      File(directory, "Sample.kt").writeText("Text(\"\${C.Tag.dock_scan_label}\")\n")
+
+      val result = UiStringScanner.scan(directory)
+
+      assertTrue(
+          "Pure identifier interpolation must remain exempt from the prose heuristic",
+          result.violations.isEmpty(),
+      )
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
+  @Test
+  fun multilineTextLiteralIsDetected() {
+    val directory = Files.createTempDirectory("ui-string-guard").toFile()
+    try {
+      File(directory, "Sample.kt").writeText("Text(\n    \"Hello\"\n)\n")
+
+      val result = UiStringScanner.scan(directory)
+
+      assertEquals(listOf("Sample.kt:1: \"Hello\""), result.violations)
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
+  @Test
+  fun assignedLiteralIsExplicitlyDocumentedAsOutOfScope() {
+    val directory = Files.createTempDirectory("ui-string-guard").toFile()
+    try {
+      File(directory, "Sample.kt").writeText("val label = \"Hello\"\nText(label)\n")
+
+      val result = UiStringScanner.scan(directory)
+
+      assertTrue(
+          "Documented limitation: assigned literals passed to Text are not data-flow analyzed",
+          result.violations.isEmpty(),
+      )
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
+  @Test
   fun allowlistedBrandLiteralIsNotFlagged() {
     val directory = Files.createTempDirectory("ui-string-guard").toFile()
     try {
@@ -83,7 +145,17 @@ class HardcodedUiStringGuardTest {
         )
     private val contentDescriptionLiteral =
         Regex("""\bcontentDescription\s*=\s*"([^"]*)""", RegexOption.DOT_MATCHES_ALL)
-    private val allowlist = mapOf("SettingsScreen.kt" to setOf("G" to "Google brand mark"))
+    private val interpolation = Regex("""\$\{[^}]*}|\$[A-Za-z_][A-Za-z0-9_]*""")
+    private val allowlist =
+        mapOf(
+            "SettingsScreen.kt" to mapOf("G" to "Google brand mark"),
+            "monumentDetail/MonumentDetailScreen.kt" to
+                mapOf(
+                    "\${(guide.confidence * 100).roundToInt()}% match" to
+                        "Preview/sample display format",
+                    "• \$fact" to "Preview/sample bullet format",
+                ),
+        )
 
     fun scan(sourceDirectory: File): ScanResult {
       if (!sourceDirectory.isDirectory) {
@@ -97,8 +169,7 @@ class HardcodedUiStringGuardTest {
                 val relativePath = file.relativeTo(sourceDirectory).path
                 findLiterals(file.readText()).mapNotNull { literal ->
                   if (
-                      literal.value.isEmpty() ||
-                          literal.value.contains('$') ||
+                      !containsUserFacingProse(literal.value) ||
                           isAllowlisted(relativePath, literal.value)
                   ) {
                     null
@@ -133,6 +204,9 @@ class HardcodedUiStringGuardTest {
                   path == allowlistedPath || path.endsWith("/$allowlistedPath")
                 }
                 .value
-                .any { it.first == literal }
+                .any { it.key == literal }
+
+    private fun containsUserFacingProse(literal: String): Boolean =
+        interpolation.replace(literal, "").any { it.isLetter() || it == ' ' }
   }
 }
