@@ -109,7 +109,7 @@ fun ScanScreen(
                 modifier = Modifier.semantics { testTag = C.Tag.scan_prompt_pill },
             ) {
               Text(
-                  text = "Frame the monument",
+                  text = stringResource(R.string.scan_frame_hint),
                   color = Color.White,
                   style = MaterialTheme.typography.bodyMedium,
                   modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
