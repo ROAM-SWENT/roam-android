@@ -117,7 +117,11 @@ fun MonumentDetailScreen(
               modifier = Modifier.semantics { testTag = C.Tag.monument_detail_title },
           )
           Text(
-              text = "${(guide.confidence * 100).roundToInt()}% match",
+              text =
+                  stringResource(
+                      R.string.monument_detail_match_percent,
+                      (guide.confidence * 100).roundToInt(),
+                  ),
               fontSize = 14.sp,
               color = secondaryTextColor,
               modifier =
@@ -137,7 +141,7 @@ fun MonumentDetailScreen(
           )
           guide.facts.forEach { fact ->
             Text(
-                text = "• $fact",
+                text = stringResource(R.string.monument_detail_fact_bullet, fact),
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
                 color = textColor,
