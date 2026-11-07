@@ -105,4 +105,6 @@
     <string name="settings_interests_empty">No interests selected yet.</string>
     <string name="settings_theme_section_header">Theme</string>
     <string name="settings_permissions_section_header">App Permissions</string>
+    <string name="monument_detail_match_percent">%1$d%% match</string>
+    <string name="monument_detail_fact_bullet">• %1$s</string>
 </resources>
