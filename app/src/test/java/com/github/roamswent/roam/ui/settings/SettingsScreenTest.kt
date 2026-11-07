@@ -101,6 +101,7 @@ class SettingsScreenTest {
     composeTestRule.onNodeWithText("Architecture").assertIsDisplayed()
     composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
     composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Notification permission").assertIsDisplayed()
     composeTestRule
         .onNodeWithTag("Camera permission", useUnmergedTree = true)
         .assert(hasAnyChild(hasText("Granted")))
@@ -351,7 +352,10 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_add_interest_button)
+        .performScrollTo()
+        .performClick()
     composeTestRule
         .onAllNodesWithTag(C.Tag.settings_interest_option_prefix + "Architecture")
         .assertCountEquals(0)
@@ -422,7 +426,10 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_add_interest_button)
+        .performScrollTo()
+        .performClick()
     composeTestRule
         .onNodeWithText("All available interests are already selected.")
         .assertIsDisplayed()

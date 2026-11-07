@@ -22,6 +22,7 @@ object C {
     const val settings_home_button = "settings_home_button"
     const val settings_profile_card = "settings_profile_card"
     const val settings_permissions_card = "settings_permissions_card"
+    const val settings_notification_permission = "settings_notification_permission"
     const val settings_interests_card = "settings_interests_card"
     const val settings_theme_card = "settings_theme_card"
     const val settings_screen_container = "settings_screen_container"

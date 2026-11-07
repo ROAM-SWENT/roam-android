@@ -33,7 +33,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
+import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
@@ -67,6 +69,10 @@ class MainActivityNavigationTest {
       SharedPreferencesLocationPermissionDecisionRepository(
           ApplicationProvider.getApplicationContext()
       )
+  private val notificationDecisionRepository =
+      SharedPreferencesNotificationPermissionDecisionRepository(
+          ApplicationProvider.getApplicationContext()
+      )
   private val locationPermissions =
       arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
 
@@ -80,12 +86,18 @@ class MainActivityNavigationTest {
         .edit()
         .clear()
         .commit()
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.DENIED)
   }
 
   @After
   fun clearLocationDecision() {
     (ApplicationProvider.getApplicationContext() as Application)
         .getSharedPreferences("location_permission", Context.MODE_PRIVATE)
+        .edit()
+        .clear()
+        .commit()
+    (ApplicationProvider.getApplicationContext() as Application)
+        .getSharedPreferences("notification_permission", Context.MODE_PRIVATE)
         .edit()
         .clear()
         .commit()
@@ -177,6 +189,30 @@ class MainActivityNavigationTest {
   @Test
   fun persistedDenialNavigatesDirectlyToHomeWithoutRequestingLocation() {
     signInWithPersistedLocationDecision(LocationPermissionDecision.DENIED)
+  }
+
+  @Test
+  fun firstSignInRequestsNotificationWhenLocationDecisionAlreadyExists() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.NOT_ASKED)
+    shadowOf(composeTestRule.activity).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState)
+
+    authState.value = AuthUIState(user = mock())
+
+    val request = waitForNotificationPermissionRequest()
+    assertEquals(
+        setOf(Manifest.permission.POST_NOTIFICATIONS),
+        request.requestedPermissions.toSet(),
+    )
+    dispatchNotificationPermissionResult(request, granted = false)
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(
+        NotificationPermissionDecision.DENIED,
+        notificationDecisionRepository.getDecision(),
+    )
   }
 
   @Test
@@ -860,6 +896,35 @@ class MainActivityNavigationTest {
           ?.contains(Manifest.permission.ACCESS_FINE_LOCATION) == true
     }
     return permissionRequest()
+  }
+
+  private fun waitForNotificationPermissionRequest():
+      org.robolectric.shadows.ShadowActivity.PermissionsRequest {
+    composeTestRule.waitUntil {
+      shadowOf(composeTestRule.activity)
+          .lastRequestedPermission
+          ?.requestedPermissions
+          ?.contains(Manifest.permission.POST_NOTIFICATIONS) == true
+    }
+    return permissionRequest()
+  }
+
+  private fun dispatchNotificationPermissionResult(
+      request: org.robolectric.shadows.ShadowActivity.PermissionsRequest,
+      granted: Boolean,
+  ) {
+    if (granted) {
+      shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+      shadowOf(composeTestRule.activity).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    val result =
+        if (granted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+    composeTestRule.activity.onRequestPermissionsResult(
+        request.requestCode,
+        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+        intArrayOf(result),
+    )
   }
 
   private fun dispatchLocationPermissionResult(

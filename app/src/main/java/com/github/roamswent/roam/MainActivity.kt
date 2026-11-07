@@ -44,7 +44,9 @@ import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
+import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
@@ -68,6 +70,7 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
 import com.github.roamswent.roam.ui.permission.rememberLocationPermissionController
+import com.github.roamswent.roam.ui.permission.rememberNotificationPermissionController
 import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.settings.SettingsScreen
@@ -128,9 +131,30 @@ internal fun RoamApp(
       remember(context.applicationContext) {
         SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
       }
+  val notificationPermissionDecisionRepository =
+      remember(context.applicationContext) {
+        SharedPreferencesNotificationPermissionDecisionRepository(context.applicationContext)
+      }
+  val navigateToHome = {
+    navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
+  }
+  val notificationPermissionController =
+      rememberNotificationPermissionController(notificationPermissionDecisionRepository) {
+        navigateToHome()
+      }
+  val requestNotificationPermission = {
+    if (
+        notificationPermissionController.state.value.decision ==
+            NotificationPermissionDecision.NOT_ASKED
+    ) {
+      notificationPermissionController.requestPermission()
+    } else {
+      navigateToHome()
+    }
+  }
   val locationPermissionController =
       rememberLocationPermissionController(locationPermissionDecisionRepository) {
-        navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
+        requestNotificationPermission()
       }
   val cameraAvailable = rememberCameraAvailability()
   var showPermissionDialog by remember { mutableStateOf(false) }
@@ -211,7 +235,7 @@ internal fun RoamApp(
           ) {
             locationPermissionController.requestPermission()
           } else {
-            navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
+            requestNotificationPermission()
           }
         }
         SignInScreen(
@@ -284,6 +308,7 @@ internal fun RoamApp(
               settingsViewModel = settingsViewModel,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
+              notificationPermissionController = notificationPermissionController,
               themeMode = themeMode,
               isDarkTheme = isDarkTheme,
               onThemeModeSelected = onThemeModeSelected,

@@ -71,6 +71,8 @@ import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
+import com.github.roamswent.roam.ui.permission.NotificationPermissionController
+import com.github.roamswent.roam.ui.permission.rememberNotificationPermissionController
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 
@@ -85,6 +87,8 @@ private data class ProfileDisplayData(
 fun SettingsScreen(
     cameraPermissionController: CameraPermissionController,
     locationPermissionController: LocationPermissionController,
+    notificationPermissionController: NotificationPermissionController =
+        rememberNotificationPermissionController(),
     modifier: Modifier = Modifier,
     settingsViewModel: SettingsViewModel? = null,
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
@@ -104,6 +108,7 @@ fun SettingsScreen(
       settingsViewModel
           ?: viewModel { SettingsViewModel(userInterestsRepository = userInterestsRepository) }
   val uiState by resolvedSettingsViewModel.uiState.collectAsState()
+  val notificationPermissionState by notificationPermissionController.state.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
@@ -122,7 +127,12 @@ fun SettingsScreen(
     }
   }
 
-  DisposableEffect(lifecycleOwner, cameraPermissionController, locationPermissionController) {
+  DisposableEffect(
+      lifecycleOwner,
+      cameraPermissionController,
+      locationPermissionController,
+      notificationPermissionController,
+  ) {
     fun refreshPermissionStatus() {
       resolvedSettingsViewModel.setCameraPermissionGranted(
           cameraPermissionController.hasPermission()
@@ -130,6 +140,7 @@ fun SettingsScreen(
       resolvedSettingsViewModel.setLocationPermissionGranted(
           locationPermissionController.hasPermission()
       )
+      notificationPermissionController.refreshPermissionState()
     }
 
     refreshPermissionStatus()
@@ -153,6 +164,7 @@ fun SettingsScreen(
         modifier = Modifier.padding(contentPadding),
         cameraPermissionGranted = uiState.cameraPermissionGranted,
         locationPermissionGranted = uiState.locationPermissionGranted,
+        notificationPermissionGranted = notificationPermissionState.isGranted,
         profile =
             ProfileDisplayData(
                 initial =
@@ -177,6 +189,7 @@ fun SettingsScreen(
 private fun SettingsContent(
     cameraPermissionGranted: Boolean,
     locationPermissionGranted: Boolean,
+    notificationPermissionGranted: Boolean,
     profile: ProfileDisplayData,
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
@@ -220,6 +233,7 @@ private fun SettingsContent(
       PermissionsCard(
           cameraPermissionGranted = cameraPermissionGranted,
           locationPermissionGranted = locationPermissionGranted,
+          notificationPermissionGranted = notificationPermissionGranted,
           onManagePermissionsClick = onManagePermissionsClick,
           isDarkTheme = isDarkTheme,
       )
@@ -415,6 +429,7 @@ private fun ProfileCard(
 private fun PermissionsCard(
     cameraPermissionGranted: Boolean,
     locationPermissionGranted: Boolean,
+    notificationPermissionGranted: Boolean,
     onManagePermissionsClick: () -> Unit,
     isDarkTheme: Boolean,
 ) {
@@ -438,6 +453,11 @@ private fun PermissionsCard(
       )
       PermissionStatus("Camera permission", cameraPermissionGranted)
       PermissionStatus("Location permission", locationPermissionGranted)
+      PermissionStatus(
+          name = stringResource(R.string.settings_notification_permission),
+          isGranted = notificationPermissionGranted,
+          testTag = C.Tag.settings_notification_permission,
+      )
       OutlinedButton(
           onClick = onManagePermissionsClick,
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_manage_permissions_button),
@@ -548,9 +568,10 @@ private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Bo
 private fun PermissionStatus(
     name: String,
     isGranted: Boolean,
+    testTag: String = name,
 ) {
   Column(
-      modifier = Modifier.testTag(name),
+      modifier = Modifier.testTag(testTag),
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(
