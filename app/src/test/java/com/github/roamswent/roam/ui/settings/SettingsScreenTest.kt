@@ -23,6 +23,7 @@ import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -32,6 +33,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.profile.UserProfile
@@ -61,6 +64,7 @@ import org.robolectric.shadows.ShadowToast
 @RunWith(RobolectricTestRunner::class)
 class SettingsScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
+  private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
   /** Verifies the profile, settings sections, and initial permission statuses. */
   @Test
@@ -91,22 +95,30 @@ class SettingsScreenTest {
     }
 
     composeTestRule.onNodeWithText("Victor").assertIsDisplayed()
-    composeTestRule.onNodeWithText("App Permissions").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_permissions_section_header))
+        .assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.settings_theme_auto).assertCountEquals(1)
     composeTestRule.onNodeWithTag(C.Tag.settings_manage_permissions_button).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_sign_out_button).assertIsDisplayed()
     composeTestRule.onNodeWithText("victor@epfl.ch").assertIsDisplayed()
     composeTestRule.onNodeWithText("Google").assertIsDisplayed()
-    composeTestRule.onNodeWithText("My Interests (AI Guide)").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_interests_title))
+        .assertIsDisplayed()
     composeTestRule.onNodeWithText("Architecture").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_camera_permission))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_location_permission))
+        .assertIsDisplayed()
     composeTestRule
         .onNodeWithTag("Camera permission", useUnmergedTree = true)
-        .assert(hasAnyChild(hasText("Granted")))
+        .assert(hasAnyChild(hasText(context.getString(R.string.settings_permission_granted))))
     composeTestRule
         .onNodeWithTag("Location permission", useUnmergedTree = true)
-        .assert(hasAnyChild(hasText("Denied")))
+        .assert(hasAnyChild(hasText(context.getString(R.string.settings_permission_denied))))
   }
 
   @Test
@@ -129,7 +141,22 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Theme").performScrollTo().assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_section_header))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_auto))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_light))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_dark))
+        .performScrollTo()
+        .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_theme_auto).performScrollTo().assertIsSelected()
     composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).assertIsNotSelected()
     composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).assertIsNotSelected()
@@ -363,6 +390,11 @@ class SettingsScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Architecture")
         .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithContentDescription(
+            context.getString(R.string.settings_remove_interest, "Architecture")
+        )
+        .assertIsDisplayed()
 
     composeTestRule
         .onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Architecture")
@@ -506,7 +538,10 @@ class SettingsScreenTest {
     composeTestRule.waitForIdle()
 
     assertEquals(1, signedOutCallbacks)
-    assertEquals("Logout successful", ShadowToast.getTextOfLatestToast())
+    assertEquals(
+        context.getString(R.string.settings_logout_successful),
+        ShadowToast.getTextOfLatestToast(),
+    )
   }
 
   /** Verifies that permissions are refreshed initially and again when the lifecycle resumes. */
