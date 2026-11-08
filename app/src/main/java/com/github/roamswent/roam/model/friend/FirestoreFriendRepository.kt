@@ -3,6 +3,7 @@
 package com.github.roamswent.roam.model.friend
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.concurrent.CancellationException
@@ -186,8 +187,15 @@ class FirestoreFriendRepository(
   private fun friendshipReference(uid1: String, uid2: String) =
       firestore.collection(FRIENDSHIPS_COLLECTION).document(friendshipId(uid1, uid2))
 
-  private fun friendshipReference(requestId: String) =
-      firestore.collection(FRIENDSHIPS_COLLECTION).document(validateRequestId(requestId))
+  private fun friendshipReference(requestId: String): DocumentReference {
+    val uids = requestId.split(PAIR_SEPARATOR)
+
+    if (uids.size != 2 || friendshipId(uids[0], uids[1]) != requestId) {
+      throw FriendRepositoryException.RequestNotFound()
+    }
+
+    return firestore.collection(FRIENDSHIPS_COLLECTION).document(requestId)
+  }
 
   private fun friendshipId(uid1: String, uid2: String): String {
     validateUid(uid1)
@@ -195,21 +203,6 @@ class FirestoreFriendRepository(
     if (uid1 == uid2) throw FriendRepositoryException.SelfFriendRequest()
     val (firstUid, secondUid) = listOf(uid1, uid2).sorted()
     return "$firstUid$PAIR_SEPARATOR$secondUid"
-  }
-
-  private fun validateRequestId(requestId: String): String {
-    val separatorIndex = requestId.indexOf(PAIR_SEPARATOR)
-    if (
-        separatorIndex <= 0 ||
-            separatorIndex != requestId.lastIndexOf(PAIR_SEPARATOR) ||
-            friendshipId(
-                requestId.substring(0, separatorIndex),
-                requestId.substring(separatorIndex + 1),
-            ) != requestId
-    ) {
-      throw FriendRepositoryException.RequestNotFound()
-    }
-    return requestId
   }
 
   private suspend fun <T> withFirestoreErrors(operation: suspend () -> T): T =
