@@ -594,6 +594,24 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun profileButtonFromFriendsOpensSettings() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Settings, navController.currentDestination?.route)
+    }
+  }
+
+  @Test
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authState = MutableStateFlow(AuthUIState(user = mock()))
