@@ -100,6 +100,17 @@ class FirestorePublicProfileRepositoryTest {
   }
 
   @Test
+  fun registerUsername_firestoreFailureIsDistinguishable() = runTest {
+    val failure = IllegalStateException("Firestore unavailable")
+    every { profiles.document("user-id").get() } returns Tasks.forException(failure)
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause === failure)
+  }
+
+  @Test
   fun renameUsername_releasesOldClaimAndCreatesNewClaimAtomically() = runTest {
     val oldClaim = mockk<DocumentReference>()
     val newClaim = mockk<DocumentReference>()
@@ -230,6 +241,103 @@ class FirestorePublicProfileRepositoryTest {
         ),
         result,
     )
+  }
+
+  @Test
+  fun registerUsername_sameUsernameReturnsExistingProfile() = runTest {
+    val claim = mockk<DocumentReference>()
+    val transaction = mockk<Transaction>(relaxed = true)
+
+    every { claims.document("traveler") } returns claim
+    every { transaction.get(profileReference) } returns
+        profileSnapshot("user-id", "Traveler", "traveler")
+    every { transaction.get(claim) } returns mockk<DocumentSnapshot>()
+    runTransactionWith(transaction)
+
+    val result = repository.registerUsername("TRAVELER")
+
+    assertEquals(PublicProfile("user-id", "Traveler"), result)
+    verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
+  }
+
+  @Test
+  fun renameUsername_withoutProfileReturnsTypedError() = runTest {
+    val transaction = mockk<Transaction>(relaxed = true)
+    val snapshot = mockk<DocumentSnapshot>()
+
+    every { transaction.get(profileReference) } returns snapshot
+    every { snapshot.exists() } returns false
+    runTransactionWith(transaction)
+
+    val error = captureFailure { repository.renameUsername("NewName") }
+
+    assertTrue(error is PublicProfileException.ProfileNotRegistered)
+    verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
+  }
+
+  @Test
+  fun renameUsername_sameUsernameKeepsExistingProfile() = runTest {
+    val transaction = mockk<Transaction>(relaxed = true)
+
+    every { transaction.get(profileReference) } returns
+        profileSnapshot("user-id", "Traveler", "traveler")
+    runTransactionWith(transaction)
+
+    val result = repository.renameUsername("Traveler")
+
+    assertEquals(PublicProfile("user-id", "Traveler"), result)
+    verify(exactly = 0) { transaction.delete(any()) }
+    verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
+    verify(exactly = 0) { transaction.update(profileReference, "username", "Traveler") }
+  }
+
+  @Test
+  fun getCurrentProfile_returnsExistingProfile() = runTest {
+    val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+
+    val result = repository.getCurrentProfile()
+
+    assertEquals(PublicProfile("user-id", "Traveler"), result)
+  }
+
+  @Test
+  fun getCurrentProfile_rejectsMalformedProfile() = runTest {
+    val snapshot = profileSnapshot("user-id", "Traveler", "wrongname")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause is IllegalStateException)
+  }
+
+  @Test
+  fun renameUsername_missingOldClaimFailsWithoutWriting() = runTest {
+    val transaction = mockk<Transaction>(relaxed = true)
+    val newClaim = mockk<DocumentReference>()
+    val oldClaim = mockk<DocumentReference>()
+    val newClaimSnapshot = mockk<DocumentSnapshot>()
+    val oldClaimSnapshot = mockk<DocumentSnapshot>()
+
+    every { claims.document("newname") } returns newClaim
+    every { claims.document("oldname") } returns oldClaim
+
+    every { transaction.get(profileReference) } returns
+        profileSnapshot("user-id", "OldName", "oldname")
+    every { transaction.get(newClaim) } returns newClaimSnapshot
+    every { transaction.get(oldClaim) } returns oldClaimSnapshot
+
+    every { newClaimSnapshot.exists() } returns false
+    every { oldClaimSnapshot.getString("uid") } returns null
+
+    runTransactionWith(transaction)
+
+    val error = captureFailure { repository.renameUsername("NewName") }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    verify(exactly = 0) { transaction.delete(any()) }
+    verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
   }
 
   private fun profileSnapshot(uid: String, username: String, usernameLower: String) =
