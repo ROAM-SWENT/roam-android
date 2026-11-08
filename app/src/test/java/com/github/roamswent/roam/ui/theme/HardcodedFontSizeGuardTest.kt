@@ -1,3 +1,6 @@
+/*
+ * Co-authored-by: Google Antigravity <noreply@google.com>
+ */
 package com.github.roamswent.roam.ui.theme
 
 import java.io.File
@@ -106,9 +109,37 @@ class HardcodedFontSizeGuardTest {
     }
   }
 
+  @Test
+  fun reInlinedDefaultFontSizeInAppBottomDockCopyIsFlagged() {
+    withCopiedUiFile("components/bottomdock/AppBottomDock.kt") { rootDir, file ->
+      val updated =
+          file
+              .readText()
+              .replace(
+                  "initialFontSize: TextUnit = DockLabelFontSize",
+                  "initialFontSize: TextUnit = 11.sp",
+              )
+      file.writeText(updated)
+      val expectedLine =
+          updated.lines().indexOfFirst { it.contains("initialFontSize: TextUnit = 11.sp") } + 1
+
+      val result = FontSizeScanner.scan(rootDir)
+
+      assertEquals(
+          listOf(
+              "components/bottomdock/AppBottomDock.kt:$expectedLine: " +
+                  "initialFontSize: TextUnit = 11.sp"
+          ),
+          result.violations,
+      )
+    }
+  }
+
   object FontSizeScanner {
     private val spLiteralPattern =
-        Regex("""\b((?:fontSize|lineHeight)\s*=\s*\d+(?:\.\d+)?\.sp)\b""")
+        Regex(
+            """\b((?:[A-Za-z]*[Ff]ontSize|lineHeight)\s*(?::\s*TextUnit\s*)?=\s*\d+(?:\.\d+)?\.sp)\b"""
+        )
 
     val exemptedFiles: Set<String> = setOf("theme/Type.kt")
 
