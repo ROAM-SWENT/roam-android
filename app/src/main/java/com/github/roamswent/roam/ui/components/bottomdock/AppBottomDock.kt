@@ -75,6 +75,16 @@ fun AppBottomDock(
   val fabSize = 56.dp
   // How far the halo rises above the bar's top edge.
   val protrusion = haloSize / 2
+  var labelFontSize by remember { mutableStateOf(DockLabelFontSize) }
+  var readyToDraw by remember { mutableStateOf(false) }
+  val onLabelTextLayout: (TextUnit, Boolean) -> Unit = { targetFontSize, fit ->
+    if (!fit) {
+      labelFontSize = targetFontSize
+      readyToDraw = false
+    } else if (labelFontSize == targetFontSize) {
+      readyToDraw = true
+    }
+  }
 
   // Outer container is fully transparent; only the bar and the halo paint a surface.
   Box(
@@ -100,14 +110,20 @@ fun AppBottomDock(
             destination = DockDestination.HOME,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
+            readyToDraw = readyToDraw,
+            onLabelTextLayout = onLabelTextLayout,
         )
         DockTabSlot(
             destination = DockDestination.EXPLORE,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
+            readyToDraw = readyToDraw,
+            onLabelTextLayout = onLabelTextLayout,
         )
         Box(
-            modifier = Modifier.weight(1.75f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
+            modifier = Modifier.weight(1.25f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
           AutoResizedTabLabel(
@@ -116,6 +132,9 @@ fun AppBottomDock(
                   else stringResource(R.string.home_scan_unavailable),
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               fontWeight = FontWeight.SemiBold,
+              fontSize = labelFontSize,
+              readyToDraw = readyToDraw,
+              onTextLayout = onLabelTextLayout,
               modifier =
                   Modifier.wrapContentWidth(unbounded = true).padding(top = 34.dp).semantics {
                     testTag = C.Tag.dock_scan_label
@@ -126,11 +145,17 @@ fun AppBottomDock(
             destination = DockDestination.COLLECTION,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
+            readyToDraw = readyToDraw,
+            onLabelTextLayout = onLabelTextLayout,
         )
         DockTabSlot(
             destination = DockDestination.FRIENDS,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
+            readyToDraw = readyToDraw,
+            onLabelTextLayout = onLabelTextLayout,
         )
       }
     }
@@ -209,6 +234,9 @@ private fun RowScope.DockTabSlot(
     destination: DockDestination,
     selected: DockDestination?,
     onDestinationSelected: (DockDestination) -> Unit,
+    labelFontSize: TextUnit,
+    readyToDraw: Boolean,
+    onLabelTextLayout: (TextUnit, Boolean) -> Unit,
 ) {
   Box(
       modifier = Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
@@ -218,6 +246,9 @@ private fun RowScope.DockTabSlot(
         destination = destination,
         selected = selected == destination,
         onDestinationSelected = onDestinationSelected,
+        labelFontSize = labelFontSize,
+        readyToDraw = readyToDraw,
+        onLabelTextLayout = onLabelTextLayout,
     )
   }
 }
@@ -227,6 +258,9 @@ private fun DockTabItem(
     destination: DockDestination,
     selected: Boolean,
     onDestinationSelected: (DockDestination) -> Unit,
+    labelFontSize: TextUnit,
+    readyToDraw: Boolean,
+    onLabelTextLayout: (TextUnit, Boolean) -> Unit,
 ) {
   val color =
       if (selected) MaterialTheme.colorScheme.onSurface
@@ -252,6 +286,9 @@ private fun DockTabItem(
         text = stringResource(destination.labelRes),
         color = color,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        fontSize = labelFontSize,
+        readyToDraw = readyToDraw,
+        onTextLayout = onLabelTextLayout,
     )
   }
 }
@@ -261,12 +298,12 @@ private fun AutoResizedTabLabel(
     text: String,
     color: Color,
     fontWeight: FontWeight,
+    fontSize: TextUnit,
+    readyToDraw: Boolean,
+    onTextLayout: (TextUnit, Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    initialFontSize: TextUnit = DockLabelFontSize,
     minFontSize: TextUnit = DockLabelMinFontSize,
 ) {
-  var readyToDraw by remember(text) { mutableStateOf(false) }
-  var scaledFontSize by remember(text) { mutableStateOf(initialFontSize) }
   val density = LocalDensity.current
 
   CompositionLocalProvider(
@@ -275,17 +312,16 @@ private fun AutoResizedTabLabel(
     Text(
         text = text,
         color = color,
-        fontSize = scaledFontSize,
+        fontSize = fontSize,
         fontWeight = fontWeight,
         textAlign = TextAlign.Center,
         maxLines = 1,
         softWrap = false,
         onTextLayout = { textLayoutResult ->
-          if (textLayoutResult.didOverflowWidth && scaledFontSize > minFontSize) {
-            scaledFontSize = (scaledFontSize.value - 0.5f).sp
-            readyToDraw = false
+          if (textLayoutResult.didOverflowWidth && fontSize > minFontSize) {
+            onTextLayout((fontSize.value - 0.5f).sp, false)
           } else {
-            readyToDraw = true
+            onTextLayout(fontSize, true)
           }
         },
         modifier = modifier.then(Modifier.drawWithContent { if (readyToDraw) drawContent() }),
