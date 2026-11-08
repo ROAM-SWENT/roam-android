@@ -18,6 +18,26 @@ on an **MVVM** architecture and based on the SwEnt bootcamp B3 solution.
   lives only in the `model/` repositories.
 - Do not edit generated code.
 
+## Text and typography rules
+
+- **No user-facing string is hardcoded in Kotlin.** Every text a user can
+  see comes from `app/src/main/res/values/strings.xml` via
+  `stringResource(R.string.xxx)`. `HardcodedUiStringGuardTest` fails the
+  build on any new string literal in production UI code. The only
+  exemption is the Google "G" brand mark.
+- **No font size is hardcoded outside `ui/theme/Type.kt`.** `Type.kt` is
+  the single source of sizes: use
+  `style = MaterialTheme.typography.<slot>` instead of `fontSize = X.sp`.
+  `HardcodedFontSizeGuardTest` fails the build on any new `fontSize` /
+  `lineHeight` sp literal in production UI code. The dock label tokens
+  (`DockLabelFontSize`, `DockLabelMinFontSize`) also live in `Type.kt`.
+- **Dock labels do not scale with the system font setting** (locked via
+  `fontScale = 1f`, the Material navigation-bar pattern); everything else
+  in the app scales and layouts must use `heightIn(min = ...)` rather
+  than fixed `height(...)` when a container holds text.
+- Adding text or sizes for new features: extend `strings.xml` or the
+  typography scale, never the call site.
+
 ## Definition of done
 
 - The feature works and matches its acceptance criteria.
