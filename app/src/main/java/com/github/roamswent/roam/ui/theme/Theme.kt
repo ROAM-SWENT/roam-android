@@ -37,6 +37,7 @@ private val LightColorScheme =
         */
     )
 
+// Default to light intentionally for screens rendered outside SampleAppTheme, including previews.
 private val LocalThemeIsDark = staticCompositionLocalOf { false }
 
 val MaterialTheme.isDark: Boolean
