@@ -6,12 +6,15 @@ package com.github.roamswent.roam.ui.components.bottomdock
 
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -20,6 +23,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -111,7 +115,34 @@ class AppBottomDockTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertTextEquals("Explore")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).assertTextEquals("Friends")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertTextEquals("Collection")
-    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan a monument")
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan")
+  }
+
+  @Test
+  fun dockScanLabelSizeRemainsLockedUnderLargeFontScale() {
+    var fontScale by mutableFloatStateOf(1f)
+
+    composeTestRule.setContent {
+      val baseDensity = LocalDensity.current
+      CompositionLocalProvider(
+          LocalDensity provides Density(density = baseDensity.density, fontScale = fontScale)
+      ) {
+        SampleAppTheme {
+          AppBottomDock(
+              selected = DockDestination.HOME,
+              onDestinationSelected = {},
+              onScanClick = {},
+          )
+        }
+      }
+    }
+
+    val defaultSize = composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).fetchSemanticsNode().size
+
+    composeTestRule.runOnIdle { fontScale = 2f }
+
+    val scaledSize = composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).fetchSemanticsNode().size
+    assertEquals(defaultSize, scaledSize)
   }
 
   /**
