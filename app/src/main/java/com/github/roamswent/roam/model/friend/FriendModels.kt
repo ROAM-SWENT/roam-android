@@ -29,9 +29,6 @@ sealed class FriendRepositoryException(message: String, cause: Throwable? = null
   class RecipientProfileNotFound :
       FriendRepositoryException("The recipient does not have a registered public profile.")
 
-  class RequestAlreadyPending :
-      FriendRepositoryException("A friend request to this user is already pending.")
-
   class IncomingRequestPending :
       FriendRepositoryException("This user already has a pending request for you.")
 

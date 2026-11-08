@@ -265,6 +265,125 @@ class FirestoreFriendRepositoryTest {
     assertNotNull(error.cause)
   }
 
+  @Test
+  fun sendFriendRequest_withoutAuthenticatedUserReturnsTypedError() = runTest {
+    every { auth.currentUser } returns null
+
+    val error = captureFailure { repository.sendFriendRequest("user-b") }
+
+    assertTrue(error is FriendRepositoryException.UnauthenticatedUser)
+    verify(exactly = 0) { firestore.collection("friendships") }
+  }
+
+  @Test
+  fun sendFriendRequest_invalidUidReturnsTypedError() = runTest {
+    val error = captureFailure { repository.sendFriendRequest("invalid/uid") }
+
+    assertTrue(error is FriendRepositoryException.InvalidUid)
+    verify(exactly = 0) { firestore.collection("friendships") }
+  }
+
+  @Test
+  fun sendFriendRequest_alreadyFriendsReturnsTypedError() = runTest {
+    val requestReference = mockk<DocumentReference>()
+    val transaction = mockk<Transaction>(relaxed = true)
+
+    every { friendships.document("user-a~user-b") } returns requestReference
+    every { transaction.get(requestReference) } returns
+        recordSnapshot("user-a~user-b", "user-a", "user-b", "ACCEPTED")
+    every { transaction.get(recipientProfile) } returns mockk<DocumentSnapshot>()
+
+    runTransactionWith<FriendRequest>(transaction)
+
+    val error = captureFailure { repository.sendFriendRequest("user-b") }
+
+    assertTrue(error is FriendRepositoryException.AlreadyFriends)
+    verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
+  }
+
+  @Test
+  fun acceptFriendRequest_missingRequestReturnsTypedError() = runTest {
+    val requestReference = mockk<DocumentReference>()
+    val transaction = mockk<Transaction>(relaxed = true)
+    val snapshot = mockk<DocumentSnapshot>()
+
+    every { friendships.document("user-a~user-b") } returns requestReference
+    every { transaction.get(requestReference) } returns snapshot
+    every { snapshot.exists() } returns false
+
+    runTransactionWith<Unit>(transaction)
+
+    val error = captureFailure { repository.acceptFriendRequest("user-a~user-b") }
+
+    assertTrue(error is FriendRepositoryException.RequestNotFound)
+    verify(exactly = 0) { transaction.update(any(), any<String>(), any<String>()) }
+  }
+
+  @Test
+  fun acceptFriendRequest_alreadyAcceptedDoesNotUpdateAgain() = runTest {
+    val requestReference = mockk<DocumentReference>()
+    val transaction = mockk<Transaction>(relaxed = true)
+
+    every { auth.currentUser } returns mockk<FirebaseUser> { every { uid } returns "user-b" }
+    every { friendships.document("user-a~user-b") } returns requestReference
+    every { transaction.get(requestReference) } returns
+        recordSnapshot("user-a~user-b", "user-a", "user-b", "ACCEPTED")
+
+    runTransactionWith<Unit>(transaction)
+
+    repository.acceptFriendRequest("user-a~user-b")
+
+    verify(exactly = 0) { transaction.update(any(), any<String>(), any<String>()) }
+  }
+
+  @Test
+  fun rejectFriendRequest_cannotRejectAcceptedFriendship() = runTest {
+    val requestReference = mockk<DocumentReference>()
+    val transaction = mockk<Transaction>(relaxed = true)
+
+    every { auth.currentUser } returns mockk<FirebaseUser> { every { uid } returns "user-b" }
+    every { friendships.document("user-a~user-b") } returns requestReference
+    every { transaction.get(requestReference) } returns
+        recordSnapshot("user-a~user-b", "user-a", "user-b", "ACCEPTED")
+
+    runTransactionWith<Unit>(transaction)
+
+    val error = captureFailure { repository.rejectFriendRequest("user-a~user-b") }
+
+    assertTrue(error is FriendRepositoryException.RequestNotPending)
+    verify(exactly = 0) { transaction.delete(any()) }
+  }
+
+  @Test
+  fun acceptFriendRequest_invalidRequestIdReturnsTypedError() = runTest {
+    for (requestId in listOf("invalid", "user-b~user-a", "a~b~c")) {
+      val error = captureFailure { repository.acceptFriendRequest(requestId) }
+
+      assertTrue(
+          "Expected RequestNotFound for $requestId",
+          error is FriendRepositoryException.RequestNotFound,
+      )
+    }
+  }
+
+  @Test
+  fun removeFriend_missingFriendshipReturnsTypedError() = runTest {
+    val requestReference = mockk<DocumentReference>()
+    val transaction = mockk<Transaction>(relaxed = true)
+    val snapshot = mockk<DocumentSnapshot>()
+
+    every { friendships.document("user-a~user-b") } returns requestReference
+    every { transaction.get(requestReference) } returns snapshot
+    every { snapshot.exists() } returns false
+
+    runTransactionWith<Unit>(transaction)
+
+    val error = captureFailure { repository.removeFriend("user-b") }
+
+    assertTrue(error is FriendRepositoryException.FriendshipNotFound)
+    verify(exactly = 0) { transaction.delete(any()) }
+  }
+
   private fun recordSnapshot(
       id: String,
       requesterUid: String,
