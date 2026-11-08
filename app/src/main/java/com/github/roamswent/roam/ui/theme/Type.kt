@@ -105,3 +105,6 @@ val Typography =
                 letterSpacing = 0.sp,
             ),
     )
+
+val DockLabelFontSize = 11.sp
+val DockLabelMinFontSize = 8.5.sp

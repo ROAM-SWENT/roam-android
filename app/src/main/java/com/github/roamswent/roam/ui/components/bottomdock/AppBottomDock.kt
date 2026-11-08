@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.DockLabelFontSize
+import com.github.roamswent.roam.ui.theme.DockLabelMinFontSize
 import com.github.roamswent.roam.ui.theme.DockScanIcon
 import com.github.roamswent.roam.ui.theme.ScanTeal
 
@@ -259,8 +261,8 @@ private fun AutoResizedTabLabel(
     color: Color,
     fontWeight: FontWeight,
     modifier: Modifier = Modifier,
-    initialFontSize: TextUnit = 11.sp,
-    minFontSize: TextUnit = 8.5.sp,
+    initialFontSize: TextUnit = DockLabelFontSize,
+    minFontSize: TextUnit = DockLabelMinFontSize,
 ) {
   var readyToDraw by remember(text) { mutableStateOf(false) }
   var scaledFontSize by remember(text) { mutableStateOf(initialFontSize) }
