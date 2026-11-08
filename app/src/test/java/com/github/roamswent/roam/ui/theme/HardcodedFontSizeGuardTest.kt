@@ -1,24 +1,22 @@
-/*
- * Co-authored-by: Google Antigravity <noreply@google.com>
- */
 package com.github.roamswent.roam.ui.theme
 
+import com.github.roamswent.roam.ScanResult
+import com.github.roamswent.roam.SourceScanTestUtils.assertMissingDirectoryProducesSkip
+import com.github.roamswent.roam.SourceScanTestUtils.assertProductionUiSourcesPass
+import com.github.roamswent.roam.SourceScanTestUtils.findLineMatches
+import com.github.roamswent.roam.SourceScanTestUtils.scanKotlinSources
+import com.github.roamswent.roam.SourceScanTestUtils.withCopiedUiFile
 import java.io.File
-import java.nio.file.Files
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class HardcodedFontSizeGuardTest {
   @Test
   fun productionUiSourcesContainNoUnallowlistedFontSizeLiterals() {
-    val result = FontSizeScanner.scan(resolveUiSourceDirectory())
-    result.skipReason?.let { assumeTrue(it, false) }
-    assertTrue(
-        "Hardcoded UI fontSize/lineHeight violations:\n${result.violations.joinToString("\n")}",
-        result.violations.isEmpty(),
+    assertProductionUiSourcesPass(
+        "Hardcoded UI fontSize/lineHeight violations",
+        FontSizeScanner::scan,
     )
   }
 
@@ -83,15 +81,7 @@ class HardcodedFontSizeGuardTest {
 
   @Test
   fun missingSourcesProduceSkipResult() {
-    val parent = Files.createTempDirectory("font-size-guard-missing").toFile()
-    try {
-      val result = FontSizeScanner.scan(parent.resolve("missing"))
-
-      assertFalse(result.skipReason.isNullOrBlank())
-      assertTrue(result.violations.isEmpty())
-    } finally {
-      parent.deleteRecursively()
-    }
+    assertMissingDirectoryProducesSkip(FontSizeScanner::scan)
   }
 
   @Test
@@ -135,7 +125,7 @@ class HardcodedFontSizeGuardTest {
     }
   }
 
-  object FontSizeScanner {
+  internal object FontSizeScanner {
     private val spLiteralPattern =
         Regex(
             """\b((?:[A-Za-z]*[Ff]ontSize|lineHeight)\s*(?::\s*TextUnit\s*)?=\s*\d+(?:\.\d+)?\.sp)\b"""
@@ -178,73 +168,6 @@ class HardcodedFontSizeGuardTest {
         )
       }
       return matches.map { "$relativePath:${it.line}: ${it.literal}" }
-    }
-  }
-
-  data class ScanResult(
-      val violations: List<String>,
-      val skipReason: String? = null,
-  )
-
-  private data class LineMatch(val literal: String, val line: Int)
-
-  companion object {
-    private fun resolveUiSourceDirectory(): File {
-      val userDir = File(System.getProperty("user.dir") ?: ".")
-      val candidates =
-          listOf(
-              userDir.resolve("app/src/main/java/com/github/roamswent/roam/ui"),
-              userDir.resolve("src/main/java/com/github/roamswent/roam/ui"),
-          )
-      return candidates.firstOrNull(File::isDirectory) ?: candidates.first()
-    }
-
-    private fun scanKotlinSources(
-        sourceDirectory: File,
-        fileEvaluator: (relativePath: String, source: String) -> List<String>,
-    ): ScanResult {
-      if (!sourceDirectory.isDirectory) {
-        return ScanResult(emptyList(), "UI source directory not found: $sourceDirectory")
-      }
-      val violations =
-          sourceDirectory
-              .walkTopDown()
-              .filter { it.isFile && it.extension == "kt" }
-              .sortedBy { it.relativeTo(sourceDirectory).invariantSeparatorsPath }
-              .flatMap { file ->
-                val relativePath = file.relativeTo(sourceDirectory).invariantSeparatorsPath
-                fileEvaluator(relativePath, file.readText())
-              }
-              .toList()
-      return ScanResult(violations)
-    }
-
-    private fun findLineMatches(source: String, pattern: Regex): List<LineMatch> =
-        pattern
-            .findAll(source)
-            .map { match ->
-              LineMatch(
-                  literal = match.groupValues[1],
-                  line = source.take(match.range.first).count { it == '\n' } + 1,
-              )
-            }
-            .sortedBy(LineMatch::line)
-            .toList()
-
-    private fun withCopiedUiFile(relativePath: String, block: (File, File) -> Unit) {
-      val productionDir = resolveUiSourceDirectory()
-      assumeTrue("UI source directory not found: $productionDir", productionDir.isDirectory)
-      val sourceFile = productionDir.resolve(relativePath)
-      assumeTrue("UI source file not found: $sourceFile", sourceFile.isFile)
-      val tempRoot = Files.createTempDirectory("font-size-guard").toFile()
-      try {
-        val targetFile = tempRoot.resolve(relativePath)
-        targetFile.parentFile?.mkdirs()
-        sourceFile.copyTo(targetFile, overwrite = true)
-        block(tempRoot, targetFile)
-      } finally {
-        tempRoot.deleteRecursively()
-      }
     }
   }
 }
