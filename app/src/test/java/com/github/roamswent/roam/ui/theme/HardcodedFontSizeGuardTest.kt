@@ -6,6 +6,7 @@ import com.github.roamswent.roam.SourceScanTestUtils.assertProductionUiSourcesPa
 import com.github.roamswent.roam.SourceScanTestUtils.findLineMatches
 import com.github.roamswent.roam.SourceScanTestUtils.scanKotlinSources
 import com.github.roamswent.roam.SourceScanTestUtils.withCopiedUiFile
+import com.github.roamswent.roam.SourceScanTestUtils.withScratchKotlinFile
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -48,17 +49,17 @@ class HardcodedFontSizeGuardTest {
 
   @Test
   fun legacyFileOverCountIsFlagged() {
-    withCopiedUiFile("friends/FriendsScreen.kt") { rootDir, file ->
-      val extraLine = file.readText().count { it == '\n' } + 1
-      file.appendText("Text(text = \"Extra\", fontSize = 42.sp)\n")
-
-      val result = FontSizeScanner.scan(rootDir)
+    withScratchKotlinFile(
+        "LegacySample.kt",
+        "Text(text = \"ExtraOne\", fontSize = 28.sp)\nText(text = \"ExtraTwo\", fontSize = 42.sp)\n",
+    ) { rootDir ->
+      val result = FontSizeScanner.scan(rootDir, mapOf("LegacySample.kt" to 1))
 
       assertEquals(
           listOf(
-              "friends/FriendsScreen.kt: expected 1 legacy literal(s), found 2 " +
-                  "[friends/FriendsScreen.kt:36: fontSize = 28.sp, " +
-                  "friends/FriendsScreen.kt:$extraLine: fontSize = 42.sp]"
+              "LegacySample.kt: expected 1 legacy literal(s), found 2 " +
+                  "[LegacySample.kt:1: fontSize = 28.sp, " +
+                  "LegacySample.kt:2: fontSize = 42.sp]"
           ),
           result.violations,
       )
@@ -67,13 +68,14 @@ class HardcodedFontSizeGuardTest {
 
   @Test
   fun legacyFileUnderCountIsFlagged() {
-    withCopiedUiFile("friends/FriendsScreen.kt") { rootDir, file ->
-      file.writeText(file.readText().replace("fontSize = 28.sp,", ""))
-
-      val result = FontSizeScanner.scan(rootDir)
+    withScratchKotlinFile(
+        "LegacySample.kt",
+        "Text(text = \"No hardcoded size\")\n",
+    ) { rootDir ->
+      val result = FontSizeScanner.scan(rootDir, mapOf("LegacySample.kt" to 1))
 
       assertEquals(
-          listOf("friends/FriendsScreen.kt: expected 1 legacy literal(s), found 0 [none]"),
+          listOf("LegacySample.kt: expected 1 legacy literal(s), found 0 [none]"),
           result.violations,
       )
     }
@@ -125,6 +127,21 @@ class HardcodedFontSizeGuardTest {
     }
   }
 
+  @Test
+  fun reintroducedFontSizeInMigratedFileIsFlagged() {
+    withCopiedUiFile("collection/CollectionScreen.kt") { rootDir, file ->
+      val lineCount = file.readText().count { it == '\n' } + 1
+      file.appendText("Text(text = \"Regression\", fontSize = 14.sp)\n")
+
+      val result = FontSizeScanner.scan(rootDir)
+
+      assertEquals(
+          listOf("collection/CollectionScreen.kt:$lineCount: fontSize = 14.sp"),
+          result.violations,
+      )
+    }
+  }
+
   internal object FontSizeScanner {
     private val spLiteralPattern =
         Regex(
@@ -133,28 +150,26 @@ class HardcodedFontSizeGuardTest {
 
     val exemptedFiles: Set<String> = setOf("theme/Type.kt")
 
-    val legacyFiles: Map<String, Int> =
-        mapOf(
-            "home/ScanPromptCard.kt" to 3,
-            "home/HomeGreetingHeader.kt" to 2,
-            "home/HomeScreen.kt" to 1,
-            "home/OfflineNoticeCard.kt" to 1,
-            "authentication/SignInScreen.kt" to 2,
-            "monumentDetail/MonumentDetailScreen.kt" to 8,
-            "loading/LoadingScreen.kt" to 3,
-            "collection/CollectionScreen.kt" to 6,
-            "friends/FriendsScreen.kt" to 1,
-        )
+    val legacyFiles: Map<String, Int> = emptyMap()
 
-    fun scan(sourceDirectory: File): ScanResult =
+    fun scan(sourceDirectory: File): ScanResult = scan(sourceDirectory, legacyFiles)
+
+    fun scan(
+        sourceDirectory: File,
+        legacyCounts: Map<String, Int>,
+    ): ScanResult =
         scanKotlinSources(sourceDirectory) { relativePath, source ->
-          evaluateFile(relativePath, source)
+          evaluateFile(relativePath, source, legacyCounts)
         }
 
-    private fun evaluateFile(relativePath: String, source: String): List<String> {
+    fun evaluateFile(
+        relativePath: String,
+        source: String,
+        legacyCounts: Map<String, Int> = legacyFiles,
+    ): List<String> {
       if (relativePath in exemptedFiles) return emptyList()
       val matches = findLineMatches(source, spLiteralPattern)
-      val expectedCount = legacyFiles[relativePath]
+      val expectedCount = legacyCounts[relativePath]
       if (expectedCount != null) {
         if (matches.size == expectedCount) return emptyList()
         val details =
