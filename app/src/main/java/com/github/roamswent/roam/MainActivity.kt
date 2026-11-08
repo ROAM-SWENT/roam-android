@@ -102,13 +102,13 @@ class MainActivity : ComponentActivity() {
 
       if (themeMode != null) {
         val selectedTheme = requireNotNull(themeMode)
-        val isDarkTheme =
+        val darkTheme =
             when (selectedTheme) {
               ThemeMode.AUTO -> isSystemInDarkTheme()
               ThemeMode.LIGHT -> false
               ThemeMode.DARK -> true
             }
-        SampleAppTheme(darkTheme = isDarkTheme) {
+        SampleAppTheme(darkTheme = darkTheme) {
           val authViewModel: SignInViewModel = viewModel()
           RoamApp(
               authViewModel = authViewModel,

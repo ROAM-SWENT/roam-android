@@ -114,7 +114,6 @@ class HomeScreenTest {
         HomeScreen(
             onScanClicked = {},
             userName = "grace.hopper",
-            isDarkTheme = false,
         )
       }
     }
@@ -127,9 +126,7 @@ class HomeScreenTest {
 
   @Test
   fun profileBubbleShowsQuestionMarkWhenNameAndEmailAreUnavailable() {
-    composeTestRule.setContent {
-      SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "", isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "") } }
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_profile_button)

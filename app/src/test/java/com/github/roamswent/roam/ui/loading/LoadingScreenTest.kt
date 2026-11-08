@@ -119,15 +119,15 @@ class LoadingScreenTest {
 
   @Test
   fun darkThemeUsesThemeBackgroundAndKeepsLoadingCopyReadable() {
-    var isDarkTheme by mutableStateOf(false)
+    var darkTheme by mutableStateOf(false)
     var expectedDarkBackground = 0
     var darkTextColor = 0
     var darkSubtitleColor = 0
     var darkProgressColor = 0
     var darkProgressTrackColor = 0
     composeTestRule.setContent {
-      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) {
+      SampleAppTheme(darkTheme = darkTheme, dynamicColor = false) {
+        if (darkTheme) {
           expectedDarkBackground = MaterialTheme.colorScheme.background.toArgb()
           darkTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
           darkSubtitleColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
@@ -148,7 +148,7 @@ class LoadingScreenTest {
             .asAndroidBitmap()
     assertEquals(ScreenBackground.toArgb(), lightBackground.getPixel(0, 0))
 
-    composeTestRule.runOnIdle { isDarkTheme = true }
+    composeTestRule.runOnIdle { darkTheme = true }
 
     val darkBackground =
         composeTestRule

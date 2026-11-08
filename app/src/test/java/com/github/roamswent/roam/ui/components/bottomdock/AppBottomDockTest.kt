@@ -76,13 +76,13 @@ class AppBottomDockTest {
 
   @Test
   fun dockSurfaceFollowsLightAndDarkTheme() {
-    var isDarkTheme by mutableStateOf(false)
+    var darkTheme by mutableStateOf(false)
     var lightSurface = 0
     var darkSurface = 0
 
     composeTestRule.setContent {
-      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) darkSurface = MaterialTheme.colorScheme.surface.toArgb()
+      SampleAppTheme(darkTheme = darkTheme, dynamicColor = false) {
+        if (darkTheme) darkSurface = MaterialTheme.colorScheme.surface.toArgb()
         else lightSurface = MaterialTheme.colorScheme.surface.toArgb()
         AppBottomDock(
             selected = DockDestination.HOME,
@@ -96,7 +96,7 @@ class AppBottomDockTest {
     val lightDock = dock.captureToImage().asAndroidBitmap()
     assertEquals(lightSurface, lightDock.getPixel(0, lightDock.height - 1))
 
-    composeTestRule.runOnIdle { isDarkTheme = true }
+    composeTestRule.runOnIdle { darkTheme = true }
 
     val darkDock = dock.captureToImage().asAndroidBitmap()
     assertEquals(darkSurface, darkDock.getPixel(0, darkDock.height - 1))
