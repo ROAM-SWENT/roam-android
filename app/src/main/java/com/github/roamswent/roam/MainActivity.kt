@@ -91,6 +91,18 @@ private fun NavHostController.clearSavedUserNavigation() {
   }
 }
 
+/**
+ * Clears tab and settings back stacks saved during navigation.
+ *
+ * Keep state restoration available while a user is signed in, but prevent those stacks from being
+ * restored after another user signs in.
+ */
+private fun NavHostController.clearSavedUserNavigation() {
+  listOf(Routes.Settings, Routes.Friends, Routes.Collection, Routes.Explore).forEach {
+    clearBackStack(it)
+  }
+}
+
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
