@@ -119,6 +119,36 @@ class HomeScreenTest {
   }
 
   @Test
+  fun profileBubbleShowsResolvedEmailInitialWhenNameIsUnavailable() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        HomeScreen(
+            onScanClicked = {},
+            userName = "grace.hopper",
+            isDarkTheme = false,
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("G")
+  }
+
+  @Test
+  fun profileBubbleShowsQuestionMarkWhenNameAndEmailAreUnavailable() {
+    composeTestRule.setContent {
+      SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "", isDarkTheme = false) }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("?")
+  }
+
+  @Test
   fun homeScreenShowsSignedOutGreeting() {
     composeTestRule.setContent {
       SampleAppTheme {

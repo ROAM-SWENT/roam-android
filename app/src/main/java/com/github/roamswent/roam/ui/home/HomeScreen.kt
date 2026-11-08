@@ -67,13 +67,14 @@ fun HomeScreen(
                 .padding(start = 20.dp, end = 20.dp, bottom = dockContentClearance())
     ) {
       Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        val profileInitial = userName.trim().firstOrNull()?.uppercaseChar()?.toString()
         HomeGreetingHeader(
             userName = userName,
             modifier = Modifier.weight(1f),
             isDarkTheme = isDarkTheme,
         )
         ProfileBubble(
-            userName = userName,
+            initial = profileInitial,
             onClick = onProfileClicked,
             modifier = Modifier.padding(top = 16.dp),
         )
@@ -99,7 +100,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ProfileBubble(userName: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ProfileBubble(
+    initial: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
   val description = stringResource(R.string.home_profile_button_description)
   Surface(
       onClick = onClick,
@@ -113,7 +118,7 @@ private fun ProfileBubble(userName: String, onClick: () -> Unit, modifier: Modif
   ) {
     Box(contentAlignment = Alignment.Center) {
       Text(
-          text = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+          text = initial ?: "?",
           color = Color.White,
           fontSize = 18.sp,
           fontWeight = FontWeight.Bold,
