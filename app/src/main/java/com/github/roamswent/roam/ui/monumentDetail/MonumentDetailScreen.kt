@@ -28,7 +28,6 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
@@ -112,7 +111,7 @@ fun MonumentDetailScreen(
         ) {
           Text(
               text = guide.monumentName,
-              fontSize = 22.sp,
+              style = MaterialTheme.typography.titleLarge,
               fontWeight = FontWeight.Bold,
               color = textColor,
               modifier = Modifier.semantics { testTag = C.Tag.monument_detail_title },
@@ -123,7 +122,7 @@ fun MonumentDetailScreen(
                       R.string.monument_detail_match_percent,
                       (guide.confidence * 100).roundToInt(),
                   ),
-              fontSize = 14.sp,
+              style = MaterialTheme.typography.bodySmall,
               color = secondaryTextColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
@@ -132,8 +131,7 @@ fun MonumentDetailScreen(
           )
           Text(
               text = guide.history,
-              fontSize = 16.sp,
-              lineHeight = 24.sp,
+              style = MaterialTheme.typography.bodyLarge,
               color = textColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
@@ -143,8 +141,7 @@ fun MonumentDetailScreen(
           guide.facts.forEach { fact ->
             Text(
                 text = stringResource(R.string.monument_detail_fact_bullet, fact),
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = textColor,
                 modifier =
                     Modifier.padding(bottom = 4.dp).semantics {
@@ -154,8 +151,7 @@ fun MonumentDetailScreen(
           }
           Text(
               text = guide.culture,
-              fontSize = 16.sp,
-              lineHeight = 24.sp,
+              style = MaterialTheme.typography.bodyLarge,
               color = textColor,
               modifier =
                   Modifier.padding(top = 12.dp).semantics {
