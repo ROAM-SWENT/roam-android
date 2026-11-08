@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Google Antigravity <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.components.bottomdock

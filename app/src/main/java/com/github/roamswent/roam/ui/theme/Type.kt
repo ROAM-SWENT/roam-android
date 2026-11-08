@@ -1,3 +1,6 @@
+/*
+ * Co-authored-by: Google Antigravity <noreply@google.com>
+ */
 package com.github.roamswent.roam.ui.theme
 
 import androidx.compose.material3.Typography
