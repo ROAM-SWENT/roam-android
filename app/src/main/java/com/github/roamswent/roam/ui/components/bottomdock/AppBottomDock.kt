@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,11 +44,13 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -261,23 +264,28 @@ private fun AutoResizedTabLabel(
 ) {
   var readyToDraw by remember(text) { mutableStateOf(false) }
   var scaledFontSize by remember(text) { mutableStateOf(initialFontSize) }
+  val density = LocalDensity.current
 
-  Text(
-      text = text,
-      color = color,
-      fontSize = scaledFontSize,
-      fontWeight = fontWeight,
-      textAlign = TextAlign.Center,
-      maxLines = 1,
-      softWrap = false,
-      onTextLayout = { textLayoutResult ->
-        if (textLayoutResult.didOverflowWidth && scaledFontSize > minFontSize) {
-          scaledFontSize = (scaledFontSize.value - 0.5f).sp
-          readyToDraw = false
-        } else {
-          readyToDraw = true
-        }
-      },
-      modifier = modifier.then(Modifier.drawWithContent { if (readyToDraw) drawContent() }),
-  )
+  CompositionLocalProvider(
+      LocalDensity provides Density(density = density.density, fontScale = 1f)
+  ) {
+    Text(
+        text = text,
+        color = color,
+        fontSize = scaledFontSize,
+        fontWeight = fontWeight,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        softWrap = false,
+        onTextLayout = { textLayoutResult ->
+          if (textLayoutResult.didOverflowWidth && scaledFontSize > minFontSize) {
+            scaledFontSize = (scaledFontSize.value - 0.5f).sp
+            readyToDraw = false
+          } else {
+            readyToDraw = true
+          }
+        },
+        modifier = modifier.then(Modifier.drawWithContent { if (readyToDraw) drawContent() }),
+    )
+  }
 }
