@@ -45,6 +45,8 @@ import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
@@ -608,6 +610,14 @@ class MainActivityNavigationTest {
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
+    // Switching tabs saves Collection's back stack, which sign-out must discard.
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
     navigateToSettings(navController)
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       composeTestRule
@@ -620,6 +630,85 @@ class MainActivityNavigationTest {
 
     assertEquals(AuthUIState(signOutCompleted = true), authState.value)
     assertEquals(0, signInClickCount)
+    composeTestRule.runOnIdle { assertFalse(navController.clearBackStack(Routes.Collection)) }
+  }
+
+  @Test
+  fun signedOutUserCannotRestorePreviousNavigationState() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    val settingsState = MutableStateFlow(SettingsUIState())
+    val settingsViewModel = mock<SettingsViewModel>()
+    whenever(settingsViewModel.uiState).thenReturn(settingsState)
+    lateinit var navController: NavHostController
+    renderApp(
+        authState,
+        onSignInClickOverride = { authState.value = AuthUIState(user = mock()) },
+        onNavControllerReady = { navController = it },
+        settingsViewModel = settingsViewModel,
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    val userACollectionEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    val userAExploreEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.runOnIdle {
+      navController.navigate(Routes.Settings) {
+        popUpTo(Routes.Home) {
+          inclusive = false
+          saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+      }
+    }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    val userASettingsEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.runOnIdle { settingsState.value = SettingsUIState(signedOut = true) }
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    composeTestRule.runOnIdle {
+      listOf(Routes.Settings, Routes.Friends, Routes.Collection, Routes.Explore).forEach {
+        assertFalse(navController.clearBackStack(it))
+      }
+      settingsState.value = SettingsUIState()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    val userBCollectionEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userACollectionEntryId, userBCollectionEntryId)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    val userBExploreEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userAExploreEntryId, userBExploreEntryId)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    val userBSettingsEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userASettingsEntryId, userBSettingsEntryId)
   }
 
   @Test

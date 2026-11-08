@@ -78,6 +78,18 @@ import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.ThemeViewModel
 import com.github.roamswent.roam.ui.theme.ThemeViewModelFactory
 
+/**
+ * Clears tab and settings back stacks saved during navigation.
+ *
+ * Keep state restoration available while a user is signed in, but prevent those stacks from being
+ * restored after another user signs in.
+ */
+private fun NavHostController.clearSavedUserNavigation() {
+  listOf(Routes.Settings, Routes.Friends, Routes.Collection, Routes.Explore).forEach {
+    clearBackStack(it)
+  }
+}
+
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -302,6 +314,7 @@ internal fun RoamApp(
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
                 authViewModel.clearSignedInUser()
+                navController.clearSavedUserNavigation()
                 navController.navigate(Routes.SignIn) {
                   popUpTo(navController.graph.id) { inclusive = true }
                 }
@@ -309,6 +322,7 @@ internal fun RoamApp(
           )
         }
       }
+
       composable(Routes.Collection) {
         val savedGuideRepository = remember {
           savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
@@ -326,6 +340,7 @@ internal fun RoamApp(
           )
         }
       }
+
       composable(Routes.Friends) {
         val dockClearance = dockContentClearance()
         DockedScaffold(containerDark = isDarkTheme) { innerPadding ->
@@ -339,6 +354,7 @@ internal fun RoamApp(
           )
         }
       }
+
       composable(Routes.Explore) {
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(AndroidLocationProvider(context))
