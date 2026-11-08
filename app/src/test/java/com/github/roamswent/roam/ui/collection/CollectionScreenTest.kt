@@ -153,21 +153,20 @@ class CollectionScreenTest {
   @Test
   fun screenPreservesLightColorsAndUsesDarkThemeSurfaces() {
     val guide = guide("guide", "Eiffel Tower", discoveryDate = newerGuide.discoveryDate)
-    var isDarkTheme by mutableStateOf(false)
+    var darkTheme by mutableStateOf(false)
     var darkBackgroundColor = 0
     var darkCardColor = 0
     var darkTitleColor = 0
 
     composeTestRule.setContent {
-      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) {
+      SampleAppTheme(darkTheme = darkTheme, dynamicColor = false) {
+        if (darkTheme) {
           darkBackgroundColor = MaterialTheme.colorScheme.background.toArgb()
           darkCardColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
           darkTitleColor = MaterialTheme.colorScheme.onSurface.toArgb()
         }
         CollectionScreen(
             state = SavedGuidesUiState(guides = listOf(guide)),
-            isDarkTheme = isDarkTheme,
         )
       }
     }
@@ -180,7 +179,7 @@ class CollectionScreenTest {
     assertEquals(ScreenBackground.toArgb(), lightBackground.getPixel(0, 0))
     assertTrue(containsColor(lightCard, Color.White.toArgb()))
 
-    composeTestRule.runOnIdle { isDarkTheme = true }
+    composeTestRule.runOnIdle { darkTheme = true }
 
     val darkBackground =
         composeTestRule.onNodeWithTag(C.Tag.collection_screen).captureToImage().asAndroidBitmap()
@@ -291,9 +290,7 @@ class CollectionScreenTest {
             .build()
     )
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
-    composeTestRule.setContent {
-      SampleAppTheme { CollectionScreen(state = state, isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
     composeTestRule.waitUntil(TIMEOUT_MILLIS) {
       hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
     }
@@ -311,9 +308,7 @@ class CollectionScreenTest {
   @Test
   fun decodesAgainWhenThePhotoOfAGuideChanges() {
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(guideWithPhoto(pngBytes()))))
-    composeTestRule.setContent {
-      SampleAppTheme { CollectionScreen(state = state, isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
     composeTestRule.waitUntil(TIMEOUT_MILLIS) {
       hasTag(C.Tag.collection_card_photo) && !hasTag(C.Tag.collection_card_photo_loading)
     }
@@ -345,9 +340,7 @@ class CollectionScreenTest {
 
   private fun setScreen(state: SavedGuidesUiState, onGuideClick: (String) -> Unit = {}) {
     composeTestRule.setContent {
-      SampleAppTheme {
-        CollectionScreen(state = state, isDarkTheme = false, onGuideClick = onGuideClick)
-      }
+      SampleAppTheme { CollectionScreen(state = state, onGuideClick = onGuideClick) }
     }
   }
 

@@ -59,7 +59,6 @@ class MonumentDetailScreenTest {
             image = falseImage,
             guide = guide,
             onBackClick = {},
-            isDarkTheme = false,
         )
       }
     }
@@ -102,7 +101,6 @@ class MonumentDetailScreenTest {
           image = ColorPainter(Color.LightGray),
           guide = guide,
           onBackClick = { backClicked = true },
-          isDarkTheme = false,
       )
     }
 
@@ -114,14 +112,14 @@ class MonumentDetailScreenTest {
   @Test
   fun darkThemeUsesThemeTextColorsOnDarkPanelAndKeepsLightPanelUnchanged() {
     val image = ColorPainter(Color.LightGray)
-    var isDarkTheme by mutableStateOf(false)
+    var darkTheme by mutableStateOf(false)
     var darkSurface = 0
     var darkOnSurface = 0
     var darkOnSurfaceVariant = 0
 
     composeTestRule.setContent {
-      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) {
+      SampleAppTheme(darkTheme = darkTheme, dynamicColor = false) {
+        if (darkTheme) {
           darkSurface = MaterialTheme.colorScheme.surface.toArgb()
           darkOnSurface = MaterialTheme.colorScheme.onSurface.toArgb()
           darkOnSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
@@ -130,7 +128,6 @@ class MonumentDetailScreenTest {
             image = image,
             guide = guide,
             onBackClick = {},
-            isDarkTheme = isDarkTheme,
         )
       }
     }
@@ -142,7 +139,7 @@ class MonumentDetailScreenTest {
             .asAndroidBitmap()
     assertEquals(ScreenBackground.toArgb(), lightPanel.getPixel(0, lightPanel.height / 2))
 
-    composeTestRule.runOnIdle { isDarkTheme = true }
+    composeTestRule.runOnIdle { darkTheme = true }
 
     val darkPanel =
         composeTestRule

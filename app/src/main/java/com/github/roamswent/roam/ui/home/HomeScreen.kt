@@ -37,6 +37,7 @@ import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
 fun HomeScreen(
@@ -47,7 +48,6 @@ fun HomeScreen(
     onDockDestinationSelected: (DockDestination) -> Unit = {},
     onProfileClicked: () -> Unit = {},
     isConnectedToInternet: Boolean? = null,
-    isDarkTheme: Boolean,
 ) {
   val isOnline = isConnectedToInternet ?: rememberInternetConnectivity()
 
@@ -56,7 +56,8 @@ fun HomeScreen(
           modifier
               .fillMaxSize()
               .background(
-                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.background
+                  else ScreenBackground
               )
               .semantics { testTag = C.Tag.home_screen_container }
   ) {
@@ -71,7 +72,6 @@ fun HomeScreen(
         HomeGreetingHeader(
             userName = userName,
             modifier = Modifier.weight(1f),
-            isDarkTheme = isDarkTheme,
         )
         ProfileBubble(
             initial = profileInitial,
@@ -80,10 +80,7 @@ fun HomeScreen(
         )
       }
       if (!isOnline) {
-        OfflineNoticeCard(
-            modifier = Modifier.padding(bottom = 12.dp),
-            isDarkTheme = isDarkTheme,
-        )
+        OfflineNoticeCard(modifier = Modifier.padding(bottom = 12.dp))
       }
       ScanPromptCard(onPromptClick = {})
     }
@@ -130,5 +127,5 @@ private fun ProfileBubble(
 @Preview(showBackground = true)
 @Composable
 fun HomeScreenPreview() {
-  SampleAppTheme { HomeScreen(onScanClicked = {}, isDarkTheme = false) }
+  SampleAppTheme { HomeScreen(onScanClicked = {}) }
 }
