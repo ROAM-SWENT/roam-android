@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
@@ -54,6 +55,7 @@ import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
@@ -163,7 +165,11 @@ fun ScanReviewScreen(
           shape = RoundedCornerShape(24.dp),
           modifier = Modifier.size(80.dp).semantics { testTag = C.Tag.scan_validate_button },
       ) {
-        Icon(Icons.Default.Check, contentDescription = "Validate", tint = ShutterWhite)
+        Icon(
+            Icons.Default.Check,
+            contentDescription = stringResource(R.string.scan_review_validate),
+            tint = ShutterWhite,
+        )
       }
     }
   }
@@ -213,9 +219,12 @@ private fun InterestsPromptDialog(onSave: (List<String>) -> Unit, onSkip: () -> 
         tonalElevation = 6.dp,
     ) {
       Column(Modifier.fillMaxWidth().padding(24.dp)) {
-        Text("Personalize your guide", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            stringResource(R.string.scan_review_personalize_title),
+            style = MaterialTheme.typography.headlineSmall,
+        )
         Spacer(Modifier.size(12.dp))
-        Text("Add interests to personalize your AI guide.")
+        Text(stringResource(R.string.scan_review_personalize_subtitle))
         Spacer(Modifier.size(12.dp))
         InterestCategoryChips(selectedInterests) { selectedInterests = it }
         Spacer(Modifier.size(24.dp))
@@ -224,14 +233,14 @@ private fun InterestsPromptDialog(onSave: (List<String>) -> Unit, onSkip: () -> 
               onClick = onSkip,
               modifier = Modifier.semantics { testTag = C.Tag.scan_interests_skip },
           ) {
-            Text("Skip")
+            Text(stringResource(R.string.scan_review_skip))
           }
           TextButton(
               onClick = { onSave(UserInterestCategories.all.filter(selectedInterests::contains)) },
               enabled = selectedInterests.isNotEmpty(),
               modifier = Modifier.semantics { testTag = C.Tag.scan_interests_save },
           ) {
-            Text("Save")
+            Text(stringResource(R.string.scan_review_save))
           }
         }
       }
@@ -269,14 +278,14 @@ private fun InterestCategoryChips(
 private fun DeleteFailedDialog(onRetry: () -> Unit, onStay: () -> Unit) {
   AlertDialog(
       onDismissRequest = onStay,
-      title = { Text("Delete failed") },
-      text = { Text("The photo could not be deleted and is still on the device.") },
+      title = { Text(stringResource(R.string.scan_review_delete_failed_title)) },
+      text = { Text(stringResource(R.string.scan_review_delete_failed_message)) },
       confirmButton = {
         TextButton(
             onClick = onRetry,
             modifier = Modifier.semantics { testTag = C.Tag.scan_retake_delete_retry },
         ) {
-          Text("Retry")
+          Text(stringResource(R.string.scan_review_retry))
         }
       },
       dismissButton = {
@@ -284,7 +293,7 @@ private fun DeleteFailedDialog(onRetry: () -> Unit, onStay: () -> Unit) {
             onClick = onStay,
             modifier = Modifier.semantics { testTag = C.Tag.scan_retake_delete_stay },
         ) {
-          Text("Stay")
+          Text(stringResource(R.string.scan_review_stay))
         }
       },
       modifier = Modifier.semantics { testTag = C.Tag.scan_retake_delete_failed_dialog },
@@ -295,14 +304,14 @@ private fun DeleteFailedDialog(onRetry: () -> Unit, onStay: () -> Unit) {
 private fun SendFailedDialog(message: String, onRetry: () -> Unit, onDismiss: () -> Unit) {
   AlertDialog(
       onDismissRequest = onDismiss,
-      title = { Text("Couldn't identify this photo") },
+      title = { Text(stringResource(R.string.scan_review_send_failed_title)) },
       text = { Text(message) },
       confirmButton = {
         TextButton(
             onClick = onRetry,
             modifier = Modifier.semantics { testTag = C.Tag.scan_send_failed_retry },
         ) {
-          Text("Retry")
+          Text(stringResource(R.string.scan_review_retry))
         }
       },
       dismissButton = {
@@ -310,7 +319,7 @@ private fun SendFailedDialog(message: String, onRetry: () -> Unit, onDismiss: ()
             onClick = onDismiss,
             modifier = Modifier.semantics { testTag = C.Tag.scan_send_failed_dismiss },
         ) {
-          Text("Dismiss")
+          Text(stringResource(R.string.scan_review_dismiss))
         }
       },
       modifier = Modifier.semantics { testTag = C.Tag.scan_send_failed_dialog },
@@ -321,14 +330,14 @@ private fun SendFailedDialog(message: String, onRetry: () -> Unit, onDismiss: ()
 private fun RetakeWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
   AlertDialog(
       onDismissRequest = onCancel,
-      title = { Text("Retake photo?") },
-      text = { Text("The image will be permanently deleted from the device.") },
+      title = { Text(stringResource(R.string.scan_review_retake_title)) },
+      text = { Text(stringResource(R.string.scan_review_retake_message)) },
       confirmButton = {
         TextButton(
             onClick = onConfirm,
             modifier = Modifier.semantics { testTag = C.Tag.scan_retake_confirm },
         ) {
-          Text("Agree")
+          Text(stringResource(R.string.scan_review_agree))
         }
       },
       dismissButton = {
@@ -336,7 +345,7 @@ private fun RetakeWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
             onClick = onCancel,
             modifier = Modifier.semantics { testTag = C.Tag.scan_retake_cancel },
         ) {
-          Text("Cancel")
+          Text(stringResource(R.string.scan_review_cancel))
         }
       },
       modifier = Modifier.semantics { testTag = C.Tag.scan_retake_dialog },
@@ -347,8 +356,8 @@ private fun RetakeWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
 private fun SendingDialog() {
   AlertDialog(
       onDismissRequest = {},
-      title = { Text("Image being treated...") },
-      text = { Text("Please wait.") },
+      title = { Text(stringResource(R.string.scan_review_sending_title)) },
+      text = { Text(stringResource(R.string.scan_review_sending_message)) },
       confirmButton = {},
       modifier = Modifier.semantics { testTag = C.Tag.scan_sending_dialog },
   )

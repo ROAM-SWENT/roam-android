@@ -119,7 +119,7 @@ fun LoadingScreen(
       } else {
         Icon(
             imageVector = Icons.Filled.ErrorOutline,
-            contentDescription = "Error",
+            contentDescription = stringResource(R.string.loading_error_description),
             tint = if (MaterialTheme.isDark) MaterialTheme.colorScheme.error else LoadingErrorText,
             modifier = Modifier.size(32.dp).semantics { testTag = C.Tag.loading_screen_error_icon },
         )
