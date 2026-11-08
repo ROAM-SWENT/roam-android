@@ -28,7 +28,6 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
@@ -117,7 +116,7 @@ private fun ProfileBubble(
       Text(
           text = initial ?: "?",
           color = Color.White,
-          fontSize = 18.sp,
+          style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
       )
     }

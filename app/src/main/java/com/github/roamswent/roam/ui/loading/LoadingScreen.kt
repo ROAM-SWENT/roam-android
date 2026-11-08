@@ -36,7 +36,6 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
@@ -111,7 +110,7 @@ fun LoadingScreen(
             color =
                 if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface
                 else LoadingTextPrimary,
-            fontSize = 20.sp,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
         )
 
@@ -137,7 +136,7 @@ fun LoadingScreen(
                 errorMessage == null -> LoadingTextSecondary
                 else -> LoadingErrorText
               },
-          fontSize = 14.sp,
+          style = MaterialTheme.typography.bodySmall,
       )
     }
 
@@ -152,7 +151,7 @@ fun LoadingScreen(
           text = stringResource(R.string.loading_cancel),
           color =
               if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
-          fontSize = 14.sp,
+          style = MaterialTheme.typography.labelLarge,
           fontWeight = FontWeight.SemiBold,
       )
     }
