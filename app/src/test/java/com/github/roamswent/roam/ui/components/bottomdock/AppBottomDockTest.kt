@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -23,7 +24,9 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
@@ -166,6 +169,26 @@ class AppBottomDockTest {
     val collectionTabHeight =
         composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).fetchSemanticsNode().size.height
     assertTrue(collectionTabHeight <= homeTabHeight)
+  }
+
+  @Test
+  fun allFiveDockLabelsRenderAtEqualTextHeight() {
+    setDock(modifier = Modifier.width(340.dp))
+
+    val labels = listOf("Home", "Explore", "Scan", "Collection", "Friends")
+    val layouts = labels.map { label ->
+      val results = mutableListOf<TextLayoutResult>()
+      composeTestRule
+          .onNodeWithText(label, useUnmergedTree = true)
+          .fetchSemanticsNode()
+          .config[SemanticsActions.GetTextLayoutResult]
+          .action
+          ?.invoke(results)
+      results.single()
+    }
+
+    assertEquals(1, layouts.map { it.firstBaseline }.distinct().size)
+    assertEquals(1, layouts.map { it.layoutInput.style.fontSize }.distinct().size)
   }
 
   /**

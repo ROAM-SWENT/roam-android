@@ -116,19 +116,19 @@ class HardcodedFontSizeGuardTest {
           file
               .readText()
               .replace(
-                  "initialFontSize: TextUnit = DockLabelFontSize",
-                  "initialFontSize: TextUnit = 11.sp",
+                  "minFontSize: TextUnit = DockLabelMinFontSize",
+                  "minFontSize: TextUnit = 8.5.sp",
               )
       file.writeText(updated)
       val expectedLine =
-          updated.lines().indexOfFirst { it.contains("initialFontSize: TextUnit = 11.sp") } + 1
+          updated.lines().indexOfFirst { it.contains("minFontSize: TextUnit = 8.5.sp") } + 1
 
       val result = FontSizeScanner.scan(rootDir)
 
       assertEquals(
           listOf(
               "components/bottomdock/AppBottomDock.kt:$expectedLine: " +
-                  "initialFontSize: TextUnit = 11.sp"
+                  "minFontSize: TextUnit = 8.5.sp"
           ),
           result.violations,
       )
