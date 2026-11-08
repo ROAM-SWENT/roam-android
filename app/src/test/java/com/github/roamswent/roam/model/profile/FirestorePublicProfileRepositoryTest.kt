@@ -15,6 +15,7 @@ import com.google.firebase.firestore.Transaction
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -338,6 +339,64 @@ class FirestorePublicProfileRepositoryTest {
     assertTrue(error is PublicProfileException.FirestoreFailure)
     verify(exactly = 0) { transaction.delete(any()) }
     verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
+  }
+
+  @Test
+  fun getCurrentProfile_rejectsMissingFields() = runTest {
+    for (field in listOf("uid", "username", "usernameLower")) {
+      val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
+
+      every { snapshot.getString(field) } returns null
+      every { profileReference.get() } returns Tasks.forResult(snapshot)
+
+      val error = captureFailure { repository.getCurrentProfile() }
+
+      assertTrue(
+          "Missing $field should cause a FirestoreFailure",
+          error is PublicProfileException.FirestoreFailure,
+      )
+      assertTrue(error.cause is IllegalStateException)
+    }
+  }
+
+  @Test
+  fun getCurrentProfile_rejectsInvalidStoredUsername() = runTest {
+    val snapshot = profileSnapshot("user-id", "Bad Name", "bad name")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause is IllegalStateException)
+  }
+
+  @Test
+  fun searchProfiles_rejectsInvalidPrefixes() = runTest {
+    val invalidPrefixes =
+        listOf(
+            "a".repeat(21),
+            "trav!",
+        )
+
+    for (prefix in invalidPrefixes) {
+      val error = captureFailure { repository.searchProfiles(prefix) }
+
+      assertTrue(
+          "Prefix '$prefix' should be invalid",
+          error is PublicProfileException.InvalidUsername,
+      )
+    }
+
+    verify(exactly = 0) { firestore.collection("publicProfiles") }
+  }
+
+  @Test
+  fun getCurrentProfile_propagatesCancellation() = runTest {
+    every { profileReference.get() } returns Tasks.forCanceled<DocumentSnapshot>()
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error is CancellationException)
   }
 
   private fun profileSnapshot(uid: String, username: String, usernameLower: String) =
