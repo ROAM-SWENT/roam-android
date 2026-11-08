@@ -384,6 +384,110 @@ class FirestoreFriendRepositoryTest {
     verify(exactly = 0) { transaction.delete(any()) }
   }
 
+  @Test
+  fun getFriends_missingRequesterUidReturnsFirestoreFailure() = runTest {
+    val query = mockk<Query>()
+    val snapshot = mockk<QuerySnapshot>()
+    val record =
+        recordSnapshot(
+            "user-a~user-b",
+            "user-a",
+            "user-b",
+            "ACCEPTED",
+        )
+
+    every { record.getString("requesterUid") } returns null
+    every { friendships.whereArrayContains("participantUids", "user-a") } returns query
+    every { query.get() } returns Tasks.forResult(snapshot)
+    every { snapshot.documents } returns listOf(record)
+
+    val error = captureFailure { repository.getFriends() }
+
+    assertTrue(error is FriendRepositoryException.FirestoreFailure)
+    assertTrue(error.cause is IllegalStateException)
+  }
+
+  @Test
+  fun getFriends_rejectsMalformedRecords() = runTest {
+    val query = mockk<Query>()
+    val snapshot = mockk<QuerySnapshot>()
+
+    every { friendships.whereArrayContains("participantUids", "user-a") } returns query
+    every { query.get() } returns Tasks.forResult(snapshot)
+
+    fun validRecord() =
+        recordSnapshot(
+            "user-a~user-b",
+            "user-a",
+            "user-b",
+            "ACCEPTED",
+        )
+
+    val invalidRecords =
+        listOf(
+            "missing recipient" to
+                validRecord().apply { every { getString("recipientUid") } returns null },
+            "missing status" to validRecord().apply { every { getString("status") } returns null },
+            "missing participants" to validRecord().apply { every { data } returns emptyMap() },
+            "non-string participant" to
+                validRecord().apply {
+                  every { data } returns mapOf("participantUids" to listOf("user-a", 123))
+                },
+            "wrong participant count" to
+                validRecord().apply {
+                  every { data } returns mapOf("participantUids" to listOf("user-a"))
+                },
+            "unsorted participants" to
+                validRecord().apply {
+                  every { data } returns mapOf("participantUids" to listOf("user-b", "user-a"))
+                },
+            "invalid participant UID" to
+                validRecord().apply {
+                  every { data } returns mapOf("participantUids" to listOf("user-a", "user/b"))
+                },
+            "same requester and recipient" to
+                recordSnapshot(
+                    "user-a~user-b",
+                    "user-a",
+                    "user-a",
+                    "ACCEPTED",
+                ),
+            "requester not in participants" to
+                validRecord().apply {
+                  every { data } returns mapOf("participantUids" to listOf("user-b", "user-c"))
+                },
+            "recipient not in participants" to
+                validRecord().apply {
+                  every { data } returns mapOf("participantUids" to listOf("user-a", "user-c"))
+                },
+            "wrong document ID" to
+                recordSnapshot(
+                    "user-a~user-c",
+                    "user-a",
+                    "user-b",
+                    "ACCEPTED",
+                ),
+            "unsupported status" to
+                recordSnapshot(
+                    "user-a~user-b",
+                    "user-a",
+                    "user-b",
+                    "REJECTED",
+                ),
+        )
+
+    for ((description, record) in invalidRecords) {
+      every { snapshot.documents } returns listOf(record)
+
+      val error = captureFailure { repository.getFriends() }
+
+      assertTrue(
+          "Failed case: $description",
+          error is FriendRepositoryException.FirestoreFailure,
+      )
+    }
+  }
+
   private fun recordSnapshot(
       id: String,
       requesterUid: String,
