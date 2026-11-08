@@ -75,8 +75,8 @@ fun AppBottomDock(
   val fabSize = 56.dp
   // How far the halo rises above the bar's top edge.
   val protrusion = haloSize / 2
-  var labelFontSize by remember { mutableStateOf(DockLabelFontSize) }
-  var readyToDraw by remember { mutableStateOf(false) }
+  var labelFontSize by remember(cameraAvailable) { mutableStateOf(DockLabelFontSize) }
+  var readyToDraw by remember(cameraAvailable) { mutableStateOf(false) }
   val onLabelTextLayout: (TextUnit, Boolean) -> Unit = { targetFontSize, fit ->
     if (!fit) {
       labelFontSize = targetFontSize
