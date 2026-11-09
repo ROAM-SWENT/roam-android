@@ -46,6 +46,8 @@
     <string name="home_tab_explore">Explore</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>
+    <string name="home_scan_unavailable_short">No camera</string>
+    <string name="home_scan_description">Scan a monument</string>
     <string name="settings_title">Profile</string>
     <string name="settings_notification_permission">Notification permission</string>
     <string name="home_greeting_format">Hello %s,</string>

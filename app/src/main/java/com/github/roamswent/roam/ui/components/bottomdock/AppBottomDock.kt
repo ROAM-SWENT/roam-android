@@ -9,6 +9,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -33,25 +34,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +63,7 @@ import com.github.roamswent.roam.ui.theme.DockLabelFontSize
 import com.github.roamswent.roam.ui.theme.DockLabelMinFontSize
 import com.github.roamswent.roam.ui.theme.DockScanIcon
 import com.github.roamswent.roam.ui.theme.ScanTeal
+import kotlin.math.roundToInt
 
 @Composable
 fun AppBottomDock(
@@ -73,27 +76,46 @@ fun AppBottomDock(
   val barContentHeight = 80.dp
   val haloSize = 72.dp
   val fabSize = 56.dp
-  // How far the halo rises above the bar's top edge.
   val protrusion = haloSize / 2
-  var labelFontSize by remember(cameraAvailable) { mutableStateOf(DockLabelFontSize) }
-  var readyToDraw by remember(cameraAvailable) { mutableStateOf(false) }
-  val onLabelTextLayout: (TextUnit, Boolean) -> Unit = { targetFontSize, fit ->
-    if (!fit) {
-      labelFontSize = targetFontSize
-      readyToDraw = false
-    } else if (labelFontSize == targetFontSize) {
-      readyToDraw = true
-    }
-  }
 
-  // Outer container is fully transparent; only the bar and the halo paint a surface.
-  Box(
+  val homeLabel = stringResource(DockDestination.HOME.labelRes)
+  val exploreLabel = stringResource(DockDestination.EXPLORE.labelRes)
+  val collectionLabel = stringResource(DockDestination.COLLECTION.labelRes)
+  val friendsLabel = stringResource(DockDestination.FRIENDS.labelRes)
+  val scanLabel =
+      if (cameraAvailable) stringResource(R.string.home_tab_scan)
+      else stringResource(R.string.home_scan_unavailable_short)
+
+  val textMeasurer = rememberTextMeasurer()
+  val density = LocalDensity.current
+  val measurementDensity = remember(density) { Density(density = density.density, fontScale = 1f) }
+
+  BoxWithConstraints(
       modifier =
           modifier.fillMaxWidth().background(Color.Transparent).semantics {
             testTag = C.Tag.dock_container
           }
   ) {
-    // The top 36.dp stay transparent; the themed surface starts at y = 36.dp.
+    val labelFontSize =
+        remember(
+            maxWidth,
+            cameraAvailable,
+            homeLabel,
+            exploreLabel,
+            collectionLabel,
+            friendsLabel,
+            scanLabel,
+            measurementDensity,
+        ) {
+          computeDockLabelFontSize(
+              maxWidth = maxWidth,
+              tabLabels = listOf(homeLabel, exploreLabel, collectionLabel, friendsLabel),
+              scanLabel = scanLabel,
+              textMeasurer = textMeasurer,
+              density = measurementDensity,
+          )
+        }
+
     Box(
         modifier =
             Modifier.fillMaxWidth()
@@ -111,34 +133,32 @@ fun AppBottomDock(
             selected = selected,
             onDestinationSelected = onDestinationSelected,
             labelFontSize = labelFontSize,
-            readyToDraw = readyToDraw,
-            onLabelTextLayout = onLabelTextLayout,
         )
         DockTabSlot(
             destination = DockDestination.EXPLORE,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
             labelFontSize = labelFontSize,
-            readyToDraw = readyToDraw,
-            onLabelTextLayout = onLabelTextLayout,
         )
         Box(
             modifier = Modifier.weight(1.25f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
+          val unavailableDescription = stringResource(R.string.home_scan_unavailable)
           AutoResizedTabLabel(
-              text =
-                  if (cameraAvailable) stringResource(R.string.home_tab_scan)
-                  else stringResource(R.string.home_scan_unavailable),
+              text = scanLabel,
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               fontWeight = FontWeight.SemiBold,
               fontSize = labelFontSize,
-              readyToDraw = readyToDraw,
-              onTextLayout = onLabelTextLayout,
               modifier =
-                  Modifier.wrapContentWidth(unbounded = true).padding(top = 34.dp).semantics {
-                    testTag = C.Tag.dock_scan_label
-                  },
+                  (if (cameraAvailable) Modifier.wrapContentWidth(unbounded = true) else Modifier)
+                      .padding(top = 34.dp)
+                      .semantics {
+                        testTag = C.Tag.dock_scan_label
+                        if (!cameraAvailable) {
+                          contentDescription = unavailableDescription
+                        }
+                      },
           )
         }
         DockTabSlot(
@@ -146,23 +166,16 @@ fun AppBottomDock(
             selected = selected,
             onDestinationSelected = onDestinationSelected,
             labelFontSize = labelFontSize,
-            readyToDraw = readyToDraw,
-            onLabelTextLayout = onLabelTextLayout,
         )
         DockTabSlot(
             destination = DockDestination.FRIENDS,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
             labelFontSize = labelFontSize,
-            readyToDraw = readyToDraw,
-            onLabelTextLayout = onLabelTextLayout,
         )
       }
     }
 
-    // Halo: TopCenter of the outer Box, so the 72.dp circle spans y=0..72 and its
-    // center sits exactly on the bar's top edge (y = 36.dp). The 56.dp FAB is
-    // centered in the halo, so it spans y=8..64 and clears the label at the bottom.
     Box(
         modifier =
             Modifier.align(Alignment.TopCenter)
@@ -193,7 +206,7 @@ fun AppBottomDock(
                 if (cameraAvailable) Icons.Default.CenterFocusStrong
                 else Icons.Default.NoPhotography,
             contentDescription =
-                if (cameraAvailable) stringResource(R.string.home_tab_scan)
+                if (cameraAvailable) stringResource(R.string.home_scan_description)
                 else stringResource(R.string.home_scan_unavailable),
             tint = DockScanIcon,
             modifier = Modifier.size(28.dp),
@@ -201,8 +214,6 @@ fun AppBottomDock(
       }
     }
 
-    // 1.dp outline drawn last: bar top edge on both sides of the halo plus the
-    // halo's upper semicircle, locked to y = protrusion (the bar's top edge).
     val outlineColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier = Modifier.matchParentSize()) {
       val barTop = protrusion.toPx()
@@ -229,14 +240,64 @@ fun AppBottomDock(
   }
 }
 
+private fun computeDockLabelFontSize(
+    maxWidth: Dp,
+    tabLabels: List<String>,
+    scanLabel: String,
+    textMeasurer: TextMeasurer,
+    density: Density,
+    minFontSize: TextUnit = DockLabelMinFontSize,
+): TextUnit {
+  val contentWidth = maxWidth - 16.dp
+  val tabSlotWidth = contentWidth / 5.25f
+  val scanSlotWidth = tabSlotWidth * 1.25f
+  val tabBudget = tabSlotWidth - 8.dp
+  val scanBudget = scanSlotWidth
+
+  if (tabBudget <= 0.dp || scanBudget <= 0.dp) {
+    return minFontSize
+  }
+
+  val tabBudgetPx = with(density) { tabBudget.toPx() }
+  val scanBudgetPx = with(density) { scanBudget.toPx() }
+
+  val stepCount = ((DockLabelFontSize.value - minFontSize.value) / 0.5f).roundToInt()
+  val candidateSizes = (0..stepCount).map { i -> (DockLabelFontSize.value - i * 0.5f).sp }
+
+  return candidateSizes.firstOrNull { size ->
+    val tabsFit = tabLabels.all { label ->
+      val result =
+          textMeasurer.measure(
+              text = label,
+              style = TextStyle(fontSize = size, fontWeight = FontWeight.Bold),
+              softWrap = false,
+              maxLines = 1,
+              density = density,
+          )
+      result.size.width <= tabBudgetPx
+    }
+    val scanFits =
+        textMeasurer
+            .measure(
+                text = scanLabel,
+                style = TextStyle(fontSize = size, fontWeight = FontWeight.Bold),
+                softWrap = false,
+                maxLines = 1,
+                density = density,
+            )
+            .size
+            .width <= scanBudgetPx
+
+    tabsFit && scanFits
+  } ?: minFontSize
+}
+
 @Composable
 private fun RowScope.DockTabSlot(
     destination: DockDestination,
     selected: DockDestination?,
     onDestinationSelected: (DockDestination) -> Unit,
     labelFontSize: TextUnit,
-    readyToDraw: Boolean,
-    onLabelTextLayout: (TextUnit, Boolean) -> Unit,
 ) {
   Box(
       modifier = Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
@@ -247,8 +308,6 @@ private fun RowScope.DockTabSlot(
         selected = selected == destination,
         onDestinationSelected = onDestinationSelected,
         labelFontSize = labelFontSize,
-        readyToDraw = readyToDraw,
-        onLabelTextLayout = onLabelTextLayout,
     )
   }
 }
@@ -259,8 +318,6 @@ private fun DockTabItem(
     selected: Boolean,
     onDestinationSelected: (DockDestination) -> Unit,
     labelFontSize: TextUnit,
-    readyToDraw: Boolean,
-    onLabelTextLayout: (TextUnit, Boolean) -> Unit,
 ) {
   val color =
       if (selected) MaterialTheme.colorScheme.onSurface
@@ -273,7 +330,7 @@ private fun DockTabItem(
               .clip(RoundedCornerShape(12.dp))
               .clickable(enabled = !selected) { onDestinationSelected(destination) }
               .semantics { testTag = destination.tag }
-              .padding(horizontal = 12.dp, vertical = 6.dp),
+              .padding(horizontal = 4.dp, vertical = 6.dp),
   ) {
     Icon(
         imageVector = destination.icon,
@@ -287,8 +344,6 @@ private fun DockTabItem(
         color = color,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         fontSize = labelFontSize,
-        readyToDraw = readyToDraw,
-        onTextLayout = onLabelTextLayout,
     )
   }
 }
@@ -299,10 +354,7 @@ private fun AutoResizedTabLabel(
     color: Color,
     fontWeight: FontWeight,
     fontSize: TextUnit,
-    readyToDraw: Boolean,
-    onTextLayout: (TextUnit, Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    minFontSize: TextUnit = DockLabelMinFontSize,
 ) {
   val density = LocalDensity.current
 
@@ -317,14 +369,7 @@ private fun AutoResizedTabLabel(
         textAlign = TextAlign.Center,
         maxLines = 1,
         softWrap = false,
-        onTextLayout = { textLayoutResult ->
-          if (textLayoutResult.didOverflowWidth && fontSize > minFontSize) {
-            onTextLayout((fontSize.value - 0.5f).sp, false)
-          } else {
-            onTextLayout(fontSize, true)
-          }
-        },
-        modifier = modifier.then(Modifier.drawWithContent { if (readyToDraw) drawContent() }),
+        modifier = modifier,
     )
   }
 }
