@@ -331,7 +331,6 @@ class SettingsScreenTest {
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
             notificationPermissionController = notificationController,
-            isDarkTheme = false,
         )
       }
     }
