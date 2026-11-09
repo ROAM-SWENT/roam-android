@@ -470,6 +470,7 @@ private fun PermissionsCard(
           name = stringResource(R.string.settings_notification_permission),
           isGranted = notificationPermissionGranted,
           testTag = C.Tag.settings_notification_permission,
+      )
       PermissionStatus(
           stringResource(R.string.settings_camera_permission),
           cameraPermissionGranted,
