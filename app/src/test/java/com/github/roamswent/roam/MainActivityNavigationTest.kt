@@ -25,6 +25,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,7 @@ import org.mockito.kotlin.whenever
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
 class MainActivityNavigationTest {
@@ -163,6 +165,40 @@ class MainActivityNavigationTest {
     authState.value = AuthUIState(user = mock())
 
     registerProfileAndContinue(repository)
+  }
+
+  @Test
+  fun profileCheckFailureShowsLocalizedFallbackToast() {
+    val repository = TestPublicProfileRepository(profileCheckFailure = Exception())
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+    val expectedMessage = composeTestRule.activity.getString(R.string.register_profile_check_error)
+
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == expectedMessage }
+
+    assertEquals(expectedMessage, ShadowToast.getTextOfLatestToast())
+  }
+
+  @Test
+  fun usernameRegistrationFailureDisplaysLocalizedFallbackError() {
+    val repository =
+        TestPublicProfileRepository(
+            initialProfile = null,
+            registrationFailure = Exception(""),
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_username).performTextInput("traveler_1")
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).performClick()
+
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.register_profile_error))
+        .assertIsDisplayed()
   }
 
   private fun registerProfileAndContinue(repository: TestPublicProfileRepository) {
@@ -1317,17 +1353,23 @@ class MainActivityNavigationTest {
   }
 
   private class TestPublicProfileRepository(
-      initialProfile: PublicProfile? = PublicProfile("test-user", "test_user")
+      initialProfile: PublicProfile? = PublicProfile("test-user", "test_user"),
+      private val profileCheckFailure: Exception? = null,
+      private val registrationFailure: Exception? = null,
   ) : PublicProfileRepository {
     private var profile = initialProfile
     var registeredUsername: String? = null
       private set
 
-    override suspend fun getCurrentProfile(): PublicProfile? = profile
+    override suspend fun getCurrentProfile(): PublicProfile? {
+      profileCheckFailure?.let { throw it }
+      return profile
+    }
 
     override suspend fun getProfile(uid: String): PublicProfile? = null
 
     override suspend fun registerUsername(username: String): PublicProfile {
+      registrationFailure?.let { throw it }
       registeredUsername = username
       return PublicProfile("test-user", username).also { profile = it }
     }

@@ -63,6 +63,21 @@ class RegisterProfileViewModelTest {
       }
 
   @Test
+  fun checkCurrentProfile_failureSetsErrorStatusAndMessage() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("Profile lookup failed")
+        whenever(repository.getCurrentProfile()).thenThrow(failure)
+        val viewModel = RegisterProfileViewModel(repository)
+
+        viewModel.checkCurrentProfile()
+        advanceUntilIdle()
+
+        assertEquals(ProfileRegistrationStatus.ERROR, viewModel.uiState.value.status)
+        assertEquals(failure.localizedMessage, viewModel.uiState.value.errorMessage)
+        assertEquals(false, viewModel.uiState.value.isLoading)
+      }
+
+  @Test
   fun registerUsername_successMarksUserRegistered() =
       runTest(dispatcher) {
         whenever(repository.getCurrentProfile()).thenReturn(null)
