@@ -161,7 +161,7 @@ fun SettingsScreen(
                     uiState.profile?.displayName?.ifBlank { "?" }?.first()?.uppercase() ?: "?",
                 name =
                     uiState.profile?.displayName.orEmpty().ifBlank {
-                      stringResource(R.string.settings_profile_role)
+                      stringResource(R.string.settings_profile_default_name)
                     },
                 email = uiState.profile?.email.orEmpty(),
                 provider = uiState.profile?.provider.orEmpty(),
@@ -454,10 +454,12 @@ private fun PermissionsCard(
       PermissionStatus(
           stringResource(R.string.settings_camera_permission),
           cameraPermissionGranted,
+          C.Tag.settings_camera_permission_tag,
       )
       PermissionStatus(
           stringResource(R.string.settings_location_permission),
           locationPermissionGranted,
+          C.Tag.settings_location_permission_tag,
       )
       OutlinedButton(
           onClick = onManagePermissionsClick,
@@ -568,9 +570,10 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
 private fun PermissionStatus(
     name: String,
     isGranted: Boolean,
+    tag: String,
 ) {
   Column(
-      modifier = Modifier.testTag(name),
+      modifier = Modifier.testTag(tag),
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(

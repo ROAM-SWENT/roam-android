@@ -93,7 +93,7 @@
     <string name="scan_review_retake">Retake</string>
     <string name="scan_frame_hint">Frame the monument</string>
     <string name="settings_logout_successful">Logout successful</string>
-    <string name="settings_profile_role">Traveler</string>
+    <string name="settings_profile_default_name">Traveler</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
