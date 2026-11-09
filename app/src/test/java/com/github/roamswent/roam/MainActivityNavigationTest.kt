@@ -19,6 +19,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -46,6 +47,8 @@ import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
@@ -233,10 +236,10 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun dockHomeTabFromSettingsPopsBackToSingleHomeEntry() {
+  fun dockHomeTabFromFriendsPopsBackToSingleHomeEntry() {
     assertHomeTabPopsToSingleHomeEntry(
-        C.Tag.dock_tab_settings,
-        C.Tag.settings_manage_permissions_button,
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
     )
   }
 
@@ -274,9 +277,9 @@ class MainActivityNavigationTest {
 
     assertContentReachesDockBump(C.Tag.home_screen_container)
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_screen_container)
-    assertContentReachesDockBump(C.Tag.settings_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    assertContentReachesDockBump(C.Tag.friends_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
     waitAndAssertDisplayed(C.Tag.collection_screen)
@@ -292,14 +295,15 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun dockSettingsTabNavigatesToSettingsAndHomeTabReturnsHome() {
+  fun friendsDockTabShowsFriendsAndHomeTabReturnsHome() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_title)
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertTextEquals("Friends")
     composeTestRule.runOnIdle {
-      assertEquals(Routes.Settings, navController.currentDestination?.route)
+      assertEquals(Routes.Friends, navController.currentDestination?.route)
     }
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
@@ -309,8 +313,8 @@ class MainActivityNavigationTest {
 
   /**
    * Pins the bottom dock navigation contract: the back stack after each step. Sign-in pops SignIn
-   * inclusively, tabs stack Settings above the Home root, the Home tab pops back to that root, and
-   * no flow ever duplicates entries.
+   * inclusively, tabs stack destinations above the Home root, the Home tab pops back to that root,
+   * and no flow ever duplicates entries.
    */
   @Test
   fun signInToHomeLeavesSingleHomeEntryOnBackStack() {
@@ -321,11 +325,11 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun dockSettingsTabFromHomeStacksSettingsAboveHome() {
+  fun dockFriendsTabFromHomeStacksFriendsAboveHome() {
     assertTabStacksAboveHome(
-        C.Tag.dock_tab_settings,
-        C.Tag.settings_manage_permissions_button,
-        Routes.Settings,
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
+        Routes.Friends,
     )
   }
 
@@ -334,21 +338,21 @@ class MainActivityNavigationTest {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
 
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
   }
 
   @Test
-  fun systemBackFromSettingsReturnsToSingleHomeEntry() {
+  fun systemBackFromFriendsReturnsToSingleHomeEntry() {
     assertSystemBackPopsToSingleHomeEntry(
-        C.Tag.dock_tab_settings,
-        C.Tag.settings_manage_permissions_button,
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
     )
   }
 
@@ -370,11 +374,11 @@ class MainActivityNavigationTest {
     composeTestRule.waitForIdle()
     assertEquals(listOf(Routes.Home), backStackRoutes(navController))
 
-    navigateToSettings(navController)
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.runOnIdle { navController.navigate(Routes.Friends) }
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
     composeTestRule.waitForIdle()
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
   }
 
   @Test
@@ -463,9 +467,9 @@ class MainActivityNavigationTest {
         savedGuideRepository = FakeSavedGuideRepository(),
     )
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
     waitAndAssertDisplayed(C.Tag.collection_screen)
@@ -475,9 +479,9 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.explore_screen_container)
     assertEquals(listOf(Routes.Home, Routes.Explore), backStackRoutes(navController))
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
   }
 
   @Test
@@ -528,7 +532,7 @@ class MainActivityNavigationTest {
 
   /**
    * The dock carries five slots on every docked screen: home, explore, the scan action, collection
-   * and settings all render, and every tab is enabled except the one marking the current screen as
+   * and friends all render, and every tab is enabled except the one marking the current screen as
    * selected.
    */
   @Test
@@ -542,7 +546,7 @@ class MainActivityNavigationTest {
         C.Tag.home_screen_container,
         C.Tag.dock_tab_explore,
         C.Tag.dock_tab_collection,
-        C.Tag.dock_tab_settings,
+        C.Tag.dock_tab_friends,
     )
 
     navigateToSettings(navController)
@@ -551,6 +555,7 @@ class MainActivityNavigationTest {
         C.Tag.dock_tab_home,
         C.Tag.dock_tab_explore,
         C.Tag.dock_tab_collection,
+        C.Tag.dock_tab_friends,
     )
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
@@ -558,7 +563,7 @@ class MainActivityNavigationTest {
         C.Tag.collection_screen,
         C.Tag.dock_tab_home,
         C.Tag.dock_tab_explore,
-        C.Tag.dock_tab_settings,
+        C.Tag.dock_tab_friends,
     )
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
@@ -566,7 +571,7 @@ class MainActivityNavigationTest {
         C.Tag.explore_screen_container,
         C.Tag.dock_tab_home,
         C.Tag.dock_tab_collection,
-        C.Tag.dock_tab_settings,
+        C.Tag.dock_tab_friends,
     )
   }
 
@@ -611,11 +616,7 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
     waitForGone(C.Tag.offline_action_dialog)
 
-    // The dock tabs succeeded the navigation affordances main gated with
-    // OPEN_PROFILE (the profile tab) and RETURN_HOME (the settings home
-    // button), and the merge dropped those gate calls: offline, navigation
-    // between Home and Settings stays ungated in both directions.
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
     composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
     composeTestRule.runOnIdle {
@@ -645,6 +646,14 @@ class MainActivityNavigationTest {
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
+    // Switching tabs saves Collection's back stack, which sign-out must discard.
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
     navigateToSettings(navController)
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       composeTestRule
@@ -657,6 +666,85 @@ class MainActivityNavigationTest {
 
     assertEquals(AuthUIState(signOutCompleted = true), authState.value)
     assertEquals(0, signInClickCount)
+    composeTestRule.runOnIdle { assertFalse(navController.clearBackStack(Routes.Collection)) }
+  }
+
+  @Test
+  fun signedOutUserCannotRestorePreviousNavigationState() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    val settingsState = MutableStateFlow(SettingsUIState())
+    val settingsViewModel = mock<SettingsViewModel>()
+    whenever(settingsViewModel.uiState).thenReturn(settingsState)
+    lateinit var navController: NavHostController
+    renderApp(
+        authState,
+        onSignInClickOverride = { authState.value = AuthUIState(user = mock()) },
+        onNavControllerReady = { navController = it },
+        settingsViewModel = settingsViewModel,
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    val userACollectionEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    val userAExploreEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.runOnIdle {
+      navController.navigate(Routes.Settings) {
+        popUpTo(Routes.Home) {
+          inclusive = false
+          saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+      }
+    }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    val userASettingsEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.runOnIdle { settingsState.value = SettingsUIState(signedOut = true) }
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    composeTestRule.runOnIdle {
+      listOf(Routes.Settings, Routes.Friends, Routes.Collection, Routes.Explore).forEach {
+        assertFalse(navController.clearBackStack(it))
+      }
+      settingsState.value = SettingsUIState()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    val userBCollectionEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userACollectionEntryId, userBCollectionEntryId)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    val userBExploreEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userAExploreEntryId, userBExploreEntryId)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    val userBSettingsEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userASettingsEntryId, userBSettingsEntryId)
   }
 
   @Test
@@ -1000,7 +1088,7 @@ class MainActivityNavigationTest {
     )
   }
 
-  /** Asserts the five dock slots render: home, explore, the scan action, collection, settings. */
+  /** Asserts the five dock slots render: home, explore, the scan action, collection, friends. */
   /** Renders Home with a fake saved-guide repository and returns the app's nav controller. */
   private fun showAuthenticatedHomeWithNavController(): NavHostController {
     lateinit var navController: NavHostController
@@ -1061,7 +1149,7 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.dock_tab_explore)
     waitAndAssertDisplayed(C.Tag.dock_scan_button)
     waitAndAssertDisplayed(C.Tag.dock_tab_collection)
-    waitAndAssertDisplayed(C.Tag.dock_tab_settings)
+    waitAndAssertDisplayed(C.Tag.dock_tab_friends)
   }
 
   /**

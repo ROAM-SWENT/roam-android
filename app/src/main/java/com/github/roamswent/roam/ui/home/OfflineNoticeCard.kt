@@ -30,13 +30,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
-fun OfflineNoticeCard(modifier: Modifier = Modifier, isDarkTheme: Boolean) {
+fun OfflineNoticeCard(modifier: Modifier = Modifier) {
   val backgroundColor =
-      if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFFFE9E6)
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFFFE9E6)
   val contentColor =
-      if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF7A271A)
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF7A271A)
   Row(
       modifier =
           modifier

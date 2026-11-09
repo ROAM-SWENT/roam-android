@@ -10,4 +10,5 @@ object Routes {
   const val ScanReview = "scan_review"
   const val Settings = "settings"
   const val Collection = "collection"
+  const val Friends = "friends"
 }

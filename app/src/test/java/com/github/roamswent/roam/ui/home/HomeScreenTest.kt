@@ -35,9 +35,7 @@ class HomeScreenTest {
   @Test
   fun homeScreenDisplaysScanEntry() {
     composeTestRule.setContent {
-      SampleAppTheme {
-        HomeScreen(onScanClicked = {}, isConnectedToInternet = true, isDarkTheme = false)
-      }
+      SampleAppTheme { HomeScreen(onScanClicked = {}, isConnectedToInternet = true) }
     }
 
     composeTestRule.onNodeWithTag(C.Tag.home_screen_container).assertIsDisplayed()
@@ -48,9 +46,7 @@ class HomeScreenTest {
   @Test
   fun scanButtonInvokesCallbackOncePerClick() {
     var clicks = 0
-    composeTestRule.setContent {
-      SampleAppTheme { HomeScreen(onScanClicked = { clicks++ }, isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = { clicks++ }) } }
 
     val button = composeTestRule.onNodeWithTag(C.Tag.dock_scan_button)
     button.performClick()
@@ -62,9 +58,7 @@ class HomeScreenTest {
   @Test
   fun unavailableCameraDisablesScanEntryAndShowsUnavailableLabel() {
     composeTestRule.setContent {
-      SampleAppTheme {
-        HomeScreen(onScanClicked = {}, cameraAvailable = false, isDarkTheme = false)
-      }
+      SampleAppTheme { HomeScreen(onScanClicked = {}, cameraAvailable = false) }
     }
 
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
@@ -76,9 +70,7 @@ class HomeScreenTest {
 
   @Test
   fun homeScreenShowsDock() {
-    composeTestRule.setContent {
-      SampleAppTheme { HomeScreen(onScanClicked = {}, isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}) } }
 
     composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsDisplayed()
@@ -87,14 +79,59 @@ class HomeScreenTest {
   @Test
   fun homeScreenShowsGreetingWithUserName() {
     composeTestRule.setContent {
-      SampleAppTheme {
-        HomeScreen(onScanClicked = {}, userName = "Ada Lovelace", isDarkTheme = false)
-      }
+      SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "Ada Lovelace") }
     }
 
     composeTestRule
         .onNodeWithTag(C.Tag.home_greeting_subtitle, useUnmergedTree = true)
         .assertTextEquals("Hello Ada Lovelace,")
+  }
+
+  @Test
+  fun profileBubbleShowsInitialAndOpensProfileDestination() {
+    var profileClicked = false
+    composeTestRule.setContent {
+      SampleAppTheme {
+        HomeScreen(
+            onScanClicked = {},
+            userName = "Ada Lovelace",
+            onProfileClicked = { profileClicked = true },
+        )
+      }
+    }
+
+    val profileBubble = composeTestRule.onNodeWithTag(C.Tag.home_profile_button)
+    profileBubble.assertIsDisplayed().assertTextEquals("A")
+    profileBubble.performClick()
+
+    assertTrue(profileClicked)
+  }
+
+  @Test
+  fun profileBubbleShowsResolvedEmailInitialWhenNameIsUnavailable() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        HomeScreen(
+            onScanClicked = {},
+            userName = "grace.hopper",
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("G")
+  }
+
+  @Test
+  fun profileBubbleShowsQuestionMarkWhenNameAndEmailAreUnavailable() {
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}, userName = "") } }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.home_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("?")
   }
 
   @Test
@@ -105,7 +142,6 @@ class HomeScreenTest {
             onScanClicked = {},
             userName = "",
             isConnectedToInternet = true,
-            isDarkTheme = false,
         )
       }
     }
@@ -118,9 +154,7 @@ class HomeScreenTest {
   @Test
   fun homeScreenShowsOfflineNoticeWhenInternetIsUnavailable() {
     composeTestRule.setContent {
-      SampleAppTheme {
-        HomeScreen(onScanClicked = {}, isConnectedToInternet = false, isDarkTheme = false)
-      }
+      SampleAppTheme { HomeScreen(onScanClicked = {}, isConnectedToInternet = false) }
     }
 
     composeTestRule.onNodeWithTag(C.Tag.home_offline_card).assertIsDisplayed()
@@ -135,9 +169,7 @@ class HomeScreenTest {
   @Test
   fun homeScreenHidesOfflineNoticeWhenInternetIsAvailable() {
     composeTestRule.setContent {
-      SampleAppTheme {
-        HomeScreen(onScanClicked = {}, isConnectedToInternet = true, isDarkTheme = false)
-      }
+      SampleAppTheme { HomeScreen(onScanClicked = {}, isConnectedToInternet = true) }
     }
 
     composeTestRule.onNodeWithTag(C.Tag.home_offline_card).assertDoesNotExist()
@@ -154,7 +186,6 @@ class HomeScreenTest {
         HomeScreen(
             onScanClicked = {},
             isConnectedToInternet = false,
-            isDarkTheme = true,
         )
       }
     }
@@ -188,7 +219,6 @@ class HomeScreenTest {
         HomeScreen(
             onScanClicked = {},
             isConnectedToInternet = true,
-            isDarkTheme = true,
         )
       }
     }

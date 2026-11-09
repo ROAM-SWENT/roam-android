@@ -34,6 +34,7 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 import kotlin.math.roundToInt
 
 @Composable
@@ -41,10 +42,10 @@ fun MonumentDetailScreen(
     image: Painter,
     guide: MonumentGuide,
     onBackClick: () -> Unit,
-    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
-  val textBackgroundColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground
+  val textBackgroundColor =
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
   val textColor = MaterialTheme.colorScheme.onSurface
   val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
   val cornerRadius = 32.dp
@@ -58,7 +59,7 @@ fun MonumentDetailScreen(
 
     Image(
         painter = image,
-        contentDescription = "Monument picture",
+        contentDescription = stringResource(R.string.monument_detail_picture_description),
         contentScale = ContentScale.Crop,
         modifier =
             Modifier.fillMaxWidth()
@@ -117,7 +118,11 @@ fun MonumentDetailScreen(
               modifier = Modifier.semantics { testTag = C.Tag.monument_detail_title },
           )
           Text(
-              text = "${(guide.confidence * 100).roundToInt()}% match",
+              text =
+                  stringResource(
+                      R.string.monument_detail_match_percent,
+                      (guide.confidence * 100).roundToInt(),
+                  ),
               fontSize = 14.sp,
               color = secondaryTextColor,
               modifier =
@@ -137,7 +142,7 @@ fun MonumentDetailScreen(
           )
           guide.facts.forEach { fact ->
             Text(
-                text = "• $fact",
+                text = stringResource(R.string.monument_detail_fact_bullet, fact),
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
                 color = textColor,
@@ -215,7 +220,6 @@ fun PreviewMonumentDetailScreen() {
                 language = "en",
             ),
         onBackClick = {},
-        isDarkTheme = false,
     )
   }
 }

@@ -71,18 +71,18 @@ class AppBottomDockTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).assertIsDisplayed()
   }
 
   @Test
   fun dockSurfaceFollowsLightAndDarkTheme() {
-    var isDarkTheme by mutableStateOf(false)
+    var darkTheme by mutableStateOf(false)
     var lightSurface = 0
     var darkSurface = 0
 
     composeTestRule.setContent {
-      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) darkSurface = MaterialTheme.colorScheme.surface.toArgb()
+      SampleAppTheme(darkTheme = darkTheme, dynamicColor = false) {
+        if (darkTheme) darkSurface = MaterialTheme.colorScheme.surface.toArgb()
         else lightSurface = MaterialTheme.colorScheme.surface.toArgb()
         AppBottomDock(
             selected = DockDestination.HOME,
@@ -96,7 +96,7 @@ class AppBottomDockTest {
     val lightDock = dock.captureToImage().asAndroidBitmap()
     assertEquals(lightSurface, lightDock.getPixel(0, lightDock.height - 1))
 
-    composeTestRule.runOnIdle { isDarkTheme = true }
+    composeTestRule.runOnIdle { darkTheme = true }
 
     val darkDock = dock.captureToImage().asAndroidBitmap()
     assertEquals(darkSurface, darkDock.getPixel(0, darkDock.height - 1))
@@ -109,7 +109,7 @@ class AppBottomDockTest {
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertTextEquals("Home")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertTextEquals("Explore")
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).assertTextEquals("Profile")
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).assertTextEquals("Friends")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertTextEquals("Collection")
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan a monument")
   }
@@ -157,7 +157,7 @@ class AppBottomDockTest {
 
   @Test
   fun selectedSettingsTabIsMarkedByDisablingIt() {
-    assertTabSelectionMarked(DockDestination.SETTINGS)
+    assertTabSelectionMarked(DockDestination.FRIENDS)
   }
 
   @Test
@@ -174,7 +174,7 @@ class AppBottomDockTest {
   fun tappingHomeTabInvokesCallbackWithHome() {
     val destinations = mutableListOf<DockDestination>()
     setDock(
-        selected = DockDestination.SETTINGS,
+        selected = DockDestination.FRIENDS,
         onDestinationSelected = { destinations.add(it) },
     )
 
@@ -188,9 +188,9 @@ class AppBottomDockTest {
     val destinations = mutableListOf<DockDestination>()
     setDock(onDestinationSelected = { destinations.add(it) })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
 
-    assertEquals(listOf(DockDestination.SETTINGS), destinations)
+    assertEquals(listOf(DockDestination.FRIENDS), destinations)
   }
 
   @Test
@@ -270,10 +270,10 @@ class AppBottomDockTest {
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
 
     assertEquals(
-        listOf(DockDestination.EXPLORE, DockDestination.COLLECTION, DockDestination.SETTINGS),
+        listOf(DockDestination.EXPLORE, DockDestination.COLLECTION, DockDestination.FRIENDS),
         destinations,
     )
   }

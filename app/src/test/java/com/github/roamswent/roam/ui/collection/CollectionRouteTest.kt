@@ -80,9 +80,7 @@ class CollectionRouteTest {
   }
 
   private fun setRoute(repository: FakeSavedGuideRepository) {
-    composeTestRule.setContent {
-      SampleAppTheme { CollectionRoute(repository = repository, isDarkTheme = false) }
-    }
+    composeTestRule.setContent { SampleAppTheme { CollectionRoute(repository = repository) } }
   }
 
   private fun guide(id: String, name: String, discoveryDate: Long) =

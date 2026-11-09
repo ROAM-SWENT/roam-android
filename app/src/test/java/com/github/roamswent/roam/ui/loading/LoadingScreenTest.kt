@@ -38,7 +38,7 @@ class LoadingScreenTest {
   @Test
   fun displaysTheImageProgressAndDefaultCopy() {
     composeTestRule.setContent {
-      LoadingScreen(image = ColorPainter(Color.LightGray), onCancel = {}, isDarkTheme = false)
+      LoadingScreen(image = ColorPainter(Color.LightGray), onCancel = {})
     }
 
     composeTestRule.onNodeWithTag(C.Tag.loading_screen_image).assertIsDisplayed()
@@ -66,7 +66,6 @@ class LoadingScreenTest {
           onCancel = { cancelCount++ },
           title = "Finding a landmark",
           subtitle = "This can take a moment.",
-          isDarkTheme = false,
       )
     }
 
@@ -91,7 +90,6 @@ class LoadingScreenTest {
           onCancel = {},
           subtitle = "Identifying your monument.",
           errorMessage = "Gemini is unavailable",
-          isDarkTheme = false,
       )
     }
 
@@ -111,7 +109,6 @@ class LoadingScreenTest {
       LoadingScreen(
           image = ColorPainter(Color.LightGray),
           onCancel = { cancelCount++ },
-          isDarkTheme = false,
       )
     }
 
@@ -122,15 +119,15 @@ class LoadingScreenTest {
 
   @Test
   fun darkThemeUsesThemeBackgroundAndKeepsLoadingCopyReadable() {
-    var isDarkTheme by mutableStateOf(false)
+    var darkTheme by mutableStateOf(false)
     var expectedDarkBackground = 0
     var darkTextColor = 0
     var darkSubtitleColor = 0
     var darkProgressColor = 0
     var darkProgressTrackColor = 0
     composeTestRule.setContent {
-      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) {
+      SampleAppTheme(darkTheme = darkTheme, dynamicColor = false) {
+        if (darkTheme) {
           expectedDarkBackground = MaterialTheme.colorScheme.background.toArgb()
           darkTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
           darkSubtitleColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
@@ -140,7 +137,6 @@ class LoadingScreenTest {
         LoadingScreen(
             image = ColorPainter(Color.LightGray),
             onCancel = {},
-            isDarkTheme = isDarkTheme,
         )
       }
     }
@@ -152,7 +148,7 @@ class LoadingScreenTest {
             .asAndroidBitmap()
     assertEquals(ScreenBackground.toArgb(), lightBackground.getPixel(0, 0))
 
-    composeTestRule.runOnIdle { isDarkTheme = true }
+    composeTestRule.runOnIdle { darkTheme = true }
 
     val darkBackground =
         composeTestRule
@@ -196,7 +192,6 @@ class LoadingScreenTest {
             image = ColorPainter(Color.LightGray),
             onCancel = {},
             errorMessage = "Gemini is unavailable",
-            isDarkTheme = true,
         )
       }
     }

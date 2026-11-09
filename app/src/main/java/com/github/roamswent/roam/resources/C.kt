@@ -12,7 +12,7 @@ object C {
     const val home_screen_container = "home_screen_container"
     const val dock_container = "dock_container"
     const val dock_tab_home = "dock_tab_home"
-    const val dock_tab_settings = "dock_tab_settings"
+    const val dock_tab_friends = "dock_tab_friends"
     const val dock_tab_collection = "dock_tab_collection"
     const val dock_tab_explore = "dock_tab_explore"
     const val dock_scan_button = "dock_scan_button"
@@ -28,6 +28,8 @@ object C {
     const val settings_screen_container = "settings_screen_container"
     const val settings_sign_out_button = "settings_sign_out_button"
     const val settings_manage_permissions_button = "settings_manage_permissions_button"
+    const val settings_camera_permission_tag = "settings_camera_permission_tag"
+    const val settings_location_permission_tag = "settings_location_permission_tag"
     const val settings_theme_auto = "settings_theme_auto"
     const val settings_theme_dark = "settings_theme_dark"
     const val settings_theme_light = "settings_theme_light"
@@ -37,6 +39,7 @@ object C {
     const val settings_interest_remove_prefix = "settings_interest_remove_"
     const val home_greeting_subtitle = "home_greeting_subtitle"
     const val home_greeting_title = "home_greeting_title"
+    const val home_profile_button = "home_profile_button"
     const val home_scan_card = "home_scan_card"
     const val home_scan_card_title = "home_scan_card_title"
     const val home_scan_card_body = "home_scan_card_body"
@@ -111,5 +114,7 @@ object C {
     const val collection_empty_state = "collection_empty_state"
     const val collection_loading = "collection_loading"
     const val collection_error = "collection_error"
+    const val friends_screen_container = "friends_screen_container"
+    const val friends_title = "friends_title"
   }
 }
