@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
@@ -145,6 +146,7 @@ internal fun RoamApp(
     publicProfileRepositoryOverride: PublicProfileRepository? = null,
 ) {
   val context = LocalContext.current
+  val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
   // Configure the shared Firestore instance before profile lookups can start it.
   val savedGuideRepository = remember {
     savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
@@ -237,8 +239,7 @@ internal fun RoamApp(
       ProfileRegistrationStatus.ERROR -> {
         Toast.makeText(
                 context,
-                profileUiState.errorMessage
-                    ?: context.getString(R.string.register_profile_check_error),
+                profileUiState.errorMessage ?: profileCheckErrorMessage,
                 Toast.LENGTH_LONG,
             )
             .show()
