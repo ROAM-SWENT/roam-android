@@ -57,7 +57,7 @@ import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.explore.ExploreScreen
 import com.github.roamswent.roam.ui.explore.ExploreViewModel
-import com.github.roamswent.roam.ui.friends.FriendsScreen
+import com.github.roamswent.roam.ui.friends.FriendsRoute
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
@@ -190,6 +190,16 @@ internal fun RoamApp(
       }
     }
   }
+  val onProfileClicked = {
+    navController.navigate(Routes.Settings) {
+      popUpTo(Routes.Home) {
+        inclusive = false
+        saveState = true
+      }
+      launchSingleTop = true
+      restoreState = true
+    }
+  }
   // Screens apply their own status bar inset, so the top inset stays 0 and
   // containerColor covers the status bar strip.
   @Composable
@@ -255,16 +265,7 @@ internal fun RoamApp(
               cameraAvailable = cameraAvailable,
               userName = userName,
               onDockDestinationSelected = onDockDestinationSelected,
-              onProfileClicked = {
-                navController.navigate(Routes.Settings) {
-                  popUpTo(Routes.Home) {
-                    inclusive = false
-                    saveState = true
-                  }
-                  launchSingleTop = true
-                  restoreState = true
-                }
-              },
+              onProfileClicked = onProfileClicked,
               isConnectedToInternet = isOnline,
           )
         }
@@ -337,14 +338,18 @@ internal fun RoamApp(
       }
 
       composable(Routes.Friends) {
+        val homeViewModel: HomeViewModel = viewModel()
+        val userName by homeViewModel.userName.collectAsState()
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
-          FriendsScreen(
+          FriendsRoute(
               modifier =
                   Modifier.padding(
                       top = innerPadding.calculateTopPadding(),
                       bottom = dockClearance,
                   ),
+              profileName = userName,
+              onProfileClicked = onProfileClicked,
           )
         }
       }

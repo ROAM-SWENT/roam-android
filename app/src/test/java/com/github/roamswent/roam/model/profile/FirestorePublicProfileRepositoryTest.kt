@@ -303,6 +303,59 @@ class FirestorePublicProfileRepositoryTest {
   }
 
   @Test
+  fun getProfile_returnsPublicProfileForUid() = runTest {
+    val targetReference = mockk<DocumentReference>()
+    val snapshot = profileSnapshot("friend-id", "Friend_1", "friend_1")
+    every { profiles.document("friend-id") } returns targetReference
+    every { targetReference.get() } returns Tasks.forResult(snapshot)
+
+    val result = repository.getProfile("friend-id")
+
+    assertEquals(PublicProfile("friend-id", "Friend_1"), result)
+  }
+
+  @Test
+  fun getProfile_returnsNullWhenUidHasNoRegisteredProfile() = runTest {
+    val targetReference = mockk<DocumentReference>()
+    val snapshot = mockk<DocumentSnapshot>()
+    every { profiles.document("friend-id") } returns targetReference
+    every { targetReference.get() } returns Tasks.forResult(snapshot)
+    every { snapshot.exists() } returns false
+
+    assertNull(repository.getProfile("friend-id"))
+  }
+
+  @Test
+  fun getProfile_rejectsBlankUid() = runTest {
+    val error = captureFailure { repository.getProfile(" ") }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause is IllegalArgumentException)
+  }
+
+  @Test
+  fun getProfile_requiresSignedInUser() = runTest {
+    every { auth.currentUser } returns null
+
+    val error = captureFailure { repository.getProfile("friend-id") }
+
+    assertTrue(error is PublicProfileException.UnauthenticatedUser)
+  }
+
+  @Test
+  fun getProfile_reportsFirestoreFailure() = runTest {
+    val targetReference = mockk<DocumentReference>()
+    val failure = IllegalStateException("Firestore unavailable")
+    every { profiles.document("friend-id") } returns targetReference
+    every { targetReference.get() } returns Tasks.forException(failure)
+
+    val error = captureFailure { repository.getProfile("friend-id") }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause === failure)
+  }
+
+  @Test
   fun getCurrentProfile_rejectsMalformedProfile() = runTest {
     val snapshot = profileSnapshot("user-id", "Traveler", "wrongname")
     every { profileReference.get() } returns Tasks.forResult(snapshot)

@@ -115,5 +115,18 @@ object C {
     const val collection_error = "collection_error"
     const val friends_screen_container = "friends_screen_container"
     const val friends_title = "friends_title"
+    const val friends_add_button = "friends_add_button"
+    const val friends_pending_request_count = "friends_pending_request_count"
+    const val friends_request_card = "friends_request_card"
+    const val friends_accept_request = "friends_accept_request"
+    const val friends_reject_request = "friends_reject_request"
+    const val friends_search = "friends_search"
+    const val friends_friend_row = "friends_friend_row"
+    const val friends_user_search = "friends_user_search"
+    const val friends_add_user_row = "friends_add_user_row"
+    const val friends_add_user_button = "friends_add_user_button"
+    const val friends_add_dismiss = "friends_add_dismiss"
+    const val friends_remove_friend = "friends_remove_friend"
+    const val friends_cancel_request = "friends_cancel_request"
   }
 }
