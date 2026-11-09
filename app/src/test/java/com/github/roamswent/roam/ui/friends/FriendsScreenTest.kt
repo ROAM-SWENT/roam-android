@@ -71,7 +71,7 @@ class FriendsScreenTest {
   }
 
   @Test
-  fun showsOnlyThreeNewestRequestsAndShowsTheirCount() {
+  fun showsOnlyNewestRequestsAndShowsTheirCount() {
     val requests =
         listOf(
             FriendRequest(FriendUser("old", "Oldest"), 1L),
@@ -86,8 +86,8 @@ class FriendsScreenTest {
         .assertIsDisplayed()
         .assertContentDescriptionEquals("4 pending friend requests")
     composeTestRule.onNodeWithText("Newest").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Middle").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Second").assertIsDisplayed()
+    composeTestRule.onAllNodesWithText("Middle").assertCountEquals(0)
+    composeTestRule.onAllNodesWithText("Second").assertCountEquals(0)
     composeTestRule.onAllNodesWithText("Oldest").assertCountEquals(0)
   }
 
