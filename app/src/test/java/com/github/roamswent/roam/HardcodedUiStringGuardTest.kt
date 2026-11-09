@@ -169,23 +169,108 @@ class HardcodedUiStringGuardTest {
     }
   }
 
+  @Test
+  fun ifElseConditionWithCallAndBothLiteralsAreFlagged() {
+    withScratchKotlinFile(
+        "Sample.kt",
+        "Icon(contentDescription = if (items.isEmpty()) \"First\" else \"Second\")\n",
+    ) { directory ->
+      val result = UiStringScanner.scan(directory)
+
+      assertEquals(
+          listOf("Sample.kt:1: \"First\"", "Sample.kt:1: \"Second\""),
+          result.violations,
+      )
+    }
+  }
+
+  @Test
+  fun ifElseWithSingleLiteralBranchAndVariableOtherBranchIsFlagged() {
+    withScratchKotlinFile(
+        "Sample.kt",
+        """
+        Icon(contentDescription = if (condition) "First" else fallbackDescription)
+        Icon(contentDescription = if (condition) fallbackDescription else "Second")
+        """
+            .trimIndent() + "\n",
+    ) { directory ->
+      val result = UiStringScanner.scan(directory)
+
+      assertEquals(
+          listOf("Sample.kt:1: \"First\"", "Sample.kt:2: \"Second\""),
+          result.violations,
+      )
+    }
+  }
+
+  @Test
+  fun blockCommentSequenceInsideStringLiteralDoesNotSwallowSubsequentViolation() {
+    withScratchKotlinFile(
+        "Sample.kt",
+        """
+        Text("image/*")
+        Text("Hidden literal")
+        /* block comment */
+        """
+            .trimIndent() + "\n",
+    ) { directory ->
+      val result = UiStringScanner.scan(directory)
+
+      assertEquals(
+          listOf("Sample.kt:1: \"image/*\"", "Sample.kt:2: \"Hidden literal\""),
+          result.violations,
+      )
+    }
+  }
+
+  @Test
+  fun lineCommentSequenceInsideStringLiteralDoesNotSwallowSubsequentViolation() {
+    withScratchKotlinFile(
+        "Sample.kt",
+        """
+        Text("http://example.com/a//b")
+        Text("Hidden literal")
+        """
+            .trimIndent() + "\n",
+    ) { directory ->
+      val result = UiStringScanner.scan(directory)
+
+      assertEquals(
+          listOf(
+              "Sample.kt:1: \"http://example.com/a//b\"",
+              "Sample.kt:2: \"Hidden literal\"",
+          ),
+          result.violations,
+      )
+    }
+  }
+
   internal object UiStringScanner {
     private val argumentPrefix =
         """(?:(?:\bText\s*\(\s*(?:text\s*=\s*)?)|\btext\s*=\s*|\bcontentDescription\s*=\s*|\bToast\s*\.\s*makeText\s*\(\s*[^,]+,\s*)"""
     private val stringLiteral = """(?:"{3}([\s\S]*?)"{3}|"([^"]*)")"""
+    private val condition = """\((?:[^()]|\([^()]*\))*\)"""
+    private val betweenIfAndElse =
+        """(?:(?:"{3}[\s\S]*?"{3}|"[^"]*")|\((?:[^()]|\([^()]*\))*\)|\{[^{}]*\}|[^{}(),;])*?"""
     private val directLiteral =
         Regex(
             argumentPrefix + stringLiteral,
             RegexOption.DOT_MATCHES_ALL,
         )
+    private val ifThenLiteral =
+        Regex(
+            argumentPrefix + """if\s*""" + condition + """\s*\{?\s*""" + stringLiteral,
+            RegexOption.DOT_MATCHES_ALL,
+        )
     private val ifElseLiteral =
         Regex(
             argumentPrefix +
-                """if\s*\([^)]*\)\s*\{?\s*""" +
-                stringLiteral +
-                """\s*\}?\s*else\s*\{?\s*""" +
-                stringLiteral +
-                """\s*\}?""",
+                """if\s*""" +
+                condition +
+                """\s*""" +
+                betweenIfAndElse +
+                """\belse\s*\{?\s*""" +
+                stringLiteral,
             RegexOption.DOT_MATCHES_ALL,
         )
     private val interpolation = Regex("""\$\{[^}]*}|\$[A-Za-z_][A-Za-z0-9_]*""")
@@ -205,27 +290,46 @@ class HardcodedUiStringGuardTest {
           }
         }
 
-    private data class FoundLiteral(val value: String, val line: Int)
+    private data class FoundLiteral(val value: String, val line: Int, val offset: Int)
 
     private fun findLiterals(source: String): List<FoundLiteral> {
       val cleanSource = stripComments(source)
       val direct =
           directLiteral.findAll(cleanSource).map { match ->
             val value = match.groupValues[1].ifEmpty { match.groupValues[2] }
+            val literalOffset =
+                (match.groups[1] ?: match.groups[2])?.range?.first ?: match.range.first
             FoundLiteral(
                 value = value,
                 line = cleanSource.take(match.range.first).count { it == '\n' } + 1,
+                offset = literalOffset,
+            )
+          }
+      val ifThen =
+          ifThenLiteral.findAll(cleanSource).map { match ->
+            val value = match.groupValues[1].ifEmpty { match.groupValues[2] }
+            val literalOffset =
+                (match.groups[1] ?: match.groups[2])?.range?.first ?: match.range.first
+            FoundLiteral(
+                value = value,
+                line = cleanSource.take(match.range.first).count { it == '\n' } + 1,
+                offset = literalOffset,
             )
           }
       val ifElse =
-          ifElseLiteral.findAll(cleanSource).flatMap { match ->
-            val line = cleanSource.take(match.range.first).count { it == '\n' } + 1
-            listOf(
-                FoundLiteral(match.groupValues[1].ifEmpty { match.groupValues[2] }, line),
-                FoundLiteral(match.groupValues[3].ifEmpty { match.groupValues[4] }, line),
+          ifElseLiteral.findAll(cleanSource).map { match ->
+            val value = match.groupValues[1].ifEmpty { match.groupValues[2] }
+            val literalOffset =
+                (match.groups[1] ?: match.groups[2])?.range?.first ?: match.range.first
+            FoundLiteral(
+                value = value,
+                line = cleanSource.take(match.range.first).count { it == '\n' } + 1,
+                offset = literalOffset,
             )
           }
-      return (direct + ifElse).sortedBy(FoundLiteral::line).toList()
+      return (direct + ifThen + ifElse)
+          .sortedWith(compareBy(FoundLiteral::line, FoundLiteral::offset))
+          .toList()
     }
 
     private fun isAllowlisted(path: String, literal: String): Boolean =

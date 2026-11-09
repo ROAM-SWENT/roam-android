@@ -18,10 +18,77 @@ internal data class LineMatch(
 )
 
 internal object SourceScanTestUtils {
-  private val comment = Regex("""//.*|/\*[\s\S]*?\*/""")
-
-  fun stripComments(source: String): String =
-      comment.replace(source) { match -> "\n".repeat(match.value.count { it == '\n' }) }
+  fun stripComments(source: String): String {
+    val result = StringBuilder(source.length)
+    var i = 0
+    val n = source.length
+    while (i < n) {
+      if (i + 2 < n && source.startsWith("\"\"\"", i)) {
+        result.append("\"\"\"")
+        i += 3
+        while (i < n) {
+          if (i + 2 < n && source.startsWith("\"\"\"", i)) {
+            result.append("\"\"\"")
+            i += 3
+            break
+          } else {
+            result.append(source[i])
+            i++
+          }
+        }
+      } else if (source[i] == '"') {
+        result.append('"')
+        i++
+        while (i < n) {
+          val ch = source[i]
+          result.append(ch)
+          i++
+          if (ch == '\\' && i < n) {
+            result.append(source[i])
+            i++
+          } else if (ch == '"') {
+            break
+          }
+        }
+      } else if (source[i] == '\'') {
+        result.append('\'')
+        i++
+        while (i < n) {
+          val ch = source[i]
+          result.append(ch)
+          i++
+          if (ch == '\\' && i < n) {
+            result.append(source[i])
+            i++
+          } else if (ch == '\'') {
+            break
+          }
+        }
+      } else if (i + 1 < n && source.startsWith("//", i)) {
+        i += 2
+        while (i < n && source[i] != '\n') {
+          i++
+        }
+      } else if (i + 1 < n && source.startsWith("/*", i)) {
+        i += 2
+        while (i < n) {
+          if (i + 1 < n && source.startsWith("*/", i)) {
+            i += 2
+            break
+          } else if (source[i] == '\n') {
+            result.append('\n')
+            i++
+          } else {
+            i++
+          }
+        }
+      } else {
+        result.append(source[i])
+        i++
+      }
+    }
+    return result.toString()
+  }
 
   fun resolveUiSourceDirectory(): File {
     val userDir = File(System.getProperty("user.dir") ?: ".")
