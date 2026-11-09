@@ -326,6 +326,36 @@ class FirestorePublicProfileRepositoryTest {
   }
 
   @Test
+  fun getProfile_rejectsBlankUid() = runTest {
+    val error = captureFailure { repository.getProfile(" ") }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause is IllegalArgumentException)
+  }
+
+  @Test
+  fun getProfile_requiresSignedInUser() = runTest {
+    every { auth.currentUser } returns null
+
+    val error = captureFailure { repository.getProfile("friend-id") }
+
+    assertTrue(error is PublicProfileException.UnauthenticatedUser)
+  }
+
+  @Test
+  fun getProfile_reportsFirestoreFailure() = runTest {
+    val targetReference = mockk<DocumentReference>()
+    val failure = IllegalStateException("Firestore unavailable")
+    every { profiles.document("friend-id") } returns targetReference
+    every { targetReference.get() } returns Tasks.forException(failure)
+
+    val error = captureFailure { repository.getProfile("friend-id") }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause === failure)
+  }
+
+  @Test
   fun getCurrentProfile_rejectsMalformedProfile() = runTest {
     val snapshot = profileSnapshot("user-id", "Traveler", "wrongname")
     every { profileReference.get() } returns Tasks.forResult(snapshot)

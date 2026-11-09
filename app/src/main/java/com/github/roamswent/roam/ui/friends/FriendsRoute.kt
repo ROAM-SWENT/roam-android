@@ -16,12 +16,15 @@ import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 
+private val NO_PROFILE_CLICK: () -> Unit = {}
+private val NO_FRIEND_CLICK: (FriendUser) -> Unit = {}
+
 @Composable
 fun FriendsRoute(
     modifier: Modifier = Modifier,
     profileName: String? = null,
-    onProfileClicked: () -> Unit = {},
-    onFriendClicked: (FriendUser) -> Unit = {},
+    onProfileClicked: () -> Unit = NO_PROFILE_CLICK,
+    onFriendClicked: (FriendUser) -> Unit = NO_FRIEND_CLICK,
     friendRepository: FriendRepository? = null,
     publicProfileRepository: PublicProfileRepository? = null,
 ) {

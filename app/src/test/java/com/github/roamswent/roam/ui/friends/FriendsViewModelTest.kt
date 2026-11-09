@@ -12,6 +12,7 @@ import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -172,5 +173,142 @@ class FriendsViewModelTest {
         assertFalse(viewModel.uiState.value.isSearching)
         viewModel.clearMessage()
         assertNull(viewModel.uiState.value.error)
+      }
+
+  @Test
+  fun blankSearchClearsResultsWithoutCallingRepository() =
+      runTest(dispatcher) {
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.searchUsers(" ")
+        advanceUntilIdle()
+
+        assertEquals(emptyList<FriendSearchResult>(), viewModel.uiState.value.searchResults)
+        assertFalse(viewModel.uiState.value.isSearching)
+        coVerify(exactly = 0) { profilesRepository.searchProfiles(any()) }
+      }
+
+  @Test
+  fun loadFriendsDoesNotStartConcurrentRefreshes() =
+      runTest(dispatcher) {
+        val friendsResult = CompletableDeferred<List<Friendship>>()
+        coEvery { friendsRepository.getFriends() } coAnswers { friendsResult.await() }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        runCurrent()
+        viewModel.loadFriends()
+        friendsResult.complete(emptyList())
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { friendsRepository.getFriends() }
+        assertFalse(viewModel.uiState.value.isLoading)
+      }
+
+  @Test
+  fun missingPublicProfileFallsBackToUidAndLoadFailuresAreReported() =
+      runTest(dispatcher) {
+        coEvery { friendsRepository.getFriends() } returns listOf(Friendship("id", "friend"))
+        coEvery { profilesRepository.getProfile("friend") } returns null
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        assertEquals(listOf(FriendUser("friend", "friend")), viewModel.uiState.value.friends)
+
+        val error = IllegalStateException("friend list failed")
+        coEvery { friendsRepository.getFriends() } throws error
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        assertEquals(error.message, viewModel.uiState.value.error?.message)
+        assertFalse(viewModel.uiState.value.isLoading)
+      }
+
+  @Test
+  fun failedMutationReportsErrorAndPreventsConcurrentActions() =
+      runTest(dispatcher) {
+        val pendingRequest = CompletableDeferred<RepositoryFriendRequest>()
+        coEvery { friendsRepository.sendFriendRequest("target") } coAnswers
+            {
+              pendingRequest.await()
+            }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val target = FriendUser("target", "Target")
+
+        viewModel.sendRequest(target)
+        runCurrent()
+        viewModel.removeFriend(target)
+        pendingRequest.completeExceptionally(IllegalStateException("request failed"))
+        advanceUntilIdle()
+
+        assertEquals("request failed", viewModel.uiState.value.error?.message)
+        assertFalse(viewModel.uiState.value.isMutating)
+        coVerify(exactly = 0) { friendsRepository.removeFriend("target") }
+      }
+
+  @Test
+  fun cancellingAnInFlightSearchAllowsTheLatestQueryToComplete() =
+      runTest(dispatcher) {
+        val firstSearch = CompletableDeferred<List<PublicProfile>>()
+        coEvery { profilesRepository.searchProfiles("first") } coAnswers { firstSearch.await() }
+        coEvery { profilesRepository.searchProfiles("second") } returns
+            listOf(PublicProfile("result", "SecondResult"))
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.searchUsers("first")
+        advanceTimeBy(300)
+        runCurrent()
+        viewModel.searchUsers("second")
+        advanceTimeBy(300)
+        runCurrent()
+
+        assertEquals(
+            listOf(FriendSearchResult(FriendUser("result", "SecondResult"))),
+            viewModel.uiState.value.searchResults,
+        )
+        assertFalse(viewModel.uiState.value.isSearching)
+      }
+
+  @Test
+  fun refreshUpdatesRelationshipsForExistingSearchResults() =
+      runTest(dispatcher) {
+        coEvery { profilesRepository.searchProfiles("friend") } returns
+            listOf(
+                PublicProfile("friend", "Friend"),
+                PublicProfile("incoming", "Incoming"),
+                PublicProfile("outgoing", "Outgoing"),
+                PublicProfile("new", "New"),
+            )
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        viewModel.searchUsers("friend")
+        advanceTimeBy(300)
+        runCurrent()
+
+        coEvery { friendsRepository.getFriends() } returns
+            listOf(Friendship("friendship", "friend"))
+        coEvery { friendsRepository.getIncomingRequests() } returns
+            listOf(RepositoryFriendRequest("incoming-id", "incoming", "self"))
+        coEvery { friendsRepository.getOutgoingRequests() } returns
+            listOf(RepositoryFriendRequest("outgoing-id", "self", "outgoing"))
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                FriendSearchResult(FriendUser("friend", "Friend"), isFriend = true),
+                FriendSearchResult(
+                    FriendUser("incoming", "Incoming"),
+                    incomingRequestId = "incoming-id",
+                ),
+                FriendSearchResult(
+                    FriendUser("outgoing", "Outgoing"),
+                    outgoingRequestId = "outgoing-id",
+                ),
+                FriendSearchResult(FriendUser("new", "New")),
+            ),
+            viewModel.uiState.value.searchResults,
+        )
       }
 }

@@ -149,6 +149,72 @@ class FriendsScreenTest {
   }
 
   @Test
+  fun addFriendsPanelInvokesActionsForEachSearchRelationship() {
+    val incomingUser = FriendUser("incoming", "Incoming User")
+    val outgoingUser = FriendUser("outgoing", "Outgoing User")
+    val friendUser = FriendUser("friend", "Existing Friend")
+    val newUser = FriendUser("new", "New User")
+    val accepted = mutableListOf<FriendRequest>()
+    val rejected = mutableListOf<FriendRequest>()
+    val cancelled = mutableListOf<FriendRequest>()
+    val sent = mutableListOf<FriendUser>()
+    val results =
+        listOf(
+            FriendSearchResult(incomingUser, incomingRequestId = "incoming-request"),
+            FriendSearchResult(outgoingUser, outgoingRequestId = "outgoing-request"),
+            FriendSearchResult(friendUser, isFriend = true),
+            FriendSearchResult(newUser),
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsScreen(
+            searchResults = results,
+            showAddFriendsInitially = true,
+            onAcceptRequest = accepted::add,
+            onRejectRequest = rejected::add,
+            onCancelRequest = cancelled::add,
+            onSendRequest = sent::add,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("user")
+    composeTestRule.onNodeWithText("Incoming User").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Outgoing User").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Existing Friend").assertIsDisplayed()
+    composeTestRule.onNodeWithText("New User").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_accept_request)[0].performClick()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_reject_request)[0].performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_cancel_request).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_add_user_button).performClick()
+
+    assertEquals(
+        listOf(FriendRequest(incomingUser, id = "incoming-request")),
+        accepted,
+    )
+    assertEquals(
+        listOf(FriendRequest(incomingUser, id = "incoming-request")),
+        rejected,
+    )
+    assertEquals(
+        listOf(FriendRequest(outgoingUser, id = "outgoing-request")),
+        cancelled,
+    )
+    assertEquals(listOf(newUser), sent)
+  }
+
+  @Test
+  fun addFriendsPanelShowsEmptyRequestsAndSearchProgressStates() {
+    composeTestRule.setContent {
+      SampleAppTheme { FriendsScreen(showAddFriendsInitially = true, isSearching = true) }
+    }
+
+    composeTestRule.onNodeWithText("Add friends").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("nobody")
+    composeTestRule.onNodeWithText("Searching...").assertIsDisplayed()
+  }
+
+  @Test
   fun deletingFriendRequiresConfirmation() {
     val friend = FriendUser("friend-id", "Ada")
     val removedFriends = mutableListOf<FriendUser>()
