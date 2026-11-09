@@ -4,6 +4,7 @@
 
 package com.github.roamswent.roam.ui.friends
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -99,6 +100,7 @@ fun FriendsScreen(
     )
 
     if (isAddFriendsOpen) {
+      BackHandler { isAddFriendsOpen = false }
       Box(
           modifier =
               Modifier.fillMaxSize()
@@ -115,6 +117,7 @@ fun FriendsScreen(
           requests = friendRequests,
           searchResults = searchResults,
           isSearching = isSearching,
+          hasError = errorMessage != null,
           isMutating = isMutating,
           onQueryChanged = {
             userQuery = it

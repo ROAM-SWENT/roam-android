@@ -4,13 +4,17 @@
 
 package com.github.roamswent.roam.ui.friends
 
+import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -31,7 +35,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @RunWith(RobolectricTestRunner::class)
 class FriendsScreenTest {
-  @get:Rule val composeTestRule = createComposeRule()
+  @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   @Test
   fun rendersProfileAndFiltersFriendsByUsername() {
@@ -127,6 +131,18 @@ class FriendsScreenTest {
   }
 
   @Test
+  fun backButtonDismissesAddFriendsPanelAndKeepsFriendsScreenOpen() {
+    composeTestRule.setContent { SampleAppTheme { FriendsScreen(showAddFriendsInitially = true) } }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_user_search).assertIsDisplayed()
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_screen_container).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_user_search).assertCountEquals(0)
+  }
+
+  @Test
   fun searchedFriendShowsCancelOrRequestActionsBasedOnRelationship() {
     val results =
         listOf(
@@ -205,13 +221,30 @@ class FriendsScreenTest {
 
   @Test
   fun addFriendsPanelShowsEmptyRequestsAndSearchProgressStates() {
+    var isSearching by mutableStateOf(true)
+    var errorMessage by mutableStateOf<String?>(null)
     composeTestRule.setContent {
-      SampleAppTheme { FriendsScreen(showAddFriendsInitially = true, isSearching = true) }
+      SampleAppTheme {
+        FriendsScreen(
+            showAddFriendsInitially = true,
+            isSearching = isSearching,
+            errorMessage = errorMessage,
+        )
+      }
     }
 
     composeTestRule.onNodeWithText("Add friends").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("nobody")
     composeTestRule.onNodeWithText("Searching...").assertIsDisplayed()
+    composeTestRule.onAllNodesWithText("No users found").assertCountEquals(0)
+
+    composeTestRule.runOnIdle { isSearching = false }
+    composeTestRule.onNodeWithText("No users found").assertIsDisplayed()
+    composeTestRule.onAllNodesWithText("Searching...").assertCountEquals(0)
+
+    composeTestRule.runOnIdle { errorMessage = "Search failed" }
+    composeTestRule.onNodeWithText("Search failed").assertIsDisplayed()
+    composeTestRule.onAllNodesWithText("No users found").assertCountEquals(0)
   }
 
   @Test

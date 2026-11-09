@@ -7,6 +7,7 @@ package com.github.roamswent.roam.ui.friends
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -53,6 +54,7 @@ data class FriendsUiState(
 class FriendsViewModel(
     private val friendRepository: FriendRepository,
     private val publicProfileRepository: PublicProfileRepository,
+    private val cacheClockMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(FriendsUiState())
   val uiState: StateFlow<FriendsUiState> = _uiState.asStateFlow()
@@ -60,6 +62,7 @@ class FriendsViewModel(
   private var selfUid: String? = null
   private var searchJob: Job? = null
   private var loadJob: Job? = null
+  private val profileCache = mutableMapOf<String, CachedProfile>()
 
   fun loadFriends() {
     if (loadJob?.isActive == true || _uiState.value.isLoading) return
@@ -169,12 +172,14 @@ class FriendsViewModel(
                   incoming.map { it.requesterUid } +
                   outgoing.map { it.recipientUid })
               .distinct()
+      profileCache.keys.retainAll(uids.toSet())
+      val cacheTimestamp = cacheClockMillis()
       val usersByUid =
           kotlinx.coroutines.coroutineScope {
             uids
                 .map { uid ->
                   async {
-                    val profile = publicProfileRepository.getProfile(uid)
+                    val profile = getCachedProfile(uid, cacheTimestamp)
                     uid to FriendUser(uid, profile?.username ?: uid)
                   }
                 }
@@ -220,7 +225,25 @@ class FriendsViewModel(
     }
   }
 
+  private suspend fun getCachedProfile(uid: String, nowMillis: Long): PublicProfile? {
+    val cached = profileCache[uid]
+    if (cached != null && nowMillis - cached.cachedAtMillis < PROFILE_CACHE_TTL_MILLIS) {
+      return cached.profile
+    }
+
+    return publicProfileRepository.getProfile(uid).also { profile ->
+      profileCache[uid] = CachedProfile(profile, nowMillis)
+    }
+  }
+
+  private data class CachedProfile(
+      val profile: PublicProfile?,
+      val cachedAtMillis: Long,
+  )
+
   private companion object {
     const val SEARCH_DEBOUNCE_MILLIS = 300L
+    const val PROFILE_CACHE_TTL_MILLIS = 5 * 60 * 1000L
+    const val NANOS_PER_MILLI = 1_000_000L
   }
 }

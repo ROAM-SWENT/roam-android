@@ -25,6 +25,7 @@
     <string name="home_tab_scan">Scan a monument</string>
     <string name="home_tab_friends">Friends</string>
     <string name="friends_title">Friends</string>
+    <string name="friends_no_users_found">No users found</string>
     <string name="home_tab_explore">Explore</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>

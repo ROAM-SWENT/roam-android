@@ -159,6 +159,39 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun reusesProfilesAcrossMutationsAndRefreshesThemAfterCacheExpires() =
+      runTest(dispatcher) {
+        var nowMillis = 0L
+        coEvery { friendsRepository.getFriends() } returns
+            listOf(Friendship("friendship", "friend"))
+        coEvery { friendsRepository.getIncomingRequests() } returns
+            listOf(RepositoryFriendRequest("request-id", "requester", "self"))
+        coEvery { friendsRepository.acceptFriendRequest("request-id") } returns Unit
+        coEvery { friendsRepository.removeFriend("friend") } returns Unit
+        coEvery { profilesRepository.getProfile("friend") } coAnswers
+            {
+              PublicProfile("friend", if (nowMillis == 0L) "OldName" else "NewName")
+            }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository) { nowMillis }
+        val request = FriendRequest(FriendUser("requester", "Requester"), id = "request-id")
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+        viewModel.acceptRequest(request)
+        advanceUntilIdle()
+
+        assertEquals("OldName", viewModel.uiState.value.friends.single().username)
+        coVerify(exactly = 1) { profilesRepository.getProfile("friend") }
+
+        nowMillis += 5 * 60 * 1000L
+        viewModel.removeFriend(FriendUser("friend", "OldName"))
+        advanceUntilIdle()
+
+        assertEquals("NewName", viewModel.uiState.value.friends.single().username)
+        coVerify(exactly = 2) { profilesRepository.getProfile("friend") }
+      }
+
+  @Test
   fun searchFailureIsShownAndCanBeCleared() =
       runTest(dispatcher) {
         val error = IllegalStateException("profile search failed")

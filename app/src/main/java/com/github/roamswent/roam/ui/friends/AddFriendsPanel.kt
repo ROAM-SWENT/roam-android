@@ -28,11 +28,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 
@@ -42,6 +44,7 @@ internal fun AddFriendsPanel(
     requests: List<FriendRequest>,
     searchResults: List<FriendSearchResult>,
     isSearching: Boolean,
+    hasError: Boolean,
     isMutating: Boolean,
     onQueryChanged: (String) -> Unit,
     onAcceptRequest: (FriendRequest) -> Unit,
@@ -93,6 +96,13 @@ internal fun AddFriendsPanel(
         } else {
           if (isSearching) {
             item { Text("Searching...", color = textPrimaryColor()) }
+          } else if (searchResults.isEmpty() && !hasError) {
+            item {
+              Text(
+                  text = stringResource(R.string.friends_no_users_found),
+                  color = textPrimaryColor(),
+              )
+            }
           }
           items(searchResults, key = { it.user.id }) { result ->
             AddFriendUserRow(
