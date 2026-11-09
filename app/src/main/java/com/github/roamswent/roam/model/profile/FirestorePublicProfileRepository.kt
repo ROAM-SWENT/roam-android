@@ -21,6 +21,13 @@ class FirestorePublicProfileRepository(
     if (snapshot.exists()) snapshot.toPublicProfile() else null
   }
 
+  override suspend fun getProfile(uid: String): PublicProfile? = withFirestoreErrors {
+    requireCurrentUid()
+    require(uid.isNotBlank()) { "A user ID is required to load a public profile." }
+    val snapshot = publicProfiles().document(uid).get().await()
+    if (snapshot.exists()) snapshot.toPublicProfile() else null
+  }
+
   override suspend fun registerUsername(username: String): PublicProfile {
     val uid = requireCurrentUid()
     val usernameLower = normalizedUsername(username)

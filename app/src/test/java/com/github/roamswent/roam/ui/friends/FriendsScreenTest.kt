@@ -13,6 +13,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -62,7 +63,9 @@ class FriendsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.friends_search).performTextInput("bea")
     composeTestRule.onNodeWithText("Beatrice").assertIsDisplayed()
     composeTestRule.onAllNodesWithText("Ada").assertCountEquals(0)
-    composeTestRule.onNodeWithText("Beatrice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_friend_row).performTouchInput {
+      click(Offset(30f, 30f))
+    }
 
     assertEquals(friends[1], clickedFriend)
   }
@@ -91,7 +94,7 @@ class FriendsScreenTest {
   @Test
   fun addFriendsPanelShowsRequestsSearchResultsAndDismissesOnScrimClick() {
     val requests = listOf(FriendRequest(FriendUser("request", "Request User"), 1L))
-    val searchResults = listOf(FriendUser("result", "Search Result"))
+    val searchResults = listOf(FriendSearchResult(FriendUser("result", "Search Result")))
     var lastSearchQuery: String? = null
     composeTestRule.setContent {
       SampleAppTheme {
@@ -112,6 +115,7 @@ class FriendsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("search")
     composeTestRule.onNodeWithText("Search Result").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.friends_add_user_row).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.friends_add_user_button).assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.friends_accept_request).assertCountEquals(1)
     composeTestRule.onAllNodesWithTag(C.Tag.friends_reject_request).assertCountEquals(1)
     assertEquals("search", lastSearchQuery)
@@ -120,5 +124,55 @@ class FriendsScreenTest {
       click(Offset(1f, 1f))
     }
     composeTestRule.onAllNodesWithText("Search Result").assertCountEquals(0)
+  }
+
+  @Test
+  fun searchedFriendShowsCancelOrRequestActionsBasedOnRelationship() {
+    val results =
+        listOf(
+            FriendSearchResult(
+                user = FriendUser("outgoing", "Outgoing User"),
+                outgoingRequestId = "outgoing-request",
+            ),
+            FriendSearchResult(user = FriendUser("new", "New User")),
+        )
+    composeTestRule.setContent {
+      SampleAppTheme { FriendsScreen(searchResults = results, showAddFriendsInitially = true) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("user")
+    composeTestRule.onNodeWithText("Outgoing User").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.friends_cancel_request).assertIsDisplayed()
+    composeTestRule.onNodeWithText("New User").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.friends_add_user_button).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_add_user_button).assertCountEquals(1)
+  }
+
+  @Test
+  fun deletingFriendRequiresConfirmation() {
+    val friend = FriendUser("friend-id", "Ada")
+    val removedFriends = mutableListOf<FriendUser>()
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsScreen(
+            friends = listOf(friend),
+            onRemoveFriend = { removedFriends.add(it) },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithContentDescription("More options for Ada").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_remove_friend).assertIsDisplayed().performClick()
+    composeTestRule.onNodeWithText("Remove friend?").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Are you sure you want to delete Ada?").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Cancel").performClick()
+    assertEquals(emptyList<FriendUser>(), removedFriends)
+    composeTestRule.onAllNodesWithText("Remove friend?").assertCountEquals(0)
+
+    composeTestRule.onNodeWithContentDescription("More options for Ada").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_remove_friend).performClick()
+    composeTestRule.onNodeWithText("Delete friend").performClick()
+
+    assertEquals(listOf(friend), removedFriends)
   }
 }

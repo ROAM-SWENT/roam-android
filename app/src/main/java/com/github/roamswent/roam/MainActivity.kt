@@ -57,7 +57,7 @@ import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.explore.ExploreScreen
 import com.github.roamswent.roam.ui.explore.ExploreViewModel
-import com.github.roamswent.roam.ui.friends.FriendsScreen
+import com.github.roamswent.roam.ui.friends.FriendsRoute
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
@@ -342,7 +342,7 @@ internal fun RoamApp(
         val userName by homeViewModel.userName.collectAsState()
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
-          FriendsScreen(
+          FriendsRoute(
               modifier =
                   Modifier.padding(
                       top = innerPadding.calculateTopPadding(),

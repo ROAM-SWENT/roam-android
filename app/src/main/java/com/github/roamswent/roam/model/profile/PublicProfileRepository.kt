@@ -7,6 +7,9 @@ interface PublicProfileRepository {
   /** Loads the signed-in user's public profile, or `null` if they have not registered. */
   suspend fun getCurrentProfile(): PublicProfile?
 
+  /** Loads a public profile by UID, or `null` if the user has not registered. */
+  suspend fun getProfile(uid: String): PublicProfile?
+
   /** Registers a username for the signed-in user. */
   suspend fun registerUsername(username: String): PublicProfile
 

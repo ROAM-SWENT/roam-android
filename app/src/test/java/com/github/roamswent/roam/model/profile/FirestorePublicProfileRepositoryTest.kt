@@ -303,6 +303,29 @@ class FirestorePublicProfileRepositoryTest {
   }
 
   @Test
+  fun getProfile_returnsPublicProfileForUid() = runTest {
+    val targetReference = mockk<DocumentReference>()
+    val snapshot = profileSnapshot("friend-id", "Friend_1", "friend_1")
+    every { profiles.document("friend-id") } returns targetReference
+    every { targetReference.get() } returns Tasks.forResult(snapshot)
+
+    val result = repository.getProfile("friend-id")
+
+    assertEquals(PublicProfile("friend-id", "Friend_1"), result)
+  }
+
+  @Test
+  fun getProfile_returnsNullWhenUidHasNoRegisteredProfile() = runTest {
+    val targetReference = mockk<DocumentReference>()
+    val snapshot = mockk<DocumentSnapshot>()
+    every { profiles.document("friend-id") } returns targetReference
+    every { targetReference.get() } returns Tasks.forResult(snapshot)
+    every { snapshot.exists() } returns false
+
+    assertNull(repository.getProfile("friend-id"))
+  }
+
+  @Test
   fun getCurrentProfile_rejectsMalformedProfile() = runTest {
     val snapshot = profileSnapshot("user-id", "Traveler", "wrongname")
     every { profileReference.get() } returns Tasks.forResult(snapshot)

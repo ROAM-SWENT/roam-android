@@ -124,5 +124,7 @@ object C {
     const val friends_add_user_row = "friends_add_user_row"
     const val friends_add_user_button = "friends_add_user_button"
     const val friends_add_dismiss = "friends_add_dismiss"
+    const val friends_remove_friend = "friends_remove_friend"
+    const val friends_cancel_request = "friends_cancel_request"
   }
 }
