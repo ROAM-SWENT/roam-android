@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,6 +65,7 @@ fun HomeScreen(
     Column(
         modifier =
             Modifier.fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, bottom = dockContentClearance())
     ) {

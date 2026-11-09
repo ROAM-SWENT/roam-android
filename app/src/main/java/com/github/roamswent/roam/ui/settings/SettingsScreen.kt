@@ -521,25 +521,12 @@ private fun InterestsCard(
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-      FlowRow(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        if (interests.isEmpty()) {
-          Text(
-              text = stringResource(R.string.settings_interests_empty),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        } else {
-          interests.forEach { interest ->
-            InterestChip(
-                interest = interest,
-                onRemove = { onRemoveInterest(interest) },
-            )
-          }
-        }
+      if (interests.isEmpty()) {
+        Text(
+            text = stringResource(R.string.settings_interests_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         OutlinedButton(
             onClick = onAddInterestClick,
             modifier = Modifier.testTag(C.Tag.settings_add_interest_button),
@@ -548,6 +535,28 @@ private fun InterestsCard(
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(Modifier.size(4.dp))
           Text(stringResource(R.string.settings_add_interest))
+        }
+      } else {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          interests.forEach { interest ->
+            InterestChip(
+                interest = interest,
+                onRemove = { onRemoveInterest(interest) },
+            )
+          }
+          OutlinedButton(
+              onClick = onAddInterestClick,
+              modifier = Modifier.testTag(C.Tag.settings_add_interest_button),
+              shape = RoundedCornerShape(50),
+          ) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(4.dp))
+            Text(stringResource(R.string.settings_add_interest))
+          }
         }
       }
     }
