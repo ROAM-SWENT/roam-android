@@ -105,13 +105,14 @@ fun SettingsScreen(
           ?: viewModel { SettingsViewModel(userInterestsRepository = userInterestsRepository) }
   val uiState by resolvedSettingsViewModel.uiState.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
+  val logoutSuccessfulMessage = stringResource(R.string.settings_logout_successful)
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
   LaunchedEffect(uiState.signedOut) {
     if (uiState.signedOut) {
       onSignedOut()
-      Toast.makeText(context, "Logout successful", Toast.LENGTH_SHORT).show()
+      Toast.makeText(context, logoutSuccessfulMessage, Toast.LENGTH_SHORT).show()
     }
   }
 
@@ -158,7 +159,10 @@ fun SettingsScreen(
             ProfileDisplayData(
                 initial =
                     uiState.profile?.displayName?.ifBlank { "?" }?.first()?.uppercase() ?: "?",
-                name = uiState.profile?.displayName.orEmpty().ifBlank { "Traveler" },
+                name =
+                    uiState.profile?.displayName.orEmpty().ifBlank {
+                      stringResource(R.string.settings_profile_default_name)
+                    },
                 email = uiState.profile?.email.orEmpty(),
                 provider = uiState.profile?.provider.orEmpty(),
             ),
@@ -236,11 +240,11 @@ private fun SettingsContent(
   if (showAddInterestDialog) {
     AlertDialog(
         onDismissRequest = { showAddInterestDialog = false },
-        title = { Text("Add an interest") },
+        title = { Text(stringResource(R.string.settings_add_interest)) },
         text = {
           val availableInterests = UserInterestCategories.all.filterNot { it in interests }
           if (availableInterests.isEmpty()) {
-            Text("All available interests are already selected.")
+            Text(stringResource(R.string.settings_all_interests_selected))
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
               availableInterests.forEach { interest ->
@@ -264,7 +268,7 @@ private fun SettingsContent(
               onClick = { showAddInterestDialog = false },
               modifier = Modifier.testTag(C.Tag.settings_add_interest_cancel_button),
           ) {
-            Text("Cancel")
+            Text(stringResource(R.string.settings_cancel))
           }
         },
     )
@@ -292,15 +296,27 @@ private fun ThemeCard(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
-          text = "Theme",
+          text = stringResource(R.string.settings_theme_section_header),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
       val themes =
           listOf(
-              Triple(ThemeMode.AUTO, "Auto", C.Tag.settings_theme_auto),
-              Triple(ThemeMode.LIGHT, "Light", C.Tag.settings_theme_light),
-              Triple(ThemeMode.DARK, "Dark", C.Tag.settings_theme_dark),
+              Triple(
+                  ThemeMode.AUTO,
+                  stringResource(R.string.settings_theme_auto),
+                  C.Tag.settings_theme_auto,
+              ),
+              Triple(
+                  ThemeMode.LIGHT,
+                  stringResource(R.string.settings_theme_light),
+                  C.Tag.settings_theme_light,
+              ),
+              Triple(
+                  ThemeMode.DARK,
+                  stringResource(R.string.settings_theme_dark),
+                  C.Tag.settings_theme_dark,
+              ),
           )
       SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         themes.forEachIndexed { index, (mode, label, testTag) ->
@@ -404,7 +420,7 @@ private fun ProfileCard(
       ) {
         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Sign Out")
+        Text(stringResource(R.string.settings_sign_out))
       }
     }
   }
@@ -431,17 +447,25 @@ private fun PermissionsCard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       Text(
-          text = "App Permissions",
+          text = stringResource(R.string.settings_permissions_section_header),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
-      PermissionStatus("Camera permission", cameraPermissionGranted)
-      PermissionStatus("Location permission", locationPermissionGranted)
+      PermissionStatus(
+          stringResource(R.string.settings_camera_permission),
+          cameraPermissionGranted,
+          C.Tag.settings_camera_permission_tag,
+      )
+      PermissionStatus(
+          stringResource(R.string.settings_location_permission),
+          locationPermissionGranted,
+          C.Tag.settings_location_permission_tag,
+      )
       OutlinedButton(
           onClick = onManagePermissionsClick,
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_manage_permissions_button),
       ) {
-        Text(text = "Manage Permissions")
+        Text(text = stringResource(R.string.settings_manage_permissions))
       }
     }
   }
@@ -468,12 +492,12 @@ private fun InterestsCard(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
-          text = "My Interests (AI Guide)",
+          text = stringResource(R.string.settings_interests_title),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
       Text(
-          text = "Used by AI to personalize your tourist guides.",
+          text = stringResource(R.string.settings_interests_subtitle),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -484,7 +508,7 @@ private fun InterestsCard(
       ) {
         if (interests.isEmpty()) {
           Text(
-              text = "No interests selected yet.",
+              text = stringResource(R.string.settings_interests_empty),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
@@ -503,7 +527,7 @@ private fun InterestsCard(
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(Modifier.size(4.dp))
-          Text("Add an interest")
+          Text(stringResource(R.string.settings_add_interest))
         }
       }
     }
@@ -533,7 +557,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
       ) {
         Icon(
             Icons.Default.Close,
-            contentDescription = "Remove $interest",
+            contentDescription = stringResource(R.string.settings_remove_interest, interest),
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -546,9 +570,10 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
 private fun PermissionStatus(
     name: String,
     isGranted: Boolean,
+    tag: String,
 ) {
   Column(
-      modifier = Modifier.testTag(name),
+      modifier = Modifier.testTag(tag),
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(
@@ -558,7 +583,9 @@ private fun PermissionStatus(
     )
 
     Text(
-        text = if (isGranted) "Granted" else "Denied",
+        text =
+            if (isGranted) stringResource(R.string.settings_permission_granted)
+            else stringResource(R.string.settings_permission_denied),
         style = MaterialTheme.typography.bodyLarge,
         color = if (isGranted) ScanTeal else MaterialTheme.colorScheme.error,
     )

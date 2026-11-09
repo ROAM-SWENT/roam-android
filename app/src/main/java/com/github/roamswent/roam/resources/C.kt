@@ -27,6 +27,8 @@ object C {
     const val settings_screen_container = "settings_screen_container"
     const val settings_sign_out_button = "settings_sign_out_button"
     const val settings_manage_permissions_button = "settings_manage_permissions_button"
+    const val settings_camera_permission_tag = "settings_camera_permission_tag"
+    const val settings_location_permission_tag = "settings_location_permission_tag"
     const val settings_theme_auto = "settings_theme_auto"
     const val settings_theme_dark = "settings_theme_dark"
     const val settings_theme_light = "settings_theme_light"
