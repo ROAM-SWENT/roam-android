@@ -65,7 +65,7 @@ internal fun AddFriendsPanel(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       Text(
-          text = "Add friends",
+          text = stringResource(R.string.friends_add_title),
           color = textPrimaryColor(),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
@@ -75,7 +75,7 @@ internal fun AddFriendsPanel(
           onValueChange = onQueryChanged,
           modifier = Modifier.fillMaxWidth().semantics { testTag = C.Tag.friends_user_search },
           singleLine = true,
-          placeholder = { Text("Search users") },
+          placeholder = { Text(stringResource(R.string.friends_search_users_hint)) },
           leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
           shape = RoundedCornerShape(16.dp),
       )
@@ -95,7 +95,12 @@ internal fun AddFriendsPanel(
           }
         } else {
           if (isSearching) {
-            item { Text("Searching...", color = textPrimaryColor()) }
+            item {
+              Text(
+                  stringResource(R.string.friends_searching),
+                  color = textPrimaryColor(),
+              )
+            }
           } else if (searchResults.isEmpty() && !hasError) {
             item {
               Text(
@@ -142,6 +147,11 @@ private fun AddFriendUserRow(
     onRejectRequest: () -> Unit,
 ) {
   val user = result.user
+  val acceptRequestDescription = stringResource(R.string.friends_accept_request_description)
+  val declineRequestDescription = stringResource(R.string.friends_decline_request_description)
+  val cancelRequestDescription = stringResource(R.string.friends_cancel_request_description)
+  val alreadyFriendsDescription = stringResource(R.string.friends_already_friends_description)
+  val addUserDescription = stringResource(R.string.friends_add_user_description)
   Row(
       modifier =
           Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics {
@@ -168,7 +178,7 @@ private fun AddFriendUserRow(
         ) {
           Icon(
               Icons.Default.Check,
-              contentDescription = "Accept friend request",
+              contentDescription = acceptRequestDescription,
               tint = HomeAccentGreen,
           )
         }
@@ -179,7 +189,7 @@ private fun AddFriendUserRow(
         ) {
           Icon(
               Icons.Default.Close,
-              contentDescription = "Decline friend request",
+              contentDescription = declineRequestDescription,
               tint = MaterialTheme.colorScheme.error,
           )
         }
@@ -192,7 +202,7 @@ private fun AddFriendUserRow(
         ) {
           Icon(
               Icons.Default.Close,
-              contentDescription = "Cancel friend request",
+              contentDescription = cancelRequestDescription,
               tint = MaterialTheme.colorScheme.error,
           )
         }
@@ -200,7 +210,7 @@ private fun AddFriendUserRow(
       result.isFriend -> {
         Icon(
             imageVector = Icons.Default.Check,
-            contentDescription = "Already friends",
+            contentDescription = alreadyFriendsDescription,
             tint = HomeAccentGreen,
         )
       }
@@ -212,7 +222,7 @@ private fun AddFriendUserRow(
         ) {
           Icon(
               imageVector = Icons.Default.Add,
-              contentDescription = "Add user",
+              contentDescription = addUserDescription,
               tint = MaterialTheme.colorScheme.primary,
           )
         }

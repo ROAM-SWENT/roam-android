@@ -28,9 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 
 /**
@@ -141,11 +143,12 @@ fun FriendsScreen(
 
     val visibleMessage = errorMessage ?: message
     if (visibleMessage != null) {
+      val dismissLabel = stringResource(R.string.friends_dismiss_action)
       Snackbar(
           modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
           action = {
             Text(
-                text = "Dismiss",
+                text = dismissLabel,
                 modifier = Modifier.clickable(onClick = onMessageDismiss),
             )
           },

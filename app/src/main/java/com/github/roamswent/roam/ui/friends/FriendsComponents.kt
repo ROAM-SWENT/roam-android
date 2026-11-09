@@ -166,12 +166,15 @@ private fun FriendsHeader(
 
 @Composable
 private fun AddFriendsButton(pendingRequestCount: Int, onClick: () -> Unit) {
+  val addFriendsDescription = stringResource(R.string.friends_add_button_description)
+  val pendingRequestsDescription =
+      stringResource(R.string.friends_pending_requests_description, pendingRequestCount)
   Box {
     Surface(
         onClick = onClick,
         modifier =
             Modifier.size(48.dp).semantics {
-              contentDescription = "Add friends"
+              contentDescription = addFriendsDescription
               testTag = C.Tag.friends_add_button
             },
         shape = CircleShape,
@@ -191,7 +194,7 @@ private fun AddFriendsButton(pendingRequestCount: Int, onClick: () -> Unit) {
               Modifier.align(Alignment.TopEnd)
                   .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
                   .semantics {
-                    contentDescription = "$pendingRequestCount pending friend requests"
+                    contentDescription = pendingRequestsDescription
                     testTag = C.Tag.friends_pending_request_count
                   },
           shape = CircleShape,
@@ -242,6 +245,8 @@ internal fun FriendRequestCard(
     enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
+  val acceptRequestDescription = stringResource(R.string.friends_accept_request_description)
+  val declineRequestDescription = stringResource(R.string.friends_decline_request_description)
   Card(
       modifier = modifier.semantics { testTag = C.Tag.friends_request_card },
       shape = RoundedCornerShape(18.dp),
@@ -273,7 +278,7 @@ internal fun FriendRequestCard(
       ) {
         Icon(
             imageVector = Icons.Default.Check,
-            contentDescription = "Accept friend request",
+            contentDescription = acceptRequestDescription,
             tint = if (MaterialTheme.isDark) LoadingProgressAccent else HomeAccentGreen,
         )
       }
@@ -284,7 +289,7 @@ internal fun FriendRequestCard(
       ) {
         Icon(
             imageVector = Icons.Default.Close,
-            contentDescription = "Decline friend request",
+            contentDescription = declineRequestDescription,
             tint = MaterialTheme.colorScheme.error,
         )
       }
@@ -298,12 +303,13 @@ private fun FriendsSearchField(
     onQueryChanged: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+  val searchHint = stringResource(R.string.friends_search_hint)
   OutlinedTextField(
       value = query,
       onValueChange = onQueryChanged,
       modifier = modifier.semantics { testTag = C.Tag.friends_search },
       singleLine = true,
-      placeholder = { Text("Search friends") },
+      placeholder = { Text(searchHint) },
       leadingIcon = {
         Icon(
             imageVector = Icons.Default.Search,
@@ -323,6 +329,13 @@ private fun FriendRow(
 ) {
   var isMenuExpanded by remember { mutableStateOf(false) }
   var showRemoveConfirmation by remember { mutableStateOf(false) }
+  val moreOptionsDescription =
+      stringResource(R.string.friends_more_options_description, friend.username)
+  val deleteFriendLabel = stringResource(R.string.friends_delete_friend)
+  val removeConfirmationTitle = stringResource(R.string.friends_remove_confirmation_title)
+  val removeConfirmationMessage =
+      stringResource(R.string.friends_remove_confirmation_message, friend.username)
+  val cancelLabel = stringResource(R.string.friends_cancel_action)
 
   Box {
     Surface(
@@ -353,8 +366,7 @@ private fun FriendRow(
           IconButton(
               onClick = { isMenuExpanded = true },
               enabled = enabled,
-              modifier =
-                  Modifier.semantics { contentDescription = "More options for ${friend.username}" },
+              modifier = Modifier.semantics { contentDescription = moreOptionsDescription },
           ) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
@@ -367,7 +379,7 @@ private fun FriendRow(
               onDismissRequest = { isMenuExpanded = false },
           ) {
             DropdownMenuItem(
-                text = { Text("Delete friend") },
+                text = { Text(deleteFriendLabel) },
                 onClick = {
                   isMenuExpanded = false
                   showRemoveConfirmation = true
@@ -391,8 +403,8 @@ private fun FriendRow(
   if (showRemoveConfirmation) {
     AlertDialog(
         onDismissRequest = { showRemoveConfirmation = false },
-        title = { Text("Remove friend?") },
-        text = { Text("Are you sure you want to delete ${friend.username}?") },
+        title = { Text(removeConfirmationTitle) },
+        text = { Text(removeConfirmationMessage) },
         confirmButton = {
           TextButton(
               onClick = {
@@ -401,11 +413,11 @@ private fun FriendRow(
               },
               enabled = enabled,
           ) {
-            Text("Delete friend", color = MaterialTheme.colorScheme.error)
+            Text(deleteFriendLabel, color = MaterialTheme.colorScheme.error)
           }
         },
         dismissButton = {
-          TextButton(onClick = { showRemoveConfirmation = false }) { Text("Cancel") }
+          TextButton(onClick = { showRemoveConfirmation = false }) { Text(cancelLabel) }
         },
     )
   }
