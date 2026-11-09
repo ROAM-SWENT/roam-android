@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -29,7 +30,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.DockLabelFontSize
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -191,6 +194,96 @@ class AppBottomDockTest {
     assertEquals(1, layouts.map { it.layoutInput.style.fontSize }.distinct().size)
   }
 
+  @Test
+  fun dockLabelFontSizeIsInvariantToSelectedDestination() {
+    var selectedDestination by mutableStateOf<DockDestination?>(DockDestination.HOME)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        AppBottomDock(
+            selected = selectedDestination,
+            onDestinationSelected = {},
+            onScanClick = {},
+            modifier = Modifier.width(340.dp),
+        )
+      }
+    }
+
+    val labels = listOf("Home", "Explore", "Scan", "Collection", "Friends")
+    val selections =
+        listOf(
+            DockDestination.HOME,
+            DockDestination.EXPLORE,
+            DockDestination.COLLECTION,
+            DockDestination.FRIENDS,
+            null,
+        )
+
+    val resolvedSizesPerSelection = selections.map { destination ->
+      selectedDestination = destination
+      composeTestRule.waitForIdle()
+      labels.map { label ->
+        val results = mutableListOf<TextLayoutResult>()
+        composeTestRule
+            .onNodeWithText(label, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(results)
+        results.single().layoutInput.style.fontSize
+      }
+    }
+
+    val referenceSizes = resolvedSizesPerSelection.first()
+    assertEquals(1, referenceSizes.distinct().size)
+    resolvedSizesPerSelection.forEach { sizes -> assertEquals(referenceSizes, sizes) }
+  }
+
+  @Test
+  fun dockLabelFontSizePinsBoldBasisMeasurementAtConstrainedWidth() {
+    setDock(modifier = Modifier.width(310.dp))
+
+    val results = mutableListOf<TextLayoutResult>()
+    composeTestRule
+        .onNodeWithText("Collection", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .config[SemanticsActions.GetTextLayoutResult]
+        .action
+        ?.invoke(results)
+
+    assertEquals(10.sp, results.single().layoutInput.style.fontSize)
+  }
+
+  @Test
+  fun dockLabelFontSizeRecoversToFullSizeAtWideWidth() {
+    setDock(modifier = Modifier.width(411.dp))
+
+    val labels = listOf("Home", "Explore", "Scan", "Collection", "Friends")
+    labels.forEach { label ->
+      val results = mutableListOf<TextLayoutResult>()
+      composeTestRule
+          .onNodeWithText(label, useUnmergedTree = true)
+          .fetchSemanticsNode()
+          .config[SemanticsActions.GetTextLayoutResult]
+          .action
+          ?.invoke(results)
+      assertEquals(DockLabelFontSize, results.single().layoutInput.style.fontSize)
+    }
+  }
+
+  @Test
+  fun unavailableCameraScanLabelDoesNotExceedSlotBudget() {
+    setDock(cameraAvailable = false)
+
+    val dockWidthPx =
+        composeTestRule.onNodeWithTag(C.Tag.dock_container).fetchSemanticsNode().size.width
+    val contentWidthPx = dockWidthPx - with(composeTestRule.density) { 16.dp.roundToPx() }
+    val scanSlotBudgetPx = (contentWidthPx * (1.25f / 5.25f)).toInt()
+    val scanLabelWidthPx =
+        composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).fetchSemanticsNode().size.width
+
+    assertTrue(scanLabelWidthPx <= scanSlotBudgetPx)
+  }
+
   /**
    * The dock exposes the selection through the click affordance: only the unselected tab accepts
    * taps. Tab tint and weight are paint-only details that semantics cannot observe, so the enabled
@@ -302,13 +395,14 @@ class AppBottomDockTest {
     var scanClicks = 0
     setDock(cameraAvailable = false, onScanClick = { scanClicks++ })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
+    composeTestRule
+        .onNodeWithTag(C.Tag.dock_scan_button)
+        .assertIsNotEnabled()
+        .assertContentDescriptionEquals("No camera detected on this device")
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     assertEquals(0, scanClicks)
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.dock_scan_label)
-        .assertTextEquals("No camera detected on this device")
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("No camera")
   }
 
   @Test
