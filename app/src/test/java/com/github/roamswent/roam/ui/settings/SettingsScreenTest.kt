@@ -113,10 +113,10 @@ class SettingsScreenTest {
         .onNodeWithText(context.getString(R.string.settings_location_permission))
         .assertIsDisplayed()
     composeTestRule
-        .onNodeWithTag("Camera permission", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.settings_camera_permission_tag, useUnmergedTree = true)
         .assert(hasAnyChild(hasText(context.getString(R.string.settings_permission_granted))))
     composeTestRule
-        .onNodeWithTag("Location permission", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.settings_location_permission_tag, useUnmergedTree = true)
         .assert(hasAnyChild(hasText(context.getString(R.string.settings_permission_denied))))
   }
 
@@ -638,10 +638,10 @@ class SettingsScreenTest {
     val cameraStatus = if (cameraGranted) "Granted" else "Denied"
     val locationStatus = if (locationGranted) "Granted" else "Denied"
     composeTestRule
-        .onNodeWithTag("Camera permission", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.settings_camera_permission_tag, useUnmergedTree = true)
         .assert(hasAnyChild(hasText(cameraStatus)))
     composeTestRule
-        .onNodeWithTag("Location permission", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.settings_location_permission_tag, useUnmergedTree = true)
         .assert(hasAnyChild(hasText(locationStatus)))
   }
 
