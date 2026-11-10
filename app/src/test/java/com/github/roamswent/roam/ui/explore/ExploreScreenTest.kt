@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.explore
@@ -28,7 +29,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -47,6 +50,7 @@ class ExploreScreenTest {
         .thenReturn(
             MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
         )
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     val locationPermissionController = permissionController(granted = true)
     composeTestRule.setContent {
       SampleAppTheme {
@@ -60,6 +64,60 @@ class ExploreScreenTest {
 
     composeTestRule.onNodeWithText("Explore").assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+  }
+
+  /** Verifies that the map is shown with saved monuments and reads them from the view model. */
+  @Test
+  fun displaysMapWithSavedMonumentsWhenLocationIsAvailable() {
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
+        )
+    whenever(exploreViewModel.monuments)
+        .thenReturn(
+            MutableStateFlow(
+                listOf(
+                    ExploreMonument("guide-1", "Eiffel Tower", Coordinates(48.85837, 2.29448)),
+                    ExploreMonument("guide-2", "Colosseum", Coordinates(41.89021, 12.49223)),
+                )
+            )
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = permissionController(granted = true),
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+    verify(exploreViewModel, atLeastOnce()).monuments
+  }
+
+  /** Verifies that saved monuments are not read while the map is not shown. */
+  @Test
+  fun doesNotReadMonumentsWithoutLocationPermission() {
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = permissionController(granted = false),
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(0)
+    verify(exploreViewModel, never()).monuments
   }
 
   @Test

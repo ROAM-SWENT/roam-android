@@ -1,9 +1,11 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.explore
 
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
@@ -44,7 +46,7 @@ class ExploreViewModelTest {
   fun initialStateRequiresPermissionNotYetAsked() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
 
         assertEquals(
             ExploreUiState.PermissionRequired(LocationPermissionDecision.NOT_ASKED),
@@ -57,7 +59,7 @@ class ExploreViewModelTest {
   @Test
   fun notAskedPermissionSnapshotRequiresPermission() =
       runTest(dispatcher) {
-        val viewModel = ExploreViewModel(FakeLocationProvider { null })
+        val viewModel = ExploreViewModel(FakeLocationProvider { null }, FakeSavedGuideRepository())
 
         viewModel.onPermissionStateChanged(
             isGranted = false,
@@ -83,7 +85,7 @@ class ExploreViewModelTest {
   @Test
   fun deniedPermissionSnapshotRequiresPermission() =
       runTest(dispatcher) {
-        val viewModel = ExploreViewModel(FakeLocationProvider { null })
+        val viewModel = ExploreViewModel(FakeLocationProvider { null }, FakeSavedGuideRepository())
 
         viewModel.onPermissionStateChanged(
             isGranted = false,
@@ -103,7 +105,7 @@ class ExploreViewModelTest {
         val coordinates = Coordinates(48.85837, 2.29448)
         val result = CompletableDeferred<Coordinates?>()
         val provider = FakeLocationProvider { result.await() }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -123,7 +125,7 @@ class ExploreViewModelTest {
       runTest(dispatcher) {
         val result = CompletableDeferred<Coordinates?>()
         val provider = FakeLocationProvider { result.await() }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -140,7 +142,7 @@ class ExploreViewModelTest {
   fun transitionFromNotGrantedToGrantedStartsRetrieval() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
         viewModel.onPermissionStateChanged(false, LocationPermissionDecision.NOT_ASKED)
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
@@ -156,7 +158,7 @@ class ExploreViewModelTest {
       runTest(dispatcher) {
         val result = CompletableDeferred<Coordinates?>()
         val provider = FakeLocationProvider { result.await() }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -181,7 +183,7 @@ class ExploreViewModelTest {
                 return suspendCoroutine { continuation -> pendingContinuations += continuation }
               }
             }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
         val coordinatesA = Coordinates(48.85837, 2.29448)
         val coordinatesB = Coordinates(40.68925, -74.0445)
 
@@ -218,7 +220,7 @@ class ExploreViewModelTest {
                 return suspendCoroutine { continuation -> pendingContinuation = continuation }
               }
             }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -245,7 +247,7 @@ class ExploreViewModelTest {
   fun retryAfterUnavailableStartsAnotherRetrieval() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         advanceUntilIdle()
         assertEquals(ExploreUiState.LocationUnavailable, viewModel.uiState.value)
@@ -262,7 +264,7 @@ class ExploreViewModelTest {
   fun retryDoesNothingWhenPermissionIsNotGranted() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel = ExploreViewModel(provider)
+        val viewModel = ExploreViewModel(provider, FakeSavedGuideRepository())
         viewModel.onPermissionStateChanged(false, LocationPermissionDecision.DENIED)
 
         viewModel.retryLocation()
