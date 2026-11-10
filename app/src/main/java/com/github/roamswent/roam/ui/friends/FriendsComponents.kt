@@ -229,7 +229,7 @@ private fun ProfileButton(name: String?, onClick: () -> Unit) {
       Text(
           text = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
           color = Color.White,
-          style = MaterialTheme.typography.titleMedium,
+          style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
       )
     }
