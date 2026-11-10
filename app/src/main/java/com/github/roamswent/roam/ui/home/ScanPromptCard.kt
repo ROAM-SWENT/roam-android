@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,7 +31,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
@@ -53,7 +53,7 @@ fun ScanPromptCard(
     Column(modifier = Modifier.padding(20.dp).fillMaxWidth(0.82f)) {
       Text(
           text = stringResource(R.string.home_scan_card_title),
-          fontSize = 18.sp,
+          style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
           color = Color.White,
           modifier = Modifier.semantics { testTag = C.Tag.home_scan_card_title },
@@ -61,8 +61,7 @@ fun ScanPromptCard(
       Spacer(modifier = Modifier.height(8.dp))
       Text(
           text = stringResource(R.string.home_scan_card_body),
-          fontSize = 13.sp,
-          lineHeight = 18.sp,
+          style = MaterialTheme.typography.labelMedium,
           fontWeight = FontWeight.Normal,
           color = Color.White.copy(alpha = 0.85f),
           modifier = Modifier.semantics { testTag = C.Tag.home_scan_card_body },

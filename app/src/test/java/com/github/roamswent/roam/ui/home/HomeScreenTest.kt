@@ -8,10 +8,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -61,11 +63,21 @@ class HomeScreenTest {
       SampleAppTheme { HomeScreen(onScanClicked = {}, cameraAvailable = false) }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
+    composeTestRule
+        .onNodeWithTag(C.Tag.dock_scan_button)
+        .assertIsNotEnabled()
+        .assertContentDescriptionEquals("No camera detected on this device")
     composeTestRule
         .onNodeWithTag(C.Tag.dock_scan_label)
         .assertIsDisplayed()
-        .assertTextEquals("No camera detected on this device")
+        .assertTextEquals("No camera")
+  }
+
+  @Test
+  fun homeScreenContentColumnIsScrollable() {
+    composeTestRule.setContent { SampleAppTheme { HomeScreen(onScanClicked = {}) } }
+
+    composeTestRule.onNode(hasScrollAction()).assertIsDisplayed()
   }
 
   @Test

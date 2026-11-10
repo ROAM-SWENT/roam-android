@@ -9,15 +9,18 @@ import kotlinx.coroutines.flow.update
 
 /**
  * In-memory [SavedGuideRepository] for UI tests. [guides] can be changed directly to simulate a
- * synchronization update, and a non-null [loadError] makes reads fail with it.
+ * synchronization update, a non-null [loadError] makes reads fail with it, and a non-null
+ * [addError] makes saves fail with it.
  */
 class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : SavedGuideRepository {
   val guides = MutableStateFlow(initialGuides)
   var loadError: Exception? = null
+  var addError: Exception? = null
   /** When non-null, [setFavorite] fails with it and leaves [guides] unchanged. */
   var favoriteError: Exception? = null
 
   override suspend fun addGuide(guide: Guide): Guide {
+    addError?.let { throw it }
     val savedGuide = guide.copy(id = guide.id.ifBlank { "guide-${guides.value.size + 1}" })
     guides.update { current -> current.filterNot { it.id == savedGuide.id } + savedGuide }
     return savedGuide

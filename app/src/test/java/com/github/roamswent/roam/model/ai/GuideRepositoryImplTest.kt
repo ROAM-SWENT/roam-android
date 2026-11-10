@@ -1,9 +1,11 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
 import com.github.roamswent.roam.model.location.Coordinates
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -60,6 +62,51 @@ class GuideRepositoryImplTest {
     repository(FakeImageScreen(verdict()), gemini).guideFor(request())
 
     assertFalse(gemini.prompts.single().contains("latitude"))
+  }
+
+  @Test
+  fun returnedGuideCarriesRequestLocationWithoutAskingProvider() = runBlocking {
+    val location = Coordinates(48.85837, 2.29448)
+    val provider = FakeLocationProvider(Coordinates(1.0, 2.0))
+    val guide =
+        repository(FakeImageScreen(verdict()), FakeGeminiClient(reply(validGuide)), provider)
+            .guideFor(request(location))
+
+    assertEquals(location, guide.location)
+    assertEquals(0, provider.calls)
+  }
+
+  @Test
+  fun returnedGuideCarriesProviderLocationResolvedOnce() = runBlocking {
+    val location = Coordinates(48.85837, 2.29448)
+    val provider = FakeLocationProvider(location)
+    val gemini = FakeGeminiClient(reply("not json"), reply(validGuide))
+    val guide = repository(FakeImageScreen(verdict()), gemini, provider).guideFor(request())
+
+    assertEquals(location, guide.location)
+    assertEquals(1, provider.calls)
+  }
+
+  @Test
+  fun returnedGuideCarriesThePhotoSentToTheAi() = runBlocking {
+    val gemini = FakeGeminiClient(reply(validGuide))
+    val raw = request().image
+
+    val guide = repository(FakeImageScreen(verdict()), gemini).guideFor(request())
+
+    val photo = checkNotNull(guide.photo)
+    assertEquals(gemini.images.single(), photo)
+    assertEquals("image/jpeg", photo.mimeType)
+    assertTrue(photo.bytes.size < raw.bytes.size)
+  }
+
+  @Test
+  fun returnedGuideHasNoLocationWhenUnavailable() = runBlocking {
+    val guide =
+        repository(FakeImageScreen(verdict()), FakeGeminiClient(reply(validGuide)))
+            .guideFor(request())
+
+    assertNull(guide.location)
   }
 
   @Test

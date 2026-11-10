@@ -55,7 +55,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
@@ -138,7 +137,7 @@ fun CollectionScreen(
     Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
       Text(
           text = stringResource(R.string.collection_title),
-          fontSize = 28.sp,
+          style = MaterialTheme.typography.headlineMedium,
           fontWeight = FontWeight.Bold,
           color =
               if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
@@ -205,7 +204,13 @@ private fun CollectionFilterChip(
   FilterChip(
       selected = selected,
       onClick = onClick,
-      label = { Text(text = label, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+      label = {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
+      },
       leadingIcon =
           if (showHeart) {
             {
@@ -280,7 +285,7 @@ private fun GuideCard(guide: Guide, onClick: () -> Unit, onToggleFavorite: () ->
     Column(modifier = Modifier.padding(12.dp)) {
       Text(
           text = guide.monumentName,
-          fontSize = 14.sp,
+          style = MaterialTheme.typography.bodySmall,
           fontWeight = FontWeight.Bold,
           color =
               if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary,
@@ -291,7 +296,7 @@ private fun GuideCard(guide: Guide, onClick: () -> Unit, onToggleFavorite: () ->
       guide.discoveryDate?.let { date ->
         Text(
             text = formatDiscoveryDate(date),
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelSmall,
             color =
                 if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
                 else LoadingTextSecondary,
@@ -439,7 +444,7 @@ private fun CollectionEmpty() {
   )
   Text(
       text = stringResource(R.string.collection_empty_title),
-      fontSize = 18.sp,
+      style = MaterialTheme.typography.titleSmall,
       fontWeight = FontWeight.Bold,
       color =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
@@ -447,7 +452,7 @@ private fun CollectionEmpty() {
   )
   Text(
       text = stringResource(R.string.collection_empty_subtitle),
-      fontSize = 14.sp,
+      style = MaterialTheme.typography.bodySmall,
       color =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
           else LoadingTextSecondary,
@@ -468,7 +473,7 @@ private fun FavoritesEmpty() {
   )
   Text(
       text = stringResource(R.string.collection_favorites_empty_title),
-      fontSize = 18.sp,
+      style = MaterialTheme.typography.titleSmall,
       fontWeight = FontWeight.Bold,
       color =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
@@ -476,7 +481,7 @@ private fun FavoritesEmpty() {
   )
   Text(
       text = stringResource(R.string.collection_favorites_empty_subtitle),
-      fontSize = 14.sp,
+      style = MaterialTheme.typography.bodySmall,
       color =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
           else LoadingTextSecondary,
@@ -489,7 +494,7 @@ private fun FavoritesEmpty() {
 private fun CollectionError() {
   Text(
       text = stringResource(R.string.collection_error),
-      fontSize = 14.sp,
+      style = MaterialTheme.typography.bodySmall,
       color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.error else LoadingErrorText,
       textAlign = TextAlign.Center,
   )

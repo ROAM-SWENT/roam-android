@@ -56,7 +56,6 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
@@ -230,7 +229,7 @@ private fun ProfileButton(name: String?, onClick: () -> Unit) {
       Text(
           text = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
           color = Color.White,
-          fontSize = 18.sp,
+          style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
       )
     }

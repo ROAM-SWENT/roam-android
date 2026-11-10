@@ -139,6 +139,12 @@ internal fun RoamApp(
   val context = LocalContext.current
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
   val runOfflineAction = rememberOfflineActionGate(isOnline)
+  // One instance shared by the collection and the scan flow, so both use the same repository.
+  // It is created lazily, when the first of those screens needs it.
+  val savedGuideRepository =
+      remember(savedGuideRepositoryOverride) {
+        lazy { savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository() }
+      }
   val locationPermissionDecisionRepository =
       remember(context.applicationContext) {
         SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
@@ -311,6 +317,7 @@ internal fun RoamApp(
               navController,
               uri,
               captureSenderOverride,
+              savedGuideRepository = savedGuideRepository.value,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
@@ -346,13 +353,10 @@ internal fun RoamApp(
       }
 
       composable(Routes.Collection) {
-        val savedGuideRepository = remember {
-          savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
-        }
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           CollectionRoute(
-              repository = savedGuideRepository,
+              repository = savedGuideRepository.value,
               modifier =
                   Modifier.padding(
                       top = innerPadding.calculateTopPadding(),
