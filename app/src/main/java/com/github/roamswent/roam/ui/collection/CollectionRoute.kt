@@ -30,5 +30,9 @@ fun CollectionRoute(
       state = state,
       modifier = modifier,
       onGuideClick = onGuideClick,
+      onToggleFavorite = viewModel::toggleFavorite,
+      onRestoreFavorite = { viewModel.setFavorite(it, isFavorite = true) },
+      onFavoriteErrorShown = viewModel::clearFavoriteError,
+      onShowFavoritesOnlyChange = viewModel::setShowFavoritesOnly,
   )
 }

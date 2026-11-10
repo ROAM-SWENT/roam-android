@@ -74,6 +74,15 @@
     <string name="collection_empty_subtitle">Scan a monument to start your collection.</string>
     <string name="collection_error">Couldn’t load your collection. Please try again.</string>
     <string name="collection_photo_description">Photo of %1$s</string>
+    <string name="collection_filter_all">All</string>
+    <string name="collection_filter_favorites">Favourites</string>
+    <string name="collection_favorite_add">Add to favourites</string>
+    <string name="collection_favorite_remove">Remove from favourites</string>
+    <string name="collection_favorites_empty_title">No favourites yet</string>
+    <string name="collection_favorites_empty_subtitle">Tap the heart on a monument to add it here.</string>
+    <string name="collection_favorite_removed">Removed from favourites</string>
+    <string name="collection_favorite_undo">Undo</string>
+    <string name="collection_favorite_error">Couldn’t update favourites. Please try again.</string>
     <string name="camera_permission_title">Camera permission required</string>
     <string name="camera_permission_message">Allow camera access in Settings to scan monuments.</string>
     <string name="camera_permission_open_settings">Open Settings</string>

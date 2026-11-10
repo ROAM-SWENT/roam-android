@@ -16,6 +16,8 @@ class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : Saved
   val guides = MutableStateFlow(initialGuides)
   var loadError: Exception? = null
   var addError: Exception? = null
+  /** When non-null, [setFavorite] fails with it and leaves [guides] unchanged. */
+  var favoriteError: Exception? = null
 
   override suspend fun addGuide(guide: Guide): Guide {
     addError?.let { throw it }
@@ -29,6 +31,7 @@ class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : Saved
   }
 
   override suspend fun setFavorite(guideId: String, isFavorite: Boolean) {
+    favoriteError?.let { throw it }
     guides.update { current ->
       current.map { if (it.id == guideId) it.copy(isFavorite = isFavorite) else it }
     }
