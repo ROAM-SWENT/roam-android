@@ -33,7 +33,7 @@
     <string name="friends_no_users_found">No users found</string>
     <string name="friends_add_title">Add friends</string>
     <string name="friends_search_users_hint">Search users</string>
-    <string name="friends_searching">Searching...</string>
+    <string name="friends_searching">Searching…</string>
     <string name="friends_add_user_description">Add user</string>
     <string name="friends_accept_request_description">Accept friend request</string>
     <string name="friends_decline_request_description">Decline friend request</string>
@@ -127,7 +127,7 @@
     <string name="sign_in_error_unexpected">Unexpected error: %1$s</string>
     <string name="settings_error_profile_load">Unable to load your profile.</string>
     <string name="settings_error_sign_out">Unable to sign out.</string>
-    <string name="scan_review_sending_title">Image being treated...</string>
+    <string name="scan_review_sending_title">Image being treated…</string>
     <string name="scan_review_sending_message">Please wait.</string>
     <string name="scan_close_description">Close</string>
     <string name="scan_gallery_description">Choose photo from gallery</string>
