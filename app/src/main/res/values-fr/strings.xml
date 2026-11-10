@@ -7,6 +7,11 @@
     <string name="sign_in_terms">En continuant, vous acceptez les Conditions d\'utilisation.</string>
     <string name="sign_in_logo_description">Logo Roam</string>
     <string name="sign_in_success">Connexion réussie !</string>
+    <string name="register_profile_title">Choisissez un nom d\'utilisateur</string>
+    <string name="register_profile_username_label">Nom d\'utilisateur</string>
+    <string name="register_profile_submit">Continuer</string>
+    <string name="register_profile_error">Impossible d\'enregistrer votre nom d\'utilisateur. Veuillez réessayer.</string>
+    <string name="register_profile_check_error">Impossible de charger votre profil. Veuillez vous reconnecter.</string>
     <string name="loading_title">Analyse en cours…</string>
     <string name="loading_subtitle">Identification de votre monument.</string>
     <string name="loading_cancel">Annuler</string>
