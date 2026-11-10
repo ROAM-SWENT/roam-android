@@ -34,5 +34,6 @@ fun CollectionRoute(
       onRestoreFavorite = { viewModel.setFavorite(it, isFavorite = true) },
       onFavoriteErrorShown = viewModel::clearFavoriteError,
       onShowFavoritesOnlyChange = viewModel::setShowFavoritesOnly,
+      onSearchQueryChange = viewModel::onSearchQueryChange,
   )
 }

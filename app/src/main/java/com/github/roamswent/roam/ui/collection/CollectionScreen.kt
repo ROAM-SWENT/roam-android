@@ -20,7 +20,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,6 +37,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -97,6 +101,7 @@ fun CollectionScreen(
     onRestoreFavorite: (String) -> Unit = {},
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
+    onSearchQueryChange: (String) -> Unit = {},
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
@@ -150,12 +155,23 @@ fun CollectionScreen(
       )
       when {
         state.guides.isNotEmpty() -> {
+          CollectionSearchBar(
+              query = state.searchQuery,
+              onQueryChange = onSearchQueryChange,
+              modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+          )
           CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
           val guides = visibleGuides(state.guides, state.showFavoritesOnly, state.searchQuery)
-          if (guides.isEmpty()) {
-            CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
-          } else {
-            GuideGrid(guides, onGuideClick, toggleFavorite)
+          when {
+            guides.isEmpty() && state.searchQuery.isNotBlank() -> {
+              CollectionMessage(C.Tag.collection_search_no_matches) { CollectionSearchNoMatches() }
+            }
+            guides.isEmpty() -> {
+              CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
+            }
+            else -> {
+              GuideGrid(guides, onGuideClick, toggleFavorite)
+            }
           }
         }
         state.isLoadingGuides -> CollectionLoading()
@@ -164,6 +180,73 @@ fun CollectionScreen(
       }
     }
   }
+}
+
+@Composable
+private fun CollectionSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  val isDark = MaterialTheme.isDark
+  val containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
+  val textColor = if (isDark) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary
+  val hintColor = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else LoadingTextSecondary
+
+  TextField(
+      value = query,
+      onValueChange = { if (it.length <= 40) onQueryChange(it) },
+      modifier = modifier.fillMaxWidth().semantics { testTag = C.Tag.collection_search_bar },
+      singleLine = true,
+      textStyle = MaterialTheme.typography.bodyMedium,
+      placeholder = {
+        Text(
+            text = stringResource(R.string.collection_search_hint),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+      },
+      leadingIcon = {
+        Icon(
+            imageVector = Icons.Default.Search,
+            contentDescription = null,
+        )
+      },
+      trailingIcon =
+          if (query.isNotEmpty()) {
+            {
+              IconButton(
+                  onClick = { onQueryChange("") },
+                  modifier = Modifier.semantics { testTag = C.Tag.collection_search_clear_button },
+              ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription =
+                        stringResource(R.string.collection_search_clear_description),
+                )
+              }
+            }
+          } else {
+            null
+          },
+      shape = RoundedCornerShape(16.dp),
+      colors =
+          TextFieldDefaults.colors(
+              focusedContainerColor = containerColor,
+              unfocusedContainerColor = containerColor,
+              disabledContainerColor = containerColor,
+              focusedTextColor = textColor,
+              unfocusedTextColor = textColor,
+              focusedLeadingIconColor = hintColor,
+              unfocusedLeadingIconColor = hintColor,
+              focusedTrailingIconColor = hintColor,
+              unfocusedTrailingIconColor = hintColor,
+              focusedPlaceholderColor = hintColor,
+              unfocusedPlaceholderColor = hintColor,
+              focusedIndicatorColor = Color.Transparent,
+              unfocusedIndicatorColor = Color.Transparent,
+              disabledIndicatorColor = Color.Transparent,
+          ),
+  )
 }
 
 /** The All and Favourites chips; Favourites is selected when [favoritesOnly] is true. */
@@ -482,6 +565,35 @@ private fun FavoritesEmpty() {
   )
   Text(
       text = stringResource(R.string.collection_favorites_empty_subtitle),
+      style = MaterialTheme.typography.bodySmall,
+      color =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
+          else LoadingTextSecondary,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.padding(top = 4.dp),
+  )
+}
+
+@Composable
+private fun CollectionSearchNoMatches() {
+  Icon(
+      imageVector = Icons.Default.Search,
+      contentDescription = null,
+      tint =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
+          else CollectionPlaceholderIcon,
+      modifier = Modifier.size(56.dp),
+  )
+  Text(
+      text = stringResource(R.string.collection_search_no_matches_title),
+      style = MaterialTheme.typography.titleSmall,
+      fontWeight = FontWeight.Bold,
+      color =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
+      modifier = Modifier.padding(top = 16.dp),
+  )
+  Text(
+      text = stringResource(R.string.collection_search_no_matches_subtitle),
       style = MaterialTheme.typography.bodySmall,
       color =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant

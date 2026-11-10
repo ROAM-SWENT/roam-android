@@ -91,6 +91,10 @@
     <string name="collection_favorite_removed">Removed from favourites</string>
     <string name="collection_favorite_undo">Undo</string>
     <string name="collection_favorite_error">Couldn’t update favourites. Please try again.</string>
+    <string name="collection_search_hint">Search your collection</string>
+    <string name="collection_search_no_matches_title">No matches</string>
+    <string name="collection_search_no_matches_subtitle">No monument matches your search.</string>
+    <string name="collection_search_clear_description">Clear search</string>
     <string name="camera_permission_title">Camera permission required</string>
     <string name="camera_permission_message">Allow camera access in Settings to scan monuments.</string>
     <string name="camera_permission_open_settings">Open Settings</string>
