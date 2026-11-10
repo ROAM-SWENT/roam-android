@@ -204,7 +204,7 @@ class ScanReviewScreenTest {
             ScanReviewRoute(
                 navController = navController,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
-                savedGuideRepositoryOverride = FakeSavedGuideRepository(),
+                savedGuideRepository = FakeSavedGuideRepository(),
             )
           }
         }
@@ -550,7 +550,7 @@ class ScanReviewScreenTest {
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
-                savedGuideRepositoryOverride = savedGuideRepository,
+                savedGuideRepository = savedGuideRepository,
                 isGalleryImage = isGalleryImage,
             )
           }
