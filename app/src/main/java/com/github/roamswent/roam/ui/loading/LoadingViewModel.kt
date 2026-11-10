@@ -29,7 +29,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,7 +53,7 @@ sealed interface LoadingNavigationEvent {
 
 /**
  * Runs the discovery for [imageUri]. Every successful discovery is also saved to
- * [savedGuideRepository], with the photo shrunk by [preparePhoto] and [clock] as discovery date.
+ * [savedGuideRepository], with the photo the pipeline sent to the AI and [clock] as discovery date.
  */
 class LoadingViewModel(
     private val repository: MonumentGuideRepository,
@@ -63,7 +62,6 @@ class LoadingViewModel(
     private val language: String,
     private val userInterestsRepository: UserInterestsRepository,
     private val savedGuideRepository: SavedGuideRepository,
-    private val preparePhoto: suspend (ImagePayload) -> ByteArray,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
   private val _showLoading = MutableStateFlow(false)
@@ -137,8 +135,6 @@ class LoadingViewModel(
     discoveryJob = viewModelScope.launch {
       try {
         val image = readImage(imageUri)
-        // Shrink the photo while the AI works, so the save can start before the guide is shown.
-        val savedPhoto = async { preparePhotoForSave(image) }
         val guide =
             withTimeout(DISCOVERY_TIMEOUT_MILLIS) {
               repository.guideFor(
@@ -149,9 +145,8 @@ class LoadingViewModel(
                   )
               )
             }
-        val photo = savedPhoto.await()
         if (navigationClaimed.compareAndSet(false, true)) {
-          saveToCollection(guide, photo)
+          saveToCollection(guide)
           _navigationEvents.trySend(
               LoadingNavigationEvent.NavigateToMonumentDetail(guide, imageUri.toString())
           )
@@ -170,28 +165,19 @@ class LoadingViewModel(
     }
   }
 
-  /** A failed preparation must not prevent showing the guide, so it is returned as a failure. */
-  private suspend fun preparePhotoForSave(image: ImagePayload): Result<ByteArray> =
-      try {
-        Result.success(preparePhoto(image))
-      } catch (exception: CancellationException) {
-        throw exception
-      } catch (exception: Exception) {
-        Result.failure(exception)
-      }
-
   /**
    * Saves [guide] in its own coroutine: [discoveryJob] is cancelled as soon as the guide is shown,
    * and a failed save must not prevent showing it. The coroutine starts undispatched, so the write
    * is issued before the guide is shown: leaving the screen then only cancels waiting for the
    * repository's confirmation, not the write itself.
    */
-  private fun saveToCollection(guide: MonumentGuide, photo: Result<ByteArray>) {
+  private fun saveToCollection(guide: MonumentGuide) {
     val discoveryDate = clock()
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
         _saveError.value = null
-        savedGuideRepository.addGuide(guide.toSavedGuide(photo.getOrThrow(), discoveryDate))
+        val photo = checkNotNull(guide.photo) { "The discovery returned no photo to save" }
+        savedGuideRepository.addGuide(guide.toSavedGuide(photo.bytes, discoveryDate))
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {

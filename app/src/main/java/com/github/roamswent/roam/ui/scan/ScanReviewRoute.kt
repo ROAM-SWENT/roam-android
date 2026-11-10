@@ -34,7 +34,6 @@ import com.github.roamswent.roam.ui.loading.LoadingViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Composable
 fun ScanReviewRoute(
@@ -96,12 +95,6 @@ fun ScanReviewRoute(
             Locale.getDefault().toLanguageTag(),
             userInterestsRepository,
             savedGuideRepository,
-            preparePhoto = { image ->
-              // Same downscaled JPEG as sent to the AI, so the saved guide fits in one document.
-              withContext(Dispatchers.Default) {
-                ImagePreparer().prepare(image.bytes, image.mimeType).bytes
-              }
-            },
         )
       }
   val showLoading by loadingViewModel.showLoading.collectAsState()

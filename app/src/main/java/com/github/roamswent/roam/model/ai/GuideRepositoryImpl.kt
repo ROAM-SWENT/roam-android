@@ -46,8 +46,8 @@ class GuideRepositoryImpl(
     val location = request.location ?: locationProvider.currentCoordinates()
     val prompt = PromptBuilder.guidePrompt(request.preferences, location)
     val guide = withRetries { ResponseParser.parseGuide(geminiClient.generate(prompt, photo)) }
-    // Reuse the position resolved for the prompt so callers can store it without asking again.
-    return guide.copy(location = location)
+    // Reuse the position and photo prepared here so callers can store them without redoing it.
+    return guide.copy(location = location, photo = photo)
   }
 
   /**

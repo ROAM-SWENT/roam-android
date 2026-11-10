@@ -9,9 +9,11 @@ class FakeGeminiClient(vararg replies: () -> String) : GeminiClient {
 
   private val queue = replies.toMutableList()
   val prompts = mutableListOf<String>()
+  val images = mutableListOf<ImagePayload>()
 
   override suspend fun generate(prompt: String, image: ImagePayload): String {
     prompts += prompt
+    images += image
     return checkNotNull(queue.removeFirstOrNull()) { "FakeGeminiClient ran out of replies" }()
   }
 }

@@ -28,7 +28,8 @@ data class DiscoveryRequest(
 
 /**
  * The structured guide returned only when a monument was identified. [location] is the position the
- * discovery pipeline already resolved for the prompt, or null if it was unavailable.
+ * discovery pipeline already resolved for the prompt, or null if it was unavailable. [photo] is the
+ * downscaled JPEG the pipeline sent to the AI, so callers can store it without preparing it again.
  */
 data class MonumentGuide(
     val monumentName: String,
@@ -38,6 +39,7 @@ data class MonumentGuide(
     val culture: String,
     val language: String,
     val location: Coordinates? = null,
+    val photo: ImagePayload? = null,
 )
 
 /** Result of the cloud pre-screen on the photo. */

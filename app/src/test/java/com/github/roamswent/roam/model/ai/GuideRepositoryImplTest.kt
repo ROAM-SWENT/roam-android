@@ -88,6 +88,19 @@ class GuideRepositoryImplTest {
   }
 
   @Test
+  fun returnedGuideCarriesThePhotoSentToTheAi() = runBlocking {
+    val gemini = FakeGeminiClient(reply(validGuide))
+    val raw = request().image
+
+    val guide = repository(FakeImageScreen(verdict()), gemini).guideFor(request())
+
+    val photo = checkNotNull(guide.photo)
+    assertEquals(gemini.images.single(), photo)
+    assertEquals("image/jpeg", photo.mimeType)
+    assertTrue(photo.bytes.size < raw.bytes.size)
+  }
+
+  @Test
   fun returnedGuideHasNoLocationWhenUnavailable() = runBlocking {
     val guide =
         repository(FakeImageScreen(verdict()), FakeGeminiClient(reply(validGuide)))

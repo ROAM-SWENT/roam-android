@@ -116,7 +116,6 @@ class LoadingRouteTest {
             "en",
             mockk<UserInterestsRepository>(),
             FakeSavedGuideRepository(),
-            { it.bytes },
         )
       }
       LoadingRoute(

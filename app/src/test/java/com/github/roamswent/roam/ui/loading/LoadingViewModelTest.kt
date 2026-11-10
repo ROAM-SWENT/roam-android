@@ -29,7 +29,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.io.IOException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -64,12 +63,7 @@ class LoadingViewModelTest {
   private val request = DiscoveryRequest(image, null, UserPreferences("fr-FR"))
   private var imageReads = 0
   private val savedGuides = FakeSavedGuideRepository()
-  private val preparedPhoto = byteArrayOf(9, 8, 7)
-  private val preparedImages = mutableListOf<ImagePayload>()
-  private val preparePhoto: suspend (ImagePayload) -> ByteArray = {
-    preparedImages += it
-    preparedPhoto
-  }
+  private val preparedPhoto = ImagePayload(byteArrayOf(9, 8, 7), "image/jpeg")
   private val discoveryDate = 1_700_000_000_000L
   private val readImage: suspend (Uri) -> ImagePayload = {
     check(it == uri)
@@ -153,7 +147,6 @@ class LoadingViewModelTest {
                 "fr-FR",
                 userInterestsRepository,
                 savedGuides,
-                preparePhoto,
             )
         viewModel.startDiscovery()
 
@@ -387,7 +380,6 @@ class LoadingViewModelTest {
           "fr-FR",
           interestsRepository,
           savedGuides,
-          preparePhoto,
           clock = { discoveryDate },
       )
 
@@ -410,8 +402,8 @@ class LoadingViewModelTest {
         assertEquals(location, saved.location)
         assertEquals(discoveryDate, saved.discoveryDate)
         assertEquals(false, saved.isFavorite)
-        assertArrayEquals(preparedPhoto, saved.photoBytes)
-        assertEquals(listOf(image), preparedImages)
+        // The photo the pipeline sent to the AI is saved as is, not prepared again.
+        assertArrayEquals(preparedPhoto.bytes, saved.photoBytes)
         assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
         assertNull(viewModel.saveError.value)
       }
@@ -443,24 +435,6 @@ class LoadingViewModelTest {
       }
 
   @Test
-  fun photoIsPreparedWhileWaitingForTheGuide() =
-      runTest(dispatcher) {
-        val guideGate = CompletableDeferred<MonumentGuide>()
-        coEvery { repository.guideFor(request) } coAnswers { guideGate.await() }
-        viewModel()
-
-        // runCurrent, not advanceUntilIdle, which would run past the discovery timeout.
-        runCurrent()
-        assertEquals(listOf(image), preparedImages)
-        assertTrue(savedGuides.guides.value.isEmpty())
-
-        guideGate.complete(guide())
-        advanceUntilIdle()
-        assertEquals(1, savedGuides.guides.value.size)
-        assertEquals(listOf(image), preparedImages)
-      }
-
-  @Test
   fun failedSaveStillShowsGuideAndExposesError() =
       runTest(dispatcher) {
         val failure = IllegalStateException("A signed-in user is required")
@@ -477,27 +451,16 @@ class LoadingViewModelTest {
       }
 
   @Test
-  fun failedPhotoPreparationIsExposedAsSaveError() =
+  fun guideWithoutPhotoStillShowsGuideAndExposesSaveError() =
       runTest(dispatcher) {
-        val failure = RejectedImageException(RejectionReason.Undecodable)
-        coEvery { repository.guideFor(request) } returns guide()
-        val viewModel =
-            LoadingViewModel(
-                repository,
-                readImage,
-                uri,
-                "fr-FR",
-                userInterestsRepository,
-                savedGuides,
-                preparePhoto = { throw failure },
-            )
-        viewModel.startDiscovery()
+        coEvery { repository.guideFor(request) } returns guide().copy(photo = null)
+        val viewModel = viewModel()
         val event = async { viewModel.navigationEvents.first() }
 
         advanceUntilIdle()
 
         assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
-        assertEquals(failure, viewModel.saveError.value)
+        assertTrue(viewModel.saveError.value is IllegalStateException)
         assertTrue(savedGuides.guides.value.isEmpty())
       }
 
@@ -509,7 +472,6 @@ class LoadingViewModelTest {
 
         advanceUntilIdle()
 
-        // The photo may already be prepared, since that runs alongside the discovery.
         assertTrue(savedGuides.guides.value.isEmpty())
       }
 
@@ -570,5 +532,6 @@ class LoadingViewModelTest {
           facts = listOf("It could hold tens of thousands of spectators."),
           culture = "A symbol of Rome.",
           language = "en",
+          photo = preparedPhoto,
       )
 }
