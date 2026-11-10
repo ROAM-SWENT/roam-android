@@ -56,6 +56,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 class ScanReviewScreenTest {
@@ -152,6 +153,28 @@ class ScanReviewScreenTest {
     composeTestRule
         .onNodeWithText(context.getString(R.string.scan_review_personalize_subtitle))
         .assertIsDisplayed()
+    composeTestRule.onNodeWithText("History").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Food & Drink").assertIsDisplayed()
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun interestsPrompt_underFrenchQualifier_rendersFrenchLabels_regressionProvesDecoupling() {
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Reviewing(uri),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            showInterestsPrompt = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Histoire").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Gastronomie & Boissons").assertIsDisplayed()
   }
 
   @Test
@@ -706,7 +729,7 @@ class ScanReviewScreenTest {
     var retried = false
     var dismissed = false
     setContent(
-        ScanReviewUiState.SendFailed(uri, "No monument was recognized in this photo."),
+        ScanReviewUiState.SendFailed(uri, R.string.scan_review_error_not_identified),
         onRetrySend = { retried = true },
         onDismissSendError = { dismissed = true },
     )

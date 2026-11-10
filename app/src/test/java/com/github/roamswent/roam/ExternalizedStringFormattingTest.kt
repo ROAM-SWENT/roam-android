@@ -4,9 +4,12 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 class ExternalizedStringFormattingTest {
@@ -40,6 +43,39 @@ class ExternalizedStringFormattingTest {
         -1,
         context.getString(R.string.settings_remove_interest, "Architecture").indexOf('`'),
     )
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun removeInterestFrenchSubstitutesInterestWithoutBackticks_regressionDetectsBacktickOrPlaceholderDefect() {
+    val formatted = context.getString(R.string.settings_remove_interest, "Architecture")
+    assertEquals("Supprimer Architecture", formatted)
+    assertEquals(-1, formatted.indexOf('`'))
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun matchPercentFrenchFormatsIntegerToSinglePercent_regressionDetectsEscapingDefect() {
+    val formatted = context.getString(R.string.monument_detail_match_percent, 87)
+    assertEquals("87% de correspondance", formatted)
+    assertTrue(formatted.contains("87%"))
+    assertFalse(formatted.contains("%%"))
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun factBulletFrenchFormatsWithSampleFact_regressionDetectsPlaceholderDefect() {
+    val formatted = context.getString(R.string.monument_detail_fact_bullet, "Construit en 1889")
+    assertEquals("• Construit en 1889", formatted)
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun frenchResourceWithApostropheRendersWithoutLiteralBackslash_regressionDetectsEscapingDefect() {
+    val rendered = context.getString(R.string.loading_error_generic)
+    assertEquals("Une erreur s'est produite.", rendered)
+    assertTrue(rendered.contains("'"))
+    assertFalse(rendered.contains("\\"))
   }
 
   private fun xmlStringValue(name: String): String {

@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import org.junit.Assert.assertEquals
@@ -235,12 +236,13 @@ class FriendsScreenTest {
 
     composeTestRule.onNodeWithText("Add friends").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("nobody")
-    composeTestRule.onNodeWithText("Searching...").assertIsDisplayed()
+    val searchingText = composeTestRule.activity.getString(R.string.friends_searching)
+    composeTestRule.onNodeWithText(searchingText).assertIsDisplayed()
     composeTestRule.onAllNodesWithText("No users found").assertCountEquals(0)
 
     composeTestRule.runOnIdle { isSearching = false }
     composeTestRule.onNodeWithText("No users found").assertIsDisplayed()
-    composeTestRule.onAllNodesWithText("Searching...").assertCountEquals(0)
+    composeTestRule.onAllNodesWithText(searchingText).assertCountEquals(0)
 
     composeTestRule.runOnIdle { errorMessage = "Search failed" }
     composeTestRule.onNodeWithText("Search failed").assertIsDisplayed()

@@ -461,9 +461,9 @@ class SettingsScreenTest {
 
     composeTestRule.onNodeWithText("No interests selected yet.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-    UserInterestCategories.all.forEach { interest ->
+    UserInterestCategories.all.forEach { category ->
       composeTestRule
-          .onNodeWithTag(C.Tag.settings_interest_option_prefix + interest)
+          .onNodeWithTag(C.Tag.settings_interest_option_prefix + category.id)
           .assertIsDisplayed()
     }
     composeTestRule
@@ -476,7 +476,7 @@ class SettingsScreenTest {
   fun interests_whenAllSelected_showsEmptyStateMessage() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(SettingsUIState(interests = UserInterestCategories.all)))
+        .thenReturn(MutableStateFlow(SettingsUIState(interests = UserInterestCategories.ids)))
     val (cameraController, locationController) = permissionControllers()
 
     composeTestRule.setContent {
@@ -503,7 +503,7 @@ class SettingsScreenTest {
   fun errorState_displaysToastAndClearsErrorMessage() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(SettingsUIState(errorMsg = "Unable to log out")))
+        .thenReturn(MutableStateFlow(SettingsUIState(errorMsg = R.string.settings_error_sign_out)))
     val (cameraController, locationController) = permissionControllers()
 
     composeTestRule.setContent {
@@ -517,7 +517,10 @@ class SettingsScreenTest {
     }
     composeTestRule.waitForIdle()
 
-    assertEquals("Unable to log out", ShadowToast.getTextOfLatestToast())
+    assertEquals(
+        context.getString(R.string.settings_error_sign_out),
+        ShadowToast.getTextOfLatestToast(),
+    )
     verify(viewModel).clearErrorMsg()
   }
 
@@ -540,12 +543,12 @@ class SettingsScreenTest {
       }
     }
 
-    state.value = SettingsUIState(errorMsg = "Logout failed")
+    state.value = SettingsUIState(errorMsg = R.string.settings_error_sign_out)
 
     composeTestRule.waitForIdle()
 
     assertEquals(
-        "Logout failed",
+        context.getString(R.string.settings_error_sign_out),
         ShadowToast.getTextOfLatestToast(),
     )
 
