@@ -411,6 +411,34 @@ class SavedGuidesViewModelFavoriteTest {
         assertNull(viewModel.uiState.value.favoriteError)
       }
 
+  @Test
+  fun favouritesFilterIsOffByDefaultAndCanBeSwitched() =
+      runTest(dispatcher) {
+        val viewModel = loadedViewModel()
+        assertFalse(viewModel.uiState.value.showFavoritesOnly)
+
+        viewModel.setShowFavoritesOnly(true)
+        assertTrue(viewModel.uiState.value.showFavoritesOnly)
+
+        viewModel.setShowFavoritesOnly(false)
+        assertFalse(viewModel.uiState.value.showFavoritesOnly)
+      }
+
+  @Test
+  fun favouritesFilterKeepsEveryGuideInState() =
+      runTest(dispatcher) {
+        coEvery { repository.setFavorite(any(), any()) } just Runs
+        snapshots.value = listOf(guide, otherGuide)
+        val viewModel = loadedViewModel()
+
+        viewModel.setShowFavoritesOnly(true)
+        viewModel.toggleFavorite(guide.id)
+        advanceUntilIdle()
+
+        assertEquals(listOf(true, false), viewModel.uiState.value.guides.map { it.isFavorite })
+        assertTrue(viewModel.uiState.value.showFavoritesOnly)
+      }
+
   private fun TestScope.loadedViewModel(): SavedGuidesViewModel {
     val viewModel = SavedGuidesViewModel(repository)
     viewModel.loadSavedGuides()
