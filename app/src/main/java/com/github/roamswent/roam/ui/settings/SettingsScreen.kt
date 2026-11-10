@@ -5,6 +5,8 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.widget.Toast
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +61,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -249,6 +252,7 @@ private fun SettingsContent(
           themeMode = themeMode,
           onThemeSelected = onThemeModeSelected,
       )
+      LanguageCard()
     }
   }
 
@@ -342,6 +346,80 @@ private fun ThemeCard(
               modifier = Modifier.testTag(testTag),
           ) {
             Text(label)
+          }
+        }
+      }
+    }
+  }
+}
+
+private data class LanguageOption(
+    val languageTag: String?,
+    @param:StringRes val labelRes: Int,
+    val testTag: String,
+)
+
+private val languageOptions =
+    listOf(
+        LanguageOption(
+            null,
+            R.string.settings_language_system,
+            C.Tag.settings_language_option_system,
+        ),
+        LanguageOption(
+            "en",
+            R.string.settings_language_english,
+            C.Tag.settings_language_option_en,
+        ),
+        LanguageOption(
+            "fr",
+            R.string.settings_language_french,
+            C.Tag.settings_language_option_fr,
+        ),
+    )
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun LanguageCard() {
+  Card(
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_language_card),
+      shape = RoundedCornerShape(20.dp),
+      colors =
+          CardDefaults.cardColors(
+              containerColor =
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
+          ),
+  ) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(
+          text = stringResource(R.string.settings_language_section_header),
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold,
+      )
+      val currentLocales = AppCompatDelegate.getApplicationLocales()
+      val currentTag = if (currentLocales.isEmpty) null else currentLocales[0]?.language
+      SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        languageOptions.forEachIndexed { index, option ->
+          val isSelected =
+              if (option.languageTag == null) currentLocales.isEmpty
+              else currentTag == option.languageTag
+          SegmentedButton(
+              selected = isSelected,
+              onClick = {
+                val targetLocales =
+                    if (option.languageTag == null) LocaleListCompat.getEmptyLocaleList()
+                    else LocaleListCompat.forLanguageTags(option.languageTag)
+                AppCompatDelegate.setApplicationLocales(targetLocales)
+              },
+              shape =
+                  SegmentedButtonDefaults.itemShape(index = index, count = languageOptions.size),
+              modifier = Modifier.testTag(option.testTag),
+          ) {
+            Text(stringResource(option.labelRes))
           }
         }
       }

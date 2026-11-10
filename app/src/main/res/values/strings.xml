@@ -170,6 +170,10 @@
     <string name="settings_interests_subtitle">Used by AI to personalize your tourist guides.</string>
     <string name="settings_interests_empty">No interests selected yet.</string>
     <string name="settings_theme_section_header">Theme</string>
+    <string name="settings_language_section_header">Language</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">App Permissions</string>
     <string name="monument_detail_match_percent">%1$d%% match</string>
     <string name="monument_detail_fact_bullet">• %1$s</string>

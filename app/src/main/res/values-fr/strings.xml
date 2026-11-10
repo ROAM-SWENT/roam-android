@@ -146,6 +146,10 @@
     <string name="settings_interests_subtitle">Utilisés par l\'IA pour personnaliser vos guides touristiques.</string>
     <string name="settings_interests_empty">Aucun centre d\'intérêt sélectionné pour l\'instant.</string>
     <string name="settings_theme_section_header">Thème</string>
+    <string name="settings_language_section_header">Langue</string>
+    <string name="settings_language_system">Système</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">Autorisations de l\'application</string>
     <string name="monument_detail_match_percent">%1$d%% de correspondance</string>
     <string name="monument_detail_fact_bullet">• %1$s</string>
