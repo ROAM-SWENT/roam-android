@@ -95,6 +95,7 @@ fun ScanReviewRoute(
   val showLoading by loadingViewModel.showLoading.collectAsState()
   val showInterestsPrompt by loadingViewModel.showInterestsPrompt.collectAsState()
   val discoveredGuide by loadingViewModel.discoveredGuide.collectAsState()
+  val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
@@ -145,6 +146,8 @@ fun ScanReviewRoute(
           isGalleryImage = isGalleryImage,
           onSaveInterests = loadingViewModel::onSaveInterests,
           onSkipInterests = loadingViewModel::onSkipInterests,
+          exploreOptIn = exploreOptIn,
+          onShowInExploreChange = loadingViewModel::setShownInExplore,
       )
     }
   }

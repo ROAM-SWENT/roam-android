@@ -6,6 +6,7 @@ import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.github.roamswent.roam.model.location.Coordinates
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.Blob
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.channels.awaitClose
@@ -38,6 +39,18 @@ class FirestoreSavedGuideRepository(
     savedGuidesCollection()
         .document(guideId)
         .update(GuideFirestoreMapper.FAVORITE_FIELD, isFavorite)
+        .await()
+  }
+
+  override suspend fun setLocation(guideId: String, location: Coordinates?) {
+    // Like setFavorite, update() writes only this field and fails for a deleted guide. Clearing
+    // deletes the field, matching guides that never had a location.
+    savedGuidesCollection()
+        .document(guideId)
+        .update(
+            GuideFirestoreMapper.LOCATION_FIELD,
+            location?.let(GuideFirestoreMapper::locationFields) ?: FieldValue.delete(),
+        )
         .await()
   }
 
@@ -105,6 +118,10 @@ class FirestoreSavedGuideRepository(
 
 internal object GuideFirestoreMapper {
   const val FAVORITE_FIELD = "isFavorite"
+  const val LOCATION_FIELD = "location"
+
+  fun locationFields(location: Coordinates): Map<String, Double> =
+      mapOf("latitude" to location.latitude, "longitude" to location.longitude)
 
   fun toFields(guide: Guide): Map<String, Any> = buildMap {
     put("photo", Blob.fromBytes(guide.photoBytes))
@@ -113,9 +130,7 @@ internal object GuideFirestoreMapper {
     put("history", guide.history)
     put("facts", guide.facts)
     put("culture", guide.culture)
-    guide.location?.let {
-      put("location", mapOf("latitude" to it.latitude, "longitude" to it.longitude))
-    }
+    guide.location?.let { put(LOCATION_FIELD, locationFields(it)) }
     guide.discoveryDate?.let { put("discoveryDate", it) }
     put(FAVORITE_FIELD, guide.isFavorite)
   }
@@ -129,7 +144,7 @@ internal object GuideFirestoreMapper {
           history = required(fields, "history"),
           facts = requiredStringList(fields, "facts"),
           culture = required(fields, "culture"),
-          location = optionalCoordinates(fields["location"]),
+          location = optionalCoordinates(fields[LOCATION_FIELD]),
           discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
           // Guides saved before favourites existed have no flag, so they are not favourites.
           isFavorite = fields[FAVORITE_FIELD] as? Boolean ?: false,

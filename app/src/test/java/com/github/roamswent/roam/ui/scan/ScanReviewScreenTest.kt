@@ -18,6 +18,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -37,6 +38,7 @@ import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.navigation.Routes
@@ -449,6 +451,37 @@ class ScanReviewScreenTest {
     val saved = savedGuides.guides.value.single()
     assertEquals(guide.monumentName, saved.monumentName)
     assertArrayEquals(photo.bytes, saved.photoBytes)
+  }
+
+  @Test
+  fun reviewRouteShowInExploreSetsScanLocationOnTheSavedGuide() {
+    val scanLocation = Coordinates(48.8584, 2.2945)
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(
+                  guide.copy(
+                      location = scanLocation,
+                      photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
+                  )
+              )
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_show_in_explore)
+    val savedId = savedGuides.guides.value.single().id
+    assertEquals(null, savedGuides.guides.value.single().location)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_show_in_explore)
+        .assertIsOff()
+        .performClick()
+    composeTestRule.waitUntil(5_000) { savedGuides.guides.value.single().location != null }
+
+    assertEquals(listOf(savedId to scanLocation), savedGuides.locationUpdates)
+    assertEquals(scanLocation, savedGuides.guides.value.single().location)
   }
 
   @Test
