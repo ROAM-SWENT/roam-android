@@ -74,6 +74,15 @@
     <string name="collection_empty_subtitle">Scannez un monument pour commencer votre collection.</string>
     <string name="collection_error">Impossible de charger votre collection. Veuillez réessayer.</string>
     <string name="collection_photo_description">Photo de %1$s</string>
+    <string name="collection_filter_all">Tout</string>
+    <string name="collection_filter_favorites">Favoris</string>
+    <string name="collection_favorite_add">Ajouter aux favoris</string>
+    <string name="collection_favorite_remove">Retirer des favoris</string>
+    <string name="collection_favorites_empty_title">Aucun favori pour l\'instant</string>
+    <string name="collection_favorites_empty_subtitle">Touchez le cœur sur un monument pour l\'ajouter ici.</string>
+    <string name="collection_favorite_removed">Retiré des favoris</string>
+    <string name="collection_favorite_undo">Annuler</string>
+    <string name="collection_favorite_error">Impossible de mettre à jour les favoris. Veuillez réessayer.</string>
     <string name="camera_permission_title">Autorisation de l\'appareil photo requise</string>
     <string name="camera_permission_message">Autorisez l\'accès à l\'appareil photo dans les Paramètres pour scanner des monuments.</string>
     <string name="camera_permission_open_settings">Ouvrir les Paramètres</string>
