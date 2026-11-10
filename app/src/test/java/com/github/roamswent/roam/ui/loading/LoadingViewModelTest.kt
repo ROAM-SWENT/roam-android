@@ -4,6 +4,9 @@
 package com.github.roamswent.roam.ui.loading
 
 import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.BlockedException
 import com.github.roamswent.roam.model.ai.ConfigurationException
@@ -414,33 +417,47 @@ class LoadingViewModelTest {
       }
 
   @Test
-  fun showingTheGuideDoesNotCancelTheSave() =
+  fun leavingTheScreenAsSoonAsTheGuideIsShownKeepsTheSave() =
       runTest(dispatcher) {
-        val guide = guide()
-        val photoGate = CompletableDeferred<Unit>()
-        coEvery { repository.guideFor(request) } returns guide
+        coEvery { repository.guideFor(request) } returns guide()
+        val store = ViewModelStore()
         val viewModel =
-            LoadingViewModel(
-                repository,
-                readImage,
-                uri,
-                "fr-FR",
-                userInterestsRepository,
-                savedGuides,
-                preparePhoto = {
-                  photoGate.await()
-                  preparedPhoto
+            ViewModelProvider(
+                store,
+                object : ViewModelProvider.Factory {
+                  @Suppress("UNCHECKED_CAST")
+                  override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                      newViewModel(userInterestsRepository) as T
                 },
-            )
-        viewModel.startDiscovery()
+            )[LoadingViewModel::class.java]
+        // The user leaves the moment the guide is shown, which clears the ViewModel.
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+          viewModel.navigationEvents.first()
+          store.clear()
+        }
 
-        // The guide is shown while the save is still preparing the photo.
-        advanceUntilIdle()
-        viewModel.onDiscoverySuccess(guide)
-        photoGate.complete(Unit)
+        viewModel.startDiscovery()
         advanceUntilIdle()
 
         assertEquals(1, savedGuides.guides.value.size)
+      }
+
+  @Test
+  fun photoIsPreparedWhileWaitingForTheGuide() =
+      runTest(dispatcher) {
+        val guideGate = CompletableDeferred<MonumentGuide>()
+        coEvery { repository.guideFor(request) } coAnswers { guideGate.await() }
+        viewModel()
+
+        // runCurrent, not advanceUntilIdle, which would run past the discovery timeout.
+        runCurrent()
+        assertEquals(listOf(image), preparedImages)
+        assertTrue(savedGuides.guides.value.isEmpty())
+
+        guideGate.complete(guide())
+        advanceUntilIdle()
+        assertEquals(1, savedGuides.guides.value.size)
+        assertEquals(listOf(image), preparedImages)
       }
 
   @Test
@@ -492,8 +509,8 @@ class LoadingViewModelTest {
 
         advanceUntilIdle()
 
+        // The photo may already be prepared, since that runs alongside the discovery.
         assertTrue(savedGuides.guides.value.isEmpty())
-        assertTrue(preparedImages.isEmpty())
       }
 
   @Test

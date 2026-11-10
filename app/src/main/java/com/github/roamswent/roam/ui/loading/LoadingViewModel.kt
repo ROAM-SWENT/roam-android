@@ -26,8 +26,10 @@ import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -135,6 +137,8 @@ class LoadingViewModel(
     discoveryJob = viewModelScope.launch {
       try {
         val image = readImage(imageUri)
+        // Shrink the photo while the AI works, so the save can start before the guide is shown.
+        val savedPhoto = async { preparePhotoForSave(image) }
         val guide =
             withTimeout(DISCOVERY_TIMEOUT_MILLIS) {
               repository.guideFor(
@@ -145,8 +149,9 @@ class LoadingViewModel(
                   )
               )
             }
+        val photo = savedPhoto.await()
         if (navigationClaimed.compareAndSet(false, true)) {
-          saveToCollection(guide, image)
+          saveToCollection(guide, photo)
           _navigationEvents.trySend(
               LoadingNavigationEvent.NavigateToMonumentDetail(guide, imageUri.toString())
           )
@@ -165,16 +170,28 @@ class LoadingViewModel(
     }
   }
 
+  /** A failed preparation must not prevent showing the guide, so it is returned as a failure. */
+  private suspend fun preparePhotoForSave(image: ImagePayload): Result<ByteArray> =
+      try {
+        Result.success(preparePhoto(image))
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Result.failure(exception)
+      }
+
   /**
    * Saves [guide] in its own coroutine: [discoveryJob] is cancelled as soon as the guide is shown,
-   * and a failed save must not prevent showing it.
+   * and a failed save must not prevent showing it. The coroutine starts undispatched, so the write
+   * is issued before the guide is shown: leaving the screen then only cancels waiting for the
+   * repository's confirmation, not the write itself.
    */
-  private fun saveToCollection(guide: MonumentGuide, image: ImagePayload) {
+  private fun saveToCollection(guide: MonumentGuide, photo: Result<ByteArray>) {
     val discoveryDate = clock()
-    viewModelScope.launch {
+    viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
         _saveError.value = null
-        savedGuideRepository.addGuide(guide.toSavedGuide(preparePhoto(image), discoveryDate))
+        savedGuideRepository.addGuide(guide.toSavedGuide(photo.getOrThrow(), discoveryDate))
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {

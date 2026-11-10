@@ -446,7 +446,7 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
-    // The save resumes on the main looper after preparing the photo off the main thread.
+    // The photo is prepared off the main thread, so the looper may need to run before the save.
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
       shadowOf(Looper.getMainLooper()).idle()
       savedGuides.guides.value.isNotEmpty()
