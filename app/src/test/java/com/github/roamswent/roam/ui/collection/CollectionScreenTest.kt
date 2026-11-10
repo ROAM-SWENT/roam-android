@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
 import coil.ImageLoader
@@ -463,6 +464,115 @@ class CollectionScreenTest {
     assertEquals(1, reported)
   }
 
+  @Test
+  fun searchBarRendersWithPlaceholderWhenGuidesExist() {
+    setScreen(SavedGuidesUiState(guides = listOf(olderGuide)))
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_bar).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText("Search your collection", useUnmergedTree = true)
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun typingInSearchBarFiltersGuideGridLive() {
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(olderGuide, newerGuide)))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = state,
+            onSearchQueryChange = { state = state.copy(searchQuery = it) },
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(2)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_bar).performTextInput("Eiffel")
+
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_name, useUnmergedTree = true)
+        .assertTextEquals("Eiffel Tower")
+  }
+
+  @Test
+  fun noMatchesStateAppearsWhenGuidesExistAndNonBlankQueryHasNoMatches() {
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide, newerGuide), searchQuery = "UnknownMonument")
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_no_matches).assertIsDisplayed()
+    composeTestRule.onNodeWithText("No matches").assertIsDisplayed()
+    composeTestRule.onNodeWithText("No monument matches your search.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_favorites_empty).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_grid).assertDoesNotExist()
+  }
+
+  @Test
+  fun noMatchesStateDoesNotAppearWhenCollectionIsFullyEmptyOrFavoritesEmpty() {
+    var state by
+        mutableStateOf(SavedGuidesUiState(guides = emptyList(), searchQuery = "UnknownMonument"))
+    composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_no_matches).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_bar).assertDoesNotExist()
+
+    state =
+        SavedGuidesUiState(
+            guides = listOf(olderGuide),
+            showFavoritesOnly = true,
+            searchQuery = "",
+        )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_favorites_empty).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_no_matches).assertDoesNotExist()
+  }
+
+  @Test
+  fun clearButtonAppearsWhenQueryIsNotEmptyAndResetsQuery() {
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(olderGuide), searchQuery = ""))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = state,
+            onSearchQueryChange = { state = state.copy(searchQuery = it) },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_clear_button).assertDoesNotExist()
+
+    state = state.copy(searchQuery = "Colosseum")
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_clear_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_clear_button).performClick()
+
+    assertEquals("", state.searchQuery)
+  }
+
+  @Test
+  fun searchBarCapsInputAt40CharactersAndDropsLongerInput() {
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(olderGuide), searchQuery = ""))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = state,
+            onSearchQueryChange = { state = state.copy(searchQuery = it) },
+        )
+      }
+    }
+
+    val fortyChars = "a".repeat(40)
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_bar).performTextInput(fortyChars)
+    assertEquals(fortyChars, state.searchQuery)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_bar).performTextInput("b")
+    assertEquals(fortyChars, state.searchQuery)
+  }
+
   private fun guideWithPhoto(photoBytes: ByteArray) = newerGuide.copy(photoBytes = photoBytes)
 
   private fun waitForTag(tag: String) {
@@ -490,6 +600,7 @@ class CollectionScreenTest {
       onRestoreFavorite: (String) -> Unit = {},
       onFavoriteErrorShown: () -> Unit = {},
       onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
+      onSearchQueryChange: (String) -> Unit = {},
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -500,6 +611,7 @@ class CollectionScreenTest {
             onRestoreFavorite = onRestoreFavorite,
             onFavoriteErrorShown = onFavoriteErrorShown,
             onShowFavoritesOnlyChange = onShowFavoritesOnlyChange,
+            onSearchQueryChange = onSearchQueryChange,
         )
       }
     }

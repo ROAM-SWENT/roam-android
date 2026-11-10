@@ -462,4 +462,28 @@ class SavedGuidesViewModelTest {
         assertFalse(viewModel.uiState.value.isSavingGuide)
         assertTrue(viewModel.uiState.value.guides.isEmpty())
       }
+
+  @Test
+  fun searchQueryDefaultsToEmpty() {
+    val viewModel = SavedGuidesViewModel(repository)
+    assertEquals("", viewModel.uiState.value.searchQuery)
+  }
+
+  @Test
+  fun onSearchQueryChangeUpdatesStateWithoutDisturbingGuidesOrFavorites() =
+      runTest(dispatcher) {
+        val favoriteGuide = guide.copy(isFavorite = true)
+        val snapshots = MutableStateFlow(listOf(favoriteGuide))
+        every { repository.observeSavedGuides() } returns snapshots
+        val viewModel = SavedGuidesViewModel(repository)
+        viewModel.setShowFavoritesOnly(true)
+        viewModel.loadSavedGuides()
+        runCurrent()
+
+        viewModel.onSearchQueryChange("Eiffel")
+
+        assertEquals("Eiffel", viewModel.uiState.value.searchQuery)
+        assertEquals(listOf(favoriteGuide), viewModel.uiState.value.guides)
+        assertTrue(viewModel.uiState.value.showFavoritesOnly)
+      }
 }
