@@ -136,7 +136,7 @@
     <string name="scan_frame_hint">Cadrez le monument</string>
     <string name="settings_logout_successful">Déconnexion réussie</string>
     <string name="settings_profile_default_name">Voyageur</string>
-    <string name="settings_theme_auto">Automatique</string>
+    <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Clair</string>
     <string name="settings_theme_dark">Sombre</string>
     <string name="settings_camera_permission">Autorisation de l\'appareil photo</string>
