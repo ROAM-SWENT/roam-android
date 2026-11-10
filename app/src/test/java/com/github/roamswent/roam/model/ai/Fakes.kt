@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -27,8 +28,12 @@ class FakeImageScreen(vararg replies: () -> ScreenVerdict) : ImageScreen {
 }
 
 class FakeLocationProvider(private val coordinates: Coordinates?) : LocationProvider {
+  var calls = 0
 
-  override suspend fun currentCoordinates(): Coordinates? = coordinates
+  override suspend fun currentCoordinates(): Coordinates? {
+    calls++
+    return coordinates
+  }
 }
 
 fun reply(text: String): () -> String = { text }

@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.ui.loading
 
@@ -17,12 +18,15 @@ import com.github.roamswent.roam.model.ai.RejectedImageException
 import com.github.roamswent.roam.model.ai.RejectionReason
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
+import com.github.roamswent.roam.model.location.Coordinates
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -37,7 +41,9 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -54,6 +60,14 @@ class LoadingViewModelTest {
   private val image = ImagePayload(byteArrayOf(1), "image/jpeg")
   private val request = DiscoveryRequest(image, null, UserPreferences("fr-FR"))
   private var imageReads = 0
+  private val savedGuides = FakeSavedGuideRepository()
+  private val preparedPhoto = byteArrayOf(9, 8, 7)
+  private val preparedImages = mutableListOf<ImagePayload>()
+  private val preparePhoto: suspend (ImagePayload) -> ByteArray = {
+    preparedImages += it
+    preparedPhoto
+  }
+  private val discoveryDate = 1_700_000_000_000L
   private val readImage: suspend (Uri) -> ImagePayload = {
     check(it == uri)
     imageReads++
@@ -135,6 +149,8 @@ class LoadingViewModelTest {
                 uri,
                 "fr-FR",
                 userInterestsRepository,
+                savedGuides,
+                preparePhoto,
             )
         viewModel.startDiscovery()
 
@@ -361,7 +377,152 @@ class LoadingViewModelTest {
       }
 
   private fun newViewModel(interestsRepository: UserInterestsRepository) =
-      LoadingViewModel(repository, readImage, uri, "fr-FR", interestsRepository)
+      LoadingViewModel(
+          repository,
+          readImage,
+          uri,
+          "fr-FR",
+          interestsRepository,
+          savedGuides,
+          preparePhoto,
+          clock = { discoveryDate },
+      )
+
+  @Test
+  fun successfulDiscoveryIsSavedToCollection() =
+      runTest(dispatcher) {
+        val location = Coordinates(41.8902, 12.4922)
+        coEvery { repository.guideFor(request) } returns guide().copy(location = location)
+        val viewModel = viewModel()
+        val event = async { viewModel.navigationEvents.first() }
+
+        advanceUntilIdle()
+
+        val saved = savedGuides.guides.value.single()
+        assertEquals("The Colosseum", saved.monumentName)
+        assertEquals(0.98, saved.confidence, 0.0)
+        assertEquals("Built in ancient Rome.", saved.history)
+        assertEquals(listOf("It could hold tens of thousands of spectators."), saved.facts)
+        assertEquals("A symbol of Rome.", saved.culture)
+        assertEquals(location, saved.location)
+        assertEquals(discoveryDate, saved.discoveryDate)
+        assertEquals(false, saved.isFavorite)
+        assertArrayEquals(preparedPhoto, saved.photoBytes)
+        assertEquals(listOf(image), preparedImages)
+        assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
+        assertNull(viewModel.saveError.value)
+      }
+
+  @Test
+  fun showingTheGuideDoesNotCancelTheSave() =
+      runTest(dispatcher) {
+        val guide = guide()
+        val photoGate = CompletableDeferred<Unit>()
+        coEvery { repository.guideFor(request) } returns guide
+        val viewModel =
+            LoadingViewModel(
+                repository,
+                readImage,
+                uri,
+                "fr-FR",
+                userInterestsRepository,
+                savedGuides,
+                preparePhoto = {
+                  photoGate.await()
+                  preparedPhoto
+                },
+            )
+        viewModel.startDiscovery()
+
+        // The guide is shown while the save is still preparing the photo.
+        advanceUntilIdle()
+        viewModel.onDiscoverySuccess(guide)
+        photoGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1, savedGuides.guides.value.size)
+      }
+
+  @Test
+  fun failedSaveStillShowsGuideAndExposesError() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("A signed-in user is required")
+        savedGuides.addError = failure
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+        val event = async { viewModel.navigationEvents.first() }
+
+        advanceUntilIdle()
+
+        assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
+        assertEquals(failure, viewModel.saveError.value)
+        assertEquals(LoadingUiState.Loading, viewModel.uiState.value)
+      }
+
+  @Test
+  fun failedPhotoPreparationIsExposedAsSaveError() =
+      runTest(dispatcher) {
+        val failure = RejectedImageException(RejectionReason.Undecodable)
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel =
+            LoadingViewModel(
+                repository,
+                readImage,
+                uri,
+                "fr-FR",
+                userInterestsRepository,
+                savedGuides,
+                preparePhoto = { throw failure },
+            )
+        viewModel.startDiscovery()
+        val event = async { viewModel.navigationEvents.first() }
+
+        advanceUntilIdle()
+
+        assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
+        assertEquals(failure, viewModel.saveError.value)
+        assertTrue(savedGuides.guides.value.isEmpty())
+      }
+
+  @Test
+  fun failedDiscoverySavesNothing() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } throws MonumentNotIdentifiedException()
+        viewModel()
+
+        advanceUntilIdle()
+
+        assertTrue(savedGuides.guides.value.isEmpty())
+        assertTrue(preparedImages.isEmpty())
+      }
+
+  @Test
+  fun cancelledDiscoverySavesNothing() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+
+        viewModel.onCancel()
+        advanceUntilIdle()
+
+        assertTrue(savedGuides.guides.value.isEmpty())
+      }
+
+  @Test
+  fun retryAfterFailedSaveClearsTheError() =
+      runTest(dispatcher) {
+        savedGuides.addError = IllegalStateException("offline")
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        savedGuides.addError = null
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        assertNull(viewModel.saveError.value)
+        assertEquals(1, savedGuides.guides.value.size)
+      }
 
   private class FakeUserInterestsRepository(
       private var hasBeenAsked: Boolean = true,

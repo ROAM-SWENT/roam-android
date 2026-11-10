@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.ui.scan
 
@@ -21,6 +22,8 @@ import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
 import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
@@ -31,6 +34,7 @@ import com.github.roamswent.roam.ui.loading.LoadingViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ScanReviewRoute(
@@ -38,6 +42,7 @@ fun ScanReviewRoute(
     uri: Uri,
     captureSenderOverride: CaptureSender? = null,
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
+    savedGuideRepositoryOverride: SavedGuideRepository? = null,
     isGalleryImage: Boolean = false,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
@@ -47,6 +52,10 @@ fun ScanReviewRoute(
       remember(context.applicationContext, userInterestsRepositoryOverride) {
         userInterestsRepositoryOverride
             ?: SharedPreferencesUserInterestsRepository(context.applicationContext)
+      }
+  val savedGuideRepository =
+      remember(savedGuideRepositoryOverride) {
+        savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
       }
   val captureSender: CaptureSender =
       remember(context, captureSenderOverride) {
@@ -86,6 +95,13 @@ fun ScanReviewRoute(
             uri,
             Locale.getDefault().toLanguageTag(),
             userInterestsRepository,
+            savedGuideRepository,
+            preparePhoto = { image ->
+              // Same downscaled JPEG as sent to the AI, so the saved guide fits in one document.
+              withContext(Dispatchers.Default) {
+                ImagePreparer().prepare(image.bytes, image.mimeType).bytes
+              }
+            },
         )
       }
   val showLoading by loadingViewModel.showLoading.collectAsState()

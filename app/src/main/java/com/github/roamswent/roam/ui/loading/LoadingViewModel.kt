@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.ui.loading
 
@@ -19,6 +20,8 @@ import com.github.roamswent.roam.model.ai.ParseException
 import com.github.roamswent.roam.model.ai.RejectedImageException
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.toSavedGuide
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -47,12 +50,19 @@ sealed interface LoadingNavigationEvent {
   data object NavigateHome : LoadingNavigationEvent
 }
 
+/**
+ * Runs the discovery for [imageUri]. Every successful discovery is also saved to
+ * [savedGuideRepository], with the photo shrunk by [preparePhoto] and [clock] as discovery date.
+ */
 class LoadingViewModel(
     private val repository: MonumentGuideRepository,
     private val readImage: suspend (Uri) -> ImagePayload,
     private val imageUri: Uri,
     private val language: String,
     private val userInterestsRepository: UserInterestsRepository,
+    private val savedGuideRepository: SavedGuideRepository,
+    private val preparePhoto: suspend (ImagePayload) -> ByteArray,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
   private val _showLoading = MutableStateFlow(false)
   val showLoading: StateFlow<Boolean> = _showLoading.asStateFlow()
@@ -62,6 +72,10 @@ class LoadingViewModel(
 
   private val _discoveredGuide = MutableStateFlow<MonumentGuide?>(null)
   val discoveredGuide: StateFlow<MonumentGuide?> = _discoveredGuide.asStateFlow()
+
+  private val _saveError = MutableStateFlow<Exception?>(null)
+  /** Failure from the most recent attempt to save a discovered guide to the collection. */
+  val saveError: StateFlow<Exception?> = _saveError.asStateFlow()
 
   private val _uiState = MutableStateFlow<LoadingUiState>(LoadingUiState.Loading)
   val uiState: StateFlow<LoadingUiState> = _uiState.asStateFlow()
@@ -132,6 +146,7 @@ class LoadingViewModel(
               )
             }
         if (navigationClaimed.compareAndSet(false, true)) {
+          saveToCollection(guide, image)
           _navigationEvents.trySend(
               LoadingNavigationEvent.NavigateToMonumentDetail(guide, imageUri.toString())
           )
@@ -146,6 +161,24 @@ class LoadingViewModel(
       } catch (exception: Exception) {
         _uiState.value = LoadingUiState.Error(userMessageResId(exception))
         resetDiscovery()
+      }
+    }
+  }
+
+  /**
+   * Saves [guide] in its own coroutine: [discoveryJob] is cancelled as soon as the guide is shown,
+   * and a failed save must not prevent showing it.
+   */
+  private fun saveToCollection(guide: MonumentGuide, image: ImagePayload) {
+    val discoveryDate = clock()
+    viewModelScope.launch {
+      try {
+        _saveError.value = null
+        savedGuideRepository.addGuide(guide.toSavedGuide(preparePhoto(image), discoveryDate))
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _saveError.value = exception
       }
     }
   }

@@ -32,6 +32,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.repository.CaptureSender
@@ -45,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -200,6 +203,7 @@ class ScanReviewScreenTest {
             ScanReviewRoute(
                 navController = navController,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
+                savedGuideRepositoryOverride = FakeSavedGuideRepository(),
             )
           }
         }
@@ -427,6 +431,33 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteSuccessSavesDiscoveryToCollection() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    val fixture =
+        javaClass.getResourceAsStream("/fixtures/eiffel_landscape_2000x1333.jpg")!!.use {
+          it.readBytes()
+        }
+    showReviewRoute(sender, savedGuideRepository = savedGuides, photoBytes = fixture)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    // The save resumes on the main looper after preparing the photo off the main thread.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      shadowOf(Looper.getMainLooper()).idle()
+      savedGuides.guides.value.isNotEmpty()
+    }
+    val saved = savedGuides.guides.value.single()
+    assertEquals(guide.monumentName, saved.monumentName)
+    // The saved photo is the downscaled JPEG, not the 2000 px original.
+    assertTrue(saved.photoBytes.isNotEmpty() && saved.photoBytes.size < fixture.size)
+  }
+
+  @Test
   fun reviewRouteSystemBackFromGuideReturnsHome() {
     val sender =
         object : CaptureSender {
@@ -495,6 +526,8 @@ class ScanReviewScreenTest {
       captureSender: CaptureSender,
       userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
       isGalleryImage: Boolean = false,
+      savedGuideRepository: SavedGuideRepository = FakeSavedGuideRepository(),
+      photoBytes: ByteArray? = null,
   ) {
     val photo =
         File.createTempFile(
@@ -504,7 +537,10 @@ class ScanReviewScreenTest {
         )
     val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
-    photo.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it) }
+    photo.outputStream().use { output ->
+      if (photoBytes != null) output.write(photoBytes)
+      else bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output)
+    }
 
     bitmap.recycle()
     photoFile = photo
@@ -524,6 +560,7 @@ class ScanReviewScreenTest {
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
+                savedGuideRepositoryOverride = savedGuideRepository,
                 isGalleryImage = isGalleryImage,
             )
           }

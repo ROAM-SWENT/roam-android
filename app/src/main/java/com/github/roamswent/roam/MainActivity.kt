@@ -311,6 +311,7 @@ internal fun RoamApp(
               navController,
               uri,
               captureSenderOverride,
+              savedGuideRepositoryOverride = savedGuideRepositoryOverride,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
