@@ -1146,7 +1146,30 @@ class MainActivityNavigationTest {
       controller.pause().stop().destroy()
     }
   }
+  @Test
+  fun usernameRegistrationTrimsWhitespaceBeforeSubmission() {
+    val repository = TestPublicProfileRepository(initialProfile = null)
+    renderApp(
+      MutableStateFlow(AuthUIState(user = mock())),
+      publicProfileRepositoryOverride = repository,
+    )
 
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+
+    composeTestRule
+      .onNodeWithTag(C.Tag.register_profile_username)
+      .performTextInput("  Michael_Jordan     ")
+
+    composeTestRule
+      .onNodeWithTag(C.Tag.register_profile_submit)
+      .performClick()
+
+    composeTestRule.waitUntil {
+      repository.registeredUsername != null
+    }
+
+    assertEquals("Michael_Jordan", repository.registeredUsername)
+  }
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
     return checkNotNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }

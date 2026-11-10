@@ -190,6 +190,44 @@ class RegisterProfileViewModelTest {
         )
         assertEquals(failure.localizedMessage, viewModel.uiState.value.errorMessage)
       }
+    @Test
+    fun resetCancelsInFlightProfileCheck() =
+        runTest(dispatcher) {
+            val result = CompletableDeferred<PublicProfile?>()
+            val repository = BlockingPublicProfileRepository(result)
+            val viewModel = RegisterProfileViewModel(repository)
+
+            viewModel.checkCurrentProfile()
+            runCurrent()
+
+            viewModel.reset()
+            result.complete(PublicProfile("userA", "Michael_Jordan"))
+            advanceUntilIdle()
+
+            assertEquals(
+                ProfileRegistrationStatus.UNKNOWN,
+                viewModel.uiState.value.status,
+            )
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun registerUsername_trimsSurroundingWhitespace() =
+        runTest(dispatcher) {
+            whenever(repository.getCurrentProfile()).thenReturn(null)
+            whenever(repository.registerUsername("traveler"))
+                .thenReturn(PublicProfile("uid", "traveler"))
+
+            val viewModel = RegisterProfileViewModel(repository)
+
+            viewModel.checkCurrentProfile()
+            advanceUntilIdle()
+
+            viewModel.registerUsername("  traveler  ")
+            advanceUntilIdle()
+
+            verify(repository).registerUsername("traveler")
+        }
 
   private class BlockingPublicProfileRepository(
       private val result: CompletableDeferred<PublicProfile?>
