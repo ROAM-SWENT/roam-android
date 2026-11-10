@@ -163,6 +163,42 @@ class CollectionSearchTest {
   }
 
   @Test
+  fun numericQuerySkipsTier2FuzzyMatchingButMatchesExactTier1() {
+    val guide2024 = colosseum.copy(discoveryDate = 1_732_000_000_000L)
+    assertFalse(matchesTier2Word("2026", "2024"))
+    assertFalse(matchesTier2Word("2024", "2026"))
+    assertEquals(
+        listOf(eiffelTower),
+        visibleGuides(listOf(eiffelTower, guide2024), false, "2026"),
+    )
+    assertEquals(
+        listOf(guide2024),
+        visibleGuides(listOf(eiffelTower, guide2024), false, "2024"),
+    )
+  }
+
+  @Test
+  fun alphabeticQueryPreservesTier2FuzzyMatchingThresholds() {
+    assertTrue(matchesTier2Word("eifle", "Eiffel"))
+    assertEquals(
+        listOf(eiffelTower),
+        visibleGuides(listOf(eiffelTower, colosseum), false, "eifle"),
+    )
+    assertTrue(matchesTier2Word("twer", "tower"))
+    assertTrue(matchesTier2Word("towab", "tower"))
+  }
+
+  @Test
+  fun mixedAlphanumericQueryContainingDigitSkipsTier2FuzzyMatching() {
+    val tourGuide = colosseum.copy(history = "Official tour2025 celebration")
+    assertFalse(matchesTier2Word("tour2026", "tour2025"))
+    assertFalse(matchesTier2Word("eiffel1", "eiffel2"))
+    assertFalse(matchesTier2Word("eiffel1", "eiffel"))
+    assertTrue(visibleGuides(listOf(tourGuide), false, "tour2026").isEmpty())
+    assertEquals(listOf(tourGuide), visibleGuides(listOf(tourGuide), false, "tour2025"))
+  }
+
+  @Test
   fun favoritesOnlyWithQueryFiltersWithinFavoritesOnly() {
     val favoriteEiffel = eiffelTower.copy(isFavorite = true)
     val favoriteColosseum = colosseum.copy(isFavorite = true)
