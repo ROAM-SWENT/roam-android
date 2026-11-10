@@ -25,7 +25,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -41,6 +43,8 @@ import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
@@ -69,6 +73,7 @@ import org.mockito.kotlin.whenever
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
 class MainActivityNavigationTest {
@@ -141,10 +146,104 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun authenticatedUserWithoutPublicProfileMustRegisterBeforeLocationPermission() {
+    val repository = TestPublicProfileRepository(initialProfile = null)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+
+    registerProfileAndContinue(repository)
+  }
+
+  @Test
+  fun successfulSignInWithoutPublicProfileMustRegisterBeforeLocationPermission() {
+    val repository = TestPublicProfileRepository(initialProfile = null)
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState, publicProfileRepositoryOverride = repository)
+
+    authState.value = AuthUIState(user = mock())
+
+    registerProfileAndContinue(repository)
+  }
+
+  @Test
+  fun profileCheckFailureShowsLocalizedFallbackToast() {
+    val repository = TestPublicProfileRepository(profileCheckFailure = Exception())
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+    val expectedMessage = composeTestRule.activity.getString(R.string.register_profile_check_error)
+
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == expectedMessage }
+
+    assertEquals(expectedMessage, ShadowToast.getTextOfLatestToast())
+  }
+
+  @Test
+  fun profileCheckFailureShowsRepositoryMessageToast() {
+    val failureMessage = "Unable to check profile"
+    val repository =
+        TestPublicProfileRepository(
+            profileCheckFailure = IllegalStateException(failureMessage),
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == failureMessage }
+
+    assertEquals(failureMessage, ShadowToast.getTextOfLatestToast())
+  }
+
+  @Test
+  fun usernameRegistrationFailureDisplaysLocalizedFallbackError() {
+    val repository =
+        TestPublicProfileRepository(
+            initialProfile = null,
+            registrationFailure = Exception(""),
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_username).performTextInput("traveler_1")
+    val submitButton = composeTestRule.onNodeWithTag(C.Tag.register_profile_submit)
+    submitButton.performClick()
+
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.register_profile_error))
+        .assertIsDisplayed()
+
+    repository.registrationFailure = IllegalStateException("That username is already taken.")
+    submitButton.performClick()
+    composeTestRule.onNodeWithText("That username is already taken.").assertIsDisplayed()
+  }
+
+  private fun registerProfileAndContinue(repository: TestPublicProfileRepository) {
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    waitForGone(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_username).performTextInput("traveler_1")
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).performClick()
+
+    val request = waitForLocationPermissionRequest()
+    assertEquals("traveler_1", repository.registeredUsername)
+    waitForGone(C.Tag.home_screen_container)
+    dispatchLocationPermissionResult(request, granted = true)
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+  }
+
+  @Test
   fun signInClickOverrideRunsAndNavigatesToHome() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authViewModel = mock<SignInViewModel>()
-    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+    val authState = MutableStateFlow(AuthUIState())
+    whenever(authViewModel.uiState).thenReturn(authState)
     var signInClickCount = 0
 
     composeTestRule.activity.setContent {
@@ -152,6 +251,7 @@ class MainActivityNavigationTest {
         RoamApp(
             authViewModel = authViewModel,
             onSignInClickOverride = { signInClickCount++ },
+            publicProfileRepositoryOverride = TestPublicProfileRepository(),
         )
       }
     }
@@ -159,6 +259,9 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
 
     assertEquals(1, signInClickCount)
+    composeTestRule.waitForIdle()
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    authState.value = AuthUIState(user = mock())
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
@@ -996,7 +1099,13 @@ class MainActivityNavigationTest {
       val controller = rememberNavController()
       SideEffect { navController = controller }
 
-      SampleAppTheme { RoamApp(authViewModel, controller) }
+      SampleAppTheme {
+        RoamApp(
+            authViewModel,
+            controller,
+            publicProfileRepositoryOverride = TestPublicProfileRepository(),
+        )
+      }
     }
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
@@ -1040,6 +1149,27 @@ class MainActivityNavigationTest {
     } finally {
       controller.pause().stop().destroy()
     }
+  }
+
+  @Test
+  fun usernameRegistrationTrimsWhitespaceBeforeSubmission() {
+    val repository = TestPublicProfileRepository(initialProfile = null)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.register_profile_username)
+        .performTextInput("  Michael_Jordan     ")
+
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).performClick()
+
+    composeTestRule.waitUntil { repository.registeredUsername != null }
+
+    assertEquals("Michael_Jordan", repository.registeredUsername)
   }
 
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
@@ -1241,6 +1371,7 @@ class MainActivityNavigationTest {
       settingsViewModel: SettingsViewModel? = null,
       savedGuideRepository: FakeSavedGuideRepository? = null,
       isOnlineOverride: Boolean? = true,
+      publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
@@ -1263,9 +1394,38 @@ class MainActivityNavigationTest {
             settingsViewModel = settingsViewModel,
             savedGuideRepositoryOverride = savedGuideRepository,
             isOnlineOverride = isOnlineOverride,
+            publicProfileRepositoryOverride = publicProfileRepositoryOverride,
         )
       }
     }
+  }
+
+  private class TestPublicProfileRepository(
+      initialProfile: PublicProfile? = PublicProfile("test-user", "test_user"),
+      private val profileCheckFailure: Exception? = null,
+      var registrationFailure: Exception? = null,
+  ) : PublicProfileRepository {
+    private var profile = initialProfile
+    var registeredUsername: String? = null
+      private set
+
+    override suspend fun getCurrentProfile(): PublicProfile? {
+      profileCheckFailure?.let { throw it }
+      return profile
+    }
+
+    override suspend fun getProfile(uid: String): PublicProfile? = null
+
+    override suspend fun registerUsername(username: String): PublicProfile {
+      registrationFailure?.let { throw it }
+      registeredUsername = username
+      return PublicProfile("test-user", username).also { profile = it }
+    }
+
+    override suspend fun renameUsername(username: String): PublicProfile =
+        error("Not used in navigation tests")
+
+    override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
   }
 
   private fun dispatchCameraPermissionResult() = dispatchCameraPermissionResult(permissionRequest())

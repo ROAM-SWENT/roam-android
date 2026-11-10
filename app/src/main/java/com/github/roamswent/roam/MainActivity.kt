@@ -8,6 +8,7 @@ package com.github.roamswent.roam
 
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -21,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
@@ -47,6 +50,8 @@ import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
+import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
@@ -72,6 +77,9 @@ import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
 import com.github.roamswent.roam.ui.permission.rememberLocationPermissionController
 import com.github.roamswent.roam.ui.permission.rememberNotificationPermissionController
+import com.github.roamswent.roam.ui.profile.ProfileRegistrationStatus
+import com.github.roamswent.roam.ui.profile.RegisterProfileScreen
+import com.github.roamswent.roam.ui.profile.RegisterProfileViewModel
 import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.settings.SettingsScreen
@@ -135,8 +143,22 @@ internal fun RoamApp(
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
+    publicProfileRepositoryOverride: PublicProfileRepository? = null,
 ) {
   val context = LocalContext.current
+  val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
+  // Configure the shared Firestore instance before profile lookups can start it.
+  val publicProfileRepository = remember {
+    publicProfileRepositoryOverride ?: FirestorePublicProfileRepository()
+  }
+  val registerProfileViewModel: RegisterProfileViewModel = viewModel {
+    RegisterProfileViewModel(publicProfileRepository)
+  }
+  val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()
+  val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
+  LaunchedEffect(authUiState.user) {
+    if (authUiState.user == null) registerProfileViewModel.reset()
+  }
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
   val runOfflineAction = rememberOfflineActionGate(isOnline)
   // One instance shared by the collection and the scan flow, so both use the same repository.
@@ -185,6 +207,43 @@ internal fun RoamApp(
   }
   val permissionState by permissionController.state.collectAsState()
   val currentBackStackEntry by navController.currentBackStackEntryAsState()
+  LaunchedEffect(
+      profileUiState.status,
+      profileUiState.errorMessage,
+      currentBackStackEntry?.destination?.route,
+  ) {
+    when (profileUiState.status) {
+      ProfileRegistrationStatus.REGISTRATION_REQUIRED -> {
+        if (currentBackStackEntry?.destination?.route != Routes.RegisterProfile) {
+          navController.navigate(Routes.RegisterProfile)
+        }
+      }
+      ProfileRegistrationStatus.REGISTERED -> {
+        if (
+            currentBackStackEntry?.destination?.route == Routes.SignIn ||
+                currentBackStackEntry?.destination?.route == Routes.RegisterProfile
+        ) {
+          if (
+              locationPermissionController.state.value.decision ==
+                  LocationPermissionDecision.NOT_ASKED
+          ) {
+            locationPermissionController.requestPermission()
+          } else {
+            requestNotificationPermission()
+          }
+        }
+      }
+      ProfileRegistrationStatus.ERROR -> {
+        Toast.makeText(
+                context,
+                profileUiState.errorMessage ?: profileCheckErrorMessage,
+                Toast.LENGTH_LONG,
+            )
+            .show()
+      }
+      else -> Unit
+    }
+  }
   val currentDestination =
       when (currentBackStackEntry?.destination?.route) {
         Routes.Friends -> DockDestination.FRIENDS
@@ -258,28 +317,13 @@ internal fun RoamApp(
   ) {
     NavHost(navController = navController, startDestination = Routes.SignIn) {
       composable(Routes.SignIn) {
-        val onSignedIn = {
-          if (
-              locationPermissionController.state.value.decision ==
-                  LocationPermissionDecision.NOT_ASKED
-          ) {
-            locationPermissionController.requestPermission()
-          } else {
-            requestNotificationPermission()
-          }
-        }
         SignInScreen(
             authViewModel = authViewModel,
-            onSignedIn = onSignedIn,
-            onSignInClickOverride =
-                onSignInClickOverride?.let { signIn ->
-                  {
-                    signIn()
-                    onSignedIn()
-                  }
-                },
+            onSignedIn = registerProfileViewModel::checkCurrentProfile,
+            onSignInClickOverride = onSignInClickOverride,
         )
       }
+      composable(Routes.RegisterProfile) { RegisterProfileScreen(registerProfileViewModel) }
       composable(Routes.Home) {
         val homeViewModel: HomeViewModel = viewModel()
         val userName by homeViewModel.userName.collectAsState()
@@ -343,6 +387,7 @@ internal fun RoamApp(
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
                 authViewModel.clearSignedInUser()
+                registerProfileViewModel.reset()
                 navController.clearSavedUserNavigation()
                 navController.navigate(Routes.SignIn) {
                   popUpTo(navController.graph.id) { inclusive = true }

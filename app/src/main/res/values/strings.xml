@@ -7,6 +7,11 @@
     <string name="sign_in_terms">By continuing, you agree to the Terms of Service.</string>
     <string name="sign_in_logo_description">Roam logo</string>
     <string name="sign_in_success">Login successful!</string>
+    <string name="register_profile_title">Choose a username</string>
+    <string name="register_profile_username_label">Username</string>
+    <string name="register_profile_submit">Continue</string>
+    <string name="register_profile_error">Couldn’t register your username. Please try again.</string>
+    <string name="register_profile_check_error">Couldn’t load your profile. Please try signing in again.</string>
     <string name="loading_title">Analyzing…</string>
     <string name="loading_subtitle">Identifying your monument.</string>
     <string name="loading_cancel">Cancel</string>

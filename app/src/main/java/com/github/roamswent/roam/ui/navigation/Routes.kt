@@ -4,6 +4,7 @@ package com.github.roamswent.roam.ui.navigation
 
 object Routes {
   const val SignIn = "sign_in"
+  const val RegisterProfile = "register_profile"
   const val Home = "home"
   const val Explore = "explore"
   const val Scan = "scan"
