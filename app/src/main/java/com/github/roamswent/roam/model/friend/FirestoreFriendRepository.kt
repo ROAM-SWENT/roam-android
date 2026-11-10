@@ -2,6 +2,7 @@
 
 package com.github.roamswent.roam.model.friend
 
+import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
@@ -11,7 +12,7 @@ import kotlinx.coroutines.tasks.await
 
 /** Firestore-backed friend requests and friendships, with one document per UID pair. */
 class FirestoreFriendRepository(
-    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val firestore: FirebaseFirestore = RoamFirestore.instance,
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
 ) : FriendRepository {
 
