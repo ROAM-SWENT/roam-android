@@ -111,6 +111,7 @@ fun SettingsScreen(
   val notificationPermissionState by notificationPermissionController.state.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
   val logoutSuccessfulMessage = stringResource(R.string.settings_logout_successful)
+  val errorMessage = uiState.errorMsg?.let { stringResource(it) }
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
@@ -122,7 +123,7 @@ fun SettingsScreen(
   }
 
   LaunchedEffect(uiState.errorMsg) {
-    uiState.errorMsg?.let { message ->
+    errorMessage?.let { message ->
       Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
       resolvedSettingsViewModel.clearErrorMsg()
     }

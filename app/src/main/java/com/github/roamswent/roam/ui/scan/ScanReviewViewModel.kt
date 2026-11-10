@@ -2,8 +2,10 @@ package com.github.roamswent.roam.ui.scan
 
 import android.net.Uri
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.BlockedException
 import com.github.roamswent.roam.model.ai.ConfigurationException
 import com.github.roamswent.roam.model.ai.MonumentGuide
@@ -38,7 +40,7 @@ sealed interface ScanReviewUiState {
 
   data class Sent(val uri: Uri, val guide: MonumentGuide) : ScanReviewUiState
 
-  data class SendFailed(val uri: Uri, val message: String) : ScanReviewUiState
+  data class SendFailed(val uri: Uri, @param:StringRes val messageRes: Int) : ScanReviewUiState
 }
 
 sealed interface ScanReviewNavigationEvent {
@@ -162,16 +164,17 @@ class ScanReviewViewModel(
     }
   }
 
-  private fun userMessage(error: Throwable): String =
+  @StringRes
+  private fun userMessage(error: Throwable): Int =
       when (error) {
-        is MonumentNotIdentifiedException -> "No monument was recognized in this photo."
-        is RejectedImageException -> "This photo couldn't be used. Try retaking it."
-        is BlockedException -> "This request was blocked by the safety filter."
-        is NetworkUnavailableException -> "No internet connection. Check your connection and retry."
-        is TransientException -> "The service is busy right now. Please try again."
-        is ParseException -> "The guide couldn't be generated. Please try again."
-        is ConfigurationException -> "The service isn't configured correctly."
-        else -> "Something went wrong. Please try again."
+        is MonumentNotIdentifiedException -> R.string.scan_review_error_not_identified
+        is RejectedImageException -> R.string.scan_review_error_rejected_image
+        is BlockedException -> R.string.scan_review_error_blocked
+        is NetworkUnavailableException -> R.string.scan_review_error_network
+        is TransientException -> R.string.scan_review_error_transient
+        is ParseException -> R.string.scan_review_error_parse
+        is ConfigurationException -> R.string.scan_review_error_configuration
+        else -> R.string.scan_review_error_generic
       }
 
   private companion object {

@@ -6,6 +6,7 @@
 package com.github.roamswent.roam.ui.authentication
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
@@ -21,6 +22,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class AuthError(
+    @param:StringRes val messageRes: Int,
+    val formatArg: String? = null,
+)
+
 /**
  * Represents the UI state for authentication.
  *
@@ -34,7 +40,7 @@ data class AuthUIState(
     val isLoading: Boolean = false,
     val isRestoringSession: Boolean = false,
     val user: FirebaseUser? = null,
-    val errorMsg: String? = null,
+    val errorMsg: AuthError? = null,
     val signOutCompleted: Boolean = false,
 )
 
@@ -114,20 +120,34 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
           _uiState.update {
             it.copy(
                 isLoading = false,
-                errorMsg = failure.localizedMessage,
+                errorMsg =
+                    AuthError(
+                        R.string.sign_in_error_unexpected,
+                        failure.localizedMessage.orEmpty(),
+                    ),
                 user = null,
             )
           }
         }
       } catch (_: GetCredentialCancellationException) {
         // User cancelled the sign-in flow
-        _uiState.update { it.copy(isLoading = false, errorMsg = "Sign-in cancelled", user = null) }
+        _uiState.update {
+          it.copy(
+              isLoading = false,
+              errorMsg = AuthError(R.string.sign_in_error_cancelled),
+              user = null,
+          )
+        }
       } catch (e: androidx.credentials.exceptions.GetCredentialException) {
         // Other credential errors
         _uiState.update {
           it.copy(
               isLoading = false,
-              errorMsg = "Failed to get credentials: ${e.localizedMessage}",
+              errorMsg =
+                  AuthError(
+                      R.string.sign_in_error_credentials,
+                      e.localizedMessage.orEmpty(),
+                  ),
               user = null,
           )
         }
@@ -136,7 +156,11 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
         _uiState.update {
           it.copy(
               isLoading = false,
-              errorMsg = "Unexpected error: ${e.localizedMessage}",
+              errorMsg =
+                  AuthError(
+                      R.string.sign_in_error_unexpected,
+                      e.localizedMessage.orEmpty(),
+                  ),
               user = null,
           )
         }
