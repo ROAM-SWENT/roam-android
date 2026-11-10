@@ -182,6 +182,23 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun profileCheckFailureShowsRepositoryMessageToast() {
+    val failureMessage = "Unable to check profile"
+    val repository =
+        TestPublicProfileRepository(
+            profileCheckFailure = IllegalStateException(failureMessage),
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == failureMessage }
+
+    assertEquals(failureMessage, ShadowToast.getTextOfLatestToast())
+  }
+
+  @Test
   fun usernameRegistrationFailureDisplaysLocalizedFallbackError() {
     val repository =
         TestPublicProfileRepository(
@@ -193,12 +210,18 @@ class MainActivityNavigationTest {
         publicProfileRepositoryOverride = repository,
     )
     waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.register_profile_username).performTextInput("traveler_1")
-    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).performClick()
+    val submitButton = composeTestRule.onNodeWithTag(C.Tag.register_profile_submit)
+    submitButton.performClick()
 
     composeTestRule
         .onNodeWithText(composeTestRule.activity.getString(R.string.register_profile_error))
         .assertIsDisplayed()
+
+    repository.registrationFailure = IllegalStateException("That username is already taken.")
+    submitButton.performClick()
+    composeTestRule.onNodeWithText("That username is already taken.").assertIsDisplayed()
   }
 
   private fun registerProfileAndContinue(repository: TestPublicProfileRepository) {
@@ -1355,7 +1378,7 @@ class MainActivityNavigationTest {
   private class TestPublicProfileRepository(
       initialProfile: PublicProfile? = PublicProfile("test-user", "test_user"),
       private val profileCheckFailure: Exception? = null,
-      private val registrationFailure: Exception? = null,
+      var registrationFailure: Exception? = null,
   ) : PublicProfileRepository {
     private var profile = initialProfile
     var registeredUsername: String? = null
