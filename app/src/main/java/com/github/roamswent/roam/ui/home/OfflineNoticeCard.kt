@@ -27,7 +27,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.isDark
@@ -59,7 +58,7 @@ fun OfflineNoticeCard(modifier: Modifier = Modifier) {
     Text(
         text = stringResource(R.string.home_offline_card_message),
         color = contentColor,
-        fontSize = 15.sp,
+        style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.semantics { testTag = C.Tag.home_offline_card_message },
     )

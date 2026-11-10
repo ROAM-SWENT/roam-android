@@ -1,17 +1,23 @@
 /*
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Google Antigravity <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.components.bottomdock
 
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -19,9 +25,14 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.DockLabelFontSize
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -111,7 +122,34 @@ class AppBottomDockTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).assertTextEquals("Explore")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).assertTextEquals("Friends")
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).assertTextEquals("Collection")
-    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan a monument")
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan")
+  }
+
+  @Test
+  fun dockScanLabelSizeRemainsLockedUnderLargeFontScale() {
+    var fontScale by mutableFloatStateOf(1f)
+
+    composeTestRule.setContent {
+      val baseDensity = LocalDensity.current
+      CompositionLocalProvider(
+          LocalDensity provides Density(density = baseDensity.density, fontScale = fontScale)
+      ) {
+        SampleAppTheme {
+          AppBottomDock(
+              selected = DockDestination.HOME,
+              onDestinationSelected = {},
+              onScanClick = {},
+          )
+        }
+      }
+    }
+
+    val defaultSize = composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).fetchSemanticsNode().size
+
+    composeTestRule.runOnIdle { fontScale = 2f }
+
+    val scaledSize = composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).fetchSemanticsNode().size
+    assertEquals(defaultSize, scaledSize)
   }
 
   /**
@@ -134,6 +172,116 @@ class AppBottomDockTest {
     val collectionTabHeight =
         composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).fetchSemanticsNode().size.height
     assertTrue(collectionTabHeight <= homeTabHeight)
+  }
+
+  @Test
+  fun allFiveDockLabelsRenderAtEqualTextHeight() {
+    setDock(modifier = Modifier.width(340.dp))
+
+    val labels = listOf("Home", "Explore", "Scan", "Collection", "Friends")
+    val layouts = labels.map { label ->
+      val results = mutableListOf<TextLayoutResult>()
+      composeTestRule
+          .onNodeWithText(label, useUnmergedTree = true)
+          .fetchSemanticsNode()
+          .config[SemanticsActions.GetTextLayoutResult]
+          .action
+          ?.invoke(results)
+      results.single()
+    }
+
+    assertEquals(1, layouts.map { it.firstBaseline }.distinct().size)
+    assertEquals(1, layouts.map { it.layoutInput.style.fontSize }.distinct().size)
+  }
+
+  @Test
+  fun dockLabelFontSizeIsInvariantToSelectedDestination() {
+    var selectedDestination by mutableStateOf<DockDestination?>(DockDestination.HOME)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        AppBottomDock(
+            selected = selectedDestination,
+            onDestinationSelected = {},
+            onScanClick = {},
+            modifier = Modifier.width(340.dp),
+        )
+      }
+    }
+
+    val labels = listOf("Home", "Explore", "Scan", "Collection", "Friends")
+    val selections =
+        listOf(
+            DockDestination.HOME,
+            DockDestination.EXPLORE,
+            DockDestination.COLLECTION,
+            DockDestination.FRIENDS,
+            null,
+        )
+
+    val resolvedSizesPerSelection = selections.map { destination ->
+      selectedDestination = destination
+      composeTestRule.waitForIdle()
+      labels.map { label ->
+        val results = mutableListOf<TextLayoutResult>()
+        composeTestRule
+            .onNodeWithText(label, useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action
+            ?.invoke(results)
+        results.single().layoutInput.style.fontSize
+      }
+    }
+
+    val referenceSizes = resolvedSizesPerSelection.first()
+    assertEquals(1, referenceSizes.distinct().size)
+    resolvedSizesPerSelection.forEach { sizes -> assertEquals(referenceSizes, sizes) }
+  }
+
+  @Test
+  fun dockLabelFontSizePinsBoldBasisMeasurementAtConstrainedWidth() {
+    setDock(modifier = Modifier.width(295.dp))
+
+    val results = mutableListOf<TextLayoutResult>()
+    composeTestRule
+        .onNodeWithText("Collection", useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .config[SemanticsActions.GetTextLayoutResult]
+        .action
+        ?.invoke(results)
+
+    assertEquals(8.5.sp, results.single().layoutInput.style.fontSize)
+  }
+
+  @Test
+  fun dockLabelFontSizeRecoversToFullSizeAtWideWidth() {
+    setDock(modifier = Modifier.width(411.dp))
+
+    val labels = listOf("Home", "Explore", "Scan", "Collection", "Friends")
+    labels.forEach { label ->
+      val results = mutableListOf<TextLayoutResult>()
+      composeTestRule
+          .onNodeWithText(label, useUnmergedTree = true)
+          .fetchSemanticsNode()
+          .config[SemanticsActions.GetTextLayoutResult]
+          .action
+          ?.invoke(results)
+      assertEquals(DockLabelFontSize, results.single().layoutInput.style.fontSize)
+    }
+  }
+
+  @Test
+  fun unavailableCameraScanLabelDoesNotExceedSlotBudget() {
+    setDock(cameraAvailable = false)
+
+    val dockWidthPx =
+        composeTestRule.onNodeWithTag(C.Tag.dock_container).fetchSemanticsNode().size.width
+    val contentWidthPx = dockWidthPx - with(composeTestRule.density) { 16.dp.roundToPx() }
+    val scanSlotBudgetPx = (contentWidthPx * (1.25f / 5.25f)).toInt()
+    val scanLabelWidthPx =
+        composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).fetchSemanticsNode().size.width
+
+    assertTrue(scanLabelWidthPx <= scanSlotBudgetPx)
   }
 
   /**
@@ -247,13 +395,24 @@ class AppBottomDockTest {
     var scanClicks = 0
     setDock(cameraAvailable = false, onScanClick = { scanClicks++ })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).assertIsNotEnabled()
+    composeTestRule
+        .onNodeWithTag(C.Tag.dock_scan_button)
+        .assertIsNotEnabled()
+        .assertContentDescriptionEquals("No camera detected on this device")
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     assertEquals(0, scanClicks)
 
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("No camera")
+  }
+
+  @Test
+  fun availableCameraShowsScanDescriptionAndScanLabel() {
+    setDock(cameraAvailable = true)
+
     composeTestRule
-        .onNodeWithTag(C.Tag.dock_scan_label)
-        .assertTextEquals("No camera detected on this device")
+        .onNodeWithTag(C.Tag.dock_scan_button)
+        .assertContentDescriptionEquals("Scan a monument")
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan")
   }
 
   @Test
