@@ -240,7 +240,7 @@ class AppBottomDockTest {
 
   @Test
   fun dockLabelFontSizePinsBoldBasisMeasurementAtConstrainedWidth() {
-    setDock(modifier = Modifier.width(310.dp))
+    setDock(modifier = Modifier.width(295.dp))
 
     val results = mutableListOf<TextLayoutResult>()
     composeTestRule
@@ -250,7 +250,7 @@ class AppBottomDockTest {
         .action
         ?.invoke(results)
 
-    assertEquals(10.sp, results.single().layoutInput.style.fontSize)
+    assertEquals(8.5.sp, results.single().layoutInput.style.fontSize)
   }
 
   @Test
@@ -403,6 +403,16 @@ class AppBottomDockTest {
     assertEquals(0, scanClicks)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("No camera")
+  }
+
+  @Test
+  fun availableCameraShowsScanDescriptionAndScanLabel() {
+    setDock(cameraAvailable = true)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.dock_scan_button)
+        .assertContentDescriptionEquals("Scan a monument")
+    composeTestRule.onNodeWithTag(C.Tag.dock_scan_label).assertTextEquals("Scan")
   }
 
   @Test

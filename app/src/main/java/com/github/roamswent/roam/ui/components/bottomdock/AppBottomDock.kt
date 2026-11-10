@@ -145,7 +145,7 @@ fun AppBottomDock(
             contentAlignment = Alignment.TopCenter,
         ) {
           val unavailableDescription = stringResource(R.string.home_scan_unavailable)
-          AutoResizedTabLabel(
+          DockLabel(
               text = scanLabel,
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               fontWeight = FontWeight.SemiBold,
@@ -269,7 +269,12 @@ private fun computeDockLabelFontSize(
       val result =
           textMeasurer.measure(
               text = label,
-              style = TextStyle(fontSize = size, fontWeight = FontWeight.Bold),
+              style =
+                  TextStyle(
+                      fontSize = size,
+                      fontWeight = FontWeight.Bold,
+                      letterSpacing = 0.5.sp,
+                  ),
               softWrap = false,
               maxLines = 1,
               density = density,
@@ -280,7 +285,12 @@ private fun computeDockLabelFontSize(
         textMeasurer
             .measure(
                 text = scanLabel,
-                style = TextStyle(fontSize = size, fontWeight = FontWeight.Bold),
+                style =
+                    TextStyle(
+                        fontSize = size,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                    ),
                 softWrap = false,
                 maxLines = 1,
                 density = density,
@@ -339,7 +349,7 @@ private fun DockTabItem(
         modifier = Modifier.size(24.dp),
     )
     Spacer(modifier = Modifier.height(4.dp))
-    AutoResizedTabLabel(
+    DockLabel(
         text = stringResource(destination.labelRes),
         color = color,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
@@ -349,7 +359,7 @@ private fun DockTabItem(
 }
 
 @Composable
-private fun AutoResizedTabLabel(
+private fun DockLabel(
     text: String,
     color: Color,
     fontWeight: FontWeight,
