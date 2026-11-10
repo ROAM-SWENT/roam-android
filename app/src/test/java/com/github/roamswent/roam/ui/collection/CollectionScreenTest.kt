@@ -20,6 +20,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
@@ -418,6 +419,50 @@ class CollectionScreenTest {
     )
   }
 
+  @Test
+  fun unlikingInFavouritesModeOffersUndo() {
+    val restored = mutableListOf<String>()
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide.copy(isFavorite = true)),
+            showFavoritesOnly = true,
+        ),
+        onRestoreFavorite = { restored += it },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).performClick()
+
+    composeTestRule.onNodeWithText("Removed from favourites").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Undo").performClick()
+    assertEquals(listOf("older"), restored)
+  }
+
+  @Test
+  fun unlikingInAllModeOffersNoUndo() {
+    setScreen(SavedGuidesUiState(guides = listOf(olderGuide.copy(isFavorite = true))))
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).performClick()
+
+    composeTestRule.onNodeWithText("Removed from favourites").assertDoesNotExist()
+  }
+
+  @Test
+  fun favouriteErrorIsShownOnceAndReported() {
+    var reported = 0
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide),
+            favoriteError = IllegalStateException("offline"),
+        ),
+        onFavoriteErrorShown = { reported++ },
+    )
+
+    composeTestRule
+        .onNodeWithText("Couldn’t update favourites. Please try again.")
+        .assertIsDisplayed()
+    assertEquals(1, reported)
+  }
+
   private fun guideWithPhoto(photoBytes: ByteArray) = newerGuide.copy(photoBytes = photoBytes)
 
   private fun waitForTag(tag: String) {
@@ -442,6 +487,8 @@ class CollectionScreenTest {
       state: SavedGuidesUiState,
       onGuideClick: (String) -> Unit = {},
       onToggleFavorite: (String) -> Unit = {},
+      onRestoreFavorite: (String) -> Unit = {},
+      onFavoriteErrorShown: () -> Unit = {},
       onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
   ) {
     composeTestRule.setContent {
@@ -450,6 +497,8 @@ class CollectionScreenTest {
             state = state,
             onGuideClick = onGuideClick,
             onToggleFavorite = onToggleFavorite,
+            onRestoreFavorite = onRestoreFavorite,
+            onFavoriteErrorShown = onFavoriteErrorShown,
             onShowFavoritesOnlyChange = onShowFavoritesOnlyChange,
         )
       }

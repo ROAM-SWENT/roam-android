@@ -400,6 +400,24 @@ class SavedGuidesViewModelFavoriteTest {
       }
 
   @Test
+  fun clearFavoriteErrorKeepsOtherErrors() =
+      runTest(dispatcher) {
+        val deleteError = IllegalStateException("delete failed")
+        coEvery { repository.setFavorite(any(), any()) } throws IllegalStateException("failed")
+        coEvery { repository.removeGuide(otherGuide.id) } throws deleteError
+        snapshots.value = listOf(guide, otherGuide)
+        val viewModel = loadedViewModel()
+        viewModel.setFavorite(guide.id, true)
+        viewModel.deleteGuide(otherGuide.id)
+        advanceUntilIdle()
+
+        viewModel.clearFavoriteError()
+
+        assertNull(viewModel.uiState.value.favoriteError)
+        assertEquals(deleteError, viewModel.uiState.value.deleteError)
+      }
+
+  @Test
   fun cancellationIsNotShownAsAFavoriteError() =
       runTest(dispatcher) {
         coEvery { repository.setFavorite(any(), any()) } throws CancellationException("cancelled")

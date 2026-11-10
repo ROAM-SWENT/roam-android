@@ -323,6 +323,11 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
     _uiState.update { it.copy(showFavoritesOnly = enabled) }
   }
 
+  /** Clears [SavedGuidesUiState.favoriteError] once the UI has shown it. */
+  fun clearFavoriteError() {
+    _uiState.update { it.copy(favoriteError = null) }
+  }
+
   /** Flips the favourite state of [guideId]. */
   fun toggleFavorite(guideId: String) {
     val current = displayedGuide(guideId) ?: return

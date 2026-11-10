@@ -31,11 +31,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,11 +77,16 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 /**
  * Shows the user's saved guides as a two-column grid of cards, newest first. Guides already loaded
  * stay visible while the collection reloads or fails to refresh. Each card has a heart that calls
  * [onToggleFavorite], and the All/Favourites chips call [onShowFavoritesOnlyChange].
+ *
+ * Unliking a guide while only favourites are shown hides its card, so a snackbar offers to undo it
+ * through [onRestoreFavorite]. A [SavedGuidesUiState.favoriteError] is shown in the same snackbar,
+ * then reported through [onFavoriteErrorShown] so it is not shown again.
  */
 @Composable
 fun CollectionScreen(
@@ -84,10 +94,44 @@ fun CollectionScreen(
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
+    onRestoreFavorite: (String) -> Unit = {},
+    onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
 ) {
+  val snackbarHostState = remember { SnackbarHostState() }
+  val scope = rememberCoroutineScope()
+  val removedMessage = stringResource(R.string.collection_favorite_removed)
+  val undoLabel = stringResource(R.string.collection_favorite_undo)
+  val errorMessage = stringResource(R.string.collection_favorite_error)
+
+  // Showing a message replaces the current one, so taps never queue up stale snackbars.
+  fun showMessage(message: String, actionLabel: String? = null, onAction: () -> Unit = {}) {
+    scope.launch {
+      snackbarHostState.currentSnackbarData?.dismiss()
+      val result = snackbarHostState.showSnackbar(message, actionLabel = actionLabel)
+      if (result == SnackbarResult.ActionPerformed) onAction()
+    }
+  }
+
+  LaunchedEffect(state.favoriteError) {
+    if (state.favoriteError != null) {
+      showMessage(errorMessage)
+      // Cleared at once so the error is not shown again after a rotation or a tab switch.
+      onFavoriteErrorShown()
+    }
+  }
+
+  val toggleFavorite: (Guide) -> Unit = { guide ->
+    onToggleFavorite(guide.id)
+    // In All mode the heart stays visible and can simply be tapped again.
+    if (state.showFavoritesOnly && guide.isFavorite) {
+      showMessage(removedMessage, undoLabel) { onRestoreFavorite(guide.id) }
+    }
+  }
+
   Scaffold(
       modifier = modifier.fillMaxSize().semantics { testTag = C.Tag.collection_screen },
+      snackbarHost = { SnackbarHost(snackbarHostState) },
       containerColor =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
   ) { contentPadding ->
@@ -111,7 +155,7 @@ fun CollectionScreen(
           if (guides.isEmpty()) {
             CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
           } else {
-            GuideGrid(guides, onGuideClick, onToggleFavorite)
+            GuideGrid(guides, onGuideClick, toggleFavorite)
           }
         }
         state.isLoadingGuides -> CollectionLoading()
@@ -193,7 +237,7 @@ private fun CollectionFilterChip(
 private fun GuideGrid(
     guides: List<Guide>,
     onGuideClick: (String) -> Unit,
-    onToggleFavorite: (String) -> Unit,
+    onToggleFavorite: (Guide) -> Unit,
 ) {
   LazyVerticalGrid(
       columns = GridCells.Fixed(2),
@@ -206,7 +250,7 @@ private fun GuideGrid(
       GuideCard(
           guide,
           onClick = { onGuideClick(guide.id) },
-          onToggleFavorite = { onToggleFavorite(guide.id) },
+          onToggleFavorite = { onToggleFavorite(guide) },
       )
     }
   }

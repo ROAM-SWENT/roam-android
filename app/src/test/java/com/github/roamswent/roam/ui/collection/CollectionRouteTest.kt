@@ -9,12 +9,14 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -112,6 +114,36 @@ class CollectionRouteTest {
     composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).performClick()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(2)
     assertEquals(2, repository.guides.value.size)
+  }
+
+  @Test
+  fun failedUnlikeBringsTheCardBackAndShowsAnError() {
+    val repository = FakeSavedGuideRepository(listOf(colosseum.copy(isFavorite = true)))
+    repository.favoriteError = IllegalStateException("offline")
+    setRoute(repository)
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).performClick()
+
+    composeTestRule
+        .onNodeWithText("Couldn’t update favourites. Please try again.")
+        .assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+    assertTrue(repository.guides.value.single().isFavorite)
+  }
+
+  @Test
+  fun undoAfterUnlikingRestoresTheFavourite() {
+    val repository = FakeSavedGuideRepository(listOf(colosseum.copy(isFavorite = true)))
+    setRoute(repository)
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_favorites_empty).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Undo").performClick()
+
+    composeTestRule.waitUntil { repository.guides.value.single().isFavorite }
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
   }
 
   private fun setRoute(repository: FakeSavedGuideRepository) {
