@@ -323,13 +323,7 @@ internal fun RoamApp(
         SignInScreen(
             authViewModel = authViewModel,
             onSignedIn = registerProfileViewModel::checkCurrentProfile,
-            onSignInClickOverride =
-                onSignInClickOverride?.let { signIn ->
-                  {
-                    signIn()
-                    registerProfileViewModel.checkCurrentProfile()
-                  }
-                },
+            onSignInClickOverride = onSignInClickOverride,
         )
       }
       composable(Routes.RegisterProfile) { RegisterProfileScreen(registerProfileViewModel) }

@@ -242,7 +242,8 @@ class MainActivityNavigationTest {
   fun signInClickOverrideRunsAndNavigatesToHome() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authViewModel = mock<SignInViewModel>()
-    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+    val authState = MutableStateFlow(AuthUIState())
+    whenever(authViewModel.uiState).thenReturn(authState)
     var signInClickCount = 0
 
     composeTestRule.activity.setContent {
@@ -258,6 +259,9 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
 
     assertEquals(1, signInClickCount)
+    composeTestRule.waitForIdle()
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    authState.value = AuthUIState(user = mock())
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
@@ -1146,30 +1150,28 @@ class MainActivityNavigationTest {
       controller.pause().stop().destroy()
     }
   }
+
   @Test
   fun usernameRegistrationTrimsWhitespaceBeforeSubmission() {
     val repository = TestPublicProfileRepository(initialProfile = null)
     renderApp(
-      MutableStateFlow(AuthUIState(user = mock())),
-      publicProfileRepositoryOverride = repository,
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
     )
 
     waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
 
     composeTestRule
-      .onNodeWithTag(C.Tag.register_profile_username)
-      .performTextInput("  Michael_Jordan     ")
+        .onNodeWithTag(C.Tag.register_profile_username)
+        .performTextInput("  Michael_Jordan     ")
 
-    composeTestRule
-      .onNodeWithTag(C.Tag.register_profile_submit)
-      .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).performClick()
 
-    composeTestRule.waitUntil {
-      repository.registeredUsername != null
-    }
+    composeTestRule.waitUntil { repository.registeredUsername != null }
 
     assertEquals("Michael_Jordan", repository.registeredUsername)
   }
+
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
     return checkNotNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
