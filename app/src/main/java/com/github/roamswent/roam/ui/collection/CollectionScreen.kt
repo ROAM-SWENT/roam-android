@@ -77,6 +77,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
+import org.apache.commons.text.similarity.LevenshteinDistance
 
 /**
  * Shows the user's saved guides as a two-column grid of cards, newest first. Guides already loaded
@@ -150,7 +151,7 @@ fun CollectionScreen(
       when {
         state.guides.isNotEmpty() -> {
           CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
-          val guides = visibleGuides(state.guides, state.showFavoritesOnly)
+          val guides = visibleGuides(state.guides, state.showFavoritesOnly, state.searchQuery)
           if (guides.isEmpty()) {
             CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
           } else {
@@ -510,9 +511,45 @@ internal fun formatDiscoveryDate(
 ): String =
     discoveryDateFormatter.withLocale(locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
 
+private val levenshtein = LevenshteinDistance.getDefaultInstance()
+
+internal fun matchesTier2Word(query: String, word: String): Boolean {
+  val cleanQuery = query.trim().lowercase()
+  if (cleanQuery.length < 3) return false
+  val maxDistance = if (cleanQuery.length <= 4) 1 else 2
+  val cleanWord = word.trim { !it.isLetterOrDigit() }.lowercase()
+  if (cleanWord.isEmpty()) return false
+  val distance = levenshtein.apply(cleanQuery, cleanWord)
+  return distance in 0..maxDistance
+}
+
+private fun guideSearchableText(guide: Guide): String {
+  val formattedDate = guide.discoveryDate?.let { formatDiscoveryDate(it) }.orEmpty()
+  val joinedFacts = guide.facts.joinToString(" ")
+  return listOf(guide.monumentName, formattedDate, guide.history, guide.culture, joinedFacts)
+      .joinToString(" ")
+}
+
+private fun matchesGuide(guide: Guide, query: String): Boolean {
+  if (query.isBlank()) return true
+  val searchableText = guideSearchableText(guide)
+  val trimmedQuery = query.trim()
+  if (searchableText.contains(trimmedQuery, ignoreCase = true)) return true
+  val words = searchableText.split("\\s+".toRegex())
+  return words.any { matchesTier2Word(trimmedQuery, it) }
+}
+
 /** The guides to show: only favourites when [favoritesOnly], newest first. */
-internal fun visibleGuides(guides: List<Guide>, favoritesOnly: Boolean): List<Guide> =
-    newestFirst(if (favoritesOnly) guides.filter { it.isFavorite } else guides)
+internal fun visibleGuides(
+    guides: List<Guide>,
+    favoritesOnly: Boolean,
+    query: String = "",
+): List<Guide> {
+  val favoriteFiltered = if (favoritesOnly) guides.filter { it.isFavorite } else guides
+  val queryFiltered =
+      if (query.isBlank()) favoriteFiltered else favoriteFiltered.filter { matchesGuide(it, query) }
+  return newestFirst(queryFiltered)
+}
 
 /** Sorts [guides] by discovery date, most recent first; guides without a date come last. */
 internal fun newestFirst(guides: List<Guide>): List<Guide> =

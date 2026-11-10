@@ -39,6 +39,7 @@ googleid = "1.2.0"
 # Location
 playServicesLocation = "21.4.0"
 datastore = "1.1.7"
+commonsText = "1.13.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -95,6 +96,7 @@ firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appc
 firebase-appcheck-playintegrity = { module = "com.google.firebase:firebase-appcheck-playintegrity" }
 
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
