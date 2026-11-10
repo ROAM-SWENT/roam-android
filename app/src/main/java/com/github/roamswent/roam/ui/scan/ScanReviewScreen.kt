@@ -257,7 +257,7 @@ private fun InterestsPromptDialog(onSave: (List<String>) -> Unit, onSkip: () -> 
             Text(stringResource(R.string.scan_review_skip))
           }
           TextButton(
-              onClick = { onSave(UserInterestCategories.all.filter(selectedInterests::contains)) },
+              onClick = { onSave(UserInterestCategories.ids.filter(selectedInterests::contains)) },
               enabled = selectedInterests.isNotEmpty(),
               modifier = Modifier.semantics { testTag = C.Tag.scan_interests_save },
           ) {
@@ -281,14 +281,14 @@ private fun InterestCategoryChips(
   ) {
     UserInterestCategories.all.forEach { category ->
       FilterChip(
-          selected = category in selectedInterests,
+          selected = category.id in selectedInterests,
           onClick = {
             onSelectionChange(
-                if (category in selectedInterests) selectedInterests - category
-                else selectedInterests + category
+                if (category.id in selectedInterests) selectedInterests - category.id
+                else selectedInterests + category.id
             )
           },
-          label = { Text(category) },
+          label = { Text(stringResource(category.labelRes)) },
           modifier = Modifier.semantics { testTag = C.Tag.scan_interests_chip },
       )
     }

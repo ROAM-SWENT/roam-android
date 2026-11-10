@@ -257,22 +257,22 @@ private fun SettingsContent(
         onDismissRequest = { showAddInterestDialog = false },
         title = { Text(stringResource(R.string.settings_add_interest)) },
         text = {
-          val availableInterests = UserInterestCategories.all.filterNot { it in interests }
+          val availableInterests = UserInterestCategories.all.filterNot { it.id in interests }
           if (availableInterests.isEmpty()) {
             Text(stringResource(R.string.settings_all_interests_selected))
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              availableInterests.forEach { interest ->
+              availableInterests.forEach { category ->
                 TextButton(
                     onClick = {
-                      onAddInterest(interest)
+                      onAddInterest(category.id)
                       showAddInterestDialog = false
                     },
                     modifier =
                         Modifier.fillMaxWidth()
-                            .testTag(C.Tag.settings_interest_option_prefix + interest),
+                            .testTag(C.Tag.settings_interest_option_prefix + category.id),
                 ) {
-                  Text(interest, modifier = Modifier.fillMaxWidth())
+                  Text(stringResource(category.labelRes), modifier = Modifier.fillMaxWidth())
                 }
               }
             }
@@ -566,6 +566,8 @@ private fun InterestsCard(
 
 @Composable
 private fun InterestChip(interest: String, onRemove: () -> Unit) {
+  val category = UserInterestCategories.all.firstOrNull { it.id == interest }
+  val label = category?.let { stringResource(it.labelRes) } ?: interest
   Surface(
       shape = RoundedCornerShape(50),
       color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
@@ -576,7 +578,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
-          text = interest,
+          text = label,
           modifier = Modifier.padding(vertical = 10.dp),
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.onSurface,
@@ -587,7 +589,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
       ) {
         Icon(
             Icons.Default.Close,
-            contentDescription = stringResource(R.string.settings_remove_interest, interest),
+            contentDescription = stringResource(R.string.settings_remove_interest, label),
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )

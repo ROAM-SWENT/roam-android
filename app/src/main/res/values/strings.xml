@@ -135,6 +135,14 @@
     <string name="scan_choose_photo_from_gallery">Choose photo from gallery</string>
     <string name="scan_go_back">Go back</string>
     <string name="settings_add_interest">Add an interest</string>
+    <string name="interest_architecture">Architecture</string>
+    <string name="interest_history">History</string>
+    <string name="interest_art_sculpture">Art &amp; Sculpture</string>
+    <string name="interest_local_culture">Local Culture</string>
+    <string name="interest_legends_myths">Legends &amp; Myths</string>
+    <string name="interest_fun_facts">Fun Facts</string>
+    <string name="interest_nature">Nature</string>
+    <string name="interest_food_drink">Food &amp; Drink</string>
     <string name="settings_all_interests_selected">All available interests are already selected.</string>
     <string name="settings_cancel">Cancel</string>
     <string name="settings_sign_out">Sign Out</string>
