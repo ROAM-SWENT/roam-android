@@ -148,9 +148,6 @@ internal fun RoamApp(
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
   // Configure the shared Firestore instance before profile lookups can start it.
-  val savedGuideRepository = remember {
-    savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository()
-  }
   val publicProfileRepository = remember {
     publicProfileRepositoryOverride ?: FirestorePublicProfileRepository()
   }
