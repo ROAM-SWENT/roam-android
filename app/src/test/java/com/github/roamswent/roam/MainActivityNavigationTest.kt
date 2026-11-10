@@ -10,6 +10,7 @@ import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -31,12 +32,16 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.model.ai.ImagePayload
+import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
+import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
@@ -44,6 +49,7 @@ import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -265,6 +271,53 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_grid)
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+  }
+
+  @Test
+  fun scannedMonumentAppearsInCollectionThroughTheSharedRepository() {
+    lateinit var navController: NavHostController
+    val savedGuides = FakeSavedGuideRepository()
+    val photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg")
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(
+                  MonumentGuide(
+                      monumentName = "Eiffel Tower",
+                      confidence = 0.9,
+                      history = "History",
+                      facts = emptyList(),
+                      culture = "Culture",
+                      language = "en",
+                      photo = photo,
+                  )
+              )
+        }
+    val capture = File.createTempFile("scan", ".jpg", composeTestRule.activity.cacheDir)
+    val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    capture.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it) }
+    bitmap.recycle()
+    SharedPreferencesUserInterestsRepository(composeTestRule.activity).skipInterests()
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = savedGuides,
+        captureSender = sender,
+    )
+
+    composeTestRule.runOnIdle {
+      navController.navigate(
+          "${Routes.ScanReview}?uri=${Uri.encode(Uri.fromFile(capture).toString())}"
+      )
+    }
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.runOnIdle { navController.navigate(Routes.Collection) }
+
+    // The scan flow saved into the same repository the collection reads.
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+    capture.delete()
   }
 
   @Test
@@ -1068,6 +1121,7 @@ class MainActivityNavigationTest {
       onNavControllerReady: (NavHostController) -> Unit = {},
       savedGuideRepository: FakeSavedGuideRepository? = null,
       isOnlineOverride: Boolean? = true,
+      captureSender: CaptureSender? = null,
   ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(
@@ -1075,6 +1129,7 @@ class MainActivityNavigationTest {
         onNavControllerReady = onNavControllerReady,
         savedGuideRepository = savedGuideRepository,
         isOnlineOverride = isOnlineOverride,
+        captureSender = captureSender,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
@@ -1186,6 +1241,7 @@ class MainActivityNavigationTest {
       settingsViewModel: SettingsViewModel? = null,
       savedGuideRepository: FakeSavedGuideRepository? = null,
       isOnlineOverride: Boolean? = true,
+      captureSender: CaptureSender? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -1202,6 +1258,7 @@ class MainActivityNavigationTest {
         RoamApp(
             authViewModel,
             navController = navController,
+            captureSenderOverride = captureSender,
             onSignInClickOverride = onSignInClickOverride,
             settingsViewModel = settingsViewModel,
             savedGuideRepositoryOverride = savedGuideRepository,

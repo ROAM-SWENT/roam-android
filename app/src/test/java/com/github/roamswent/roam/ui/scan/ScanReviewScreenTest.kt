@@ -31,7 +31,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.repository.CaptureSender
@@ -44,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -200,6 +204,7 @@ class ScanReviewScreenTest {
             ScanReviewRoute(
                 navController = navController,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
+                savedGuideRepository = FakeSavedGuideRepository(),
             )
           }
         }
@@ -427,6 +432,26 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteSuccessSavesDiscoveryToCollection() {
+    // The pipeline returns the downscaled photo it sent to the AI along with the guide.
+    val photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg")
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = photo))
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    val saved = savedGuides.guides.value.single()
+    assertEquals(guide.monumentName, saved.monumentName)
+    assertArrayEquals(photo.bytes, saved.photoBytes)
+  }
+
+  @Test
   fun reviewRouteSystemBackFromGuideReturnsHome() {
     val sender =
         object : CaptureSender {
@@ -495,6 +520,7 @@ class ScanReviewScreenTest {
       captureSender: CaptureSender,
       userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
       isGalleryImage: Boolean = false,
+      savedGuideRepository: SavedGuideRepository = FakeSavedGuideRepository(),
   ) {
     val photo =
         File.createTempFile(
@@ -524,6 +550,7 @@ class ScanReviewScreenTest {
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
+                savedGuideRepository = savedGuideRepository,
                 isGalleryImage = isGalleryImage,
             )
           }
