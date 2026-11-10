@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -30,7 +31,7 @@ data class RegisterProfileUiState(
 class RegisterProfileViewModel(
     private val repository: PublicProfileRepository,
 ) : ViewModel() {
-
+  private var activeProfileJob: Job? = null
   private val _uiState = MutableStateFlow(RegisterProfileUiState())
   val uiState: StateFlow<RegisterProfileUiState> = _uiState
 
@@ -39,7 +40,7 @@ class RegisterProfileViewModel(
       return
     }
 
-    viewModelScope.launch {
+    activeProfileJob = viewModelScope.launch {
       _uiState.update {
         it.copy(status = ProfileRegistrationStatus.CHECKING, isLoading = true, errorMessage = null)
       }
@@ -75,10 +76,10 @@ class RegisterProfileViewModel(
       return
     }
 
-    viewModelScope.launch {
+    activeProfileJob = viewModelScope.launch {
       _uiState.update { it.copy(isLoading = true, errorMessage = null) }
       try {
-        repository.registerUsername(username)
+        repository.registerUsername(username.trim())
         _uiState.update {
           it.copy(status = ProfileRegistrationStatus.REGISTERED, isLoading = false)
         }
@@ -91,6 +92,8 @@ class RegisterProfileViewModel(
   }
 
   fun reset() {
+    activeProfileJob?.cancel()
+    activeProfileJob = null
     _uiState.value = RegisterProfileUiState()
   }
 }
