@@ -296,12 +296,8 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
         when {
           // Writes settle in order, so no pending entry means the guide was deleted.
           pending == null -> Unit
-          // A newer request decides the final value, so only report the failure.
-          pending.request != request -> {
-            if (guideId !in pendingGuideDeletes) {
-              _uiState.update { it.copy(favoriteError = exception) }
-            }
-          }
+          // A newer request decides the final value, so only the latest one reports an error.
+          pending.request != request -> Unit
           // The guide is hidden while it is deleted; remember the value to restore if that fails.
           guideId in pendingGuideDeletes -> {
             pendingFavorites.remove(guideId)

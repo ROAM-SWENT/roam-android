@@ -231,8 +231,8 @@ class SavedGuidesViewModelFavoriteTest {
         runCurrent()
 
         assertFalse(viewModel.uiState.value.guides.single().isFavorite)
-        // Coroutines may rethrow a copy of the exception from await(), so compare the message.
-        assertEquals(error.message, viewModel.uiState.value.favoriteError?.message)
+        // Only the latest request may report an error.
+        assertNull(viewModel.uiState.value.favoriteError)
       }
 
   @Test
