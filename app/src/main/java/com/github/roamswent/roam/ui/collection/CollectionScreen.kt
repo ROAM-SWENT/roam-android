@@ -628,6 +628,7 @@ private val levenshtein = LevenshteinDistance.getDefaultInstance()
 internal fun matchesTier2Word(query: String, word: String): Boolean {
   val cleanQuery = query.trim().lowercase()
   if (cleanQuery.length < 3) return false
+  if (cleanQuery.any { it.isDigit() }) return false
   val maxDistance = if (cleanQuery.length <= 4) 1 else 2
   val cleanWord = word.trim { !it.isLetterOrDigit() }.lowercase()
   if (cleanWord.isEmpty()) return false
