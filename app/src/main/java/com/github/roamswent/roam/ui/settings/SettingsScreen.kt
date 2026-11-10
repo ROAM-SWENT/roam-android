@@ -354,18 +354,13 @@ private fun ThemeCard(
 }
 
 private data class LanguageOption(
-    val languageTag: String?,
+    val languageTag: String,
     @param:StringRes val labelRes: Int,
     val testTag: String,
 )
 
 private val languageOptions =
     listOf(
-        LanguageOption(
-            null,
-            R.string.settings_language_system,
-            C.Tag.settings_language_option_system,
-        ),
         LanguageOption(
             "en",
             R.string.settings_language_english,
@@ -404,16 +399,12 @@ private fun LanguageCard() {
       val currentTag = if (currentLocales.isEmpty) null else currentLocales[0]?.language
       SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         languageOptions.forEachIndexed { index, option ->
-          val isSelected =
-              if (option.languageTag == null) currentLocales.isEmpty
-              else currentTag == option.languageTag
           SegmentedButton(
-              selected = isSelected,
+              selected = currentTag == option.languageTag,
               onClick = {
-                val targetLocales =
-                    if (option.languageTag == null) LocaleListCompat.getEmptyLocaleList()
-                    else LocaleListCompat.forLanguageTags(option.languageTag)
-                AppCompatDelegate.setApplicationLocales(targetLocales)
+                AppCompatDelegate.setApplicationLocales(
+                    LocaleListCompat.forLanguageTags(option.languageTag)
+                )
               },
               shape =
                   SegmentedButtonDefaults.itemShape(index = index, count = languageOptions.size),

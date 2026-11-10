@@ -692,11 +692,6 @@ class SettingsScreenTest {
         .performScrollTo()
         .assertIsDisplayed()
     composeTestRule
-        .onNodeWithTag(C.Tag.settings_language_option_system)
-        .performScrollTo()
-        .assertIsDisplayed()
-        .assert(hasText("System"))
-    composeTestRule
         .onNodeWithTag(C.Tag.settings_language_option_en)
         .performScrollTo()
         .assertIsDisplayed()
@@ -710,18 +705,13 @@ class SettingsScreenTest {
 
   @Test
   @Config(qualifiers = "fr")
-  fun languageCard_underFrenchQualifier_rendersFrenchSystemLabelAndEndonyms_regressionDetectsTranslatedEndonyms() {
+  fun languageCard_underFrenchQualifier_rendersEndonyms_regressionDetectsTranslatedEndonyms() {
     renderSettingsScreen()
 
     composeTestRule
         .onNodeWithText(context.getString(R.string.settings_language_section_header))
         .performScrollTo()
         .assertIsDisplayed()
-    composeTestRule
-        .onNodeWithTag(C.Tag.settings_language_option_system)
-        .performScrollTo()
-        .assertIsDisplayed()
-        .assert(hasText("Système"))
     composeTestRule
         .onNodeWithTag(C.Tag.settings_language_option_en)
         .performScrollTo()
@@ -735,15 +725,11 @@ class SettingsScreenTest {
   }
 
   @Test
-  fun languageCard_selectionState_systemSelectedWhenLocalesEmpty_regressionDetectsBrokenSystemSelection() {
+  fun languageCard_selectionState_neitherSelectedWhenLocalesEmpty_regressionDetectsDefaultFallback() {
     try {
       AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
       renderSettingsScreen()
 
-      composeTestRule
-          .onNodeWithTag(C.Tag.settings_language_option_system)
-          .performScrollTo()
-          .assertIsSelected()
       composeTestRule
           .onNodeWithTag(C.Tag.settings_language_option_en)
           .performScrollTo()
@@ -764,10 +750,6 @@ class SettingsScreenTest {
       renderSettingsScreen()
 
       composeTestRule
-          .onNodeWithTag(C.Tag.settings_language_option_system)
-          .performScrollTo()
-          .assertIsNotSelected()
-      composeTestRule
           .onNodeWithTag(C.Tag.settings_language_option_en)
           .performScrollTo()
           .assertIsSelected()
@@ -786,10 +768,6 @@ class SettingsScreenTest {
       AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("fr"))
       renderSettingsScreen()
 
-      composeTestRule
-          .onNodeWithTag(C.Tag.settings_language_option_system)
-          .performScrollTo()
-          .assertIsNotSelected()
       composeTestRule
           .onNodeWithTag(C.Tag.settings_language_option_en)
           .performScrollTo()
@@ -820,12 +798,6 @@ class SettingsScreenTest {
           .performScrollTo()
           .performClick()
       assertEquals("fr", AppCompatDelegate.getApplicationLocales()[0]?.language)
-
-      composeTestRule
-          .onNodeWithTag(C.Tag.settings_language_option_system)
-          .performScrollTo()
-          .performClick()
-      assertTrue(AppCompatDelegate.getApplicationLocales().isEmpty)
     } finally {
       AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
     }
