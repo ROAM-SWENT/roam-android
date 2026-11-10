@@ -190,44 +190,45 @@ class RegisterProfileViewModelTest {
         )
         assertEquals(failure.localizedMessage, viewModel.uiState.value.errorMessage)
       }
-    @Test
-    fun resetCancelsInFlightProfileCheck() =
-        runTest(dispatcher) {
-            val result = CompletableDeferred<PublicProfile?>()
-            val repository = BlockingPublicProfileRepository(result)
-            val viewModel = RegisterProfileViewModel(repository)
 
-            viewModel.checkCurrentProfile()
-            runCurrent()
+  @Test
+  fun resetCancelsInFlightProfileCheck() =
+      runTest(dispatcher) {
+        val result = CompletableDeferred<PublicProfile?>()
+        val repository = BlockingPublicProfileRepository(result)
+        val viewModel = RegisterProfileViewModel(repository)
 
-            viewModel.reset()
-            result.complete(PublicProfile("userA", "Michael_Jordan"))
-            advanceUntilIdle()
+        viewModel.checkCurrentProfile()
+        runCurrent()
 
-            assertEquals(
-                ProfileRegistrationStatus.UNKNOWN,
-                viewModel.uiState.value.status,
-            )
-            assertFalse(viewModel.uiState.value.isLoading)
-        }
+        viewModel.reset()
+        result.complete(PublicProfile("userA", "Michael_Jordan"))
+        advanceUntilIdle()
 
-    @Test
-    fun registerUsername_trimsSurroundingWhitespace() =
-        runTest(dispatcher) {
-            whenever(repository.getCurrentProfile()).thenReturn(null)
-            whenever(repository.registerUsername("traveler"))
-                .thenReturn(PublicProfile("uid", "traveler"))
+        assertEquals(
+            ProfileRegistrationStatus.UNKNOWN,
+            viewModel.uiState.value.status,
+        )
+        assertFalse(viewModel.uiState.value.isLoading)
+      }
 
-            val viewModel = RegisterProfileViewModel(repository)
+  @Test
+  fun registerUsername_trimsSurroundingWhitespace() =
+      runTest(dispatcher) {
+        whenever(repository.getCurrentProfile()).thenReturn(null)
+        whenever(repository.registerUsername("traveler"))
+            .thenReturn(PublicProfile("uid", "traveler"))
 
-            viewModel.checkCurrentProfile()
-            advanceUntilIdle()
+        val viewModel = RegisterProfileViewModel(repository)
 
-            viewModel.registerUsername("  traveler  ")
-            advanceUntilIdle()
+        viewModel.checkCurrentProfile()
+        advanceUntilIdle()
 
-            verify(repository).registerUsername("traveler")
-        }
+        viewModel.registerUsername("  traveler  ")
+        advanceUntilIdle()
+
+        verify(repository).registerUsername("traveler")
+      }
 
   private class BlockingPublicProfileRepository(
       private val result: CompletableDeferred<PublicProfile?>
