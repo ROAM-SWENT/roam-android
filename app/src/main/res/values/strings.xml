@@ -71,6 +71,8 @@
     <string name="explore_permission_required">Please activate location permission to explore nearby places.</string>
     <string name="explore_location_unavailable">We could not determine your location.</string>
     <string name="explore_retry">Retry</string>
+    <string name="explore_monument_photo_description">Photo of %1$s</string>
+    <string name="explore_close_monument_description">Close monument information</string>
     <string name="offline_action_required_title">Internet connection required</string>
     <string name="offline_action_required_message">An internet connection is required to perform this action.</string>
     <string name="offline_action_required_dismiss">OK</string>

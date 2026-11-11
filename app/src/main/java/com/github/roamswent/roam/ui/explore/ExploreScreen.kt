@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,15 +37,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
@@ -82,6 +91,14 @@ internal fun exploreMapMarkers(
 ): List<ExploreMapMarker> =
     listOf(ExploreMapMarker(USER_LOCATION_MARKER_KEY, userLocation, userLocationTitle)) +
         monuments.map { ExploreMapMarker("monument_${it.guideId}", it.coordinates, it.name) }
+
+internal fun selectedMonumentForId(
+    monuments: List<ExploreMonument>,
+    selectedMonumentId: String?,
+): ExploreMonument? = monuments.firstOrNull { it.guideId == selectedMonumentId }
+
+internal fun selectedMonumentIdForMarkerKey(markerKey: String): String? =
+    markerKey.takeUnless { it == USER_LOCATION_MARKER_KEY }?.removePrefix("monument_")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,16 +163,42 @@ fun ExploreScreen(
                   userLocationTitle = stringResource(R.string.explore_user_location),
                   monuments = monuments,
               )
-          GoogleMap(
-              modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
-              cameraPositionState = cameraPositionState,
-          ) {
-            markers.forEach { marker ->
-              key(marker.key) {
-                val position = marker.coordinates.toLatLng()
-                val markerState = remember(position) { MarkerState(position = position) }
-                Marker(state = markerState, title = marker.title)
+          var selectedMonumentId by remember { mutableStateOf<String?>(null) }
+          LaunchedEffect(monuments, selectedMonumentId) {
+            if (selectedMonumentId != null && monuments.none { it.guideId == selectedMonumentId }) {
+              selectedMonumentId = null
+            }
+          }
+          val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
+
+          Box(Modifier.fillMaxSize()) {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
+                cameraPositionState = cameraPositionState,
+            ) {
+              markers.forEach { marker ->
+                key(marker.key) {
+                  val position = marker.coordinates.toLatLng()
+                  val markerState = remember(position) { MarkerState(position = position) }
+                  Marker(
+                      state = markerState,
+                      title = marker.title,
+                      onClick = {
+                        selectedMonumentIdForMarkerKey(marker.key)?.let {
+                          selectedMonumentId = it
+                          true
+                        } ?: false
+                      },
+                  )
+                }
               }
+            }
+            selectedMonument?.let { monument ->
+              ExploreMonumentCard(
+                  monument = monument,
+                  onDismiss = { selectedMonumentId = null },
+                  modifier = Modifier.align(Alignment.BottomCenter),
+              )
             }
           }
         }
@@ -170,6 +213,60 @@ fun ExploreScreen(
                 onAction = exploreViewModel::retryLocation,
                 showActionIcon = true,
             )
+      }
+    }
+  }
+}
+
+@Composable
+internal fun ExploreMonumentCard(
+    monument: ExploreMonument,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  Card(
+      modifier = modifier.fillMaxWidth().padding(16.dp),
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = Color.White),
+  ) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+      AsyncImage(
+          model =
+              ImageRequest.Builder(LocalContext.current)
+                  .data(monument.photoBytes)
+                  .crossfade(true)
+                  .build(),
+          contentDescription =
+              stringResource(R.string.explore_monument_photo_description, monument.name),
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)),
+      )
+      Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+        Text(
+            text = monument.name,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = monument.description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+        )
+      }
+      IconButton(
+          onClick = onDismiss,
+          modifier = Modifier.size(48.dp),
+      ) {
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = stringResource(R.string.explore_close_monument_description),
+        )
       }
     }
   }
