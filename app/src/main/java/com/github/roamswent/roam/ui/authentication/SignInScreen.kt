@@ -65,6 +65,7 @@ fun SignInScreen(
   val uiState by authViewModel.uiState.collectAsState()
   val signInSuccessMessage = stringResource(R.string.sign_in_success)
   var isRestoredUser by remember { mutableStateOf(uiState.user != null) }
+  var isRestoringInitialSession by remember { mutableStateOf(uiState.isRestoringSession) }
 
   // Show error message if login fails
   LaunchedEffect(uiState.errorMsg) {
@@ -75,16 +76,27 @@ fun SignInScreen(
   }
 
   // Navigate screen on successful login
-  LaunchedEffect(uiState.user) {
+  LaunchedEffect(uiState.user, uiState.isRestoringSession) {
+    if (uiState.isRestoringSession) return@LaunchedEffect
+
     uiState.user?.let {
-      if (!isRestoredUser) {
+      if (!isRestoringInitialSession && !isRestoredUser) {
         Toast.makeText(context, signInSuccessMessage, Toast.LENGTH_SHORT).show()
       }
+      isRestoredUser = true
       onSignedIn()
+    } ?: run { isRestoredUser = false }
+    isRestoringInitialSession = false
+  }
+
+  if (uiState.isRestoringSession || uiState.user != null) {
+    Box(
+        modifier = Modifier.fillMaxSize().testTag(C.Tag.sign_in_screen_container),
+        contentAlignment = Alignment.Center,
+    ) {
+      CircularProgressIndicator(color = ScanTeal)
     }
-    if (uiState.user == null) {
-      isRestoredUser = false
-    }
+    return
   }
 
   Scaffold(

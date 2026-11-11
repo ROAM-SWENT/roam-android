@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -103,6 +104,28 @@ class SignInScreenRobolectricTest {
     )
   }
 
+  @Test
+  fun restoringSession_hidesSignInForm() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(isRestoringSession = true)))
+
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_screen_container).assertIsDisplayed()
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithText(context.getString(R.string.sign_in_title))
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
+  }
+
   /** Verifies that an authentication error causes the ViewModel's error message to be cleared. */
   @Test
   fun errorState_clearsErrorMessage() {
@@ -135,6 +158,28 @@ class SignInScreenRobolectricTest {
     composeTestRule.waitForIdle()
 
     assertEquals(1, callbackCount)
+  }
+
+  @Test
+  fun signedInState_hidesSignInFormWhileProfileLoads() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = mock())))
+
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_screen_container).assertIsDisplayed()
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithText(context.getString(R.string.sign_in_title))
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
   }
 
   /**
