@@ -106,6 +106,11 @@ class LoadingViewModel(
    * Request that set [confirmedLocation]; an older request finishing later must not override it.
    */
   private var confirmedLocationRequest = 0L
+  /**
+   * Whether the latest request failed, so the switch shows [confirmedLocation]. An older request
+   * still in flight can then succeed and become the stored value, which the switch must follow.
+   */
+  private var latestLocationRequestFailed = false
 
   private val _uiState = MutableStateFlow<LoadingUiState>(LoadingUiState.Loading)
   val uiState: StateFlow<LoadingUiState> = _uiState.asStateFlow()
@@ -210,6 +215,7 @@ class LoadingViewModel(
     confirmedLocation = null
     // Results of requests made for a previous guide are now stale.
     confirmedLocationRequest = ++lastLocationRequest
+    latestLocationRequestFailed = false
     _exploreOptIn.value = guide.location?.let { ExploreOptInUiState(scanLocation = it) }
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
@@ -239,19 +245,27 @@ class LoadingViewModel(
     val location = if (shown) current.scanLocation else null
     if (current.savedLocation == location) return
     val request = ++lastLocationRequest
+    latestLocationRequestFailed = false
     _exploreOptIn.value = current.copy(savedLocation = location, error = null)
+    // Every update is issued at once rather than queued behind the previous one: a queued update
+    // would be lost if the user left meanwhile, and offline the previous one never completes.
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
         savedGuideRepository.setLocation(guideId, location)
         if (request > confirmedLocationRequest) {
           confirmedLocationRequest = request
           confirmedLocation = location
+          // The latest request failed, so this one is what stays stored: show it.
+          if (latestLocationRequestFailed) {
+            _exploreOptIn.value = _exploreOptIn.value?.copy(savedLocation = location)
+          }
         }
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
         // A newer request decides the final value, so only the latest one reports an error.
         if (request == lastLocationRequest) {
+          latestLocationRequestFailed = true
           _exploreOptIn.value =
               _exploreOptIn.value?.copy(savedLocation = confirmedLocation, error = exception)
         }

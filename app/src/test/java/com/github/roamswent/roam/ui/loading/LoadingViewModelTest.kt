@@ -676,6 +676,178 @@ class LoadingViewModelTest {
       }
 
   @Test
+  fun olderUpdateSucceedingAfterTheLatestFailedIsShown() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        // Both updates are issued at once, in order, not queued behind each other.
+        assertEquals(listOf(scanLocation, null), store.requested)
+        val (showRequest, hideRequest) = store.gates.toList()
+        val failure = IllegalStateException("permission denied")
+        hideRequest.completeExceptionally(failure)
+        runCurrent()
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+        showRequest.complete(Unit)
+        runCurrent()
+
+        // The show request is the last one that succeeded, so it is what stays stored.
+        assertEquals(scanLocation, store.stored)
+        assertEquals(scanLocation, viewModel.exploreOptIn.value?.savedLocation)
+        // The failure of the latest request is still reported.
+        assertEquals(failure.message, viewModel.exploreOptIn.value?.error?.message)
+      }
+
+  @Test
+  fun olderUpdateFailingAfterTheLatestFailedKeepsTheConfirmedLocation() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        val (showRequest, hideRequest) = store.gates.toList()
+        val failure = IllegalStateException("permission denied")
+        hideRequest.completeExceptionally(failure)
+        runCurrent()
+        showRequest.completeExceptionally(IllegalStateException("offline"))
+        runCurrent()
+
+        assertNull(store.stored)
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+        // Only the latest request reports its failure.
+        assertEquals(failure.message, viewModel.exploreOptIn.value?.error?.message)
+      }
+
+  @Test
+  fun olderUpdateSucceedingDoesNotOverrideANewerPendingRequest() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        store.gates[1].completeExceptionally(IllegalStateException("permission denied"))
+        runCurrent()
+        // Retrying replaces the failure with a new pending request the switch must keep showing.
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        store.gates[0].complete(Unit)
+        runCurrent()
+
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+        assertNull(viewModel.exploreOptIn.value?.error)
+        store.gates[2].complete(Unit)
+        store.gates[3].complete(Unit)
+        runCurrent()
+        assertNull(store.stored)
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+      }
+
+  @Test
+  fun resultsArrivingOutOfOrderAfterTheLatestFailedShowTheStoredLocation() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        viewModel.setShownInExplore(true)
+        store.gates[2].completeExceptionally(IllegalStateException("permission denied"))
+        runCurrent()
+        store.gates[1].complete(Unit)
+        runCurrent()
+        // The show request was made before the hide request, so it cannot override it.
+        store.gates[0].complete(Unit)
+        runCurrent()
+
+        assertNull(store.stored)
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+      }
+
+  @Test
+  fun leavingTheScreenWhileUpdatesArePendingKeepsTheLatestChoice() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModelStore = ViewModelStore()
+        val viewModel =
+            ViewModelProvider(
+                viewModelStore,
+                object : ViewModelProvider.Factory {
+                  @Suppress("UNCHECKED_CAST")
+                  override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                      gatedViewModel(store) as T
+                },
+            )[LoadingViewModel::class.java]
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        // The user leaves while offline, before either update is acknowledged.
+        viewModelStore.clear()
+        store.gates.forEach { it.complete(Unit) }
+        runCurrent()
+
+        assertEquals(listOf(scanLocation, null), store.requested)
+        assertNull(store.stored)
+      }
+
+  /**
+   * Location store following the [SavedGuideRepository.setLocation] contract, like Firestore's
+   * write queue. Each update waits for its own gate, so a test decides when and how it completes.
+   * An update belongs to the store once called: it is applied even if the caller stops waiting, and
+   * in call order whatever order the results arrive in. [stored] is the location of the last call
+   * that succeeded.
+   */
+  private class GatedLocationStore {
+    val gates = mutableListOf<CompletableDeferred<Unit>>()
+    val requested = mutableListOf<Coordinates?>()
+    private var lastAppliedCall = -1
+    var stored: Coordinates? = null
+      private set
+
+    val repository =
+        mockk<SavedGuideRepository>().also { repository ->
+          coEvery { repository.addGuide(any()) } coAnswers { firstArg<Guide>() }
+          coEvery { repository.setLocation(any(), any()) } coAnswers
+              {
+                val location = secondArg<Coordinates?>()
+                val call = requested.size
+                requested += location
+                val gate = CompletableDeferred<Unit>().also { gates += it }
+                gate.invokeOnCompletion { failure ->
+                  if (failure == null && call > lastAppliedCall) {
+                    lastAppliedCall = call
+                    stored = location
+                  }
+                }
+                gate.await()
+              }
+        }
+  }
+
+  private fun gatedViewModel(store: GatedLocationStore): LoadingViewModel {
+    coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+    return LoadingViewModel(
+            repository,
+            readImage,
+            uri,
+            "fr-FR",
+            userInterestsRepository,
+            store.repository,
+            clock = { discoveryDate },
+            newGuideId = { GUIDE_ID },
+        )
+        .also { it.startDiscovery() }
+  }
+
+  @Test
   fun retryingAfterAFailedUpdateClearsTheError() =
       runTest(dispatcher) {
         coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)

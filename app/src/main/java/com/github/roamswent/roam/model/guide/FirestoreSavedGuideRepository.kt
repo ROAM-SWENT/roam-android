@@ -44,7 +44,9 @@ class FirestoreSavedGuideRepository(
 
   override suspend fun setLocation(guideId: String, location: Coordinates?) {
     // Like setFavorite, update() writes only this field and fails for a deleted guide. Clearing
-    // deletes the field, matching guides that never had a location.
+    // deletes the field, matching guides that never had a location. update() queues the write
+    // before anything suspends, and Firestore sends queued writes in order and drops rejected ones;
+    // await() only waits for the acknowledgement, so this meets the ordering contract.
     savedGuidesCollection()
         .document(guideId)
         .update(

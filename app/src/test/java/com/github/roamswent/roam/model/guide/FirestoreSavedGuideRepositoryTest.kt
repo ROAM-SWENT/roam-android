@@ -184,7 +184,7 @@ class FirestoreSavedGuideRepositoryTest {
   }
 
   @Test
-  fun setLocationWritesTheFieldThatGuidesAreReadFrom() {
+  fun locationFieldsAreReadBackAsTheGuideLocation() {
     val location = Coordinates(41.8902, 12.4922)
     val fields =
         GuideFirestoreMapper.toFields(guide.copy(location = null)) +
