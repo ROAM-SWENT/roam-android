@@ -750,7 +750,7 @@ class LoadingViewModelTest {
       }
 
   @Test
-  fun resultsArrivingOutOfOrderAfterTheLatestFailedShowTheStoredLocation() =
+  fun resultsArrivingOutOfOrderAfterTheLatestFailedKeepTheLocationHidden() =
       runTest(dispatcher) {
         val store = GatedLocationStore()
         val viewModel = gatedViewModel(store)
