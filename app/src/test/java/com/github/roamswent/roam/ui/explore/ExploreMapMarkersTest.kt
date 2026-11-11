@@ -55,4 +55,32 @@ class ExploreMapMarkersTest {
     assertEquals(2, markers.map { it.key }.toSet().size)
     assertEquals(userMarker, markers.first())
   }
+
+  /** Verifies that a selected guide ID resolves to its corresponding monument. */
+  @Test
+  fun selectedMonumentForIdReturnsMatchingMonument() {
+    val monument = ExploreMonument("guide-1", "Eiffel Tower", userLocation)
+
+    assertEquals(monument, selectedMonumentForId(listOf(monument), "guide-1"))
+  }
+
+  /** Verifies that a missing selected guide ID produces no selected monument. */
+  @Test
+  fun selectedMonumentForIdReturnsNullWhenSelectedMonumentIsMissing() {
+    val monument = ExploreMonument("guide-1", "Eiffel Tower", userLocation)
+
+    assertEquals(null, selectedMonumentForId(listOf(monument), "guide-2"))
+  }
+
+  /** Verifies that clicking the user's location marker does not select a monument. */
+  @Test
+  fun userLocationMarkerDoesNotSelectAMonument() {
+    assertEquals(null, selectedMonumentIdForMarkerKey(USER_LOCATION_MARKER_KEY))
+  }
+
+  /** Verifies that clicking a monument marker extracts its guide ID. */
+  @Test
+  fun monumentMarkerSelectsItsGuideId() {
+    assertEquals("guide-1", selectedMonumentIdForMarkerKey("monument_guide-1"))
+  }
 }

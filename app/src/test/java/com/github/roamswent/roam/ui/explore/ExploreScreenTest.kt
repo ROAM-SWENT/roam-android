@@ -101,6 +101,32 @@ class ExploreScreenTest {
     verify(exploreViewModel, atLeastOnce()).monuments
   }
 
+  /** Verifies that the monument card displays its content and invokes dismissal when closed. */
+  @Test
+  fun monumentCardDisplaysContentAndDismissesWhenCloseIsClicked() {
+    var dismissed = false
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            description = "Built for the 1889 exposition.",
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme { ExploreMonumentCard(monument = monument, onDismiss = { dismissed = true }) }
+    }
+
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Built for the 1889 exposition.").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithContentDescription("Close monument information")
+        .assertIsDisplayed()
+        .performClick()
+
+    assertEquals(true, dismissed)
+  }
+
   /** Verifies that saved monuments are not read while the map is not shown. */
   @Test
   fun doesNotReadMonumentsWithoutLocationPermission() {
