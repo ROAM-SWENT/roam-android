@@ -418,6 +418,42 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun tappingASavedMonumentOpensItsDetailAndBackReturnsToCollection() {
+    lateinit var navController: NavHostController
+    val guide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "Built in 1889.",
+            facts = listOf("It grows taller in summer."),
+            culture = "A symbol of Paris.",
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(guide)),
+    )
+    composeTestRule.runOnIdle { navController.navigate(Routes.Collection) }
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Eiffel Tower")
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_history).assertTextEquals("Built in 1889.")
+    assertEquals(
+        listOf(Routes.Home, Routes.Collection, Routes.MonumentDetailPattern),
+        backStackRoutes(navController),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    assertEquals(listOf(Routes.Home, Routes.Collection), backStackRoutes(navController))
+  }
+
+  @Test
   fun scannedMonumentAppearsInCollectionThroughTheSharedRepository() {
     lateinit var navController: NavHostController
     val savedGuides = FakeSavedGuideRepository()
