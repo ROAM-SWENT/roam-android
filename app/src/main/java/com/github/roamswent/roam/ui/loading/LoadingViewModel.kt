@@ -24,6 +24,7 @@ import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.toSavedGuide
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -53,7 +54,8 @@ sealed interface LoadingNavigationEvent {
 
 /**
  * Runs the discovery for [imageUri]. Every successful discovery is also saved to
- * [savedGuideRepository], with the photo the pipeline sent to the AI and [clock] as discovery date.
+ * [savedGuideRepository], with the photo the pipeline sent to the AI and [clock] as discovery date,
+ * and can then be added to favourites with [toggleFavorite].
  */
 class LoadingViewModel(
     private val repository: MonumentGuideRepository,
@@ -76,6 +78,21 @@ class LoadingViewModel(
   private val _saveError = MutableStateFlow<Exception?>(null)
   /** Failure from the most recent attempt to save a discovered guide to the collection. */
   val saveError: StateFlow<Exception?> = _saveError.asStateFlow()
+
+  private val _isFavorite = MutableStateFlow(false)
+  /** Whether the guide saved from this discovery is a favourite, updated optimistically. */
+  val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
+
+  private val _favoriteError = MutableStateFlow<Exception?>(null)
+  /** Failure from the latest favourite change, cleared by [clearFavoriteError]. */
+  val favoriteError: StateFlow<Exception?> = _favoriteError.asStateFlow()
+
+  /** ID of the guide saved from this discovery, or null while there is none to favourite. */
+  private var savedGuideId: String? = null
+  /** Favourite value the repository last confirmed, restored when the latest write fails. */
+  private var confirmedFavorite = false
+  /** Increases with every favourite request so only the latest one may roll back or report. */
+  private var lastFavoriteRequest = 0L
 
   private val _uiState = MutableStateFlow<LoadingUiState>(LoadingUiState.Loading)
   val uiState: StateFlow<LoadingUiState> = _uiState.asStateFlow()
@@ -170,20 +187,64 @@ class LoadingViewModel(
    * and a failed save must not prevent showing it. The coroutine starts undispatched, so the write
    * is issued before the guide is shown: leaving the screen then only cancels waiting for the
    * repository's confirmation, not the write itself.
+   *
+   * The id is generated here rather than by the repository, so the guide can be added to favourites
+   * before the save is confirmed, which only happens once back online.
    */
   private fun saveToCollection(guide: MonumentGuide) {
     val discoveryDate = clock()
+    val guideId = UUID.randomUUID().toString()
+    savedGuideId = guideId
+    confirmedFavorite = false
+    _isFavorite.value = false
+    _favoriteError.value = null
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
         _saveError.value = null
         val photo = checkNotNull(guide.photo) { "The discovery returned no photo to save" }
-        savedGuideRepository.addGuide(guide.toSavedGuide(photo.bytes, discoveryDate))
+        savedGuideRepository.addGuide(
+            guide.toSavedGuide(photo.bytes, discoveryDate).copy(id = guideId)
+        )
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
+        if (savedGuideId == guideId) savedGuideId = null
         _saveError.value = exception
       }
     }
+  }
+
+  /**
+   * Adds the saved guide to favourites, or removes it, immediately in the UI while the repository
+   * synchronizes the change. Does nothing while no guide is saved. Like [saveToCollection], the
+   * write starts undispatched so leaving the screen right after the tap does not drop it.
+   */
+  fun toggleFavorite() {
+    val guideId = savedGuideId ?: return
+    val isFavorite = !_isFavorite.value
+    val request = ++lastFavoriteRequest
+    _isFavorite.value = isFavorite
+    _favoriteError.value = null
+    viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+      try {
+        savedGuideRepository.setFavorite(guideId, isFavorite)
+        // Writes to the same guide are applied in order, so this value is now the stored one.
+        if (savedGuideId == guideId) confirmedFavorite = isFavorite
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        // A newer request decides the final value, so only the latest one rolls back and reports.
+        if (request == lastFavoriteRequest && savedGuideId == guideId) {
+          _isFavorite.value = confirmedFavorite
+          _favoriteError.value = exception
+        }
+      }
+    }
+  }
+
+  /** Clears [favoriteError] once the UI has shown it. */
+  fun clearFavoriteError() {
+    _favoriteError.value = null
   }
 
   fun onCancel() {

@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.foundation.Image
@@ -8,16 +9,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -31,17 +37,27 @@ import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.isDark
 import kotlin.math.roundToInt
 
+/**
+ * Shows [guide] over its [image]. The favourite heart is shown only when [isFavorite] is not null,
+ * that is once the guide is in the collection, and [showFavoriteError] shows a snackbar that is
+ * reported back with [onFavoriteErrorShown].
+ */
 @Composable
 fun MonumentDetailScreen(
     image: Painter,
     guide: MonumentGuide,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isFavorite: Boolean? = null,
+    onFavoriteClick: () -> Unit = {},
+    showFavoriteError: Boolean = false,
+    onFavoriteErrorShown: () -> Unit = {},
 ) {
   val textBackgroundColor =
       if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
@@ -166,6 +182,55 @@ fun MonumentDetailScreen(
         onClick = onBackClick,
         modifier = Modifier.align(Alignment.TopStart),
     )
+
+    isFavorite?.let {
+      MonumentDetailFavoriteButton(
+          isFavorite = it,
+          onClick = onFavoriteClick,
+          modifier = Modifier.align(Alignment.TopEnd),
+      )
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val favoriteErrorMessage = stringResource(R.string.collection_favorite_error)
+    LaunchedEffect(showFavoriteError) {
+      if (showFavoriteError) {
+        snackbarHostState.showSnackbar(favoriteErrorMessage)
+        onFavoriteErrorShown()
+      }
+    }
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
+    )
+  }
+}
+
+/** Heart over the photo, styled like the one on collection cards: filled when [isFavorite]. */
+@Composable
+private fun MonumentDetailFavoriteButton(
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  IconButton(
+      onClick = onClick,
+      modifier =
+          modifier.statusBarsPadding().padding(16.dp).size(44.dp).semantics {
+            testTag = C.Tag.monument_detail_favorite_button
+          },
+      colors =
+          IconButtonDefaults.iconButtonColors(containerColor = Color.White.copy(alpha = 0.85f)),
+  ) {
+    Icon(
+        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+        contentDescription =
+            stringResource(
+                if (isFavorite) R.string.collection_favorite_remove
+                else R.string.collection_favorite_add
+            ),
+        tint = HomeAccentGreen,
+    )
   }
 }
 
@@ -216,6 +281,7 @@ fun PreviewMonumentDetailScreen() {
                 language = "en",
             ),
         onBackClick = {},
+        isFavorite = true,
     )
   }
 }

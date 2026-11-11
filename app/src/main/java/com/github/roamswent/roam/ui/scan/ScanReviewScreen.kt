@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.ui.scan
 
@@ -79,12 +80,20 @@ fun ScanReviewScreen(
     onSkipInterests: () -> Unit = {},
     isGalleryImage: Boolean = false,
     modifier: Modifier = Modifier,
+    isFavorite: Boolean? = null,
+    onFavoriteClick: () -> Unit = {},
+    showFavoriteError: Boolean = false,
+    onFavoriteErrorShown: () -> Unit = {},
 ) {
   if (state is ScanReviewUiState.Sent) {
     MonumentDetailScreen(
         image = rememberAsyncImagePainter(state.uri),
         guide = state.guide,
         onBackClick = onHomeClick,
+        isFavorite = isFavorite,
+        onFavoriteClick = onFavoriteClick,
+        showFavoriteError = showFavoriteError,
+        onFavoriteErrorShown = onFavoriteErrorShown,
     )
     return
   }
