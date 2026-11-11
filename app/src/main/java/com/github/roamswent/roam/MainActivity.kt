@@ -161,7 +161,7 @@ internal fun RoamApp(
   }
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
   val runOfflineAction = rememberOfflineActionGate(isOnline)
-  // One instance shared by the collection and the scan flow, so both use the same repository.
+  // One instance shared by the collection, scan flow and Explore, so they see the same data.
   // It is created lazily, when the first of those screens needs it.
   val savedGuideRepository =
       remember(savedGuideRepositoryOverride) {
@@ -455,7 +455,7 @@ internal fun RoamApp(
 
       composable(Routes.Explore) {
         val exploreViewModel: ExploreViewModel = viewModel {
-          ExploreViewModel(AndroidLocationProvider(context))
+          ExploreViewModel(AndroidLocationProvider(context), savedGuideRepository.value)
         }
         val explorePermissionController =
             rememberLocationPermissionController(
