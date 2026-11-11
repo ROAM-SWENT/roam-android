@@ -5,12 +5,14 @@
 
 package com.github.roamswent.roam.ui.explore
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -48,14 +50,18 @@ class ExploreViewModel(
 
   /**
    * Saved guides that have a location, kept up to date with the repository while observed. Starts
-   * empty; if observation fails, the last received monuments stay on the map.
+   * empty; if observation fails, the failure is logged and the last received monuments stay on the
+   * map. Cancellation is rethrown so it is never swallowed.
    */
   val monuments: StateFlow<List<ExploreMonument>> =
       savedGuideRepository
           .observeSavedGuides()
           .map { guides -> guides.toExploreMonuments() }
           .distinctUntilChanged()
-          .catch {}
+          .catch { exception ->
+            if (exception is CancellationException) throw exception
+            Log.e(TAG, "Failed to observe saved monuments", exception)
+          }
           .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
   private var permissionGranted = false
@@ -102,6 +108,8 @@ class ExploreViewModel(
   }
 
   private companion object {
+    const val TAG = "ExploreViewModel"
+
     /** Keeps observing across short interruptions such as configuration changes. */
     const val STOP_TIMEOUT_MILLIS = 5_000L
   }

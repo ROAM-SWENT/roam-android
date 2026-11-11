@@ -66,9 +66,13 @@ class ExploreScreenTest {
     composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
   }
 
-  /** Verifies that the map is shown with saved monuments and reads them from the view model. */
+  /**
+   * Verifies that the shown map reads the saved monuments from the view model. Google Maps markers
+   * expose no Compose semantics, so the markers built from these monuments are checked in
+   * [ExploreMapMarkersTest].
+   */
   @Test
-  fun displaysMapWithSavedMonumentsWhenLocationIsAvailable() {
+  fun readsSavedMonumentsWhenMapIsShown() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.uiState)
         .thenReturn(
