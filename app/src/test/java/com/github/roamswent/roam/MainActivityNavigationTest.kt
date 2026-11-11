@@ -168,6 +168,22 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun backFromUsernameRegistrationSignsOutAndReturnsToSignIn() {
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    renderApp(
+        authState,
+        publicProfileRepositoryOverride = TestPublicProfileRepository(initialProfile = null),
+    )
+
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    waitAndAssertDisplayed(C.Tag.sign_in_google_button)
+    waitForGone(C.Tag.register_profile_screen_container)
+    assertNull(authState.value.user)
+  }
+
+  @Test
   fun profileCheckFailureShowsLocalizedFallbackToast() {
     val repository = TestPublicProfileRepository(profileCheckFailure = Exception())
     renderApp(
@@ -1382,6 +1398,12 @@ class MainActivityNavigationTest {
         }
         .whenever(authViewModel)
         .clearSignedInUser()
+    doAnswer {
+          authState.value = AuthUIState(signOutCompleted = true)
+          Result.success(Unit)
+        }
+        .whenever(authViewModel)
+        .signOut()
     composeTestRule.activity.setContent {
       val navController = rememberNavController()
       SideEffect { onNavControllerReady(navController) }
