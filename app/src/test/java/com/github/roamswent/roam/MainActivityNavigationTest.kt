@@ -68,6 +68,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.Robolectric
@@ -181,6 +182,30 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.sign_in_google_button)
     waitForGone(C.Tag.register_profile_screen_container)
     assertNull(authState.value.user)
+  }
+
+  @Test
+  fun backFromUsernameRegistrationSignOutFailureShowsErrorAndStaysOnRegistration() {
+    val failure = IllegalStateException("Unable to sign out")
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    renderApp(
+        authState,
+        publicProfileRepositoryOverride = TestPublicProfileRepository(initialProfile = null),
+        signOutFailure = failure,
+    )
+
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == failure.localizedMessage }
+
+    assertEquals(failure.localizedMessage, ShadowToast.getTextOfLatestToast())
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_screen_container).assertIsDisplayed()
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
   }
 
   @Test
@@ -1389,6 +1414,7 @@ class MainActivityNavigationTest {
       isOnlineOverride: Boolean? = true,
       publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
+      signOutFailure: Throwable? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -1398,12 +1424,16 @@ class MainActivityNavigationTest {
         }
         .whenever(authViewModel)
         .clearSignedInUser()
-    doAnswer {
-          authState.value = AuthUIState(signOutCompleted = true)
-          Result.success(Unit)
-        }
-        .whenever(authViewModel)
-        .signOut()
+    if (signOutFailure == null) {
+      doAnswer {
+            authState.value = AuthUIState(signOutCompleted = true)
+            Result.success(Unit)
+          }
+          .whenever(authViewModel)
+          .signOut()
+    } else {
+      doReturn(Result.failure<Unit>(signOutFailure)).whenever(authViewModel).signOut()
+    }
     composeTestRule.activity.setContent {
       val navController = rememberNavController()
       SideEffect { onNavControllerReady(navController) }
