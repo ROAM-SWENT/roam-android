@@ -716,17 +716,13 @@ class MainActivityNavigationTest {
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
     waitAndAssertDisplayed(C.Tag.offline_action_dialog)
-    composeTestRule.runOnIdle {
-      assertEquals(Routes.Home, navController.currentDestination?.route)
-    }
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
     composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
     waitForGone(C.Tag.offline_action_dialog)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
     waitAndAssertDisplayed(C.Tag.offline_action_dialog)
-    composeTestRule.runOnIdle {
-      assertEquals(Routes.Home, navController.currentDestination?.route)
-    }
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
     composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
     waitForGone(C.Tag.offline_action_dialog)
 
