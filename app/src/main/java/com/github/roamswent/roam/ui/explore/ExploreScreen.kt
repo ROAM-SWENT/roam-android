@@ -6,21 +6,27 @@
 package com.github.roamswent.roam.ui.explore
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -189,6 +195,7 @@ fun ExploreScreen(
             selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
           }
           val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
+          var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
 
           Box(Modifier.fillMaxSize()) {
             GoogleMap(
@@ -213,6 +220,9 @@ fun ExploreScreen(
               ExploreMonumentCard(
                   monument = monument,
                   onDismiss = { selectedMonumentId = null },
+                  isExpanded = isMonumentExpanded,
+                  onExpand = { isMonumentExpanded = true },
+                  onMinimize = { isMonumentExpanded = false },
                   modifier = Modifier.align(Alignment.BottomCenter),
               )
             }
@@ -236,12 +246,20 @@ fun ExploreScreen(
 
 @Composable
 internal fun ExploreMonumentCard(
+    modifier: Modifier = Modifier,
     monument: ExploreMonument,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
+    isExpanded: Boolean = false,
+    onExpand: () -> Unit = {},
+    onMinimize: () -> Unit = {},
 ) {
   Card(
-      modifier = modifier.fillMaxWidth().padding(16.dp),
+      modifier =
+          modifier
+              .fillMaxWidth()
+              .then(if (isExpanded) Modifier.fillMaxHeight(0.75f) else Modifier)
+              .padding(16.dp)
+              .then(if (isExpanded) Modifier else Modifier.clickable(onClick = onExpand)),
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = Color.White),
   ) {
