@@ -167,4 +167,7 @@
     <string name="settings_permissions_section_header">Autorisations de l\'application</string>
     <string name="monument_detail_match_percent">%1$d%% de correspondance</string>
     <string name="monument_detail_fact_bullet">• %1$s</string>
+    <string name="monument_detail_show_in_explore">Afficher dans Explorer</string>
+    <string name="monument_detail_show_in_explore_supporting">Épinglez ce monument sur la carte à l\'endroit où vous l\'avez scanné.</string>
+    <string name="monument_detail_show_in_explore_error">Impossible de mettre à jour Explorer. Veuillez réessayer.</string>
 </resources>
