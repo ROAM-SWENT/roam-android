@@ -207,6 +207,20 @@ internal fun RoamApp(
   }
   val permissionState by permissionController.state.collectAsState()
   val currentBackStackEntry by navController.currentBackStackEntryAsState()
+  val cancelProfileRegistration: () -> Unit = {
+    val failure = authViewModel.signOut().exceptionOrNull()
+    if (failure == null) {
+      registerProfileViewModel.reset()
+      navController.navigate(Routes.SignIn) { popUpTo(navController.graph.id) { inclusive = true } }
+    } else {
+      Toast.makeText(
+              context,
+              failure.localizedMessage ?: profileCheckErrorMessage,
+              Toast.LENGTH_LONG,
+          )
+          .show()
+    }
+  }
   LaunchedEffect(
       profileUiState.status,
       profileUiState.errorMessage,
@@ -323,7 +337,9 @@ internal fun RoamApp(
             onSignInClickOverride = onSignInClickOverride,
         )
       }
-      composable(Routes.RegisterProfile) { RegisterProfileScreen(registerProfileViewModel) }
+      composable(Routes.RegisterProfile) {
+        RegisterProfileScreen(registerProfileViewModel, onCancel = cancelProfileRegistration)
+      }
       composable(Routes.Home) {
         val homeViewModel: HomeViewModel = viewModel()
         val userName by homeViewModel.userName.collectAsState()

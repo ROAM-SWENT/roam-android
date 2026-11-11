@@ -1,5 +1,6 @@
 /*
  * This code was adapted from the bootcamp solution provided for SWENT.
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
 
 package com.github.roamswent.roam.ui.authentication
@@ -24,12 +25,14 @@ import kotlinx.coroutines.launch
  * Represents the UI state for authentication.
  *
  * @property isLoading Whether an authentication operation is in progress.
+ * @property isRestoringSession Whether the initial authentication state is still being resolved.
  * @property user The currently signed-in [FirebaseUser], or null if not signed in.
  * @property errorMsg An error message to display, or null if there is no error.
  * @property signOutCompleted True after the cached signed-in user is cleared by sign-out.
  */
 data class AuthUIState(
     val isLoading: Boolean = false,
+    val isRestoringSession: Boolean = false,
     val user: FirebaseUser? = null,
     val errorMsg: String? = null,
     val signOutCompleted: Boolean = false,
@@ -44,8 +47,17 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
     ViewModel() {
 
   // Firebase restores the cached user locally, including when the device is offline.
-  private val _uiState = MutableStateFlow(AuthUIState(user = repository.currentUser()))
+  private val _uiState =
+      MutableStateFlow(AuthUIState(user = repository.currentUser(), isRestoringSession = true))
   val uiState: StateFlow<AuthUIState> = _uiState
+
+  init {
+    viewModelScope.launch {
+      repository.currentUserFlow().collect { user ->
+        _uiState.update { it.copy(user = user, isRestoringSession = false) }
+      }
+    }
+  }
 
   /** Clears the error message in the UI state. */
   fun clearErrorMsg() {
@@ -55,6 +67,13 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
   /** Clears the cached user after a successful sign-out. */
   fun clearSignedInUser() {
     _uiState.update { it.copy(user = null, signOutCompleted = true) }
+  }
+
+  /** Signs out an incomplete account and clears its cached UI state on success. */
+  fun signOut(): Result<Unit> {
+    val result = repository.signOut()
+    result.onSuccess { clearSignedInUser() }
+    return result
   }
 
   private fun getSignInOptions(context: Context) =

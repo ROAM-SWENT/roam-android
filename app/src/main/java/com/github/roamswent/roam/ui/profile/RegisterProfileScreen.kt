@@ -4,6 +4,7 @@
 
 package com.github.roamswent.roam.ui.profile
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -36,9 +37,11 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 
 @Composable
-fun RegisterProfileScreen(viewModel: RegisterProfileViewModel) {
+fun RegisterProfileScreen(viewModel: RegisterProfileViewModel, onCancel: () -> Unit) {
   val uiState by viewModel.uiState.collectAsState()
   var username by remember { mutableStateOf("") }
+
+  BackHandler(onBack = onCancel)
 
   Scaffold(
       modifier =
