@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.ui.scan
 
@@ -58,6 +59,7 @@ import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.ShutterWhite
@@ -79,12 +81,16 @@ fun ScanReviewScreen(
     onSkipInterests: () -> Unit = {},
     isGalleryImage: Boolean = false,
     modifier: Modifier = Modifier,
+    exploreOptIn: ExploreOptInUiState? = null,
+    onShowInExploreChange: (Boolean) -> Unit = {},
 ) {
   if (state is ScanReviewUiState.Sent) {
     MonumentDetailScreen(
         image = rememberAsyncImagePainter(state.uri),
         guide = state.guide,
         onBackClick = onHomeClick,
+        exploreOptIn = exploreOptIn,
+        onShowInExploreChange = onShowInExploreChange,
     )
     return
   }

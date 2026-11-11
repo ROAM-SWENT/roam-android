@@ -142,4 +142,7 @@
     <string name="settings_permissions_section_header">App Permissions</string>
     <string name="monument_detail_match_percent">%1$d%% match</string>
     <string name="monument_detail_fact_bullet">• %1$s</string>
+    <string name="monument_detail_show_in_explore">Show in Explore</string>
+    <string name="monument_detail_show_in_explore_supporting">Pin this monument on the map where you scanned it.</string>
+    <string name="monument_detail_show_in_explore_error">Could not update Explore. Try again.</string>
 </resources>

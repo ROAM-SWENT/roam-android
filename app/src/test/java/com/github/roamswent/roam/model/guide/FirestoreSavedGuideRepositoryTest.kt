@@ -10,6 +10,7 @@ import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.EventListener
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
@@ -154,6 +155,55 @@ class FirestoreSavedGuideRepositoryTest {
     val error = captureFailure { repository.setFavorite("guide-id", true) }
 
     assertTrue(error is IllegalStateException)
+  }
+
+  @Test
+  fun setLocationUpdatesOnlyTheLocationField() = runTest {
+    val document = mockk<DocumentReference>()
+    val location = Coordinates(41.8902, 12.4922)
+    val fields = mapOf("latitude" to 41.8902, "longitude" to 12.4922)
+    every { savedGuidesCollection.document("guide-id") } returns document
+    every { document.update("location", fields) } returns Tasks.forResult(null)
+
+    repository.setLocation("guide-id", location)
+
+    verify(exactly = 1) { document.update("location", fields) }
+    verify(exactly = 0) { document.set(any()) }
+  }
+
+  @Test
+  fun clearingTheLocationDeletesTheField() = runTest {
+    val document = mockk<DocumentReference>()
+    every { savedGuidesCollection.document("guide-id") } returns document
+    every { document.update("location", FieldValue.delete()) } returns Tasks.forResult(null)
+
+    repository.setLocation("guide-id", null)
+
+    verify(exactly = 1) { document.update("location", FieldValue.delete()) }
+    verify(exactly = 0) { document.set(any()) }
+  }
+
+  @Test
+  fun locationFieldsAreReadBackAsTheGuideLocation() {
+    val location = Coordinates(41.8902, 12.4922)
+    val fields =
+        GuideFirestoreMapper.toFields(guide.copy(location = null)) +
+            (GuideFirestoreMapper.LOCATION_FIELD to GuideFirestoreMapper.locationFields(location))
+
+    assertEquals(location, GuideFirestoreMapper.fromFields("guide-id", fields).location)
+  }
+
+  @Test
+  fun setLocationPropagatesFirestoreFailures() = runTest {
+    val document = mockk<DocumentReference>()
+    val failure =
+        FirebaseFirestoreException("guide deleted", FirebaseFirestoreException.Code.NOT_FOUND)
+    every { savedGuidesCollection.document("guide-id") } returns document
+    every { document.update("location", any()) } returns Tasks.forException(failure)
+
+    val error = captureFailure { repository.setLocation("guide-id", Coordinates(1.0, 2.0)) }
+
+    assertTrue(error === failure)
   }
 
   @Test

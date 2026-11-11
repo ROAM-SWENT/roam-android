@@ -21,21 +21,27 @@ class GuideMappingTest {
       )
 
   @Test
-  fun copiesGuideContentPhotoLocationAndDate() {
+  fun copiesGuideContentIdPhotoAndDate() {
     val photo = byteArrayOf(1, 2, 3)
 
-    val saved = monumentGuide.toSavedGuide(photo, discoveryDate = 1_700_000_000_000L)
+    val saved =
+        monumentGuide.toSavedGuide(
+            id = "guide-id",
+            photoBytes = photo,
+            discoveryDate = 1_700_000_000_000L,
+            location = null,
+        )
 
     assertEquals(
         Guide(
-            id = "",
+            id = "guide-id",
             photoBytes = byteArrayOf(1, 2, 3),
             monumentName = "Eiffel Tower",
             confidence = 0.92,
             history = "Built in 1889.",
             facts = listOf("It grows taller in summer."),
             culture = "A symbol of Paris.",
-            location = Coordinates(48.85837, 2.29448),
+            location = null,
             discoveryDate = 1_700_000_000_000L,
             isFavorite = false,
         ),
@@ -44,9 +50,20 @@ class GuideMappingTest {
   }
 
   @Test
-  fun keepsMissingLocationAsNull() {
-    val saved = monumentGuide.copy(location = null).toSavedGuide(byteArrayOf(1), discoveryDate = 0L)
+  fun scanLocationIsNotCopiedImplicitly() {
+    val saved = monumentGuide.toSavedGuide("guide-id", byteArrayOf(1), 0L, location = null)
 
     assertNull(saved.location)
+    // The discovery keeps its scan location for a later Explore opt-in.
+    assertEquals(Coordinates(48.85837, 2.29448), monumentGuide.location)
+  }
+
+  @Test
+  fun usesTheLocationTheCallerChooses() {
+    val location = Coordinates(48.85837, 2.29448)
+
+    val saved = monumentGuide.toSavedGuide("guide-id", byteArrayOf(1), 0L, location = location)
+
+    assertEquals(location, saved.location)
   }
 }

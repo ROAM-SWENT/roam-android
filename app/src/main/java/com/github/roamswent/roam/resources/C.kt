@@ -97,6 +97,8 @@ object C {
     const val monument_detail_history = "monument_detail_history"
     const val monument_detail_fact_item = "monument_detail_fact_item"
     const val monument_detail_culture = "monument_detail_culture"
+    const val monument_detail_show_in_explore = "monument_detail_show_in_explore"
+    const val monument_detail_show_in_explore_error = "monument_detail_show_in_explore_error"
     const val loading_screen_image = "loading_screen_image"
     const val loading_screen_container = "loading_screen_container"
     const val loading_screen_progress = "loading_screen_progress"
