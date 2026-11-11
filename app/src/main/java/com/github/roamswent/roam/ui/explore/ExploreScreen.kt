@@ -100,6 +100,20 @@ internal fun selectedMonumentForId(
 internal fun selectedMonumentIdForMarkerKey(markerKey: String): String? =
     markerKey.takeUnless { it == USER_LOCATION_MARKER_KEY }?.removePrefix("monument_")
 
+internal fun updateSelectedMonumentId(
+    monuments: List<ExploreMonument>,
+    selectedMonumentId: String?,
+): String? = selectedMonumentId?.takeIf { selectedId -> monuments.any { it.guideId == selectedId } }
+
+internal fun handleExploreMarkerClick(
+    markerKey: String,
+    onMonumentSelected: (String) -> Unit,
+): Boolean =
+    selectedMonumentIdForMarkerKey(markerKey)?.let {
+      onMonumentSelected(it)
+      true
+    } ?: false
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
@@ -165,9 +179,7 @@ fun ExploreScreen(
               )
           var selectedMonumentId by remember { mutableStateOf<String?>(null) }
           LaunchedEffect(monuments, selectedMonumentId) {
-            if (selectedMonumentId != null && monuments.none { it.guideId == selectedMonumentId }) {
-              selectedMonumentId = null
-            }
+            selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
           }
           val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
 
@@ -184,10 +196,7 @@ fun ExploreScreen(
                       state = markerState,
                       title = marker.title,
                       onClick = {
-                        selectedMonumentIdForMarkerKey(marker.key)?.let {
-                          selectedMonumentId = it
-                          true
-                        } ?: false
+                        handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
                       },
                   )
                 }

@@ -83,4 +83,39 @@ class ExploreMapMarkersTest {
   fun monumentMarkerSelectsItsGuideId() {
     assertEquals("guide-1", selectedMonumentIdForMarkerKey("monument_guide-1"))
   }
+
+  /** Verifies that a selected monument remains selected while it is still available. */
+  @Test
+  fun selectedMonumentRemainsSelectedWhenStillAvailable() {
+    val monument = ExploreMonument("guide-1", "Eiffel Tower", userLocation)
+
+    assertEquals("guide-1", updateSelectedMonumentId(listOf(monument), "guide-1"))
+  }
+
+  /** Verifies that a selected monument is cleared after it disappears from the collection. */
+  @Test
+  fun selectedMonumentIsClearedWhenNoLongerAvailable() {
+    assertEquals(null, updateSelectedMonumentId(emptyList(), "guide-1"))
+  }
+
+  /** Verifies that clicking a monument marker selects it and reports a handled click. */
+  @Test
+  fun monumentMarkerClickSelectsMonument() {
+    var selectedId: String? = null
+
+    assertEquals(
+        true,
+        handleExploreMarkerClick("monument_guide-1") { selectedId = it },
+    )
+    assertEquals("guide-1", selectedId)
+  }
+
+  /** Verifies that clicking the user's marker is not handled as a monument selection. */
+  @Test
+  fun userLocationMarkerClickIsNotHandled() {
+    var selectedId: String? = null
+
+    assertEquals(false, handleExploreMarkerClick(USER_LOCATION_MARKER_KEY) { selectedId = it })
+    assertEquals(null, selectedId)
+  }
 }

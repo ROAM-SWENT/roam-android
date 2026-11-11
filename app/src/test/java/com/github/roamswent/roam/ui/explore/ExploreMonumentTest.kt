@@ -63,4 +63,13 @@ class ExploreMonumentTest {
 
     assertNotEquals(first, second)
   }
+
+  /** Verifies that marker identity changes when the marker name or position changes. */
+  @Test
+  fun markerIdentityChangesWhenNameOrCoordinatesChange() {
+    val first = ExploreMonument("guide-1", "Paris", coordinates)
+
+    assertNotEquals(first, first.copy(name = "Rome"))
+    assertNotEquals(first, first.copy(coordinates = Coordinates(41.9028, 12.4964)))
+  }
 }
