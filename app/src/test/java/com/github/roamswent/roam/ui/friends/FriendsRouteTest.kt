@@ -24,9 +24,11 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
@@ -120,6 +122,7 @@ class FriendsRouteTest {
     mockkStatic(FirebaseAuth::class)
     try {
       every { FirebaseFirestore.getInstance() } returns firestore
+      every { firestore.firestoreSettings = any() } just Runs
       every { FirebaseAuth.getInstance() } returns auth
       every { auth.currentUser } returns null
 
@@ -150,6 +153,7 @@ class FriendsRouteTest {
     mockkStatic(FirebaseAuth::class)
     try {
       every { FirebaseFirestore.getInstance() } returns firestore
+      every { firestore.firestoreSettings = any() } just Runs
       every { FirebaseAuth.getInstance() } returns auth
       every { auth.currentUser } returns null
       coEvery { profilesRepository.getCurrentProfile() } returns null
@@ -178,6 +182,7 @@ class FriendsRouteTest {
     mockkStatic(FirebaseAuth::class)
     try {
       every { FirebaseFirestore.getInstance() } returns firestore
+      every { firestore.firestoreSettings = any() } just Runs
       every { FirebaseAuth.getInstance() } returns auth
       every { auth.currentUser } returns null
 

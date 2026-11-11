@@ -2,6 +2,7 @@
 
 package com.github.roamswent.roam.model.profile
 
+import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -11,7 +12,7 @@ import kotlinx.coroutines.tasks.await
 
 /** Firestore-backed public profiles with transactionally unique, case-insensitive usernames. */
 class FirestorePublicProfileRepository(
-    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
+    private val firestore: FirebaseFirestore = RoamFirestore.instance,
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
 ) : PublicProfileRepository {
 
