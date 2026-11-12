@@ -141,7 +141,9 @@ internal fun RoamApp(
     authViewModel: SignInViewModel,
     navController: NavHostController = rememberNavController(),
     captureSenderOverride: CaptureSender? = null,
-    onSignInClickOverride: (() -> Unit)? = null,
+    // Let journey tests bypass Firebase while retaining control of post-sign-in behavior.
+    onSignInClickOverride: ((() -> Unit) -> Unit)? = null,
+    onSignedInOverride: ((LocationPermissionController) -> Unit)? = null,
     settingsViewModel: SettingsViewModel? = null,
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
@@ -349,7 +351,10 @@ internal fun RoamApp(
       composable(Routes.SignIn) {
         SignInScreen(
             authViewModel = authViewModel,
-            onSignedIn = registerProfileViewModel::checkCurrentProfile,
+            onSignedIn =
+                onSignedInOverride?.let { onSignedIn ->
+                  { onSignedIn(locationPermissionController) }
+                } ?: registerProfileViewModel::checkCurrentProfile,
             onSignInClickOverride = onSignInClickOverride,
         )
       }

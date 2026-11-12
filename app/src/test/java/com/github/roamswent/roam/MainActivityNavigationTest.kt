@@ -291,7 +291,7 @@ class MainActivityNavigationTest {
       SampleAppTheme {
         RoamApp(
             authViewModel = authViewModel,
-            onSignInClickOverride = { signInClickCount++ },
+            onSignInClickOverride = { _ -> signInClickCount++ },
             publicProfileRepositoryOverride = TestPublicProfileRepository(),
         )
       }
@@ -894,7 +894,7 @@ class MainActivityNavigationTest {
     lateinit var navController: NavHostController
     renderApp(
         authState,
-        onSignInClickOverride = { signInClickCount++ },
+        onSignInClickOverride = { _ -> signInClickCount++ },
         onNavControllerReady = { navController = it },
         settingsViewModel = settingsViewModel,
     )
@@ -933,7 +933,7 @@ class MainActivityNavigationTest {
     lateinit var navController: NavHostController
     renderApp(
         authState,
-        onSignInClickOverride = { authState.value = AuthUIState(user = mock()) },
+        onSignInClickOverride = { _ -> authState.value = AuthUIState(user = mock()) },
         onNavControllerReady = { navController = it },
         settingsViewModel = settingsViewModel,
     )
@@ -1009,7 +1009,7 @@ class MainActivityNavigationTest {
     lateinit var navController: NavHostController
     renderApp(
         authState,
-        onSignInClickOverride = {
+        onSignInClickOverride = { _ ->
           signInClickCount++
           authState.value = AuthUIState(user = mock())
         },
@@ -1446,7 +1446,7 @@ class MainActivityNavigationTest {
 
   private fun renderApp(
       authState: MutableStateFlow<AuthUIState>,
-      onSignInClickOverride: (() -> Unit)? = null,
+      onSignInClickOverride: ((() -> Unit) -> Unit)? = null,
       onNavControllerReady: (NavHostController) -> Unit = {},
       settingsViewModel: SettingsViewModel? = null,
       savedGuideRepository: FakeSavedGuideRepository? = null,

@@ -31,7 +31,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import com.github.roamswent.roam.data.GuideCaptureSender
 import com.github.roamswent.roam.model.ai.GeminiClient
@@ -163,7 +162,8 @@ class UserJourneyEndToEndTest {
               themeMode = selectedThemeMode,
               onThemeModeSelected = { selectedThemeMode = it },
               isOnlineOverride = true,
-              onSignInClickOverride = {
+              // The M2 journey skips Firebase authentication and enters the real Home graph.
+              onSignInClickOverride = { _ ->
                 auth.signIn()
                 navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
               },
@@ -286,7 +286,13 @@ class UserJourneyEndToEndTest {
               authViewModel = authViewModel,
               captureSenderOverride = services.captureSender,
               savedGuideRepositoryOverride = FakeSavedGuideRepository(),
-              onSignInClickOverride = auth::signIn,
+              // Simulate successful sign-in without Firebase, then request permission through
+              // the app's real Android permission controller.
+              onSignInClickOverride = { onSignedIn ->
+                auth.signIn()
+                onSignedIn()
+              },
+              onSignedInOverride = { it.requestPermission() },
           )
         }
       }
@@ -303,6 +309,7 @@ class UserJourneyEndToEndTest {
     // Permissions and the saved choice start empty. Sign-in opens the real Android location
     // prompt. Choose precise location, then check Android's grants and Roam's saved choice.
     acceptPreciseLocationPermission()
+    acceptPermissionDialogIfVisible()
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       locationPermissionDecisions.getDecision() == LocationPermissionDecision.GRANTED
     }
@@ -520,16 +527,57 @@ class UserJourneyEndToEndTest {
   }
 
   private fun acceptPreciseLocationPermission() {
+    // Android may already have granted precise access, in which case it skips the prompt
+    // altogether. A granted fine-location permission proves the selected precision.
+    if (hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
+      assertPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+      return
+    }
+
     val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-    val fineAccuracy =
-        waitForPermissionObject(
-            device,
-            By.res(PERMISSION_CONTROLLER_PACKAGE, "permission_location_accuracy_radio_fine"),
+    val packageNames =
+        listOf(
+            PERMISSION_CONTROLLER_PACKAGE,
+            "com.google.android.permissioncontroller",
         )
+    // Permission-controller resource IDs vary by Android image; labels provide a fallback.
+    val precisionSelectors =
+        packageNames.map { By.res(it, "permission_location_accuracy_radio_fine") } +
+            listOf(
+                    "Precise",
+                    "Precise location",
+                    "Use precise location",
+                    "Precise accuracy",
+                )
+                .map(By::text)
+    val precisionSelector =
+        waitForPermissionSelector(device, precisionSelectors)
+            ?: run {
+              val hierarchy = File.createTempFile("location-permission-dialog", ".xml")
+              try {
+                device.dumpWindowHierarchy(hierarchy)
+                error(
+                    "Expected the Android precise-location choice to appear. " +
+                        "Location permission state: " +
+                        "coarse=${hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)}, " +
+                        "fine=${hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)}. " +
+                        hierarchy.readText()
+                )
+              } finally {
+                hierarchy.delete()
+              }
+            }
+    val fineAccuracy =
+        checkNotNull(device.findObject(precisionSelector)) {
+          "Location accuracy choice disappeared"
+        }
     if (!fineAccuracy.isChecked) {
       fineAccuracy.click()
     }
-    assertTrue("Precise location must be selected in the system prompt", fineAccuracy.isChecked)
+    assertTrue(
+        "Precise location must be selected in the system prompt",
+        checkNotNull(device.findObject(precisionSelector)).isChecked,
+    )
     acceptPermissionDialog(
         resourceNames =
             listOf("permission_allow_foreground_only_button", "permission_allow_button"),
@@ -571,13 +619,29 @@ class UserJourneyEndToEndTest {
         .click()
   }
 
+  private fun acceptPermissionDialogIfVisible() {
+    // Granting location can immediately trigger Android's notification prompt, which also
+    // blocks Compose UI inspection until it is dismissed.
+    val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    val selectors =
+        listOf(
+            By.res(PERMISSION_CONTROLLER_PACKAGE, "permission_allow_button"),
+            By.res("com.google.android.permissioncontroller", "permission_allow_button"),
+            By.text("Allow"),
+        )
+    waitForPermissionSelector(device, selectors, timeoutMillis = 1_000L)?.let { selector ->
+      device.findObject(selector)?.click()
+    }
+  }
+
   // The system dialog can appear later than one pass over the selectors allows, so retry the
   // whole pass until the permission dialog timeout instead of a single 3 s pass.
   private fun waitForPermissionSelector(
       device: UiDevice,
       selectors: List<BySelector>,
+      timeoutMillis: Long = PERMISSION_DIALOG_TIMEOUT_MS,
   ): BySelector? {
-    val deadline = System.currentTimeMillis() + PERMISSION_DIALOG_TIMEOUT_MS
+    val deadline = System.currentTimeMillis() + timeoutMillis
     do {
       val found = selectors.firstOrNull { device.wait(Until.hasObject(it), SELECTOR_TIMEOUT_MS) }
       if (found != null) {
@@ -585,13 +649,6 @@ class UserJourneyEndToEndTest {
       }
     } while (System.currentTimeMillis() < deadline)
     return null
-  }
-
-  private fun waitForPermissionObject(device: UiDevice, selector: BySelector): UiObject2 {
-    check(device.wait(Until.hasObject(selector), PERMISSION_DIALOG_TIMEOUT_MS)) {
-      "Expected Android location accuracy choice to appear"
-    }
-    return checkNotNull(device.findObject(selector)) { "Location accuracy choice disappeared" }
   }
 
   // Read permissions from Android's package manager, not from a test-only permission state.
