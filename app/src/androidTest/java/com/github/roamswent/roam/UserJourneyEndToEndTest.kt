@@ -25,6 +25,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -135,6 +136,7 @@ class UserJourneyEndToEndTest {
         )
     val savedGuides = InMemorySavedGuideRepository()
     val fakeProfiles = FakePublicProfileRepository()
+    val fakeFriends = FakeFriendRepository()
     val auth = FakeFirebaseSignIn()
     val authViewModel = SignInViewModel(FakeAuthRepository())
     val settingsViewModel =
@@ -155,7 +157,7 @@ class UserJourneyEndToEndTest {
               captureSenderOverride = services.captureSender,
               savedGuideRepositoryOverride = savedGuides,
               publicProfileRepositoryOverride = fakeProfiles,
-              friendRepositoryOverride = FakeFriendRepository(),
+              friendRepositoryOverride = fakeFriends,
               exploreLocationProviderOverride = services.locationProvider,
               exploreLocationPermissionControllerOverride = GrantedLocationPermissionController(),
               settingsViewModel = settingsViewModel,
@@ -271,6 +273,22 @@ class UserJourneyEndToEndTest {
       composeTestRule.onAllNodesWithText("Micheal Jordan").fetchSemanticsNodes().isNotEmpty()
     }
     composeTestRule.onNodeWithText("Micheal Jordan").assertIsDisplayed()
+
+    // Send to a synthetic profile; the fake repository records the request without contacting
+    // anyone.
+    composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextReplacement("Journey")
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithText("Journey Test User").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_add_user_button).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.friends_cancel_request)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    assertEquals("journey-request-target", fakeFriends.sentRequests.single().recipientUid)
+
     composeTestRule.onNodeWithTag(C.Tag.friends_add_dismiss).performClick()
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
@@ -886,11 +904,12 @@ private class FakePublicProfileRepository : PublicProfileRepository {
   private val currentUser = PublicProfile("journey-user", "RoamUser")
   private val existingFriend = PublicProfile("existing-friend", "Taylor Reed")
   private val searchUser = PublicProfile("micheal-jordan", "Micheal Jordan")
+  private val requestTarget = PublicProfile("journey-request-target", "Journey Test User")
 
   override suspend fun getCurrentProfile(): PublicProfile = currentUser
 
   override suspend fun getProfile(uid: String): PublicProfile? =
-      listOf(currentUser, existingFriend, searchUser).firstOrNull { it.uid == uid }
+      listOf(currentUser, existingFriend, searchUser, requestTarget).firstOrNull { it.uid == uid }
 
   override suspend fun registerUsername(username: String): PublicProfile =
       currentUser.copy(username = username)
@@ -899,22 +918,31 @@ private class FakePublicProfileRepository : PublicProfileRepository {
       currentUser.copy(username = username)
 
   override suspend fun searchProfiles(prefix: String): List<PublicProfile> =
-      listOf(searchUser).filter { it.username.startsWith(prefix, ignoreCase = true) }
+      listOf(searchUser, requestTarget).filter { it.username.startsWith(prefix, ignoreCase = true) }
 }
 
 private class FakeFriendRepository : FriendRepository {
+  private val outgoingRequests = mutableListOf<RepositoryFriendRequest>()
+  val sentRequests: List<RepositoryFriendRequest>
+    get() = outgoingRequests.toList()
+
   override suspend fun sendFriendRequest(toUid: String): RepositoryFriendRequest =
-      RepositoryFriendRequest("journey-request", "journey-user", toUid)
+      RepositoryFriendRequest("journey-request-$toUid", "journey-user", toUid).also {
+        outgoingRequests.add(it)
+      }
 
   override suspend fun acceptFriendRequest(requestId: String) = Unit
 
   override suspend fun rejectFriendRequest(requestId: String) = Unit
 
-  override suspend fun cancelFriendRequest(requestId: String) = Unit
+  override suspend fun cancelFriendRequest(requestId: String) {
+    outgoingRequests.removeAll { it.id == requestId }
+  }
 
   override suspend fun getIncomingRequests(): List<RepositoryFriendRequest> = emptyList()
 
-  override suspend fun getOutgoingRequests(): List<RepositoryFriendRequest> = emptyList()
+  override suspend fun getOutgoingRequests(): List<RepositoryFriendRequest> =
+      outgoingRequests.toList()
 
   override suspend fun getFriends(): List<Friendship> =
       listOf(Friendship("existing-friendship", "existing-friend"))
