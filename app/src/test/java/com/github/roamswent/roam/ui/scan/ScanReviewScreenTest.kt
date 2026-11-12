@@ -534,6 +534,29 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteHidesShowInExploreForGalleryImage() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(
+                  guide.copy(
+                      location = Coordinates(48.8584, 2.2945),
+                      photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
+                  )
+              )
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, isGalleryImage = true, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    assertEquals(null, savedGuides.guides.value.single().location)
+    assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
+  }
+
+  @Test
   fun reviewRouteShowInExploreSetsScanLocationOnTheSavedGuide() {
     val scanLocation = Coordinates(48.8584, 2.2945)
     val sender =

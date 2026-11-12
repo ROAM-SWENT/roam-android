@@ -154,7 +154,9 @@ fun ScanReviewRoute(
           onFavoriteClick = loadingViewModel::toggleFavorite,
           showFavoriteError = favoriteError != null,
           onFavoriteErrorShown = loadingViewModel::clearFavoriteError,
-          exploreOptIn = exploreOptIn,
+          // A gallery photo has no scan location: the phone position at send time is not where
+          // the photo was taken, so it is never offered on Explore.
+          exploreOptIn = exploreOptIn.takeIf { !isGalleryImage },
           onShowInExploreChange = loadingViewModel::setShownInExplore,
       )
     }
