@@ -126,6 +126,9 @@
     <string name="settings_remove_interest">Remove %1$s</string>
     <string name="loading_error_description">Error</string>
     <string name="monument_detail_picture_description">Monument picture</string>
+    <string name="saved_monument_detail_error">Couldn’t load this monument. Please try again.</string>
+    <string name="saved_monument_detail_not_found">This monument is no longer in your collection.</string>
+    <string name="saved_monument_detail_retry">Retry</string>
     <string name="scan_review_photo_title">Review your photo</string>
     <string name="scan_review_choose_another_photo">Choose another photo</string>
     <string name="scan_review_retake">Retake</string>

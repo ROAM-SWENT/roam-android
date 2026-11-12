@@ -68,6 +68,7 @@ import com.github.roamswent.roam.ui.friends.FriendsRoute
 import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
+import com.github.roamswent.roam.ui.monumentDetail.SavedMonumentDetailRoute
 import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
@@ -432,6 +433,21 @@ internal fun RoamApp(
                       top = innerPadding.calculateTopPadding(),
                       bottom = dockClearance,
                   ),
+              onGuideClick = { guideId -> navController.navigate(Routes.monumentDetail(guideId)) },
+          )
+        }
+      }
+      composable(
+          Routes.MonumentDetailPattern,
+          arguments =
+              listOf(navArgument(Routes.MonumentDetailGuideIdArg) { type = NavType.StringType }),
+      ) { backStackEntry ->
+        val guideId = backStackEntry.arguments?.getString(Routes.MonumentDetailGuideIdArg)
+        if (guideId != null) {
+          SavedMonumentDetailRoute(
+              guideId = guideId,
+              repository = savedGuideRepository.value,
+              onBackClick = { navController.popBackStack() },
           )
         }
       }
