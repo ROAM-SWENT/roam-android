@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
@@ -18,7 +19,10 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onChildren
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -155,6 +159,78 @@ class MonumentDetailScreenTest {
     assertNotEquals(Color.White.toArgb(), darkPanel.getPixel(0, darkPanel.height / 2))
     assertTrue(containsColor(darkPanel, darkOnSurface))
     assertTrue(containsColor(darkPanel, darkOnSurfaceVariant))
+  }
+
+  @Test
+  fun favouriteButtonIsHiddenByDefault() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(image = ColorPainter(Color.LightGray), guide = guide, onBackClick = {})
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_favorite_button).assertCountEquals(0)
+  }
+
+  @Test
+  fun favouriteButtonReflectsStateAndInvokesCallback() {
+    var isFavorite by mutableStateOf(false)
+    var clicks = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            isFavorite = isFavorite,
+            onFavoriteClick = {
+              clicks++
+              isFavorite = !isFavorite
+            },
+        )
+      }
+    }
+    val button = composeTestRule.onNodeWithTag(C.Tag.monument_detail_favorite_button)
+
+    button.assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_favorite_button, useUnmergedTree = true)
+        .onChildren()
+        .onFirst()
+        .assertContentDescriptionEquals("Add to favourites")
+
+    button.performClick()
+
+    assertEquals(1, clicks)
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_favorite_button, useUnmergedTree = true)
+        .onChildren()
+        .onFirst()
+        .assertContentDescriptionEquals("Remove from favourites")
+  }
+
+  @Test
+  fun favouriteErrorShowsSnackbarAndReportsItShown() {
+    var errorShown = false
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            isFavorite = false,
+            showFavoriteError = true,
+            onFavoriteErrorShown = { errorShown = true },
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithText("Couldn’t update favourites. Please try again.")
+        .assertIsDisplayed()
+    composeTestRule.mainClock.advanceTimeBy(10_000)
+    composeTestRule.waitForIdle()
+    assertTrue(errorShown)
   }
 
   private fun containsColor(bitmap: Bitmap, color: Int): Boolean {

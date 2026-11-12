@@ -81,6 +81,10 @@ fun ScanReviewScreen(
     onSkipInterests: () -> Unit = {},
     isGalleryImage: Boolean = false,
     modifier: Modifier = Modifier,
+    isFavorite: Boolean? = null,
+    onFavoriteClick: () -> Unit = {},
+    showFavoriteError: Boolean = false,
+    onFavoriteErrorShown: () -> Unit = {},
     exploreOptIn: ExploreOptInUiState? = null,
     onShowInExploreChange: (Boolean) -> Unit = {},
 ) {
@@ -89,6 +93,10 @@ fun ScanReviewScreen(
         image = rememberAsyncImagePainter(state.uri),
         guide = state.guide,
         onBackClick = onHomeClick,
+        isFavorite = isFavorite,
+        onFavoriteClick = onFavoriteClick,
+        showFavoriteError = showFavoriteError,
+        onFavoriteErrorShown = onFavoriteErrorShown,
         exploreOptIn = exploreOptIn,
         onShowInExploreChange = onShowInExploreChange,
     )

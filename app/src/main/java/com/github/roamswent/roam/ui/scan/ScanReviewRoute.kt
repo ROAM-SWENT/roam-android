@@ -95,6 +95,9 @@ fun ScanReviewRoute(
   val showLoading by loadingViewModel.showLoading.collectAsState()
   val showInterestsPrompt by loadingViewModel.showInterestsPrompt.collectAsState()
   val discoveredGuide by loadingViewModel.discoveredGuide.collectAsState()
+  val saveError by loadingViewModel.saveError.collectAsState()
+  val isFavorite by loadingViewModel.isFavorite.collectAsState()
+  val favoriteError by loadingViewModel.favoriteError.collectAsState()
   val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
@@ -146,6 +149,11 @@ fun ScanReviewRoute(
           isGalleryImage = isGalleryImage,
           onSaveInterests = loadingViewModel::onSaveInterests,
           onSkipInterests = loadingViewModel::onSkipInterests,
+          // A guide that could not be saved is not in the collection, so it cannot be a favourite.
+          isFavorite = isFavorite.takeIf { saveError == null },
+          onFavoriteClick = loadingViewModel::toggleFavorite,
+          showFavoriteError = favoriteError != null,
+          onFavoriteErrorShown = loadingViewModel::clearFavoriteError,
           exploreOptIn = exploreOptIn,
           onShowInExploreChange = loadingViewModel::setShownInExplore,
       )

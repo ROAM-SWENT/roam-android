@@ -454,6 +454,63 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteFavouriteButtonAddsTheSavedGuideToFavourites() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_favorite_button)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_favorite_button).performClick()
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      savedGuides.guides.value.singleOrNull()?.isFavorite == true
+    }
+  }
+
+  @Test
+  fun reviewRouteHidesFavouriteButtonWhenTheGuideCouldNotBeSaved() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val savedGuides = FakeSavedGuideRepository().apply { addError = IllegalStateException() }
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_favorite_button).assertCountEquals(0)
+  }
+
+  @Test
+  fun sentPassesFavouriteStateToMonumentDetail() {
+    var favouriteClicks = 0
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            isFavorite = false,
+            onFavoriteClick = { favouriteClicks++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_favorite_button).performClick()
+
+    assertEquals(1, favouriteClicks)
+  }
+
+  @Test
   fun reviewRouteShowInExploreSetsScanLocationOnTheSavedGuide() {
     val scanLocation = Coordinates(48.8584, 2.2945)
     val sender =

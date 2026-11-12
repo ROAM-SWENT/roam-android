@@ -35,6 +35,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -48,6 +49,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -509,6 +511,109 @@ class LoadingViewModelTest {
 
         assertNull(viewModel.saveError.value)
         assertEquals(1, savedGuides.guides.value.size)
+      }
+
+  @Test
+  fun toggleFavoriteMarksTheSavedGuideAsFavourite() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.isFavorite.value)
+        assertTrue(savedGuides.guides.value.single().isFavorite)
+        assertNull(viewModel.favoriteError.value)
+      }
+
+  @Test
+  fun toggleFavoriteTwiceRemovesTheGuideFromFavourites() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isFavorite.value)
+        assertFalse(savedGuides.guides.value.single().isFavorite)
+      }
+
+  @Test
+  fun favouriteIsWrittenEvenBeforeTheSaveIsConfirmed() =
+      runTest(dispatcher) {
+        // Offline, the save stays pending; the favourite must target the same guide id anyway.
+        val repository = mockk<SavedGuideRepository>(relaxed = true)
+        coEvery { repository.addGuide(any()) } coAnswers { awaitCancellation() }
+        coEvery { this@LoadingViewModelTest.repository.guideFor(request) } returns guide()
+        val viewModel =
+            LoadingViewModel(
+                this@LoadingViewModelTest.repository,
+                readImage,
+                uri,
+                "fr-FR",
+                userInterestsRepository,
+                repository,
+                clock = { discoveryDate },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.isFavorite.value)
+        coVerify { repository.addGuide(match { it.id.isNotBlank() }) }
+        coVerify { repository.setFavorite(match { id -> id.isNotBlank() }, isFavorite = true) }
+      }
+
+  @Test
+  fun failedFavouriteRollsBackAndExposesErrorUntilCleared() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("offline")
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+        advanceUntilIdle()
+        savedGuides.favoriteError = failure
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isFavorite.value)
+        assertEquals(failure, viewModel.favoriteError.value)
+
+        viewModel.clearFavoriteError()
+
+        assertNull(viewModel.favoriteError.value)
+      }
+
+  @Test
+  fun toggleFavoriteDoesNothingBeforeAnyGuideIsSaved() =
+      runTest(dispatcher) {
+        val viewModel = newViewModel(userInterestsRepository)
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isFavorite.value)
+      }
+
+  @Test
+  fun toggleFavoriteDoesNothingWhenTheSaveFailed() =
+      runTest(dispatcher) {
+        savedGuides.addError = IllegalStateException("A signed-in user is required")
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isFavorite.value)
       }
 
   @Test
