@@ -42,6 +42,9 @@ data class SavedGuidesUiState(
     val saveError: Exception? = null,
     /** Failure from the most recent favourite change. */
     val favoriteError: Exception? = null,
+    /** Whether the collection screen shows only favourite guides. [guides] is never filtered. */
+    val showFavoritesOnly: Boolean = false,
+    val searchQuery: String = "",
 )
 
 /** Saves and retrieves the current user's guides and exposes operation status through [uiState]. */
@@ -294,12 +297,8 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
         when {
           // Writes settle in order, so no pending entry means the guide was deleted.
           pending == null -> Unit
-          // A newer request decides the final value, so only report the failure.
-          pending.request != request -> {
-            if (guideId !in pendingGuideDeletes) {
-              _uiState.update { it.copy(favoriteError = exception) }
-            }
-          }
+          // A newer request decides the final value, so only the latest one reports an error.
+          pending.request != request -> Unit
           // The guide is hidden while it is deleted; remember the value to restore if that fails.
           guideId in pendingGuideDeletes -> {
             pendingFavorites.remove(guideId)
@@ -314,6 +313,20 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
         }
       }
     }
+  }
+
+  /** Shows only favourite guides in the collection when [enabled], or every guide otherwise. */
+  fun setShowFavoritesOnly(enabled: Boolean) {
+    _uiState.update { it.copy(showFavoritesOnly = enabled) }
+  }
+
+  fun onSearchQueryChange(query: String) {
+    _uiState.update { it.copy(searchQuery = query) }
+  }
+
+  /** Clears [SavedGuidesUiState.favoriteError] once the UI has shown it. */
+  fun clearFavoriteError() {
+    _uiState.update { it.copy(favoriteError = null) }
   }
 
   /** Flips the favourite state of [guideId]. */

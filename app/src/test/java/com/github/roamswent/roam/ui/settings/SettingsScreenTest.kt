@@ -5,6 +5,7 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.graphics.Bitmap
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -23,17 +24,22 @@ import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
@@ -41,12 +47,16 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
+import com.github.roamswent.roam.ui.permission.NotificationPermissionController
+import com.github.roamswent.roam.ui.permission.NotificationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,12 +65,36 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
 class SettingsScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
+  private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+  private var appCompatActivityController:
+      org.robolectric.android.controller.ActivityController<
+          androidx.appcompat.app.AppCompatActivity
+      >? =
+      null
+
+  @Before
+  fun setUpApplicationLocales() {
+    appCompatActivityController =
+        org.robolectric.Robolectric.buildActivity(
+                androidx.appcompat.app.AppCompatActivity::class.java
+            )
+            .setup()
+    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+  }
+
+  @After
+  fun tearDownApplicationLocales() {
+    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    appCompatActivityController?.close()
+    appCompatActivityController = null
+  }
 
   /** Verifies the profile, settings sections, and initial permission statuses. */
   @Test
@@ -85,28 +119,38 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
 
     composeTestRule.onNodeWithText("Victor").assertIsDisplayed()
-    composeTestRule.onNodeWithText("App Permissions").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_permissions_section_header))
+        .assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.settings_theme_auto).assertCountEquals(1)
     composeTestRule.onNodeWithTag(C.Tag.settings_manage_permissions_button).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_sign_out_button).assertIsDisplayed()
     composeTestRule.onNodeWithText("victor@epfl.ch").assertIsDisplayed()
     composeTestRule.onNodeWithText("Google").assertIsDisplayed()
-    composeTestRule.onNodeWithText("My Interests (AI Guide)").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_interests_title))
+        .assertIsDisplayed()
     composeTestRule.onNodeWithText("Architecture").assertIsDisplayed()
     composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
     composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Notification permission").assertIsDisplayed()
     composeTestRule
-        .onNodeWithTag("Camera permission", useUnmergedTree = true)
-        .assert(hasAnyChild(hasText("Granted")))
+        .onNodeWithText(context.getString(R.string.settings_camera_permission))
+        .assertIsDisplayed()
     composeTestRule
-        .onNodeWithTag("Location permission", useUnmergedTree = true)
-        .assert(hasAnyChild(hasText("Denied")))
+        .onNodeWithText(context.getString(R.string.settings_location_permission))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_camera_permission_tag, useUnmergedTree = true)
+        .assert(hasAnyChild(hasText(context.getString(R.string.settings_permission_granted))))
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_location_permission_tag, useUnmergedTree = true)
+        .assert(hasAnyChild(hasText(context.getString(R.string.settings_permission_denied))))
   }
 
   @Test
@@ -122,14 +166,28 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
             themeMode = themeMode,
             onThemeModeSelected = { themeMode = it },
         )
       }
     }
 
-    composeTestRule.onNodeWithText("Theme").performScrollTo().assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_section_header))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_auto))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_light))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_theme_dark))
+        .performScrollTo()
+        .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_theme_auto).performScrollTo().assertIsSelected()
     composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).assertIsNotSelected()
     composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).assertIsNotSelected()
@@ -151,21 +209,22 @@ class SettingsScreenTest {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
     val (cameraController, locationController) = permissionControllers()
-    var isDarkTheme by mutableStateOf(false)
+    var darkTheme by mutableStateOf(false)
     var darkBackgroundColor = 0
     var darkCardColor = 0
+    var darkTitleColor = 0
 
     composeTestRule.setContent {
-      SampleAppTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        if (isDarkTheme) {
+      SampleAppTheme(darkTheme = darkTheme, dynamicColor = false) {
+        if (darkTheme) {
           darkBackgroundColor = MaterialTheme.colorScheme.background.toArgb()
           darkCardColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
+          darkTitleColor = MaterialTheme.colorScheme.onSurface.toArgb()
         }
         SettingsScreen(
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = isDarkTheme,
         )
       }
     }
@@ -184,13 +243,14 @@ class SettingsScreenTest {
     assertEquals(ScreenBackground.toArgb(), lightBackground.getPixel(0, 0))
     assertTrue(containsColor(lightProfileCard, Color.White.toArgb()))
 
-    composeTestRule.runOnIdle { isDarkTheme = true }
+    composeTestRule.runOnIdle { darkTheme = true }
 
     val darkBackground =
         composeTestRule
             .onNodeWithTag(C.Tag.settings_screen_container)
             .captureToImage()
             .asAndroidBitmap()
+    val darkTitle = composeTestRule.onNodeWithText("Profile").captureToImage().asAndroidBitmap()
     val darkProfileCard =
         composeTestRule
             .onNodeWithTag(C.Tag.settings_profile_card)
@@ -212,6 +272,7 @@ class SettingsScreenTest {
 
     assertEquals(darkBackgroundColor, darkBackground.getPixel(0, 0))
     assertNotEquals(ScreenBackground.toArgb(), darkBackground.getPixel(0, 0))
+    assertTrue(containsColor(darkTitle, darkTitleColor))
     assertNotEquals(darkBackgroundColor, darkCardColor)
     assertTrue(containsColor(darkProfileCard, darkCardColor))
     assertTrue(containsColor(darkPermissionsCard, darkCardColor))
@@ -237,7 +298,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -261,7 +321,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -275,6 +334,42 @@ class SettingsScreenTest {
     state.value = SettingsUIState(cameraPermissionGranted = false, locationPermissionGranted = true)
     composeTestRule.waitForIdle()
     assertPermissionStatuses(cameraGranted = false, locationGranted = true)
+  }
+
+  @Test
+  fun notificationPermissionStateChanges_updateGrantedAndDeniedStatuses() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+    val (cameraController, locationController) = permissionControllers()
+    val notificationController = mock<NotificationPermissionController>()
+    val notificationState =
+        MutableStateFlow(
+            NotificationPermissionState(
+                isGranted = false,
+                decision = NotificationPermissionDecision.DENIED,
+            )
+        )
+    whenever(notificationController.state).thenReturn(notificationState)
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+            notificationPermissionController = notificationController,
+        )
+      }
+    }
+
+    assertNotificationPermissionStatus("Denied")
+    notificationState.value =
+        NotificationPermissionState(
+            isGranted = true,
+            decision = NotificationPermissionDecision.GRANTED,
+        )
+    composeTestRule.waitForIdle()
+    assertNotificationPermissionStatus("Granted")
   }
 
   /** Verifies that tapping Manage Permissions invokes the provided callback. */
@@ -292,7 +387,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
             onManagePermissionsClick = { managePermissionsClicks++ },
         )
       }
@@ -318,7 +412,6 @@ class SettingsScreenTest {
             credentialManager = credentialManager,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
@@ -342,12 +435,14 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_add_interest_button)
+        .performScrollTo()
+        .performClick()
     composeTestRule
         .onAllNodesWithTag(C.Tag.settings_interest_option_prefix + "Architecture")
         .assertCountEquals(0)
@@ -358,6 +453,11 @@ class SettingsScreenTest {
     verify(viewModel).addInterest("History")
     composeTestRule
         .onNodeWithTag(C.Tag.settings_interest_remove_prefix + "Architecture")
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithContentDescription(
+            context.getString(R.string.settings_remove_interest, "Architecture")
+        )
         .assertIsDisplayed()
 
     composeTestRule
@@ -382,16 +482,15 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
 
     composeTestRule.onNodeWithText("No interests selected yet.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-    UserInterestCategories.all.forEach { interest ->
+    UserInterestCategories.all.forEach { category ->
       composeTestRule
-          .onNodeWithTag(C.Tag.settings_interest_option_prefix + interest)
+          .onNodeWithTag(C.Tag.settings_interest_option_prefix + category.id)
           .assertIsDisplayed()
     }
     composeTestRule
@@ -404,7 +503,7 @@ class SettingsScreenTest {
   fun interests_whenAllSelected_showsEmptyStateMessage() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(SettingsUIState(interests = UserInterestCategories.all)))
+        .thenReturn(MutableStateFlow(SettingsUIState(interests = UserInterestCategories.ids)))
     val (cameraController, locationController) = permissionControllers()
 
     composeTestRule.setContent {
@@ -413,12 +512,14 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_add_interest_button)
+        .performScrollTo()
+        .performClick()
     composeTestRule
         .onNodeWithText("All available interests are already selected.")
         .assertIsDisplayed()
@@ -429,7 +530,7 @@ class SettingsScreenTest {
   fun errorState_displaysToastAndClearsErrorMessage() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(SettingsUIState(errorMsg = "Unable to log out")))
+        .thenReturn(MutableStateFlow(SettingsUIState(errorMsg = R.string.settings_error_sign_out)))
     val (cameraController, locationController) = permissionControllers()
 
     composeTestRule.setContent {
@@ -438,13 +539,15 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
     composeTestRule.waitForIdle()
 
-    assertEquals("Unable to log out", ShadowToast.getTextOfLatestToast())
+    assertEquals(
+        context.getString(R.string.settings_error_sign_out),
+        ShadowToast.getTextOfLatestToast(),
+    )
     verify(viewModel).clearErrorMsg()
   }
 
@@ -463,17 +566,16 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
         )
       }
     }
 
-    state.value = SettingsUIState(errorMsg = "Logout failed")
+    state.value = SettingsUIState(errorMsg = R.string.settings_error_sign_out)
 
     composeTestRule.waitForIdle()
 
     assertEquals(
-        "Logout failed",
+        context.getString(R.string.settings_error_sign_out),
         ShadowToast.getTextOfLatestToast(),
     )
 
@@ -494,7 +596,6 @@ class SettingsScreenTest {
             settingsViewModel = viewModel,
             cameraPermissionController = cameraController,
             locationPermissionController = locationController,
-            isDarkTheme = false,
             onSignedOut = { signedOutCallbacks++ },
         )
       }
@@ -502,7 +603,10 @@ class SettingsScreenTest {
     composeTestRule.waitForIdle()
 
     assertEquals(1, signedOutCallbacks)
-    assertEquals("Logout successful", ShadowToast.getTextOfLatestToast())
+    assertEquals(
+        context.getString(R.string.settings_logout_successful),
+        ShadowToast.getTextOfLatestToast(),
+    )
   }
 
   /** Verifies that permissions are refreshed initially and again when the lifecycle resumes. */
@@ -523,7 +627,6 @@ class SettingsScreenTest {
               settingsViewModel = viewModel,
               cameraPermissionController = cameraController,
               locationPermissionController = locationController,
-              isDarkTheme = false,
           )
         }
       }
@@ -564,7 +667,6 @@ class SettingsScreenTest {
                 settingsViewModel = viewModel,
                 cameraPermissionController = cameraController,
                 locationPermissionController = locationController,
-                isDarkTheme = false,
             )
           }
         }
@@ -579,6 +681,144 @@ class SettingsScreenTest {
     verify(viewModel).setLocationPermissionGranted(false)
     verify(cameraController).hasPermission()
     verify(locationController).hasPermission()
+  }
+
+  @Test
+  fun languageCard_rendersHeaderAndOptionsUnderDefaultLocale_regressionDetectsMissingLanguagePicker() {
+    renderSettingsScreen()
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_language_section_header))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_en)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("English"))
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_fr)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("Français"))
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun languageCard_underFrenchQualifier_rendersEndonyms_regressionDetectsTranslatedEndonyms() {
+    renderSettingsScreen()
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_language_section_header))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_en)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("English"))
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_fr)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("Français"))
+  }
+
+  @Test
+  fun languageCard_selectionState_neitherSelectedWhenLocalesEmpty_regressionDetectsDefaultFallback() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .assertIsNotSelected()
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .assertIsNotSelected()
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_selectionState_englishSelectedWhenLocaleIsEn_regressionDetectsBrokenEnSelection() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en"))
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .assertIsSelected()
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .assertIsNotSelected()
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_selectionState_frenchSelectedWhenLocaleIsFr_regressionDetectsBrokenFrSelection() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("fr"))
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .assertIsNotSelected()
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .assertIsSelected()
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_interaction_updatesApplicationLocales_regressionDetectsSwappedOrMissingDispatch() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .performClick()
+      assertEquals("en", AppCompatDelegate.getApplicationLocales()[0]?.language)
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .performClick()
+      assertEquals("fr", AppCompatDelegate.getApplicationLocales()[0]?.language)
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  private fun renderSettingsScreen(
+      viewModel: SettingsViewModel =
+          mock<SettingsViewModel>().also {
+            whenever(it.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+          }
+  ) {
+    val (cameraController, locationController) = permissionControllers()
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+        )
+      }
+    }
   }
 
   private fun permissionControllers():
@@ -614,11 +854,17 @@ class SettingsScreenTest {
     val cameraStatus = if (cameraGranted) "Granted" else "Denied"
     val locationStatus = if (locationGranted) "Granted" else "Denied"
     composeTestRule
-        .onNodeWithTag("Camera permission", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.settings_camera_permission_tag, useUnmergedTree = true)
         .assert(hasAnyChild(hasText(cameraStatus)))
     composeTestRule
-        .onNodeWithTag("Location permission", useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.settings_location_permission_tag, useUnmergedTree = true)
         .assert(hasAnyChild(hasText(locationStatus)))
+  }
+
+  private fun assertNotificationPermissionStatus(status: String) {
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_notification_permission, useUnmergedTree = true)
+        .assert(hasAnyChild(hasText(status)))
   }
 
   private class TestLifecycleOwner : LifecycleOwner {

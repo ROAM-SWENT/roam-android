@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 fun ScanRoute(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    galleryImageUriOverride: Uri? = null,
     cameraControllerFactory: (Context, ComponentActivity) -> CameraController =
         { context, activity ->
           CameraCoordinator(context, activity, CameraXEngine())
@@ -54,13 +55,16 @@ fun ScanRoute(
     ScanViewModel(capturedImageManager, cameraController, Dispatchers.Main.immediate)
   }
   val state by viewModel.state.collectAsState()
-  val pickGalleryImage = rememberGalleryImagePicker { uri ->
+  val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
     uri?.let {
       navController.navigate(
           "${Routes.ScanReview}?uri=${Uri.encode(it.toString())}&gallery=true",
       )
     }
   }
+  val pickGalleryImage =
+      galleryImageUriOverride?.let { galleryUri -> { onGalleryImagePicked(galleryUri) } }
+          ?: rememberGalleryImagePicker(onGalleryImagePicked)
 
   LaunchedEffect(viewModel, navController) {
     viewModel.navigationEvents.collect { event ->

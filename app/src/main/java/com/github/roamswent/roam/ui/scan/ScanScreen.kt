@@ -36,10 +36,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.scan.components.FramingReticle
@@ -92,7 +94,7 @@ fun ScanScreen(
           ) {
             Icon(
                 imageVector = Icons.Rounded.Close,
-                contentDescription = "Close",
+                contentDescription = stringResource(R.string.scan_close_description),
                 tint = Color.White,
                 modifier = Modifier.size(20.dp),
             )
@@ -107,7 +109,7 @@ fun ScanScreen(
                 modifier = Modifier.semantics { testTag = C.Tag.scan_prompt_pill },
             ) {
               Text(
-                  text = "Frame the monument",
+                  text = stringResource(R.string.scan_frame_hint),
                   color = Color.White,
                   style = MaterialTheme.typography.bodyMedium,
                   modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -129,7 +131,7 @@ fun ScanScreen(
         ) {
           Icon(
               imageVector = Icons.Rounded.PhotoLibrary,
-              contentDescription = "Choose photo from gallery",
+              contentDescription = stringResource(R.string.scan_gallery_description),
               tint = Color.White,
               modifier = Modifier.size(20.dp),
           )
@@ -160,12 +162,12 @@ fun ScanScreen(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.Center,
       ) {
-        Text("Camera access was disabled.")
+        Text(stringResource(R.string.scan_camera_access_disabled))
         Button(
             onClick = onPickImage,
             modifier = Modifier.semantics { testTag = C.Tag.scan_gallery_button },
         ) {
-          Text("Choose photo from gallery")
+          Text(stringResource(R.string.scan_choose_photo_from_gallery))
         }
         Button(
             onClick = onGoBack,
@@ -174,7 +176,7 @@ fun ScanScreen(
                   testTag = C.Tag.scan_camera_revoked_back
                 },
         ) {
-          Text("Go back")
+          Text(stringResource(R.string.scan_go_back))
         }
       }
     }

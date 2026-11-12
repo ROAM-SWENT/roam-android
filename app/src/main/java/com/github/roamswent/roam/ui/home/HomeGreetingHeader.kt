@@ -18,28 +18,27 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeTextPrimary
 import com.github.roamswent.roam.ui.theme.HomeTextSecondary
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
 fun HomeGreetingHeader(
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
     modifier: Modifier = Modifier,
-    isDarkTheme: Boolean,
 ) {
   val displayName = userName.trim()
   val secondaryTextColor =
-      if (isDarkTheme) MaterialTheme.colorScheme.onSurfaceVariant else HomeTextSecondary
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant else HomeTextSecondary
 
   Column(modifier = modifier.fillMaxWidth().padding(top = 16.dp, bottom = 20.dp)) {
     Text(
         text =
             if (displayName.isEmpty()) stringResource(R.string.home_greeting_no_name)
             else stringResource(R.string.home_greeting_format, displayName),
-        fontSize = 15.sp,
+        style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.Normal,
         color = secondaryTextColor,
         modifier = Modifier.semantics { testTag = C.Tag.home_greeting_subtitle },
@@ -47,9 +46,9 @@ fun HomeGreetingHeader(
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = stringResource(R.string.home_greeting_title),
-        fontSize = 26.sp,
+        style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
-        color = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else HomeTextPrimary,
+        color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurface else HomeTextPrimary,
         modifier = Modifier.semantics { testTag = C.Tag.home_greeting_title },
     )
   }

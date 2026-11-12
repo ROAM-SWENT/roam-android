@@ -21,6 +21,8 @@ import com.github.roamswent.roam.resources.C
 enum class OfflineAction {
   OPEN_SCAN,
   START_DISCOVERY,
+  OPEN_EXPLORE,
+  OPEN_FRIENDS,
   OPEN_PROFILE,
   RETURN_HOME,
   OPEN_COLLECTION,
@@ -28,7 +30,10 @@ enum class OfflineAction {
 
 // Keep the actions requiring network access in one place so offline behavior is easy to adjust.
 internal fun OfflineAction.requiresInternet(): Boolean =
-    this == OfflineAction.OPEN_SCAN || this == OfflineAction.START_DISCOVERY
+    this == OfflineAction.OPEN_SCAN ||
+        this == OfflineAction.START_DISCOVERY ||
+        this == OfflineAction.OPEN_EXPLORE ||
+        this == OfflineAction.OPEN_FRIENDS
 
 @Composable
 internal fun rememberOfflineActionGate(isOnline: Boolean): (OfflineAction, () -> Unit) -> Unit {

@@ -2,13 +2,13 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.github.roamswent.roam.model.location.Coordinates
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.Blob
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MetadataChanges
-import com.google.firebase.firestore.PersistentCacheSettings
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -16,7 +16,7 @@ import kotlinx.coroutines.tasks.await
 
 /** Firestore-backed saved guides with an unlimited persistent local cache. */
 class FirestoreSavedGuideRepository(
-    private val firestore: FirebaseFirestore = savedGuidesFirestore(),
+    private val firestore: FirebaseFirestore = RoamFirestore.instance,
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
 ) : SavedGuideRepository {
 
@@ -39,6 +39,20 @@ class FirestoreSavedGuideRepository(
     savedGuidesCollection()
         .document(guideId)
         .update(GuideFirestoreMapper.FAVORITE_FIELD, isFavorite)
+        .await()
+  }
+
+  override suspend fun setLocation(guideId: String, location: Coordinates?) {
+    // Like setFavorite, update() writes only this field and fails for a deleted guide. Clearing
+    // deletes the field, matching guides that never had a location. update() queues the write
+    // before anything suspends, and Firestore sends queued writes in order and drops rejected ones;
+    // await() only waits for the acknowledgement, so this meets the ordering contract.
+    savedGuidesCollection()
+        .document(guideId)
+        .update(
+            GuideFirestoreMapper.LOCATION_FIELD,
+            location?.let(GuideFirestoreMapper::locationFields) ?: FieldValue.delete(),
+        )
         .await()
   }
 
@@ -104,23 +118,12 @@ class FirestoreSavedGuideRepository(
   }
 }
 
-private val firestoreWithUnlimitedLocalCache: FirebaseFirestore by lazy {
-  FirebaseFirestore.getInstance().apply {
-    firestoreSettings =
-        FirebaseFirestoreSettings.Builder()
-            .setLocalCacheSettings(
-                PersistentCacheSettings.newBuilder()
-                    .setSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
-                    .build()
-            )
-            .build()
-  }
-}
-
-private fun savedGuidesFirestore(): FirebaseFirestore = firestoreWithUnlimitedLocalCache
-
 internal object GuideFirestoreMapper {
   const val FAVORITE_FIELD = "isFavorite"
+  const val LOCATION_FIELD = "location"
+
+  fun locationFields(location: Coordinates): Map<String, Double> =
+      mapOf("latitude" to location.latitude, "longitude" to location.longitude)
 
   fun toFields(guide: Guide): Map<String, Any> = buildMap {
     put("photo", Blob.fromBytes(guide.photoBytes))
@@ -129,9 +132,7 @@ internal object GuideFirestoreMapper {
     put("history", guide.history)
     put("facts", guide.facts)
     put("culture", guide.culture)
-    guide.location?.let {
-      put("location", mapOf("latitude" to it.latitude, "longitude" to it.longitude))
-    }
+    guide.location?.let { put(LOCATION_FIELD, locationFields(it)) }
     guide.discoveryDate?.let { put("discoveryDate", it) }
     put(FAVORITE_FIELD, guide.isFavorite)
   }
@@ -145,7 +146,7 @@ internal object GuideFirestoreMapper {
           history = required(fields, "history"),
           facts = requiredStringList(fields, "facts"),
           culture = required(fields, "culture"),
-          location = optionalCoordinates(fields["location"]),
+          location = optionalCoordinates(fields[LOCATION_FIELD]),
           discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
           // Guides saved before favourites existed have no flag, so they are not favourites.
           isFavorite = fields[FAVORITE_FIELD] as? Boolean ?: false,

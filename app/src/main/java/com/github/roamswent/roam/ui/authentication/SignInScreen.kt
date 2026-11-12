@@ -10,11 +10,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,52 +45,69 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
 fun SignInScreen(
     authViewModel: SignInViewModel = viewModel(),
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onSignedIn: () -> Unit = {},
-    onSignInClickOverride: (() -> Unit)? = null,
-    isDarkTheme: Boolean,
+    onSignInClickOverride: ((() -> Unit) -> Unit)? = null,
 ) {
 
   val context = LocalContext.current
   val uiState by authViewModel.uiState.collectAsState()
   val signInSuccessMessage = stringResource(R.string.sign_in_success)
+  val errorMessage =
+      uiState.errorMsg?.let { error ->
+        error.formatArg?.let { stringResource(error.messageRes, it) }
+            ?: stringResource(error.messageRes)
+      }
   var isRestoredUser by remember { mutableStateOf(uiState.user != null) }
+  var isRestoringInitialSession by remember { mutableStateOf(uiState.isRestoringSession) }
 
   // Show error message if login fails
   LaunchedEffect(uiState.errorMsg) {
-    uiState.errorMsg?.let {
+    errorMessage?.let {
       Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
       authViewModel.clearErrorMsg()
     }
   }
 
   // Navigate screen on successful login
-  LaunchedEffect(uiState.user) {
+  LaunchedEffect(uiState.user, uiState.isRestoringSession) {
+    if (uiState.isRestoringSession) return@LaunchedEffect
+
     uiState.user?.let {
-      if (!isRestoredUser) {
+      if (!isRestoringInitialSession && !isRestoredUser) {
         Toast.makeText(context, signInSuccessMessage, Toast.LENGTH_SHORT).show()
       }
+      isRestoredUser = true
       onSignedIn()
+    } ?: run { isRestoredUser = false }
+    isRestoringInitialSession = false
+  }
+
+  if (uiState.isRestoringSession || uiState.user != null) {
+    Box(
+        modifier = Modifier.fillMaxSize().testTag(C.Tag.sign_in_screen_container),
+        contentAlignment = Alignment.Center,
+    ) {
+      CircularProgressIndicator(color = ScanTeal)
     }
-    if (uiState.user == null) {
-      isRestoredUser = false
-    }
+    return
   }
 
   Scaffold(
       modifier = Modifier.fillMaxSize().testTag(C.Tag.sign_in_screen_container),
-      containerColor = if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground,
+      containerColor =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
       bottomBar = {
         Column(
             modifier =
@@ -99,7 +118,7 @@ fun SignInScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
           Box(
-              modifier = Modifier.fillMaxWidth().height(60.dp),
+              modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).height(IntrinsicSize.Min),
               contentAlignment = Alignment.Center,
           ) {
             if (uiState.isLoading) {
@@ -107,7 +126,9 @@ fun SignInScreen(
             } else {
               GoogleSignInButton(
                   onSignInClick =
-                      onSignInClickOverride ?: { authViewModel.signIn(context, credentialManager) }
+                      onSignInClickOverride?.let { signInOverride ->
+                        { signInOverride(onSignedIn) }
+                      } ?: { authViewModel.signIn(context, credentialManager) }
               )
             }
           }
@@ -134,14 +155,14 @@ fun SignInScreen(
                 contentDescription = stringResource(R.string.sign_in_logo_description),
                 modifier = Modifier.size(180.dp),
                 colorFilter =
-                    if (isDarkTheme) ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                    if (MaterialTheme.isDark) ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                     else null,
             )
             Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = stringResource(R.string.sign_in_title),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 40.sp,
+                style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
             )
@@ -177,7 +198,7 @@ fun GoogleSignInButton(onSignInClick: () -> Unit) {
     ) {
       Text(
           text = stringResource(R.string.sign_in_google_button),
-          fontSize = 16.sp,
+          style = MaterialTheme.typography.bodyLarge,
           fontWeight = FontWeight.SemiBold,
       )
     }

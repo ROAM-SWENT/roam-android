@@ -10,6 +10,7 @@ import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -19,20 +20,32 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.model.ai.ImagePayload
+import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
+import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
@@ -40,22 +53,28 @@ import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
 class MainActivityNavigationTest {
@@ -63,6 +82,10 @@ class MainActivityNavigationTest {
 
   private val locationDecisionRepository =
       SharedPreferencesLocationPermissionDecisionRepository(
+          ApplicationProvider.getApplicationContext()
+      )
+  private val notificationDecisionRepository =
+      SharedPreferencesNotificationPermissionDecisionRepository(
           ApplicationProvider.getApplicationContext()
       )
   private val locationPermissions =
@@ -78,12 +101,18 @@ class MainActivityNavigationTest {
         .edit()
         .clear()
         .commit()
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.DENIED)
   }
 
   @After
   fun clearLocationDecision() {
     (ApplicationProvider.getApplicationContext() as Application)
         .getSharedPreferences("location_permission", Context.MODE_PRIVATE)
+        .edit()
+        .clear()
+        .commit()
+    (ApplicationProvider.getApplicationContext() as Application)
+        .getSharedPreferences("notification_permission", Context.MODE_PRIVATE)
         .edit()
         .clear()
         .commit()
@@ -118,17 +147,155 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun authenticatedUserWithoutPublicProfileMustRegisterBeforeLocationPermission() {
+    val repository = TestPublicProfileRepository(initialProfile = null)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+
+    registerProfileAndContinue(repository)
+  }
+
+  @Test
+  fun successfulSignInWithoutPublicProfileMustRegisterBeforeLocationPermission() {
+    val repository = TestPublicProfileRepository(initialProfile = null)
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState, publicProfileRepositoryOverride = repository)
+
+    authState.value = AuthUIState(user = mock())
+
+    registerProfileAndContinue(repository)
+  }
+
+  @Test
+  fun backFromUsernameRegistrationSignsOutAndReturnsToSignIn() {
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    renderApp(
+        authState,
+        publicProfileRepositoryOverride = TestPublicProfileRepository(initialProfile = null),
+    )
+
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    waitAndAssertDisplayed(C.Tag.sign_in_google_button)
+    waitForGone(C.Tag.register_profile_screen_container)
+    assertNull(authState.value.user)
+  }
+
+  @Test
+  fun backFromUsernameRegistrationSignOutFailureShowsErrorAndStaysOnRegistration() {
+    val failure = IllegalStateException("Unable to sign out")
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    renderApp(
+        authState,
+        publicProfileRepositoryOverride = TestPublicProfileRepository(initialProfile = null),
+        signOutFailure = failure,
+    )
+
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == failure.localizedMessage }
+
+    assertEquals(failure.localizedMessage, ShadowToast.getTextOfLatestToast())
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_screen_container).assertIsDisplayed()
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
+  }
+
+  @Test
+  fun profileCheckFailureShowsLocalizedFallbackToast() {
+    val repository = TestPublicProfileRepository(profileCheckFailure = Exception())
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+    val expectedMessage = composeTestRule.activity.getString(R.string.register_profile_check_error)
+
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == expectedMessage }
+
+    assertEquals(expectedMessage, ShadowToast.getTextOfLatestToast())
+  }
+
+  @Test
+  fun profileCheckFailureShowsRepositoryMessageToast() {
+    val failureMessage = "Unable to check profile"
+    val repository =
+        TestPublicProfileRepository(
+            profileCheckFailure = IllegalStateException(failureMessage),
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+
+    composeTestRule.waitUntil { ShadowToast.getTextOfLatestToast() == failureMessage }
+
+    assertEquals(failureMessage, ShadowToast.getTextOfLatestToast())
+  }
+
+  @Test
+  fun usernameRegistrationFailureDisplaysLocalizedFallbackError() {
+    val repository =
+        TestPublicProfileRepository(
+            initialProfile = null,
+            registrationFailure = Exception(""),
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_username).performTextInput("traveler_1")
+    val submitButton = composeTestRule.onNodeWithTag(C.Tag.register_profile_submit)
+    submitButton.performClick()
+
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.register_profile_error))
+        .assertIsDisplayed()
+
+    repository.registrationFailure = IllegalStateException("That username is already taken.")
+    submitButton.performClick()
+    composeTestRule.onNodeWithText("That username is already taken.").assertIsDisplayed()
+  }
+
+  private fun registerProfileAndContinue(repository: TestPublicProfileRepository) {
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+    waitForGone(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_username).performTextInput("traveler_1")
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).performClick()
+
+    val request = waitForLocationPermissionRequest()
+    assertEquals("traveler_1", repository.registeredUsername)
+    waitForGone(C.Tag.home_screen_container)
+    dispatchLocationPermissionResult(request, granted = true)
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+  }
+
+  @Test
   fun signInClickOverrideRunsAndNavigatesToHome() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authViewModel = mock<SignInViewModel>()
-    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+    val authState = MutableStateFlow(AuthUIState())
+    whenever(authViewModel.uiState).thenReturn(authState)
     var signInClickCount = 0
 
     composeTestRule.activity.setContent {
       SampleAppTheme {
         RoamApp(
             authViewModel = authViewModel,
-            onSignInClickOverride = { signInClickCount++ },
+            testOverrides =
+                RoamAppTestOverrides(
+                    onSignInClick = { _ -> signInClickCount++ },
+                    publicProfileRepository = TestPublicProfileRepository(),
+                ),
         )
       }
     }
@@ -136,6 +303,9 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
 
     assertEquals(1, signInClickCount)
+    composeTestRule.waitForIdle()
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    authState.value = AuthUIState(user = mock())
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     assertNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
@@ -178,6 +348,30 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun firstSignInRequestsNotificationWhenLocationDecisionAlreadyExists() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.NOT_ASKED)
+    shadowOf(composeTestRule.activity).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    val authState = MutableStateFlow(AuthUIState())
+    renderApp(authState)
+
+    authState.value = AuthUIState(user = mock())
+
+    val request = waitForNotificationPermissionRequest()
+    assertEquals(
+        setOf(Manifest.permission.POST_NOTIFICATIONS),
+        request.requestedPermissions.toSet(),
+    )
+    dispatchNotificationPermissionResult(request, granted = false)
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(
+        NotificationPermissionDecision.DENIED,
+        notificationDecisionRepository.getDecision(),
+    )
+  }
+
+  @Test
   fun managePermissionsOpensApplicationSettings() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
@@ -195,10 +389,10 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun dockHomeTabFromSettingsPopsBackToSingleHomeEntry() {
+  fun dockHomeTabFromFriendsPopsBackToSingleHomeEntry() {
     assertHomeTabPopsToSingleHomeEntry(
-        C.Tag.dock_tab_settings,
-        C.Tag.settings_manage_permissions_button,
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
     )
   }
 
@@ -227,14 +421,125 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun dockSettingsTabNavigatesToSettingsAndHomeTabReturnsHome() {
+  fun tappingASavedMonumentOpensItsDetailAndBackReturnsToCollection() {
+    lateinit var navController: NavHostController
+    val guide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "Built in 1889.",
+            facts = listOf("It grows taller in summer."),
+            culture = "A symbol of Paris.",
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(guide)),
+    )
+    composeTestRule.runOnIdle { navController.navigate(Routes.Collection) }
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Eiffel Tower")
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_history).assertTextEquals("Built in 1889.")
+    assertEquals(
+        listOf(Routes.Home, Routes.Collection, Routes.MonumentDetailPattern),
+        backStackRoutes(navController),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    assertEquals(listOf(Routes.Home, Routes.Collection), backStackRoutes(navController))
+  }
+
+  @Test
+  fun scannedMonumentAppearsInCollectionThroughTheSharedRepository() {
+    lateinit var navController: NavHostController
+    val savedGuides = FakeSavedGuideRepository()
+    val photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg")
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(
+                  MonumentGuide(
+                      monumentName = "Eiffel Tower",
+                      confidence = 0.9,
+                      history = "History",
+                      facts = emptyList(),
+                      culture = "Culture",
+                      language = "en",
+                      photo = photo,
+                  )
+              )
+        }
+    val capture = File.createTempFile("scan", ".jpg", composeTestRule.activity.cacheDir)
+    val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    capture.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it) }
+    bitmap.recycle()
+    SharedPreferencesUserInterestsRepository(composeTestRule.activity).skipInterests()
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = savedGuides,
+        captureSender = sender,
+    )
+
+    composeTestRule.runOnIdle {
+      navController.navigate(
+          "${Routes.ScanReview}?uri=${Uri.encode(Uri.fromFile(capture).toString())}"
+      )
+    }
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.runOnIdle { navController.navigate(Routes.Collection) }
+
+    // The scan flow saved into the same repository the collection reads.
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+    capture.delete()
+  }
+
+  @Test
+  fun dockedScreenContentReachesIntoDockBumpOnEveryDockedScreen() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    assertContentReachesDockBump(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    assertContentReachesDockBump(C.Tag.friends_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    assertContentReachesDockBump(C.Tag.collection_screen)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    assertContentReachesDockBump(C.Tag.explore_screen_container)
+
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Explore, navController.currentDestination?.route)
+    }
+  }
+
+  @Test
+  fun friendsDockTabShowsFriendsAndHomeTabReturnsHome() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_title)
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertTextEquals("Friends")
     composeTestRule.runOnIdle {
-      assertEquals(Routes.Settings, navController.currentDestination?.route)
+      assertEquals(Routes.Friends, navController.currentDestination?.route)
     }
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
@@ -244,8 +549,8 @@ class MainActivityNavigationTest {
 
   /**
    * Pins the bottom dock navigation contract: the back stack after each step. Sign-in pops SignIn
-   * inclusively, tabs stack Settings above the Home root, the Home tab pops back to that root, and
-   * no flow ever duplicates entries.
+   * inclusively, tabs stack destinations above the Home root, the Home tab pops back to that root,
+   * and no flow ever duplicates entries.
    */
   @Test
   fun signInToHomeLeavesSingleHomeEntryOnBackStack() {
@@ -256,11 +561,11 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun dockSettingsTabFromHomeStacksSettingsAboveHome() {
+  fun dockFriendsTabFromHomeStacksFriendsAboveHome() {
     assertTabStacksAboveHome(
-        C.Tag.dock_tab_settings,
-        C.Tag.settings_manage_permissions_button,
-        Routes.Settings,
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
+        Routes.Friends,
     )
   }
 
@@ -269,21 +574,21 @@ class MainActivityNavigationTest {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
 
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
   }
 
   @Test
-  fun systemBackFromSettingsReturnsToSingleHomeEntry() {
+  fun systemBackFromFriendsReturnsToSingleHomeEntry() {
     assertSystemBackPopsToSingleHomeEntry(
-        C.Tag.dock_tab_settings,
-        C.Tag.settings_manage_permissions_button,
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
     )
   }
 
@@ -305,11 +610,11 @@ class MainActivityNavigationTest {
     composeTestRule.waitForIdle()
     assertEquals(listOf(Routes.Home), backStackRoutes(navController))
 
-    navigateToSettings(navController)
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.runOnIdle { navController.navigate(Routes.Friends) }
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
     composeTestRule.waitForIdle()
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
   }
 
   @Test
@@ -398,9 +703,9 @@ class MainActivityNavigationTest {
         savedGuideRepository = FakeSavedGuideRepository(),
     )
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
     waitAndAssertDisplayed(C.Tag.collection_screen)
@@ -410,9 +715,9 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.explore_screen_container)
     assertEquals(listOf(Routes.Home, Routes.Explore), backStackRoutes(navController))
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    assertEquals(listOf(Routes.Home, Routes.Settings), backStackRoutes(navController))
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    assertEquals(listOf(Routes.Home, Routes.Friends), backStackRoutes(navController))
   }
 
   @Test
@@ -428,12 +733,9 @@ class MainActivityNavigationTest {
     assertEquals(listOf(Routes.Home), backStackRoutes(navController))
   }
 
-  /**
-   * Like the settings and home tabs, the collection and explore tab navigations are not gated on
-   * connectivity: offline, tapping them navigates without the offline dialog.
-   */
+  /** Collection remains accessible offline, while Explore and Friends require internet. */
   @Test
-  fun offlineCollectionAndExploreTabsRemainAccessible() {
+  fun offlineExploreAndFriendsAreBlockedButCollectionRemainsAccessible() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(
         onNavControllerReady = { navController = it },
@@ -448,22 +750,28 @@ class MainActivityNavigationTest {
       assertEquals(Routes.Collection, navController.currentDestination?.route)
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
-    waitAndAssertDisplayed(C.Tag.explore_screen_container)
-    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
-    composeTestRule.runOnIdle {
-      assertEquals(Routes.Explore, navController.currentDestination?.route)
-    }
-
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
+    waitForGone(C.Tag.offline_action_dialog)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
+    waitForGone(C.Tag.offline_action_dialog)
+
     composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
     composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
   }
 
   /**
    * The dock carries five slots on every docked screen: home, explore, the scan action, collection
-   * and settings all render, and every tab is enabled except the one marking the current screen as
+   * and friends all render, and every tab is enabled except the one marking the current screen as
    * selected.
    */
   @Test
@@ -477,7 +785,7 @@ class MainActivityNavigationTest {
         C.Tag.home_screen_container,
         C.Tag.dock_tab_explore,
         C.Tag.dock_tab_collection,
-        C.Tag.dock_tab_settings,
+        C.Tag.dock_tab_friends,
     )
 
     navigateToSettings(navController)
@@ -486,6 +794,7 @@ class MainActivityNavigationTest {
         C.Tag.dock_tab_home,
         C.Tag.dock_tab_explore,
         C.Tag.dock_tab_collection,
+        C.Tag.dock_tab_friends,
     )
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
@@ -493,7 +802,7 @@ class MainActivityNavigationTest {
         C.Tag.collection_screen,
         C.Tag.dock_tab_home,
         C.Tag.dock_tab_explore,
-        C.Tag.dock_tab_settings,
+        C.Tag.dock_tab_friends,
     )
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
@@ -501,7 +810,7 @@ class MainActivityNavigationTest {
         C.Tag.explore_screen_container,
         C.Tag.dock_tab_home,
         C.Tag.dock_tab_collection,
-        C.Tag.dock_tab_settings,
+        C.Tag.dock_tab_friends,
     )
   }
 
@@ -546,11 +855,7 @@ class MainActivityNavigationTest {
     composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
     waitForGone(C.Tag.offline_action_dialog)
 
-    // The dock tabs succeeded the navigation affordances main gated with
-    // OPEN_PROFILE (the profile tab) and RETURN_HOME (the settings home
-    // button), and the merge dropped those gate calls: offline, navigation
-    // between Home and Settings stays ungated in both directions.
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_settings).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
     composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
     composeTestRule.runOnIdle {
@@ -564,6 +869,24 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun profileButtonFromFriendsOpensSettings() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Settings, navController.currentDestination?.route)
+    }
+  }
+
+  @Test
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authState = MutableStateFlow(AuthUIState(user = mock()))
@@ -574,10 +897,18 @@ class MainActivityNavigationTest {
     lateinit var navController: NavHostController
     renderApp(
         authState,
-        onSignInClickOverride = { signInClickCount++ },
+        onSignInClickOverride = { _ -> signInClickCount++ },
         onNavControllerReady = { navController = it },
         settingsViewModel = settingsViewModel,
     )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // Switching tabs saves Collection's back stack, which sign-out must discard.
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     navigateToSettings(navController)
@@ -592,6 +923,85 @@ class MainActivityNavigationTest {
 
     assertEquals(AuthUIState(signOutCompleted = true), authState.value)
     assertEquals(0, signInClickCount)
+    composeTestRule.runOnIdle { assertFalse(navController.clearBackStack(Routes.Collection)) }
+  }
+
+  @Test
+  fun signedOutUserCannotRestorePreviousNavigationState() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authState = MutableStateFlow(AuthUIState(user = mock()))
+    val settingsState = MutableStateFlow(SettingsUIState())
+    val settingsViewModel = mock<SettingsViewModel>()
+    whenever(settingsViewModel.uiState).thenReturn(settingsState)
+    lateinit var navController: NavHostController
+    renderApp(
+        authState,
+        onSignInClickOverride = { _ -> authState.value = AuthUIState(user = mock()) },
+        onNavControllerReady = { navController = it },
+        settingsViewModel = settingsViewModel,
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    val userACollectionEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    val userAExploreEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.runOnIdle {
+      navController.navigate(Routes.Settings) {
+        popUpTo(Routes.Home) {
+          inclusive = false
+          saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+      }
+    }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    val userASettingsEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+
+    composeTestRule.runOnIdle { settingsState.value = SettingsUIState(signedOut = true) }
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    composeTestRule.runOnIdle {
+      listOf(Routes.Settings, Routes.Friends, Routes.Collection, Routes.Explore).forEach {
+        assertFalse(navController.clearBackStack(it))
+      }
+      settingsState.value = SettingsUIState()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_google_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    val userBCollectionEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userACollectionEntryId, userBCollectionEntryId)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    val userBExploreEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userAExploreEntryId, userBExploreEntryId)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    val userBSettingsEntryId = composeTestRule.runOnIdle {
+      requireNotNull(navController.currentBackStackEntry).id
+    }
+    assertNotEquals(userASettingsEntryId, userBSettingsEntryId)
   }
 
   @Test
@@ -602,7 +1012,7 @@ class MainActivityNavigationTest {
     lateinit var navController: NavHostController
     renderApp(
         authState,
-        onSignInClickOverride = {
+        onSignInClickOverride = { _ ->
           signInClickCount++
           authState.value = AuthUIState(user = mock())
         },
@@ -772,7 +1182,14 @@ class MainActivityNavigationTest {
       val controller = rememberNavController()
       SideEffect { navController = controller }
 
-      SampleAppTheme { RoamApp(authViewModel, controller) }
+      SampleAppTheme {
+        RoamApp(
+            authViewModel,
+            controller,
+            testOverrides =
+                RoamAppTestOverrides(publicProfileRepository = TestPublicProfileRepository()),
+        )
+      }
     }
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
@@ -818,6 +1235,27 @@ class MainActivityNavigationTest {
     }
   }
 
+  @Test
+  fun usernameRegistrationTrimsWhitespaceBeforeSubmission() {
+    val repository = TestPublicProfileRepository(initialProfile = null)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride = repository,
+    )
+
+    waitAndAssertDisplayed(C.Tag.register_profile_screen_container)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.register_profile_username)
+        .performTextInput("  Michael_Jordan     ")
+
+    composeTestRule.onNodeWithTag(C.Tag.register_profile_submit).performClick()
+
+    composeTestRule.waitUntil { repository.registeredUsername != null }
+
+    assertEquals("Michael_Jordan", repository.registeredUsername)
+  }
+
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
     return checkNotNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
@@ -831,6 +1269,35 @@ class MainActivityNavigationTest {
           ?.contains(Manifest.permission.ACCESS_FINE_LOCATION) == true
     }
     return permissionRequest()
+  }
+
+  private fun waitForNotificationPermissionRequest():
+      org.robolectric.shadows.ShadowActivity.PermissionsRequest {
+    composeTestRule.waitUntil {
+      shadowOf(composeTestRule.activity)
+          .lastRequestedPermission
+          ?.requestedPermissions
+          ?.contains(Manifest.permission.POST_NOTIFICATIONS) == true
+    }
+    return permissionRequest()
+  }
+
+  private fun dispatchNotificationPermissionResult(
+      request: org.robolectric.shadows.ShadowActivity.PermissionsRequest,
+      granted: Boolean,
+  ) {
+    if (granted) {
+      shadowOf(composeTestRule.activity).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+      shadowOf(composeTestRule.activity).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    val result =
+        if (granted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
+    composeTestRule.activity.onRequestPermissionsResult(
+        request.requestCode,
+        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+        intArrayOf(result),
+    )
   }
 
   private fun dispatchLocationPermissionResult(
@@ -868,6 +1335,7 @@ class MainActivityNavigationTest {
       onNavControllerReady: (NavHostController) -> Unit = {},
       savedGuideRepository: FakeSavedGuideRepository? = null,
       isOnlineOverride: Boolean? = true,
+      captureSender: CaptureSender? = null,
   ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(
@@ -875,6 +1343,7 @@ class MainActivityNavigationTest {
         onNavControllerReady = onNavControllerReady,
         savedGuideRepository = savedGuideRepository,
         isOnlineOverride = isOnlineOverride,
+        captureSender = captureSender,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
@@ -883,7 +1352,30 @@ class MainActivityNavigationTest {
     composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
   }
 
-  /** Asserts the five dock slots render: home, explore, the scan action, collection, settings. */
+  private fun assertContentReachesDockBump(contentTag: String) {
+    val contentBottom =
+        composeTestRule
+            .onAllNodesWithTag(contentTag)
+            .fetchSemanticsNodes(atLeastOneRootRequired = true)
+            .single()
+            .boundsInRoot
+            .bottom
+    val dockTop =
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.dock_container)
+            .fetchSemanticsNodes(atLeastOneRootRequired = true)
+            .single()
+            .boundsInRoot
+            .top
+    val bumpTop = dockTop + with(composeTestRule.density) { 36.dp.toPx() }
+
+    assertTrue(
+        "$contentTag bottom $contentBottom must reach dock bar top $bumpTop",
+        contentBottom >= bumpTop,
+    )
+  }
+
+  /** Asserts the five dock slots render: home, explore, the scan action, collection, friends. */
   /** Renders Home with a fake saved-guide repository and returns the app's nav controller. */
   private fun showAuthenticatedHomeWithNavController(): NavHostController {
     lateinit var navController: NavHostController
@@ -944,7 +1436,7 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.dock_tab_explore)
     waitAndAssertDisplayed(C.Tag.dock_scan_button)
     waitAndAssertDisplayed(C.Tag.dock_tab_collection)
-    waitAndAssertDisplayed(C.Tag.dock_tab_settings)
+    waitAndAssertDisplayed(C.Tag.dock_tab_friends)
   }
 
   /**
@@ -958,11 +1450,14 @@ class MainActivityNavigationTest {
 
   private fun renderApp(
       authState: MutableStateFlow<AuthUIState>,
-      onSignInClickOverride: (() -> Unit)? = null,
+      onSignInClickOverride: ((() -> Unit) -> Unit)? = null,
       onNavControllerReady: (NavHostController) -> Unit = {},
       settingsViewModel: SettingsViewModel? = null,
       savedGuideRepository: FakeSavedGuideRepository? = null,
       isOnlineOverride: Boolean? = true,
+      publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
+      captureSender: CaptureSender? = null,
+      signOutFailure: Throwable? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -972,6 +1467,16 @@ class MainActivityNavigationTest {
         }
         .whenever(authViewModel)
         .clearSignedInUser()
+    if (signOutFailure == null) {
+      doAnswer {
+            authState.value = AuthUIState(signOutCompleted = true)
+            Result.success(Unit)
+          }
+          .whenever(authViewModel)
+          .signOut()
+    } else {
+      doReturn(Result.failure<Unit>(signOutFailure)).whenever(authViewModel).signOut()
+    }
     composeTestRule.activity.setContent {
       val navController = rememberNavController()
       SideEffect { onNavControllerReady(navController) }
@@ -979,13 +1484,46 @@ class MainActivityNavigationTest {
         RoamApp(
             authViewModel,
             navController = navController,
-            onSignInClickOverride = onSignInClickOverride,
-            settingsViewModel = settingsViewModel,
-            savedGuideRepositoryOverride = savedGuideRepository,
-            isOnlineOverride = isOnlineOverride,
+            testOverrides =
+                RoamAppTestOverrides(
+                    captureSender = captureSender,
+                    onSignInClick = onSignInClickOverride,
+                    settingsViewModel = settingsViewModel,
+                    savedGuideRepository = savedGuideRepository,
+                    isOnline = isOnlineOverride,
+                    publicProfileRepository = publicProfileRepositoryOverride,
+                ),
         )
       }
     }
+  }
+
+  private class TestPublicProfileRepository(
+      initialProfile: PublicProfile? = PublicProfile("test-user", "test_user"),
+      private val profileCheckFailure: Exception? = null,
+      var registrationFailure: Exception? = null,
+  ) : PublicProfileRepository {
+    private var profile = initialProfile
+    var registeredUsername: String? = null
+      private set
+
+    override suspend fun getCurrentProfile(): PublicProfile? {
+      profileCheckFailure?.let { throw it }
+      return profile
+    }
+
+    override suspend fun getProfile(uid: String): PublicProfile? = null
+
+    override suspend fun registerUsername(username: String): PublicProfile {
+      registrationFailure?.let { throw it }
+      registeredUsername = username
+      return PublicProfile("test-user", username).also { profile = it }
+    }
+
+    override suspend fun renameUsername(username: String): PublicProfile =
+        error("Not used in navigation tests")
+
+    override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
   }
 
   private fun dispatchCameraPermissionResult() = dispatchCameraPermissionResult(permissionRequest())

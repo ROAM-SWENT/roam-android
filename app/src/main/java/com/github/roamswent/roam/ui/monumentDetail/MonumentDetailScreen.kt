@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.foundation.Image
@@ -5,46 +6,68 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
+import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 import kotlin.math.roundToInt
 
+/**
+ * Shows [guide] over its [image]. The favourite heart is shown only when [isFavorite] is not null,
+ * that is once the guide is in the collection, and [showFavoriteError] shows a snackbar that is
+ * reported back with [onFavoriteErrorShown]. The Explore switch is shown only when [exploreOptIn]
+ * is not null, and reports changes with [onShowInExploreChange].
+ */
 @Composable
 fun MonumentDetailScreen(
     image: Painter,
     guide: MonumentGuide,
     onBackClick: () -> Unit,
-    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
+    isFavorite: Boolean? = null,
+    onFavoriteClick: () -> Unit = {},
+    showFavoriteError: Boolean = false,
+    onFavoriteErrorShown: () -> Unit = {},
+    exploreOptIn: ExploreOptInUiState? = null,
+    onShowInExploreChange: (Boolean) -> Unit = {},
 ) {
-  val textBackgroundColor = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground
+  val textBackgroundColor =
+      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
   val textColor = MaterialTheme.colorScheme.onSurface
   val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
   val cornerRadius = 32.dp
@@ -58,7 +81,7 @@ fun MonumentDetailScreen(
 
     Image(
         painter = image,
-        contentDescription = "Monument picture",
+        contentDescription = stringResource(R.string.monument_detail_picture_description),
         contentScale = ContentScale.Crop,
         modifier =
             Modifier.fillMaxWidth()
@@ -111,24 +134,34 @@ fun MonumentDetailScreen(
         ) {
           Text(
               text = guide.monumentName,
-              fontSize = 22.sp,
+              style = MaterialTheme.typography.titleLarge,
               fontWeight = FontWeight.Bold,
               color = textColor,
               modifier = Modifier.semantics { testTag = C.Tag.monument_detail_title },
           )
           Text(
-              text = "${(guide.confidence * 100).roundToInt()}% match",
-              fontSize = 14.sp,
+              text =
+                  stringResource(
+                      R.string.monument_detail_match_percent,
+                      (guide.confidence * 100).roundToInt(),
+                  ),
+              style = MaterialTheme.typography.bodySmall,
               color = secondaryTextColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
                     testTag = C.Tag.monument_detail_confidence
                   },
           )
+          exploreOptIn?.let {
+            ShowInExploreRow(
+                optIn = it,
+                onCheckedChange = onShowInExploreChange,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+          }
           Text(
               text = guide.history,
-              fontSize = 16.sp,
-              lineHeight = 24.sp,
+              style = MaterialTheme.typography.bodyLarge,
               color = textColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
@@ -137,9 +170,8 @@ fun MonumentDetailScreen(
           )
           guide.facts.forEach { fact ->
             Text(
-                text = "• $fact",
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
+                text = stringResource(R.string.monument_detail_fact_bullet, fact),
+                style = MaterialTheme.typography.bodyLarge,
                 color = textColor,
                 modifier =
                     Modifier.padding(bottom = 4.dp).semantics {
@@ -149,8 +181,7 @@ fun MonumentDetailScreen(
           }
           Text(
               text = guide.culture,
-              fontSize = 16.sp,
-              lineHeight = 24.sp,
+              style = MaterialTheme.typography.bodyLarge,
               color = textColor,
               modifier =
                   Modifier.padding(top = 12.dp).semantics {
@@ -165,6 +196,101 @@ fun MonumentDetailScreen(
         onClick = onBackClick,
         modifier = Modifier.align(Alignment.TopStart),
     )
+
+    isFavorite?.let {
+      MonumentDetailFavoriteButton(
+          isFavorite = it,
+          onClick = onFavoriteClick,
+          modifier = Modifier.align(Alignment.TopEnd),
+      )
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val favoriteErrorMessage = stringResource(R.string.collection_favorite_error)
+    LaunchedEffect(showFavoriteError) {
+      if (showFavoriteError) {
+        snackbarHostState.showSnackbar(favoriteErrorMessage)
+        onFavoriteErrorShown()
+      }
+    }
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
+    )
+  }
+}
+
+/** Heart over the photo, styled like the one on collection cards: filled when [isFavorite]. */
+@Composable
+private fun MonumentDetailFavoriteButton(
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  IconButton(
+      onClick = onClick,
+      modifier =
+          modifier.statusBarsPadding().padding(16.dp).size(44.dp).semantics {
+            testTag = C.Tag.monument_detail_favorite_button
+          },
+      colors =
+          IconButtonDefaults.iconButtonColors(containerColor = Color.White.copy(alpha = 0.85f)),
+  ) {
+    Icon(
+        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+        contentDescription =
+            stringResource(
+                if (isFavorite) R.string.collection_favorite_remove
+                else R.string.collection_favorite_add
+            ),
+        tint = HomeAccentGreen,
+    )
+  }
+}
+
+/** Switch that puts the saved guide on Explore at the place it was scanned. */
+@Composable
+private fun ShowInExploreRow(
+    optIn: ExploreOptInUiState,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  Column(modifier = modifier.fillMaxWidth()) {
+    Row(
+        modifier =
+            Modifier.fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(
+                    value = optIn.isShownInExplore,
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                )
+                .semantics { testTag = C.Tag.monument_detail_show_in_explore },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+        Text(
+            text = stringResource(R.string.monument_detail_show_in_explore),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = stringResource(R.string.monument_detail_show_in_explore_supporting),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      // The row handles the toggle, so the switch is only its visual state.
+      Switch(checked = optIn.isShownInExplore, onCheckedChange = null)
+    }
+    if (optIn.error != null) {
+      Text(
+          text = stringResource(R.string.monument_detail_show_in_explore_error),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.semantics { testTag = C.Tag.monument_detail_show_in_explore_error },
+      )
+    }
   }
 }
 
@@ -215,7 +341,7 @@ fun PreviewMonumentDetailScreen() {
                 language = "en",
             ),
         onBackClick = {},
-        isDarkTheme = false,
+        isFavorite = true,
     )
   }
 }

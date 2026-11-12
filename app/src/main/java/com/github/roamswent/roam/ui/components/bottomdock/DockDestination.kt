@@ -60,18 +60,44 @@ private val HomeDockIcon =
       }
     }
 
-private val ProfileDockIcon =
-    dockIcon("ProfileDockIcon") {
+private val FriendsDockIcon =
+    dockIcon("FriendsDockIcon") {
       dockPath {
         moveTo(12f, 4f)
-        curveTo(14.21f, 4f, 16f, 5.79f, 16f, 8f)
-        curveTo(16f, 10.21f, 14.21f, 12f, 12f, 12f)
-        curveTo(9.79f, 12f, 8f, 10.21f, 8f, 8f)
-        curveTo(8f, 5.79f, 9.79f, 4f, 12f, 4f)
+        curveTo(13.66f, 4f, 15f, 5.34f, 15f, 7f)
+        curveTo(15f, 8.66f, 13.66f, 10f, 12f, 10f)
+        curveTo(10.34f, 10f, 9f, 8.66f, 9f, 7f)
+        curveTo(9f, 5.34f, 10.34f, 4f, 12f, 4f)
         close()
-        moveTo(5f, 20f)
-        curveTo(5f, 16.13f, 8.13f, 13f, 12f, 13f)
-        curveTo(15.87f, 13f, 19f, 16.13f, 19f, 20f)
+      }
+      dockPath {
+        moveTo(5.5f, 7.5f)
+        curveTo(6.88f, 7.5f, 8f, 8.62f, 8f, 10f)
+        curveTo(8f, 11.38f, 6.88f, 12.5f, 5.5f, 12.5f)
+        curveTo(4.12f, 12.5f, 3f, 11.38f, 3f, 10f)
+        curveTo(3f, 8.62f, 4.12f, 7.5f, 5.5f, 7.5f)
+        close()
+      }
+      dockPath {
+        moveTo(18.5f, 7.5f)
+        curveTo(19.88f, 7.5f, 21f, 8.62f, 21f, 10f)
+        curveTo(21f, 11.38f, 19.88f, 12.5f, 18.5f, 12.5f)
+        curveTo(17.12f, 12.5f, 16f, 11.38f, 16f, 10f)
+        curveTo(16f, 8.62f, 17.12f, 7.5f, 18.5f, 7.5f)
+        close()
+      }
+      dockPath {
+        moveTo(6f, 20f)
+        curveTo(6f, 16.69f, 8.69f, 14f, 12f, 14f)
+        curveTo(15.31f, 14f, 18f, 16.69f, 18f, 20f)
+      }
+      dockPath {
+        moveTo(7f, 15f)
+        curveTo(4.24f, 15f, 2f, 17.24f, 2f, 20f)
+      }
+      dockPath {
+        moveTo(17f, 15f)
+        curveTo(19.76f, 15f, 22f, 17.24f, 22f, 20f)
       }
     }
 
@@ -119,5 +145,5 @@ enum class DockDestination(
       HistoriqueIcon,
       C.Tag.dock_tab_collection,
   ),
-  SETTINGS(Routes.Settings, R.string.home_tab_profile, ProfileDockIcon, C.Tag.dock_tab_settings),
+  FRIENDS(Routes.Friends, R.string.home_tab_friends, FriendsDockIcon, C.Tag.dock_tab_friends),
 }

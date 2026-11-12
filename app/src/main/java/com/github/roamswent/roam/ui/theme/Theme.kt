@@ -9,7 +9,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -34,6 +36,12 @@ private val LightColorScheme =
         onSurface = Color(0xFF1C1B1F),
         */
     )
+
+// Default to light intentionally for screens rendered outside SampleAppTheme, including previews.
+private val LocalThemeIsDark = staticCompositionLocalOf { false }
+
+val MaterialTheme.isDark: Boolean
+  @Composable get() = LocalThemeIsDark.current
 
 @Composable
 fun SampleAppTheme(
@@ -60,5 +68,7 @@ fun SampleAppTheme(
     }
   }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  CompositionLocalProvider(LocalThemeIsDark provides darkTheme) {
+    MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  }
 }

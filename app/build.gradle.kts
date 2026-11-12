@@ -151,6 +151,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.kotlinx.serialization.json)
+  implementation(libs.commons.text)
 
   // Firebase: AI Logic for Gemini, App Check for attestation
   implementation(platform(libs.firebase.bom))
@@ -159,6 +160,7 @@ dependencies {
   implementation(libs.guava)
   implementation(libs.kotlinx.coroutines.play.services)
   debugImplementation(libs.firebase.appcheck.debug)
+  implementation(libs.firebase.appcheck.playintegrity)
 
   implementation(libs.androidx.camera.core)
   implementation(libs.androidx.camera.camera2)

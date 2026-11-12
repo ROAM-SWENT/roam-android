@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
 import com.github.roamswent.roam.model.location.LocationProvider
@@ -44,7 +45,9 @@ class GuideRepositoryImpl(
 
     val location = request.location ?: locationProvider.currentCoordinates()
     val prompt = PromptBuilder.guidePrompt(request.preferences, location)
-    return withRetries { ResponseParser.parseGuide(geminiClient.generate(prompt, photo)) }
+    val guide = withRetries { ResponseParser.parseGuide(geminiClient.generate(prompt, photo)) }
+    // Reuse the position and photo prepared here so callers can store them without redoing it.
+    return guide.copy(location = location, photo = photo)
   }
 
   /**

@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.ui.loading
 
@@ -16,6 +17,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.resources.C
 import io.mockk.coEvery
@@ -113,6 +115,7 @@ class LoadingRouteTest {
             uri,
             "en",
             mockk<UserInterestsRepository>(),
+            FakeSavedGuideRepository(),
         )
       }
       LoadingRoute(
@@ -120,7 +123,6 @@ class LoadingRouteTest {
           onCancel = onCancel,
           onDiscoverySuccess = onSuccess,
           loadingViewModel = loadingViewModel,
-          isDarkTheme = false,
       )
     }
   }

@@ -18,7 +18,6 @@ import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 @Composable
 fun CollectionRoute(
     repository: SavedGuideRepository,
-    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
 ) {
@@ -29,8 +28,12 @@ fun CollectionRoute(
 
   CollectionScreen(
       state = state,
-      isDarkTheme = isDarkTheme,
       modifier = modifier,
       onGuideClick = onGuideClick,
+      onToggleFavorite = viewModel::toggleFavorite,
+      onRestoreFavorite = { viewModel.setFavorite(it, isFavorite = true) },
+      onFavoriteErrorShown = viewModel::clearFavoriteError,
+      onShowFavoritesOnlyChange = viewModel::setShowFavoritesOnly,
+      onSearchQueryChange = viewModel::onSearchQueryChange,
   )
 }

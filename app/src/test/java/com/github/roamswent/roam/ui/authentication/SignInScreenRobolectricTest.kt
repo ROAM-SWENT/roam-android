@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -62,7 +63,6 @@ class SignInScreenRobolectricTest {
       SignInScreen(
           authViewModel = viewModel,
           credentialManager = mock<CredentialManager>(),
-          isDarkTheme = false,
       )
     }
 
@@ -76,7 +76,7 @@ class SignInScreenRobolectricTest {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
 
     composeTestRule
         .onNodeWithContentDescription(context.getString(R.string.sign_in_logo_description))
@@ -94,11 +94,33 @@ class SignInScreenRobolectricTest {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(isLoading = true)))
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
 
     assertTrue(
         composeTestRule
             .onAllNodesWithTag(C.Tag.sign_in_google_button)
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
+  }
+
+  @Test
+  fun restoringSession_hidesSignInForm() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(isRestoringSession = true)))
+
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_screen_container).assertIsDisplayed()
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithText(context.getString(R.string.sign_in_title))
             .fetchSemanticsNodes()
             .isEmpty()
     )
@@ -109,9 +131,15 @@ class SignInScreenRobolectricTest {
   fun errorState_clearsErrorMessage() {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(AuthUIState(errorMsg = "Unable to sign in")))
+        .thenReturn(
+            MutableStateFlow(
+                AuthUIState(
+                    errorMsg = AuthError(R.string.sign_in_error_unexpected, "Unable to sign in")
+                )
+            )
+        )
 
-    composeTestRule.setContent { SignInScreen(authViewModel = viewModel, isDarkTheme = false) }
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
     composeTestRule.waitForIdle()
 
     verify(viewModel).clearErrorMsg()
@@ -131,12 +159,33 @@ class SignInScreenRobolectricTest {
       SignInScreen(
           authViewModel = viewModel,
           onSignedIn = { callbackCount++ },
-          isDarkTheme = false,
       )
     }
     composeTestRule.waitForIdle()
 
     assertEquals(1, callbackCount)
+  }
+
+  @Test
+  fun signedInState_hidesSignInFormWhileProfileLoads() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = mock())))
+
+    composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_screen_container).assertIsDisplayed()
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithTag(C.Tag.sign_in_google_button)
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
+    assertTrue(
+        composeTestRule
+            .onAllNodesWithText(context.getString(R.string.sign_in_title))
+            .fetchSemanticsNodes()
+            .isEmpty()
+    )
   }
 
   /**
@@ -154,12 +203,12 @@ class SignInScreenRobolectricTest {
       SignInScreen(
           authViewModel = viewModel,
           onSignedIn = { navigationCount++ },
-          isDarkTheme = false,
       )
     }
     composeTestRule.waitForIdle()
 
-    state.value = AuthUIState(errorMsg = "Unable to sign in")
+    state.value =
+        AuthUIState(errorMsg = AuthError(R.string.sign_in_error_unexpected, "Unable to sign in"))
     composeTestRule.waitForIdle()
     state.value = AuthUIState(user = mock())
     composeTestRule.waitForIdle()
@@ -183,7 +232,7 @@ class SignInScreenRobolectricTest {
 
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = false, dynamicColor = false) {
-        SignInScreen(authViewModel = viewModel, isDarkTheme = false)
+        SignInScreen(authViewModel = viewModel)
       }
     }
 
@@ -213,7 +262,7 @@ class SignInScreenRobolectricTest {
       SampleAppTheme(darkTheme = true, dynamicColor = false) {
         expectedBackground = MaterialTheme.colorScheme.background
         expectedLogoColor = MaterialTheme.colorScheme.onSurface
-        SignInScreen(authViewModel = viewModel, isDarkTheme = true)
+        SignInScreen(authViewModel = viewModel)
       }
     }
 

@@ -1,6 +1,7 @@
 package com.github.roamswent.roam.ui.scan
 
 import android.net.Uri
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.BlockedException
 import com.github.roamswent.roam.model.ai.ConfigurationException
 import com.github.roamswent.roam.model.ai.MonumentGuide
@@ -279,42 +280,82 @@ class ScanReviewViewModelTest {
 
         coVerify(exactly = 1) { captureSender.send(uri) }
         assertEquals(
-            ScanReviewUiState.SendFailed(uri, "Something went wrong. Please try again."),
+            ScanReviewUiState.SendFailed(uri, R.string.scan_review_error_generic),
             viewModel.state.value,
         )
         assertTrue(events.isEmpty())
       }
 
-  @Test
-  fun sendFailureMapsEachDiscoveryExceptionToItsMessage() =
+  private fun assertSendFailureMapsToResource(
+      exception: Throwable,
+      expectedMessageRes: Int,
+  ) =
       runTest(dispatcher) {
-        val cases =
-            listOf(
-                MonumentNotIdentifiedException() to "No monument was recognized in this photo.",
-                RejectedImageException(RejectionReason.Oversized) to
-                    "This photo couldn't be used. Try retaking it.",
-                BlockedException("safety filter triggered") to
-                    "This request was blocked by the safety filter.",
-                NetworkUnavailableException() to
-                    "No internet connection. Check your connection and retry.",
-                TransientException("server busy") to
-                    "The service is busy right now. Please try again.",
-                ParseException() to "The guide couldn't be generated. Please try again.",
-                ConfigurationException("missing api key") to
-                    "The service isn't configured correctly.",
-            )
+        coEvery { captureSender.send(uri) } returns Result.failure(exception)
+        val viewModel = viewModel()
+        viewModel.setUri(uri)
 
-        for ((exception, expectedMessage) in cases) {
-          coEvery { captureSender.send(uri) } returns Result.failure(exception)
-          val viewModel = viewModel()
-          viewModel.setUri(uri)
+        viewModel.onSend()
+        advanceUntilIdle()
 
-          viewModel.onSend()
-          advanceUntilIdle()
-
-          assertEquals(ScanReviewUiState.SendFailed(uri, expectedMessage), viewModel.state.value)
-        }
+        assertEquals(ScanReviewUiState.SendFailed(uri, expectedMessageRes), viewModel.state.value)
       }
+
+  @Test
+  fun sendFailure_monumentNotIdentified_mapsToNotIdentifiedResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          MonumentNotIdentifiedException(),
+          R.string.scan_review_error_not_identified,
+      )
+
+  @Test
+  fun sendFailure_rejectedImage_mapsToRejectedImageResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          RejectedImageException(RejectionReason.Oversized),
+          R.string.scan_review_error_rejected_image,
+      )
+
+  @Test
+  fun sendFailure_blocked_mapsToBlockedResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          BlockedException("safety filter triggered"),
+          R.string.scan_review_error_blocked,
+      )
+
+  @Test
+  fun sendFailure_networkUnavailable_mapsToNetworkResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          NetworkUnavailableException(),
+          R.string.scan_review_error_network,
+      )
+
+  @Test
+  fun sendFailure_transient_mapsToTransientResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          TransientException("server busy"),
+          R.string.scan_review_error_transient,
+      )
+
+  @Test
+  fun sendFailure_parse_mapsToParseResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          ParseException(),
+          R.string.scan_review_error_parse,
+      )
+
+  @Test
+  fun sendFailure_configuration_mapsToConfigurationResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          ConfigurationException("missing api key"),
+          R.string.scan_review_error_configuration,
+      )
+
+  @Test
+  fun sendFailure_genericException_mapsToGenericResource_regressionDetectsSwappedMapping() =
+      assertSendFailureMapsToResource(
+          IllegalStateException("generic failure"),
+          R.string.scan_review_error_generic,
+      )
 
   @Test
   fun sendExceptionShowsSendFailed() =
@@ -329,7 +370,7 @@ class ScanReviewViewModelTest {
 
         coVerify(exactly = 1) { captureSender.send(uri) }
         assertEquals(
-            ScanReviewUiState.SendFailed(uri, "Something went wrong. Please try again."),
+            ScanReviewUiState.SendFailed(uri, R.string.scan_review_error_generic),
             viewModel.state.value,
         )
         assertTrue(events.isEmpty())
@@ -358,7 +399,7 @@ class ScanReviewViewModelTest {
         viewModel.onSend()
         advanceUntilIdle()
         assertEquals(
-            ScanReviewUiState.SendFailed(uri, "Something went wrong. Please try again."),
+            ScanReviewUiState.SendFailed(uri, R.string.scan_review_error_generic),
             viewModel.state.value,
         )
 

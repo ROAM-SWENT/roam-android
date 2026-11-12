@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam
@@ -8,23 +9,32 @@ package com.github.roamswent.roam
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.UiObject2
-import androidx.test.uiautomator.Until
 import com.github.roamswent.roam.data.GuideCaptureSender
 import com.github.roamswent.roam.model.ai.GeminiClient
 import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
@@ -34,6 +44,9 @@ import com.github.roamswent.roam.model.ai.ImageScreen
 import com.github.roamswent.roam.model.ai.NetworkUnavailableException
 import com.github.roamswent.roam.model.ai.ScreenVerdict
 import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.FriendRequest as RepositoryFriendRequest
+import com.github.roamswent.roam.model.friend.Friendship
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
@@ -41,14 +54,27 @@ import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.profile.UserProfile
+import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.explore.exploreMapMarkers
+import com.github.roamswent.roam.ui.explore.toExploreMonuments
+import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.permission.LocationPermissionController
+import com.github.roamswent.roam.ui.permission.LocationPermissionState
+import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -71,6 +97,20 @@ class UserJourneyEndToEndTest {
           ApplicationProvider.getApplicationContext()
       )
   private var latestCapturedPhoto: File? = null
+  private var galleryImageFile: File? = null
+  private val permissionControllerPackages =
+      listOf(
+          PERMISSION_CONTROLLER_PACKAGE,
+          "com.google.android.permissioncontroller",
+          "com.google.android.packageinstaller",
+          "com.google.android.packageinstaller",
+      )
+  private val allowResourceNames =
+      listOf(
+          "permission_allow_foreground_only_button",
+          "permission_allow_one_time_button",
+          "permission_allow_button",
+      )
   // Set once the interests prompt is answered or loading is known to have started, so later
   // validate taps skip the prompt poll.
   private var interestsPromptHandled = false
@@ -91,6 +131,230 @@ class UserJourneyEndToEndTest {
         .edit()
         .clear()
         .commit()
+    galleryImageFile?.delete()
+    galleryImageFile = null
+  }
+
+  @Test
+  fun userCanExploreAllScreensAndManageGuidesInM2Journey() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val (galleryImageUri, galleryImageBytes) = createGalleryImage(context)
+    val interestsRepository = SharedPreferencesUserInterestsRepository(context)
+    interestsRepository.updateInterests(emptyList())
+    val services =
+        FakeDiscoveryServices(
+            gemini =
+                ScriptedGeminiClient(
+                    failFirstCall = false,
+                    cancelSecondCall = false,
+                    guideReplies =
+                        listOf(
+                            """{"monumentName":"Eiffel Tower","confidence":0.92,"history":"Built in 1889.","facts":["It grew taller in summer."],"culture":"A symbol of Paris.","language":"en"}""",
+                            """{"monumentName":"Louvre Museum","confidence":0.91,"history":"Opened as a museum in 1793.","facts":["It is the world's largest art museum."],"culture":"A landmark of Paris.","language":"en"}""",
+                            """{"monumentName":"Arc de Triomphe","confidence":0.9,"history":"Completed in 1836.","facts":["It honors those who fought for France."],"culture":"A Parisian landmark.","language":"en"}""",
+                        ),
+                ),
+            imageScreen = ScriptedImageScreen(rejectFirst = false),
+        )
+    val savedGuides = InMemorySavedGuideRepository()
+    val fakeProfiles = FakePublicProfileRepository()
+    val fakeFriends = FakeFriendRepository()
+    val auth = FakeFirebaseSignIn()
+    val authViewModel = SignInViewModel(FakeAuthRepository())
+    val settingsViewModel =
+        SettingsViewModel(
+            authRepository = FakeAuthRepository(),
+            profileRepository = FakeProfileRepository(),
+            userInterestsRepository = interestsRepository,
+        )
+
+    composeTestRule.runOnUiThread {
+      composeTestRule.activity.setContent {
+        var selectedThemeMode by remember { mutableStateOf(ThemeMode.LIGHT) }
+        SampleAppTheme(darkTheme = selectedThemeMode == ThemeMode.DARK) {
+          val navController = androidx.navigation.compose.rememberNavController()
+          RoamApp(
+              authViewModel = authViewModel,
+              navController = navController,
+              themeMode = selectedThemeMode,
+              onThemeModeSelected = { selectedThemeMode = it },
+              testOverrides =
+                  RoamAppTestOverrides(
+                      captureSender = services.captureSender,
+                      galleryImageUri = galleryImageUri,
+                      savedGuideRepository = savedGuides,
+                      publicProfileRepository = fakeProfiles,
+                      friendRepository = fakeFriends,
+                      exploreLocationProvider = services.locationProvider,
+                      exploreLocationPermissionController = GrantedLocationPermissionController(),
+                      settingsViewModel = settingsViewModel,
+                      isOnline = true,
+                      // The M2 journey skips Firebase authentication and enters the real Home
+                      // graph.
+                      onSignInClick = {
+                        auth.signIn()
+                        navController.navigate(Routes.Home) {
+                          popUpTo(Routes.SignIn) { inclusive = true }
+                        }
+                      },
+                  ),
+          )
+        }
+      }
+    }
+
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_title))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(composeTestRule.activity.getString(R.string.sign_in_google_button))
+        .performClick()
+    assertEquals(1, auth.signInCalls)
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // Save the first fake guide, show its scan location on Explore, and favourite it.
+    enterCapture()
+    capturePhoto()
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    skipInterestsPromptIfShown()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      savedGuides.guides.singleOrNull()?.location == Coordinates(48.85837, 2.29448)
+    }
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_filter_all)
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      savedGuides.guides.singleOrNull()?.isFavorite == true
+    }
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // Update an interest, switch to dark mode and back to light mode in Profile.
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.settings_interests_card).performScrollTo()
+    composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_interest_option_prefix + "History").performClick()
+    composeTestRule.onNodeWithText("History").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_card).performScrollTo()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_dark).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.settings_theme_light).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // Discover a second fake guide and add its scan location to Explore as well.
+    enterCapture()
+    capturePhoto()
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    skipInterestsPromptIfShown()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithText("Louvre Museum").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      savedGuides.guides.size == 2 && savedGuides.guides.all { it.location != null }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // Send a synthetic gallery photo through the bottom-left picker button.
+    enterCapture()
+    composeTestRule.onNodeWithTag(C.Tag.scan_gallery_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    skipInterestsPromptIfShown()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithText("Arc de Triomphe").assertIsDisplayed()
+    assertPhotoWasScreened(services, 2, galleryImageBytes)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      savedGuides.guides.size == 3 && savedGuides.guides.all { it.location != null }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // All shows three guides; Favourites shows only the first guide.
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_filter_all)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithText("Eiffel Tower").fetchSemanticsNodes().isNotEmpty() &&
+          composeTestRule.onAllNodesWithText("Louvre Museum").fetchSemanticsNodes().isNotEmpty() &&
+          composeTestRule.onAllNodesWithText("Arc de Triomphe").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).performClick()
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    assertTrue(composeTestRule.onAllNodesWithText("Louvre Museum").fetchSemanticsNodes().isEmpty())
+    assertTrue(
+        composeTestRule.onAllNodesWithText("Arc de Triomphe").fetchSemanticsNodes().isEmpty()
+    )
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).performClick()
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Louvre Museum").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Arc de Triomphe").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_map)
+    assertEquals(3, savedGuides.guides.count { it.location == Coordinates(48.85837, 2.29448) })
+    // Maps Compose markers have no Compose semantics, so verify the marker data used by the map.
+    val mapMarkers =
+        exploreMapMarkers(
+            userLocation = Coordinates(48.85837, 2.29448),
+            userLocationTitle = composeTestRule.activity.getString(R.string.explore_user_location),
+            monuments = savedGuides.guides.toExploreMonuments(),
+        )
+    assertEquals(4, mapMarkers.size)
+    assertEquals(
+        setOf("Eiffel Tower", "Louvre Museum", "Arc de Triomphe"),
+        mapMarkers.drop(1).map { it.title }.toSet(),
+    )
+    assertTrue(mapMarkers.drop(1).all { it.coordinates == Coordinates(48.85837, 2.29448) })
+
+    // Search for Micheal Jordan without opening his profile or sending a request.
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithText("Taylor Reed").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Taylor Reed").assertIsDisplayed()
+
+    // The existing friendship is loaded independently of profile search.
+    composeTestRule.onNodeWithTag(C.Tag.friends_add_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("Mich")
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithText("Micheal Jordan").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Micheal Jordan").assertIsDisplayed()
+
+    // Send to a synthetic profile; the fake repository records the request without contacting
+    // anyone.
+    composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextReplacement("Journey")
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithText("Journey Test User").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_add_user_button).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.friends_cancel_request)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    assertEquals("journey-request-target", fakeFriends.sentRequests.single().recipientUid)
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_add_dismiss).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
 
   @Test
@@ -107,9 +371,18 @@ class UserJourneyEndToEndTest {
         SampleAppTheme {
           RoamApp(
               authViewModel = authViewModel,
-              captureSenderOverride = services.captureSender,
-              savedGuideRepositoryOverride = FakeSavedGuideRepository(),
-              onSignInClickOverride = auth::signIn,
+              testOverrides =
+                  RoamAppTestOverrides(
+                      captureSender = services.captureSender,
+                      savedGuideRepository = FakeSavedGuideRepository(),
+                      // Simulate successful sign-in without Firebase, then request permission
+                      // through the app's real Android permission controller.
+                      onSignInClick = { onSignedIn ->
+                        auth.signIn()
+                        onSignedIn()
+                      },
+                      onSignedIn = { it.requestPermission() },
+                  ),
           )
         }
       }
@@ -126,6 +399,7 @@ class UserJourneyEndToEndTest {
     // Permissions and the saved choice start empty. Sign-in opens the real Android location
     // prompt. Choose precise location, then check Android's grants and Roam's saved choice.
     acceptPreciseLocationPermission()
+    acceptPermissionDialogIfVisible()
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       locationPermissionDecisions.getDecision() == LocationPermissionDecision.GRANTED
     }
@@ -259,12 +533,10 @@ class UserJourneyEndToEndTest {
     // Open the camera from Home. On the first visit, accept Android's camera permission prompt.
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     if (!hasPermission(Manifest.permission.CAMERA)) {
-      acceptPermissionDialog(
-          resourceNames = listOf("permission_allow_button"),
-          buttonLabels = listOf("Allow"),
-      )
+      acceptPermissionDialog()
       assertPermissionGranted(Manifest.permission.CAMERA)
     }
+
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
   }
 
@@ -280,6 +552,23 @@ class UserJourneyEndToEndTest {
     check(newFiles.size == 1) { "Expected exactly one new capture, found ${newFiles.size}" }
 
     latestCapturedPhoto = newFiles.single()
+  }
+
+  private fun createGalleryImage(context: Context): Pair<Uri, ByteArray> {
+    val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+    try {
+      bitmap.eraseColor(0xFF3F7CAC.toInt())
+      val file = File.createTempFile("journey-gallery-", ".jpg", context.cacheDir)
+      file.outputStream().use { output ->
+        check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, output)) {
+          "Could not encode the fake gallery image"
+        }
+      }
+      galleryImageFile = file
+      return Uri.fromFile(file) to file.readBytes()
+    } finally {
+      bitmap.recycle()
+    }
   }
 
   private fun pressSystemBack() {
@@ -342,39 +631,55 @@ class UserJourneyEndToEndTest {
   }
 
   private fun acceptPreciseLocationPermission() {
+    // Android may already have granted precise access, in which case it skips the prompt
+    // altogether. A granted fine-location permission proves the selected precision.
+    if (hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
+      assertPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+      return
+    }
+
     val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    val precisionSelectors = permissionControllerPackages.map {
+      By.res(it, "permission_location_accuracy_radio_fine")
+    }
+    val precisionSelector =
+        waitForPermissionSelector(device, precisionSelectors)
+            ?: run {
+              val hierarchy = File.createTempFile("location-permission-dialog", ".xml")
+              try {
+                device.dumpWindowHierarchy(hierarchy)
+                error(
+                    "Expected the Android precise-location choice to appear. " +
+                        "Location permission state: " +
+                        "coarse=${hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)}, " +
+                        "fine=${hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)}. " +
+                        hierarchy.readText()
+                )
+              } finally {
+                hierarchy.delete()
+              }
+            }
     val fineAccuracy =
-        waitForPermissionObject(
-            device,
-            By.res(PERMISSION_CONTROLLER_PACKAGE, "permission_location_accuracy_radio_fine"),
-        )
+        checkNotNull(device.findObject(precisionSelector)) {
+          "Location accuracy choice disappeared"
+        }
     if (!fineAccuracy.isChecked) {
       fineAccuracy.click()
     }
-    assertTrue("Precise location must be selected in the system prompt", fineAccuracy.isChecked)
-    acceptPermissionDialog(
-        resourceNames =
-            listOf("permission_allow_foreground_only_button", "permission_allow_button"),
-        buttonLabels = listOf("While using the app", "Allow"),
+    assertTrue(
+        "Precise location must be selected in the system prompt",
+        checkNotNull(device.findObject(precisionSelector)).isChecked,
     )
+    acceptPermissionDialog()
   }
 
-  // Android uses different resource IDs on different versions and devices. Try known IDs and
-  // button labels so the test can accept the permission prompt on each supported system image.
-  private fun acceptPermissionDialog(resourceNames: List<String>, buttonLabels: List<String>) {
+  // Android uses different resource IDs on different versions and devices. Match resource IDs
+  // rather than labels so the test works in any system locale.
+  private fun acceptPermissionDialog() {
     val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-    val packageNames =
-        listOf(
-            PERMISSION_CONTROLLER_PACKAGE,
-            "com.google.android.permissioncontroller",
-            "com.google.android.packageinstaller",
-        )
-    val resourceSelectors = packageNames.flatMap { packageName ->
-      resourceNames.map { By.res(packageName, it) }
+    val selectors = permissionControllerPackages.flatMap { packageName ->
+      allowResourceNames.map { resourceName -> By.res(packageName, resourceName) }
     }
-    val textSelectors =
-        (buttonLabels + "While using the app" + "Only this time").distinct().map { By.text(it) }
-    val selectors = textSelectors + resourceSelectors
     val selector =
         waitForPermissionSelector(device, selectors)
             ?: run {
@@ -393,27 +698,34 @@ class UserJourneyEndToEndTest {
         .click()
   }
 
-  // The system dialog can appear later than one pass over the selectors allows, so retry the
-  // whole pass until the permission dialog timeout instead of a single 3 s pass.
+  private fun acceptPermissionDialogIfVisible() {
+    // Granting location can immediately trigger Android's notification prompt, which also
+    // blocks Compose UI inspection until it is dismissed. Match resource IDs because button
+    // labels vary with the emulator's locale.
+    val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    val selectors = permissionControllerPackages.flatMap { packageName ->
+      allowResourceNames.map { resourceName -> By.res(packageName, resourceName) }
+    }
+    waitForPermissionSelector(device, selectors, timeoutMillis = 3_000L)?.let { selector ->
+      device.findObject(selector)?.click()
+    }
+  }
+
   private fun waitForPermissionSelector(
       device: UiDevice,
       selectors: List<BySelector>,
+      timeoutMillis: Long = PERMISSION_DIALOG_TIMEOUT_MS,
   ): BySelector? {
-    val deadline = System.currentTimeMillis() + PERMISSION_DIALOG_TIMEOUT_MS
-    do {
-      val found = selectors.firstOrNull { device.wait(Until.hasObject(it), SELECTOR_TIMEOUT_MS) }
-      if (found != null) {
-        return found
-      }
-    } while (System.currentTimeMillis() < deadline)
-    return null
-  }
-
-  private fun waitForPermissionObject(device: UiDevice, selector: BySelector): UiObject2 {
-    check(device.wait(Until.hasObject(selector), PERMISSION_DIALOG_TIMEOUT_MS)) {
-      "Expected Android location accuracy choice to appear"
+    val deadline = SystemClock.uptimeMillis() + timeoutMillis
+    while (SystemClock.uptimeMillis() < deadline) {
+      selectors
+          .firstOrNull { device.findObject(it) != null }
+          ?.let {
+            return it
+          }
+      SystemClock.sleep(SELECTOR_POLL_INTERVAL_MS)
     }
-    return checkNotNull(device.findObject(selector)) { "Location accuracy choice disappeared" }
+    return null
   }
 
   // Read permissions from Android's package manager, not from a test-only permission state.
@@ -459,7 +771,7 @@ class UserJourneyEndToEndTest {
   private companion object {
     const val PERMISSION_CONTROLLER_PACKAGE = "com.android.permissioncontroller"
     const val PERMISSION_DIALOG_TIMEOUT_MS = 10_000L
-    private const val SELECTOR_TIMEOUT_MS = 500L
+    private const val SELECTOR_POLL_INTERVAL_MS = 100L
     private const val INTERESTS_PROMPT_POLL_MS = 2_000L
     private const val INTERESTS_PROMPT_POLL_INTERVAL_MS = 50L
 
@@ -483,13 +795,30 @@ class UserJourneyEndToEndTest {
   }
 }
 
-private class FakeDiscoveryServices {
-  val gemini = ScriptedGeminiClient()
+private class GrantedLocationPermissionController : LocationPermissionController {
+  override val state =
+      MutableStateFlow(
+          LocationPermissionState(
+              isGranted = true,
+              decision = LocationPermissionDecision.GRANTED,
+          )
+      )
+
+  override fun hasPermission(): Boolean = true
+
+  override fun refreshPermissionState() = Unit
+
+  override fun requestPermission() = Unit
+}
+
+private class FakeDiscoveryServices(
+    val gemini: ScriptedGeminiClient = ScriptedGeminiClient(),
+    val imageScreen: ScriptedImageScreen = ScriptedImageScreen(),
+) {
   // Fixed coordinates make the guide request predictable and protect the user's real location.
   val locationProvider = FakeLocationProvider()
   // Keep the real repository so the test covers image preparation and the full guide pipeline.
   // Its remote image screening, Gemini, and location services use the fakes below.
-  val imageScreen = ScriptedImageScreen()
   private val repository =
       GuideRepositoryImpl(
           imagePreparer = ImagePreparer(),
@@ -514,7 +843,7 @@ private class FakeDiscoveryServices {
  * It rejects the first photo and accepts every later photo. This lets the journey test both the
  * not-a-monument message and guide generation.
  */
-private class ScriptedImageScreen : ImageScreen {
+private class ScriptedImageScreen(private val rejectFirst: Boolean = true) : ImageScreen {
   private val callCount = AtomicInteger()
   val images = java.util.concurrent.CopyOnWriteArrayList<ImagePayload>()
   val calls: Int
@@ -523,7 +852,8 @@ private class ScriptedImageScreen : ImageScreen {
   override suspend fun screen(image: ImagePayload): ScreenVerdict {
     // Save the image so the test can compare it with the photo captured by the camera.
     images += image
-    val isMonument = callCount.incrementAndGet() > 1
+    val call = callCount.incrementAndGet()
+    val isMonument = !rejectFirst || call > 1
     return ScreenVerdict(
         isMonument = isMonument,
         injectionSuspected = false,
@@ -550,7 +880,11 @@ private class FakeLocationProvider : LocationProvider {
  * - the second call waits, to test cancellation;
  * - later calls return a guide for the Eiffel Tower.
  */
-private class ScriptedGeminiClient : GeminiClient {
+private class ScriptedGeminiClient(
+    private val failFirstCall: Boolean = true,
+    private val cancelSecondCall: Boolean = true,
+    private val guideReplies: List<String> = listOf(GUIDE_REPLY),
+) : GeminiClient {
   private val callCount = AtomicInteger()
   val prompts = java.util.concurrent.CopyOnWriteArrayList<String>()
   private val cancellationGate = CompletableDeferred<Unit>()
@@ -562,23 +896,25 @@ private class ScriptedGeminiClient : GeminiClient {
   override suspend fun generate(
       prompt: String,
       image: ImagePayload,
-  ): String =
-      // Save each prompt so the test can check that it includes the fake precise location.
-      when (callCount.incrementAndGet().also { prompts += prompt }) {
-        1 -> throw NetworkUnavailableException()
-        2 -> {
-          secondCallStarted.complete(Unit)
+  ): String {
+    // Save each prompt so the test can check that it includes the fake precise location.
+    val call = callCount.incrementAndGet().also { prompts += prompt }
+    if (failFirstCall && call == 1) {
+      throw NetworkUnavailableException()
+    }
+    if (cancelSecondCall && call == 2) {
+      secondCallStarted.complete(Unit)
 
-          try {
-            cancellationGate.await()
-            GUIDE_REPLY
-          } catch (e: CancellationException) {
-            secondCallCancelled.complete(Unit)
-            throw e
-          }
-        }
-        else -> GUIDE_REPLY
+      try {
+        cancellationGate.await()
+      } catch (e: CancellationException) {
+        secondCallCancelled.complete(Unit)
+        throw e
       }
+    }
+    val successfulCall = call - if (failFirstCall) 1 else 0
+    return guideReplies.getOrElse(successfulCall - 1) { guideReplies.last() }
+  }
 
   companion object {
     private const val GUIDE_REPLY =
@@ -612,10 +948,99 @@ private class FakeAuthRepository : AuthRepository {
   override fun signOut(): Result<Unit> = Result.success(Unit)
 }
 
-/**
- * An empty in-memory collection. The journey's collection stop is a navigation smoke that only
- * renders the real screen and dock, so saved guides come from the fake instead of Firestore.
- */
+private class FakeProfileRepository : ProfileRepository {
+  override suspend fun loadProfile(): Result<UserProfile> =
+      Result.success(UserProfile("Roam User", "roam@example.com", "Google"))
+}
+
+private class FakePublicProfileRepository : PublicProfileRepository {
+  private val currentUser = PublicProfile("journey-user", "RoamUser")
+  private val existingFriend = PublicProfile("existing-friend", "Taylor Reed")
+  private val searchUser = PublicProfile("micheal-jordan", "Micheal Jordan")
+  private val requestTarget = PublicProfile("journey-request-target", "Journey Test User")
+
+  override suspend fun getCurrentProfile(): PublicProfile = currentUser
+
+  override suspend fun getProfile(uid: String): PublicProfile? =
+      listOf(currentUser, existingFriend, searchUser, requestTarget).firstOrNull { it.uid == uid }
+
+  override suspend fun registerUsername(username: String): PublicProfile =
+      currentUser.copy(username = username)
+
+  override suspend fun renameUsername(username: String): PublicProfile =
+      currentUser.copy(username = username)
+
+  override suspend fun searchProfiles(prefix: String): List<PublicProfile> =
+      listOf(searchUser, requestTarget).filter { it.username.startsWith(prefix, ignoreCase = true) }
+}
+
+private class FakeFriendRepository : FriendRepository {
+  private val outgoingRequests = mutableListOf<RepositoryFriendRequest>()
+  val sentRequests: List<RepositoryFriendRequest>
+    get() = outgoingRequests.toList()
+
+  override suspend fun sendFriendRequest(toUid: String): RepositoryFriendRequest =
+      RepositoryFriendRequest("journey-request-$toUid", "journey-user", toUid).also {
+        outgoingRequests.add(it)
+      }
+
+  override suspend fun acceptFriendRequest(requestId: String) = Unit
+
+  override suspend fun rejectFriendRequest(requestId: String) = Unit
+
+  override suspend fun cancelFriendRequest(requestId: String) {
+    outgoingRequests.removeAll { it.id == requestId }
+  }
+
+  override suspend fun getIncomingRequests(): List<RepositoryFriendRequest> = emptyList()
+
+  override suspend fun getOutgoingRequests(): List<RepositoryFriendRequest> =
+      outgoingRequests.toList()
+
+  override suspend fun getFriends(): List<Friendship> =
+      listOf(Friendship("existing-friendship", "existing-friend"))
+
+  override suspend fun removeFriend(friendUid: String) = Unit
+}
+
+/** In-memory collection used by the M2 journey instead of Firestore. */
+private class InMemorySavedGuideRepository : SavedGuideRepository {
+  private val _guides = MutableStateFlow<List<Guide>>(emptyList())
+  val guides: List<Guide>
+    get() = _guides.value
+
+  override suspend fun addGuide(guide: Guide): Guide {
+    _guides.update { current -> listOf(guide) + current.filterNot { it.id == guide.id } }
+    return guide
+  }
+
+  override suspend fun removeGuide(guideId: String) {
+    _guides.update { guides -> guides.filterNot { it.id == guideId } }
+  }
+
+  override suspend fun setFavorite(guideId: String, isFavorite: Boolean) {
+    _guides.update { guides ->
+      guides.map { guide ->
+        if (guide.id == guideId) guide.copy(isFavorite = isFavorite) else guide
+      }
+    }
+  }
+
+  override suspend fun setLocation(guideId: String, location: Coordinates?) {
+    _guides.update { guides ->
+      guides.map { guide -> if (guide.id == guideId) guide.copy(location = location) else guide }
+    }
+  }
+
+  override suspend fun getSavedGuides(): List<Guide> = _guides.value
+
+  override fun observeSavedGuides() = _guides
+
+  override suspend fun getGuide(guideId: String): Guide? =
+      _guides.value.firstOrNull { it.id == guideId }
+}
+
+/** Empty in-memory collection for the journey that only smoke-tests collection navigation. */
 private class FakeSavedGuideRepository : SavedGuideRepository {
   override suspend fun addGuide(guide: Guide): Guide = guide
 
@@ -623,10 +1048,11 @@ private class FakeSavedGuideRepository : SavedGuideRepository {
 
   override suspend fun setFavorite(guideId: String, isFavorite: Boolean) = Unit
 
+  override suspend fun setLocation(guideId: String, location: Coordinates?) = Unit
+
   override suspend fun getSavedGuides(): List<Guide> = emptyList()
 
-  override fun observeSavedGuides() =
-      kotlinx.coroutines.flow.MutableStateFlow<List<Guide>>(emptyList())
+  override fun observeSavedGuides() = MutableStateFlow<List<Guide>>(emptyList())
 
   override suspend fun getGuide(guideId: String): Guide? = null
 }

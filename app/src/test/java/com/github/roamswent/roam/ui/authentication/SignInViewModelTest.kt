@@ -19,6 +19,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -54,6 +55,7 @@ class SignInViewModelTest {
   fun setUp() {
     Dispatchers.setMain(dispatcher)
     repository = mock()
+    whenever(repository.currentUserFlow()).thenReturn(emptyFlow())
     context = mock()
     credentialManager = mock()
     credential = mock()
@@ -73,7 +75,7 @@ class SignInViewModelTest {
     whenever(repository.currentUser()).thenReturn(null)
     val viewModel = SignInViewModel(repository)
 
-    assertEquals(AuthUIState(), viewModel.uiState.value)
+    assertEquals(AuthUIState(isRestoringSession = true), viewModel.uiState.value)
   }
 
   @Test
@@ -82,8 +84,25 @@ class SignInViewModelTest {
 
     val viewModel = SignInViewModel(repository)
 
-    assertEquals(AuthUIState(user = user), viewModel.uiState.value)
+    assertEquals(AuthUIState(user = user, isRestoringSession = true), viewModel.uiState.value)
   }
+
+  @Test
+  fun currentUserFlow_resolvesRestoredSession() =
+      runTest(dispatcher) {
+        val authState = MutableStateFlow<FirebaseUser?>(null)
+        whenever(repository.currentUserFlow()).thenReturn(authState)
+        val viewModel = SignInViewModel(repository)
+
+        assertTrue(viewModel.uiState.value.isRestoringSession)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isRestoringSession)
+
+        authState.value = user
+        runCurrent()
+
+        assertEquals(user, viewModel.uiState.value.user)
+      }
 
   /**
    * Verifies that clearing the error message removes the current error without affecting the other
@@ -95,6 +114,33 @@ class SignInViewModelTest {
     viewModel.clearErrorMsg()
 
     assertNull(viewModel.uiState.value.errorMsg)
+  }
+
+  @Test
+  fun signOut_successClearsAuthenticatedUser() {
+    whenever(repository.currentUser()).thenReturn(user)
+    whenever(repository.signOut()).thenReturn(Result.success(Unit))
+    val viewModel = SignInViewModel(repository)
+
+    val result = viewModel.signOut()
+
+    assertTrue(result.isSuccess)
+    assertNull(viewModel.uiState.value.user)
+    assertTrue(viewModel.uiState.value.signOutCompleted)
+    verify(repository).signOut()
+  }
+
+  @Test
+  fun signOut_failureKeepsAuthenticatedUser() {
+    whenever(repository.currentUser()).thenReturn(user)
+    whenever(repository.signOut()).thenReturn(Result.failure(IllegalStateException("failure")))
+    val viewModel = SignInViewModel(repository)
+
+    val result = viewModel.signOut()
+
+    assertTrue(result.isFailure)
+    assertEquals(user, viewModel.uiState.value.user)
+    verify(repository).signOut()
   }
 
   /**
@@ -186,7 +232,10 @@ class SignInViewModelTest {
         viewModel.signIn(context, credentialManager)
         advanceUntilIdle()
 
-        assertEquals("invalid account", viewModel.uiState.value.errorMsg)
+        assertEquals(
+            AuthError(R.string.sign_in_error_unexpected, "invalid account"),
+            viewModel.uiState.value.errorMsg,
+        )
         assertFalse(viewModel.uiState.value.signOutCompleted)
         assertNull(viewModel.uiState.value.user)
         assertFalse(viewModel.uiState.value.isLoading)
@@ -208,7 +257,10 @@ class SignInViewModelTest {
         viewModel.signIn(context, credentialManager)
         advanceUntilIdle()
 
-        assertEquals("Sign-in cancelled", viewModel.uiState.value.errorMsg)
+        assertEquals(
+            AuthError(R.string.sign_in_error_cancelled),
+            viewModel.uiState.value.errorMsg,
+        )
         assertFalse(viewModel.uiState.value.signOutCompleted)
         verify(repository, never()).signInWithGoogle(any())
       }
@@ -232,7 +284,7 @@ class SignInViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            "Failed to get credentials: credential failure",
+            AuthError(R.string.sign_in_error_credentials, "credential failure"),
             viewModel.uiState.value.errorMsg,
         )
         assertFalse(viewModel.uiState.value.signOutCompleted)
@@ -254,7 +306,10 @@ class SignInViewModelTest {
         viewModel.signIn(context, credentialManager)
         advanceUntilIdle()
 
-        assertEquals("Unexpected error: boom", viewModel.uiState.value.errorMsg)
+        assertEquals(
+            AuthError(R.string.sign_in_error_unexpected, "boom"),
+            viewModel.uiState.value.errorMsg,
+        )
         assertFalse(viewModel.uiState.value.signOutCompleted)
       }
 

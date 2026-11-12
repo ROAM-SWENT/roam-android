@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.ui.scan
 
@@ -21,6 +22,7 @@ import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
 import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
@@ -38,7 +40,7 @@ fun ScanReviewRoute(
     uri: Uri,
     captureSenderOverride: CaptureSender? = null,
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
-    isDarkTheme: Boolean,
+    savedGuideRepository: SavedGuideRepository,
     isGalleryImage: Boolean = false,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
@@ -87,11 +89,16 @@ fun ScanReviewRoute(
             uri,
             Locale.getDefault().toLanguageTag(),
             userInterestsRepository,
+            savedGuideRepository,
         )
       }
   val showLoading by loadingViewModel.showLoading.collectAsState()
   val showInterestsPrompt by loadingViewModel.showInterestsPrompt.collectAsState()
   val discoveredGuide by loadingViewModel.discoveredGuide.collectAsState()
+  val saveError by loadingViewModel.saveError.collectAsState()
+  val isFavorite by loadingViewModel.isFavorite.collectAsState()
+  val favoriteError by loadingViewModel.favoriteError.collectAsState()
+  val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
@@ -123,14 +130,12 @@ fun ScanReviewRoute(
         onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
         onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
         loadingViewModel = loadingViewModel,
-        isDarkTheme = isDarkTheme,
     )
   } else {
     val currentState = discoveredGuide?.let { ScanReviewUiState.Sent(uri, it) } ?: state
     currentState?.let {
       ScanReviewScreen(
           state = it,
-          isDarkTheme = isDarkTheme,
           onRetake = if (isGalleryImage) returnToScan else viewModel::onRetake,
           onRetakeConfirm = viewModel::confirmRetake,
           onRetakeCancel = viewModel::cancelRetake,
@@ -144,6 +149,13 @@ fun ScanReviewRoute(
           isGalleryImage = isGalleryImage,
           onSaveInterests = loadingViewModel::onSaveInterests,
           onSkipInterests = loadingViewModel::onSkipInterests,
+          // A guide that could not be saved is not in the collection, so it cannot be a favourite.
+          isFavorite = isFavorite.takeIf { saveError == null },
+          onFavoriteClick = loadingViewModel::toggleFavorite,
+          showFavoriteError = favoriteError != null,
+          onFavoriteErrorShown = loadingViewModel::clearFavoriteError,
+          exploreOptIn = exploreOptIn,
+          onShowInExploreChange = loadingViewModel::setShownInExplore,
       )
     }
   }

@@ -231,8 +231,8 @@ class SavedGuidesViewModelFavoriteTest {
         runCurrent()
 
         assertFalse(viewModel.uiState.value.guides.single().isFavorite)
-        // Coroutines may rethrow a copy of the exception from await(), so compare the message.
-        assertEquals(error.message, viewModel.uiState.value.favoriteError?.message)
+        // Only the latest request may report an error.
+        assertNull(viewModel.uiState.value.favoriteError)
       }
 
   @Test
@@ -400,6 +400,24 @@ class SavedGuidesViewModelFavoriteTest {
       }
 
   @Test
+  fun clearFavoriteErrorKeepsOtherErrors() =
+      runTest(dispatcher) {
+        val deleteError = IllegalStateException("delete failed")
+        coEvery { repository.setFavorite(any(), any()) } throws IllegalStateException("failed")
+        coEvery { repository.removeGuide(otherGuide.id) } throws deleteError
+        snapshots.value = listOf(guide, otherGuide)
+        val viewModel = loadedViewModel()
+        viewModel.setFavorite(guide.id, true)
+        viewModel.deleteGuide(otherGuide.id)
+        advanceUntilIdle()
+
+        viewModel.clearFavoriteError()
+
+        assertNull(viewModel.uiState.value.favoriteError)
+        assertEquals(deleteError, viewModel.uiState.value.deleteError)
+      }
+
+  @Test
   fun cancellationIsNotShownAsAFavoriteError() =
       runTest(dispatcher) {
         coEvery { repository.setFavorite(any(), any()) } throws CancellationException("cancelled")
@@ -409,6 +427,34 @@ class SavedGuidesViewModelFavoriteTest {
         advanceUntilIdle()
 
         assertNull(viewModel.uiState.value.favoriteError)
+      }
+
+  @Test
+  fun favouritesFilterIsOffByDefaultAndCanBeSwitched() =
+      runTest(dispatcher) {
+        val viewModel = loadedViewModel()
+        assertFalse(viewModel.uiState.value.showFavoritesOnly)
+
+        viewModel.setShowFavoritesOnly(true)
+        assertTrue(viewModel.uiState.value.showFavoritesOnly)
+
+        viewModel.setShowFavoritesOnly(false)
+        assertFalse(viewModel.uiState.value.showFavoritesOnly)
+      }
+
+  @Test
+  fun favouritesFilterKeepsEveryGuideInState() =
+      runTest(dispatcher) {
+        coEvery { repository.setFavorite(any(), any()) } just Runs
+        snapshots.value = listOf(guide, otherGuide)
+        val viewModel = loadedViewModel()
+
+        viewModel.setShowFavoritesOnly(true)
+        viewModel.toggleFavorite(guide.id)
+        advanceUntilIdle()
+
+        assertEquals(listOf(true, false), viewModel.uiState.value.guides.map { it.isFavorite })
+        assertTrue(viewModel.uiState.value.showFavoritesOnly)
       }
 
   private fun TestScope.loadedViewModel(): SavedGuidesViewModel {

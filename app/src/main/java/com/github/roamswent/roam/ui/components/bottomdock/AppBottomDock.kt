@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Google Antigravity <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.components.bottomdock
@@ -8,6 +9,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -31,38 +33,41 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
-import com.github.roamswent.roam.ui.theme.DockBarBackground
-import com.github.roamswent.roam.ui.theme.DockOutline
+import com.github.roamswent.roam.ui.theme.DockLabelFontSize
+import com.github.roamswent.roam.ui.theme.DockLabelMinFontSize
 import com.github.roamswent.roam.ui.theme.DockScanIcon
-import com.github.roamswent.roam.ui.theme.HomeActiveTab
-import com.github.roamswent.roam.ui.theme.HomeInactiveTab
 import com.github.roamswent.roam.ui.theme.ScanTeal
+import kotlin.math.roundToInt
 
 @Composable
 fun AppBottomDock(
-    selected: DockDestination,
+    selected: DockDestination?,
     onDestinationSelected: (DockDestination) -> Unit,
     onScanClick: () -> Unit,
     cameraAvailable: Boolean = true,
@@ -71,23 +76,51 @@ fun AppBottomDock(
   val barContentHeight = 80.dp
   val haloSize = 72.dp
   val fabSize = 56.dp
-  // How far the halo rises above the white bar's top edge.
   val protrusion = haloSize / 2
 
-  // Outer container is fully transparent; only the bar and the halo paint white.
-  Box(
+  val homeLabel = stringResource(DockDestination.HOME.labelRes)
+  val exploreLabel = stringResource(DockDestination.EXPLORE.labelRes)
+  val collectionLabel = stringResource(DockDestination.COLLECTION.labelRes)
+  val friendsLabel = stringResource(DockDestination.FRIENDS.labelRes)
+  val scanLabel =
+      if (cameraAvailable) stringResource(R.string.home_tab_scan)
+      else stringResource(R.string.home_scan_unavailable_short)
+
+  val textMeasurer = rememberTextMeasurer()
+  val density = LocalDensity.current
+  val measurementDensity = remember(density) { Density(density = density.density, fontScale = 1f) }
+
+  BoxWithConstraints(
       modifier =
           modifier.fillMaxWidth().background(Color.Transparent).semantics {
             testTag = C.Tag.dock_container
           }
   ) {
-    // White bar. padding(top = protrusion) comes BEFORE background(White), so the
-    // top 36.dp stay transparent and the pure white starts exactly at y = 36.dp.
+    val labelFontSize =
+        remember(
+            maxWidth,
+            cameraAvailable,
+            homeLabel,
+            exploreLabel,
+            collectionLabel,
+            friendsLabel,
+            scanLabel,
+            measurementDensity,
+        ) {
+          computeDockLabelFontSize(
+              maxWidth = maxWidth,
+              tabLabels = listOf(homeLabel, exploreLabel, collectionLabel, friendsLabel),
+              scanLabel = scanLabel,
+              textMeasurer = textMeasurer,
+              density = measurementDensity,
+          )
+        }
+
     Box(
         modifier =
             Modifier.fillMaxWidth()
                 .padding(top = protrusion)
-                .background(DockBarBackground)
+                .background(MaterialTheme.colorScheme.surface)
                 .navigationBarsPadding()
                 .height(barContentHeight),
     ) {
@@ -99,51 +132,57 @@ fun AppBottomDock(
             destination = DockDestination.HOME,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
         )
         DockTabSlot(
             destination = DockDestination.EXPLORE,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
         )
         Box(
-            modifier = Modifier.weight(1.75f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
+            modifier = Modifier.weight(1.25f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
-          AutoResizedTabLabel(
-              text =
-                  if (cameraAvailable) stringResource(R.string.home_tab_scan)
-                  else stringResource(R.string.home_scan_unavailable),
+          val unavailableDescription = stringResource(R.string.home_scan_unavailable)
+          DockLabel(
+              text = scanLabel,
               color = if (cameraAvailable) ScanTeal else MaterialTheme.colorScheme.onSurfaceVariant,
               fontWeight = FontWeight.SemiBold,
+              fontSize = labelFontSize,
               modifier =
-                  Modifier.wrapContentWidth(unbounded = true).padding(top = 34.dp).semantics {
-                    testTag = C.Tag.dock_scan_label
-                  },
+                  (if (cameraAvailable) Modifier.wrapContentWidth(unbounded = true) else Modifier)
+                      .padding(top = 34.dp)
+                      .semantics {
+                        testTag = C.Tag.dock_scan_label
+                        if (!cameraAvailable) {
+                          contentDescription = unavailableDescription
+                        }
+                      },
           )
         }
         DockTabSlot(
             destination = DockDestination.COLLECTION,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
         )
         DockTabSlot(
-            destination = DockDestination.SETTINGS,
+            destination = DockDestination.FRIENDS,
             selected = selected,
             onDestinationSelected = onDestinationSelected,
+            labelFontSize = labelFontSize,
         )
       }
     }
 
-    // Halo: TopCenter of the outer Box, so the 72.dp circle spans y=0..72 and its
-    // center sits exactly on the bar's top edge (y = 36.dp). The 56.dp FAB is
-    // centered in the halo, so it spans y=8..64 and clears the label at the bottom.
     Box(
         modifier =
             Modifier.align(Alignment.TopCenter)
                 .size(haloSize)
                 .background(
                     color =
-                        if (cameraAvailable) DockBarBackground
+                        if (cameraAvailable) MaterialTheme.colorScheme.surface
                         else MaterialTheme.colorScheme.surfaceVariant,
                     shape = CircleShape,
                 ),
@@ -167,7 +206,7 @@ fun AppBottomDock(
                 if (cameraAvailable) Icons.Default.CenterFocusStrong
                 else Icons.Default.NoPhotography,
             contentDescription =
-                if (cameraAvailable) stringResource(R.string.home_tab_scan)
+                if (cameraAvailable) stringResource(R.string.home_scan_description)
                 else stringResource(R.string.home_scan_unavailable),
             tint = DockScanIcon,
             modifier = Modifier.size(28.dp),
@@ -175,8 +214,7 @@ fun AppBottomDock(
       }
     }
 
-    // 1.dp outline drawn last: bar top edge on both sides of the halo plus the
-    // halo's upper semicircle, locked to y = protrusion (the bar's top edge).
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier = Modifier.matchParentSize()) {
       val barTop = protrusion.toPx()
       val haloRadius = haloSize.toPx() / 2f
@@ -193,16 +231,83 @@ fun AppBottomDock(
             )
             lineTo(size.width, barTop)
           }
-      drawPath(path = outline, color = DockOutline, style = Stroke(width = 1.dp.toPx()))
+      drawPath(
+          path = outline,
+          color = outlineColor,
+          style = Stroke(width = 1.dp.toPx()),
+      )
     }
   }
+}
+
+private fun computeDockLabelFontSize(
+    maxWidth: Dp,
+    tabLabels: List<String>,
+    scanLabel: String,
+    textMeasurer: TextMeasurer,
+    density: Density,
+    minFontSize: TextUnit = DockLabelMinFontSize,
+): TextUnit {
+  val contentWidth = maxWidth - 16.dp
+  val tabSlotWidth = contentWidth / 5.25f
+  val scanSlotWidth = tabSlotWidth * 1.25f
+  val tabBudget = tabSlotWidth - 8.dp
+  val scanBudget = scanSlotWidth
+
+  if (tabBudget <= 0.dp || scanBudget <= 0.dp) {
+    return minFontSize
+  }
+
+  val tabBudgetPx = with(density) { tabBudget.toPx() }
+  val scanBudgetPx = with(density) { scanBudget.toPx() }
+
+  val stepCount = ((DockLabelFontSize.value - minFontSize.value) / 0.5f).roundToInt()
+  val candidateSizes = (0..stepCount).map { i -> (DockLabelFontSize.value - i * 0.5f).sp }
+
+  return candidateSizes.firstOrNull { size ->
+    val tabsFit = tabLabels.all { label ->
+      val result =
+          textMeasurer.measure(
+              text = label,
+              style =
+                  TextStyle(
+                      fontSize = size,
+                      fontWeight = FontWeight.Bold,
+                      letterSpacing = 0.5.sp,
+                  ),
+              softWrap = false,
+              maxLines = 1,
+              density = density,
+          )
+      result.size.width <= tabBudgetPx
+    }
+    val scanFits =
+        textMeasurer
+            .measure(
+                text = scanLabel,
+                style =
+                    TextStyle(
+                        fontSize = size,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                    ),
+                softWrap = false,
+                maxLines = 1,
+                density = density,
+            )
+            .size
+            .width <= scanBudgetPx
+
+    tabsFit && scanFits
+  } ?: minFontSize
 }
 
 @Composable
 private fun RowScope.DockTabSlot(
     destination: DockDestination,
-    selected: DockDestination,
+    selected: DockDestination?,
     onDestinationSelected: (DockDestination) -> Unit,
+    labelFontSize: TextUnit,
 ) {
   Box(
       modifier = Modifier.weight(1f).fillMaxHeight().padding(top = 12.dp, bottom = 10.dp),
@@ -212,6 +317,7 @@ private fun RowScope.DockTabSlot(
         destination = destination,
         selected = selected == destination,
         onDestinationSelected = onDestinationSelected,
+        labelFontSize = labelFontSize,
     )
   }
 }
@@ -221,8 +327,11 @@ private fun DockTabItem(
     destination: DockDestination,
     selected: Boolean,
     onDestinationSelected: (DockDestination) -> Unit,
+    labelFontSize: TextUnit,
 ) {
-  val color = if (selected) HomeActiveTab else HomeInactiveTab
+  val color =
+      if (selected) MaterialTheme.colorScheme.onSurface
+      else MaterialTheme.colorScheme.onSurfaceVariant
 
   Column(
       horizontalAlignment = Alignment.CenterHorizontally,
@@ -231,7 +340,7 @@ private fun DockTabItem(
               .clip(RoundedCornerShape(12.dp))
               .clickable(enabled = !selected) { onDestinationSelected(destination) }
               .semantics { testTag = destination.tag }
-              .padding(horizontal = 12.dp, vertical = 6.dp),
+              .padding(horizontal = 4.dp, vertical = 6.dp),
   ) {
     Icon(
         imageVector = destination.icon,
@@ -240,42 +349,37 @@ private fun DockTabItem(
         modifier = Modifier.size(24.dp),
     )
     Spacer(modifier = Modifier.height(4.dp))
-    AutoResizedTabLabel(
+    DockLabel(
         text = stringResource(destination.labelRes),
         color = color,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        fontSize = labelFontSize,
     )
   }
 }
 
 @Composable
-private fun AutoResizedTabLabel(
+private fun DockLabel(
     text: String,
     color: Color,
     fontWeight: FontWeight,
+    fontSize: TextUnit,
     modifier: Modifier = Modifier,
-    initialFontSize: TextUnit = 11.sp,
-    minFontSize: TextUnit = 8.5.sp,
 ) {
-  var readyToDraw by remember(text) { mutableStateOf(false) }
-  var scaledFontSize by remember(text) { mutableStateOf(initialFontSize) }
+  val density = LocalDensity.current
 
-  Text(
-      text = text,
-      color = color,
-      fontSize = scaledFontSize,
-      fontWeight = fontWeight,
-      textAlign = TextAlign.Center,
-      maxLines = 1,
-      softWrap = false,
-      onTextLayout = { textLayoutResult ->
-        if (textLayoutResult.didOverflowWidth && scaledFontSize > minFontSize) {
-          scaledFontSize = (scaledFontSize.value - 0.5f).sp
-          readyToDraw = false
-        } else {
-          readyToDraw = true
-        }
-      },
-      modifier = modifier.then(Modifier.drawWithContent { if (readyToDraw) drawContent() }),
-  )
+  CompositionLocalProvider(
+      LocalDensity provides Density(density = density.density, fontScale = 1f)
+  ) {
+    Text(
+        text = text,
+        color = color,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        softWrap = false,
+        modifier = modifier,
+    )
+  }
 }

@@ -7,11 +7,13 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
@@ -25,7 +27,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SettingsUIState(
-    val errorMsg: String? = null,
+    @param:StringRes val errorMsg: Int? = null,
     val signedOut: Boolean = false,
     val cameraPermissionGranted: Boolean = false,
     val locationPermissionGranted: Boolean = false,
@@ -95,11 +97,11 @@ class SettingsViewModel(
                   )
                 }
               },
-              onFailure = { throwable ->
+              onFailure = { _ ->
                 _uiState.update {
                   it.copy(
                       profileLoading = false,
-                      errorMsg = throwable.localizedMessage ?: "Unable to load your profile.",
+                      errorMsg = R.string.settings_error_profile_load,
                   )
                 }
               },
@@ -121,8 +123,8 @@ class SettingsViewModel(
                 }
                 _uiState.update { it.copy(signedOut = true) }
               },
-              onFailure = { throwable ->
-                _uiState.update { it.copy(errorMsg = throwable.localizedMessage) }
+              onFailure = { _ ->
+                _uiState.update { it.copy(errorMsg = R.string.settings_error_sign_out) }
               },
           )
     }

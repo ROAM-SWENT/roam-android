@@ -18,6 +18,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -30,9 +31,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.navigation.Routes
@@ -43,12 +49,14 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 class ScanReviewScreenTest {
@@ -57,6 +65,7 @@ class ScanReviewScreenTest {
   private lateinit var navController: NavHostController
   private lateinit var photoUri: Uri
   private var photoFile: File? = null
+  private val context = ApplicationProvider.getApplicationContext<Context>()
 
   @After
   fun deleteTemporaryPhoto() {
@@ -69,6 +78,9 @@ class ScanReviewScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.scan_review_screen).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_review_photo).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_photo_title))
+        .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).assertIsEnabled()
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsEnabled()
   }
@@ -84,6 +96,12 @@ class ScanReviewScreenTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_dialog).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_retake_title))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_retake_message))
+        .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_confirm).performClick()
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_cancel).performClick()
 
@@ -112,6 +130,51 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).assertIsNotEnabled()
     composeTestRule.onAllNodesWithTag(C.Tag.scan_retake_dialog).assertCountEquals(0)
     composeTestRule.onAllNodesWithTag(C.Tag.scan_sending_dialog).assertCountEquals(0)
+  }
+
+  @Test
+  fun interestsPromptDisplaysExternalizedTitleAndSubtitle() {
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Reviewing(uri),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            showInterestsPrompt = true,
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_personalize_title))
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.scan_review_personalize_subtitle))
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText("History").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Food & Drink").assertIsDisplayed()
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun interestsPrompt_underFrenchQualifier_rendersFrenchLabels_regressionProvesDecoupling() {
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Reviewing(uri),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            showInterestsPrompt = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Histoire").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Gastronomie & Boissons").assertIsDisplayed()
   }
 
   @Test
@@ -166,7 +229,7 @@ class ScanReviewScreenTest {
             ScanReviewRoute(
                 navController = navController,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
-                isDarkTheme = false,
+                savedGuideRepository = FakeSavedGuideRepository(),
             )
           }
         }
@@ -262,7 +325,6 @@ class ScanReviewScreenTest {
             onRetakeCancel = {},
             onSend = {},
             showInterestsPrompt = true,
-            isDarkTheme = false,
         )
       }
     }
@@ -395,6 +457,114 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteSuccessSavesDiscoveryToCollection() {
+    // The pipeline returns the downscaled photo it sent to the AI along with the guide.
+    val photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg")
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = photo))
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    val saved = savedGuides.guides.value.single()
+    assertEquals(guide.monumentName, saved.monumentName)
+    assertArrayEquals(photo.bytes, saved.photoBytes)
+  }
+
+  @Test
+  fun reviewRouteFavouriteButtonAddsTheSavedGuideToFavourites() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_favorite_button)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_favorite_button).performClick()
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      savedGuides.guides.value.singleOrNull()?.isFavorite == true
+    }
+  }
+
+  @Test
+  fun reviewRouteHidesFavouriteButtonWhenTheGuideCouldNotBeSaved() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val savedGuides = FakeSavedGuideRepository().apply { addError = IllegalStateException() }
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_favorite_button).assertCountEquals(0)
+  }
+
+  @Test
+  fun sentPassesFavouriteStateToMonumentDetail() {
+    var favouriteClicks = 0
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            isFavorite = false,
+            onFavoriteClick = { favouriteClicks++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_favorite_button).performClick()
+
+    assertEquals(1, favouriteClicks)
+  }
+
+  @Test
+  fun reviewRouteShowInExploreSetsScanLocationOnTheSavedGuide() {
+    val scanLocation = Coordinates(48.8584, 2.2945)
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(
+                  guide.copy(
+                      location = scanLocation,
+                      photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
+                  )
+              )
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_show_in_explore)
+    val savedId = savedGuides.guides.value.single().id
+    assertEquals(null, savedGuides.guides.value.single().location)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_show_in_explore)
+        .assertIsOff()
+        .performClick()
+    composeTestRule.waitUntil(5_000) { savedGuides.guides.value.single().location != null }
+
+    assertEquals(listOf(savedId to scanLocation), savedGuides.locationUpdates)
+    assertEquals(scanLocation, savedGuides.guides.value.single().location)
+  }
+
+  @Test
   fun reviewRouteSystemBackFromGuideReturnsHome() {
     val sender =
         object : CaptureSender {
@@ -463,6 +633,7 @@ class ScanReviewScreenTest {
       captureSender: CaptureSender,
       userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
       isGalleryImage: Boolean = false,
+      savedGuideRepository: SavedGuideRepository = FakeSavedGuideRepository(),
   ) {
     val photo =
         File.createTempFile(
@@ -492,7 +663,7 @@ class ScanReviewScreenTest {
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
-                isDarkTheme = false,
+                savedGuideRepository = savedGuideRepository,
                 isGalleryImage = isGalleryImage,
             )
           }
@@ -558,7 +729,7 @@ class ScanReviewScreenTest {
     var retried = false
     var dismissed = false
     setContent(
-        ScanReviewUiState.SendFailed(uri, "No monument was recognized in this photo."),
+        ScanReviewUiState.SendFailed(uri, R.string.scan_review_error_not_identified),
         onRetrySend = { retried = true },
         onDismissSendError = { dismissed = true },
     )
@@ -600,7 +771,6 @@ class ScanReviewScreenTest {
             onRetrySend = onRetrySend,
             onDismissSendError = onDismissSendError,
             onHomeClick = onHomeClick,
-            isDarkTheme = false,
         )
       }
     }

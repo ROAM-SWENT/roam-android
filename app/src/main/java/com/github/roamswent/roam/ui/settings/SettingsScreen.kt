@@ -5,6 +5,8 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.widget.Toast
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +61,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -71,9 +74,11 @@ import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
-import com.github.roamswent.roam.ui.theme.HomeTextPrimary
+import com.github.roamswent.roam.ui.permission.NotificationPermissionController
+import com.github.roamswent.roam.ui.permission.rememberNotificationPermissionController
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 
 private data class ProfileDisplayData(
     val initial: String,
@@ -86,6 +91,8 @@ private data class ProfileDisplayData(
 fun SettingsScreen(
     cameraPermissionController: CameraPermissionController,
     locationPermissionController: LocationPermissionController,
+    notificationPermissionController: NotificationPermissionController =
+        rememberNotificationPermissionController(),
     modifier: Modifier = Modifier,
     settingsViewModel: SettingsViewModel? = null,
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
@@ -93,7 +100,6 @@ fun SettingsScreen(
     onSignedOut: () -> Unit = {},
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
-    isDarkTheme: Boolean,
 ) {
 
   val context = LocalContext.current
@@ -105,25 +111,33 @@ fun SettingsScreen(
       settingsViewModel
           ?: viewModel { SettingsViewModel(userInterestsRepository = userInterestsRepository) }
   val uiState by resolvedSettingsViewModel.uiState.collectAsState()
+  val notificationPermissionState by notificationPermissionController.state.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
+  val logoutSuccessfulMessage = stringResource(R.string.settings_logout_successful)
+  val errorMessage = uiState.errorMsg?.let { stringResource(it) }
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
   LaunchedEffect(uiState.signedOut) {
     if (uiState.signedOut) {
       onSignedOut()
-      Toast.makeText(context, "Logout successful", Toast.LENGTH_SHORT).show()
+      Toast.makeText(context, logoutSuccessfulMessage, Toast.LENGTH_SHORT).show()
     }
   }
 
   LaunchedEffect(uiState.errorMsg) {
-    uiState.errorMsg?.let { message ->
+    errorMessage?.let { message ->
       Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
       resolvedSettingsViewModel.clearErrorMsg()
     }
   }
 
-  DisposableEffect(lifecycleOwner, cameraPermissionController, locationPermissionController) {
+  DisposableEffect(
+      lifecycleOwner,
+      cameraPermissionController,
+      locationPermissionController,
+      notificationPermissionController,
+  ) {
     fun refreshPermissionStatus() {
       resolvedSettingsViewModel.setCameraPermissionGranted(
           cameraPermissionController.hasPermission()
@@ -131,6 +145,7 @@ fun SettingsScreen(
       resolvedSettingsViewModel.setLocationPermissionGranted(
           locationPermissionController.hasPermission()
       )
+      notificationPermissionController.refreshPermissionState()
     }
 
     refreshPermissionStatus()
@@ -147,18 +162,23 @@ fun SettingsScreen(
   // not add the system bar insets again on top of the route scaffold's padding.
   Scaffold(
       modifier = modifier.fillMaxSize().testTag(C.Tag.settings_screen_container),
-      containerColor = if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground,
+      containerColor =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
       contentWindowInsets = WindowInsets(0, 0, 0, 0),
   ) { contentPadding ->
     SettingsContent(
         modifier = Modifier.padding(contentPadding),
         cameraPermissionGranted = uiState.cameraPermissionGranted,
         locationPermissionGranted = uiState.locationPermissionGranted,
+        notificationPermissionGranted = notificationPermissionState.isGranted,
         profile =
             ProfileDisplayData(
                 initial =
                     uiState.profile?.displayName?.ifBlank { "?" }?.first()?.uppercase() ?: "?",
-                name = uiState.profile?.displayName.orEmpty().ifBlank { "Traveler" },
+                name =
+                    uiState.profile?.displayName.orEmpty().ifBlank {
+                      stringResource(R.string.settings_profile_default_name)
+                    },
                 email = uiState.profile?.email.orEmpty(),
                 provider = uiState.profile?.provider.orEmpty(),
             ),
@@ -166,7 +186,6 @@ fun SettingsScreen(
         onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
         themeMode = themeMode,
         onThemeModeSelected = onThemeModeSelected,
-        isDarkTheme = isDarkTheme,
         interests = uiState.interests,
         onAddInterest = resolvedSettingsViewModel::addInterest,
         onRemoveInterest = resolvedSettingsViewModel::removeInterest,
@@ -178,12 +197,12 @@ fun SettingsScreen(
 private fun SettingsContent(
     cameraPermissionGranted: Boolean,
     locationPermissionGranted: Boolean,
+    notificationPermissionGranted: Boolean,
     profile: ProfileDisplayData,
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
-    isDarkTheme: Boolean,
     interests: List<String>,
     onAddInterest: (String) -> Unit,
     onRemoveInterest: (String) -> Unit,
@@ -195,7 +214,8 @@ private fun SettingsContent(
       modifier =
           Modifier.fillMaxSize()
               .background(
-                  if (isDarkTheme) MaterialTheme.colorScheme.background else ScreenBackground
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.background
+                  else ScreenBackground
               )
   ) {
     Column(
@@ -211,54 +231,52 @@ private fun SettingsContent(
           text = stringResource(R.string.settings_title),
           style = MaterialTheme.typography.headlineMedium,
           fontWeight = FontWeight.Bold,
-          color = HomeTextPrimary,
+          color = MaterialTheme.colorScheme.onSurface,
       )
       ProfileCard(
           profile = profile,
           onSignOutClick = onSignOutClick,
-          isDarkTheme = isDarkTheme,
       )
       PermissionsCard(
           cameraPermissionGranted = cameraPermissionGranted,
           locationPermissionGranted = locationPermissionGranted,
+          notificationPermissionGranted = notificationPermissionGranted,
           onManagePermissionsClick = onManagePermissionsClick,
-          isDarkTheme = isDarkTheme,
       )
       InterestsCard(
           interests = interests,
           onRemoveInterest = onRemoveInterest,
           onAddInterestClick = { showAddInterestDialog = true },
-          isDarkTheme = isDarkTheme,
       )
       ThemeCard(
           themeMode = themeMode,
           onThemeSelected = onThemeModeSelected,
-          isDarkTheme = isDarkTheme,
       )
+      LanguageCard()
     }
   }
 
   if (showAddInterestDialog) {
     AlertDialog(
         onDismissRequest = { showAddInterestDialog = false },
-        title = { Text("Add an interest") },
+        title = { Text(stringResource(R.string.settings_add_interest)) },
         text = {
-          val availableInterests = UserInterestCategories.all.filterNot { it in interests }
+          val availableInterests = UserInterestCategories.all.filterNot { it.id in interests }
           if (availableInterests.isEmpty()) {
-            Text("All available interests are already selected.")
+            Text(stringResource(R.string.settings_all_interests_selected))
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              availableInterests.forEach { interest ->
+              availableInterests.forEach { category ->
                 TextButton(
                     onClick = {
-                      onAddInterest(interest)
+                      onAddInterest(category.id)
                       showAddInterestDialog = false
                     },
                     modifier =
                         Modifier.fillMaxWidth()
-                            .testTag(C.Tag.settings_interest_option_prefix + interest),
+                            .testTag(C.Tag.settings_interest_option_prefix + category.id),
                 ) {
-                  Text(interest, modifier = Modifier.fillMaxWidth())
+                  Text(stringResource(category.labelRes), modifier = Modifier.fillMaxWidth())
                 }
               }
             }
@@ -269,7 +287,7 @@ private fun SettingsContent(
               onClick = { showAddInterestDialog = false },
               modifier = Modifier.testTag(C.Tag.settings_add_interest_cancel_button),
           ) {
-            Text("Cancel")
+            Text(stringResource(R.string.settings_cancel))
           }
         },
     )
@@ -281,7 +299,6 @@ private fun SettingsContent(
 private fun ThemeCard(
     themeMode: ThemeMode,
     onThemeSelected: (ThemeMode) -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_theme_card),
@@ -289,7 +306,8 @@ private fun ThemeCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -297,15 +315,27 @@ private fun ThemeCard(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
-          text = "Theme",
+          text = stringResource(R.string.settings_theme_section_header),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
       val themes =
           listOf(
-              Triple(ThemeMode.AUTO, "Auto", C.Tag.settings_theme_auto),
-              Triple(ThemeMode.LIGHT, "Light", C.Tag.settings_theme_light),
-              Triple(ThemeMode.DARK, "Dark", C.Tag.settings_theme_dark),
+              Triple(
+                  ThemeMode.AUTO,
+                  stringResource(R.string.settings_theme_auto),
+                  C.Tag.settings_theme_auto,
+              ),
+              Triple(
+                  ThemeMode.LIGHT,
+                  stringResource(R.string.settings_theme_light),
+                  C.Tag.settings_theme_light,
+              ),
+              Triple(
+                  ThemeMode.DARK,
+                  stringResource(R.string.settings_theme_dark),
+                  C.Tag.settings_theme_dark,
+              ),
           )
       SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         themes.forEachIndexed { index, (mode, label, testTag) ->
@@ -323,11 +353,75 @@ private fun ThemeCard(
   }
 }
 
+private data class LanguageOption(
+    val languageTag: String,
+    @param:StringRes val labelRes: Int,
+    val testTag: String,
+)
+
+private val languageOptions =
+    listOf(
+        LanguageOption(
+            "en",
+            R.string.settings_language_english,
+            C.Tag.settings_language_option_en,
+        ),
+        LanguageOption(
+            "fr",
+            R.string.settings_language_french,
+            C.Tag.settings_language_option_fr,
+        ),
+    )
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun LanguageCard() {
+  Card(
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_language_card),
+      shape = RoundedCornerShape(20.dp),
+      colors =
+          CardDefaults.cardColors(
+              containerColor =
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
+          ),
+  ) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(
+          text = stringResource(R.string.settings_language_section_header),
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold,
+      )
+      val currentLocales = AppCompatDelegate.getApplicationLocales()
+      val currentTag = if (currentLocales.isEmpty) null else currentLocales[0]?.language
+      SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        languageOptions.forEachIndexed { index, option ->
+          SegmentedButton(
+              selected = currentTag == option.languageTag,
+              onClick = {
+                AppCompatDelegate.setApplicationLocales(
+                    LocaleListCompat.forLanguageTags(option.languageTag)
+                )
+              },
+              shape =
+                  SegmentedButtonDefaults.itemShape(index = index, count = languageOptions.size),
+              modifier = Modifier.testTag(option.testTag),
+          ) {
+            Text(stringResource(option.labelRes))
+          }
+        }
+      }
+    }
+  }
+}
+
 @Composable
 private fun ProfileCard(
     profile: ProfileDisplayData,
     onSignOutClick: () -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_profile_card),
@@ -335,7 +429,8 @@ private fun ProfileCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -350,7 +445,8 @@ private fun ProfileCard(
         Surface(
             modifier = Modifier.size(56.dp),
             shape = CircleShape,
-            color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
+            color =
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
         ) {
           androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
             Text(
@@ -374,7 +470,8 @@ private fun ProfileCard(
           )
           Surface(
               shape = RoundedCornerShape(50),
-              color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
+              color =
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
           ) {
             Row(
                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -398,15 +495,16 @@ private fun ProfileCard(
           colors =
               ButtonDefaults.buttonColors(
                   containerColor =
-                      if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant
+                      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
                       else Color(0xFFFFF1F0),
                   contentColor =
-                      if (isDarkTheme) MaterialTheme.colorScheme.error else Color(0xFFDB4038),
+                      if (MaterialTheme.isDark) MaterialTheme.colorScheme.error
+                      else Color(0xFFDB4038),
               ),
       ) {
         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
         Spacer(Modifier.size(8.dp))
-        Text("Sign Out")
+        Text(stringResource(R.string.settings_sign_out))
       }
     }
   }
@@ -416,8 +514,8 @@ private fun ProfileCard(
 private fun PermissionsCard(
     cameraPermissionGranted: Boolean,
     locationPermissionGranted: Boolean,
+    notificationPermissionGranted: Boolean,
     onManagePermissionsClick: () -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_permissions_card),
@@ -425,7 +523,8 @@ private fun PermissionsCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -433,17 +532,30 @@ private fun PermissionsCard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       Text(
-          text = "App Permissions",
+          text = stringResource(R.string.settings_permissions_section_header),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
-      PermissionStatus("Camera permission", cameraPermissionGranted)
-      PermissionStatus("Location permission", locationPermissionGranted)
+      PermissionStatus(
+          name = stringResource(R.string.settings_notification_permission),
+          isGranted = notificationPermissionGranted,
+          testTag = C.Tag.settings_notification_permission,
+      )
+      PermissionStatus(
+          stringResource(R.string.settings_camera_permission),
+          cameraPermissionGranted,
+          C.Tag.settings_camera_permission_tag,
+      )
+      PermissionStatus(
+          stringResource(R.string.settings_location_permission),
+          locationPermissionGranted,
+          C.Tag.settings_location_permission_tag,
+      )
       OutlinedButton(
           onClick = onManagePermissionsClick,
           modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_manage_permissions_button),
       ) {
-        Text(text = "Manage Permissions")
+        Text(text = stringResource(R.string.settings_manage_permissions))
       }
     }
   }
@@ -454,7 +566,6 @@ private fun InterestsCard(
     interests: List<String>,
     onRemoveInterest: (String) -> Unit,
     onAddInterestClick: () -> Unit,
-    isDarkTheme: Boolean,
 ) {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_interests_card),
@@ -462,7 +573,8 @@ private fun InterestsCard(
       colors =
           CardDefaults.cardColors(
               containerColor =
-                  if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant else Color.White
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
           ),
   ) {
     Column(
@@ -470,35 +582,21 @@ private fun InterestsCard(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
-          text = "My Interests (AI Guide)",
+          text = stringResource(R.string.settings_interests_title),
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
       )
       Text(
-          text = "Used by AI to personalize your tourist guides.",
+          text = stringResource(R.string.settings_interests_subtitle),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-      FlowRow(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        if (interests.isEmpty()) {
-          Text(
-              text = "No interests selected yet.",
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        } else {
-          interests.forEach { interest ->
-            InterestChip(
-                interest = interest,
-                onRemove = { onRemoveInterest(interest) },
-                isDarkTheme = isDarkTheme,
-            )
-          }
-        }
+      if (interests.isEmpty()) {
+        Text(
+            text = stringResource(R.string.settings_interests_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         OutlinedButton(
             onClick = onAddInterestClick,
             modifier = Modifier.testTag(C.Tag.settings_add_interest_button),
@@ -506,7 +604,29 @@ private fun InterestsCard(
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(Modifier.size(4.dp))
-          Text("Add an interest")
+          Text(stringResource(R.string.settings_add_interest))
+        }
+      } else {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          interests.forEach { interest ->
+            InterestChip(
+                interest = interest,
+                onRemove = { onRemoveInterest(interest) },
+            )
+          }
+          OutlinedButton(
+              onClick = onAddInterestClick,
+              modifier = Modifier.testTag(C.Tag.settings_add_interest_button),
+              shape = RoundedCornerShape(50),
+          ) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(4.dp))
+            Text(stringResource(R.string.settings_add_interest))
+          }
         }
       }
     }
@@ -514,10 +634,12 @@ private fun InterestsCard(
 }
 
 @Composable
-private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Boolean) {
+private fun InterestChip(interest: String, onRemove: () -> Unit) {
+  val category = UserInterestCategories.all.firstOrNull { it.id == interest }
+  val label = category?.let { stringResource(it.labelRes) } ?: interest
   Surface(
       shape = RoundedCornerShape(50),
-      color = if (isDarkTheme) MaterialTheme.colorScheme.surface else ScreenBackground,
+      color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
   ) {
     Row(
         modifier = Modifier.padding(start = 12.dp, end = 4.dp),
@@ -525,7 +647,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Bo
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
-          text = interest,
+          text = label,
           modifier = Modifier.padding(vertical = 10.dp),
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.onSurface,
@@ -536,7 +658,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Bo
       ) {
         Icon(
             Icons.Default.Close,
-            contentDescription = "Remove $interest",
+            contentDescription = stringResource(R.string.settings_remove_interest, label),
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -549,9 +671,10 @@ private fun InterestChip(interest: String, onRemove: () -> Unit, isDarkTheme: Bo
 private fun PermissionStatus(
     name: String,
     isGranted: Boolean,
+    testTag: String = name,
 ) {
   Column(
-      modifier = Modifier.testTag(name),
+      modifier = Modifier.testTag(testTag),
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(
@@ -561,7 +684,9 @@ private fun PermissionStatus(
     )
 
     Text(
-        text = if (isGranted) "Granted" else "Denied",
+        text =
+            if (isGranted) stringResource(R.string.settings_permission_granted)
+            else stringResource(R.string.settings_permission_denied),
         style = MaterialTheme.typography.bodyLarge,
         color = if (isGranted) ScanTeal else MaterialTheme.colorScheme.error,
     )
