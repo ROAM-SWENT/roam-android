@@ -725,8 +725,32 @@ class SettingsScreenTest {
   }
 
   @Test
-  fun languageCard_selectionState_neitherSelectedWhenLocalesEmpty_regressionDetectsDefaultFallback() {
+  fun languageCard_selectionState_fallbackToEnglishWhenLocalesEmptyAndSystemNotFrench() {
+    val originalDefault = java.util.Locale.getDefault()
     try {
+      java.util.Locale.setDefault(java.util.Locale.ENGLISH)
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .assertIsSelected()
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .assertIsNotSelected()
+    } finally {
+      java.util.Locale.setDefault(originalDefault)
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_selectionState_fallbackToFrenchWhenLocalesEmptyAndSystemIsFrench() {
+    val originalDefault = java.util.Locale.getDefault()
+    try {
+      java.util.Locale.setDefault(java.util.Locale.FRENCH)
       AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
       renderSettingsScreen()
 
@@ -737,8 +761,9 @@ class SettingsScreenTest {
       composeTestRule
           .onNodeWithTag(C.Tag.settings_language_option_fr)
           .performScrollTo()
-          .assertIsNotSelected()
+          .assertIsSelected()
     } finally {
+      java.util.Locale.setDefault(originalDefault)
       AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
     }
   }
