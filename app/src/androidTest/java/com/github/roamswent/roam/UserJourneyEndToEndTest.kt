@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -34,7 +35,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.Until
 import com.github.roamswent.roam.data.GuideCaptureSender
 import com.github.roamswent.roam.model.ai.GeminiClient
 import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
@@ -98,6 +98,19 @@ class UserJourneyEndToEndTest {
       )
   private var latestCapturedPhoto: File? = null
   private var galleryImageFile: File? = null
+  private val permissionControllerPackages =
+      listOf(
+          PERMISSION_CONTROLLER_PACKAGE,
+          "com.google.android.permissioncontroller",
+          "com.google.android.packageinstaller",
+          "com.google.android.packageinstaller",
+      )
+  private val allowResourceNames =
+      listOf(
+          "permission_allow_foreground_only_button",
+          "permission_allow_one_time_button",
+          "permission_allow_button",
+      )
   // Set once the interests prompt is answered or loading is known to have started, so later
   // validate taps skip the prompt poll.
   private var interestsPromptHandled = false
@@ -511,10 +524,7 @@ class UserJourneyEndToEndTest {
     // Open the camera from Home. On the first visit, accept Android's camera permission prompt.
     composeTestRule.onNodeWithTag(C.Tag.dock_scan_button).performClick()
     if (!hasPermission(Manifest.permission.CAMERA)) {
-      acceptPermissionDialog(
-          resourceNames = listOf("permission_allow_button"),
-          buttonLabels = listOf("Allow"),
-      )
+      acceptPermissionDialog()
       assertPermissionGranted(Manifest.permission.CAMERA)
     }
 
@@ -620,21 +630,9 @@ class UserJourneyEndToEndTest {
     }
 
     val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-    val packageNames =
-        listOf(
-            PERMISSION_CONTROLLER_PACKAGE,
-            "com.google.android.permissioncontroller",
-        )
-    // Permission-controller resource IDs vary by Android image; labels provide a fallback.
-    val precisionSelectors =
-        packageNames.map { By.res(it, "permission_location_accuracy_radio_fine") } +
-            listOf(
-                    "Precise",
-                    "Precise location",
-                    "Use precise location",
-                    "Precise accuracy",
-                )
-                .map(By::text)
+    val precisionSelectors = permissionControllerPackages.map {
+      By.res(it, "permission_location_accuracy_radio_fine")
+    }
     val precisionSelector =
         waitForPermissionSelector(device, precisionSelectors)
             ?: run {
@@ -663,29 +661,16 @@ class UserJourneyEndToEndTest {
         "Precise location must be selected in the system prompt",
         checkNotNull(device.findObject(precisionSelector)).isChecked,
     )
-    acceptPermissionDialog(
-        resourceNames =
-            listOf("permission_allow_foreground_only_button", "permission_allow_button"),
-        buttonLabels = listOf("While using the app", "Allow"),
-    )
+    acceptPermissionDialog()
   }
 
-  // Android uses different resource IDs on different versions and devices. Try known IDs and
-  // button labels so the test can accept the permission prompt on each supported system image.
-  private fun acceptPermissionDialog(resourceNames: List<String>, buttonLabels: List<String>) {
+  // Android uses different resource IDs on different versions and devices. Match resource IDs
+  // rather than labels so the test works in any system locale.
+  private fun acceptPermissionDialog() {
     val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-    val packageNames =
-        listOf(
-            PERMISSION_CONTROLLER_PACKAGE,
-            "com.google.android.permissioncontroller",
-            "com.google.android.packageinstaller",
-        )
-    val resourceSelectors = packageNames.flatMap { packageName ->
-      resourceNames.map { By.res(packageName, it) }
+    val selectors = permissionControllerPackages.flatMap { packageName ->
+      allowResourceNames.map { resourceName -> By.res(packageName, resourceName) }
     }
-    val textSelectors =
-        (buttonLabels + "While using the app" + "Only this time").distinct().map { By.text(it) }
-    val selectors = textSelectors + resourceSelectors
     val selector =
         waitForPermissionSelector(device, selectors)
             ?: run {
@@ -706,33 +691,31 @@ class UserJourneyEndToEndTest {
 
   private fun acceptPermissionDialogIfVisible() {
     // Granting location can immediately trigger Android's notification prompt, which also
-    // blocks Compose UI inspection until it is dismissed.
+    // blocks Compose UI inspection until it is dismissed. Match resource IDs because button
+    // labels vary with the emulator's locale.
     val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-    val selectors =
-        listOf(
-            By.res(PERMISSION_CONTROLLER_PACKAGE, "permission_allow_button"),
-            By.res("com.google.android.permissioncontroller", "permission_allow_button"),
-            By.text("Allow"),
-        )
-    waitForPermissionSelector(device, selectors, timeoutMillis = 1_000L)?.let { selector ->
+    val selectors = permissionControllerPackages.flatMap { packageName ->
+      allowResourceNames.map { resourceName -> By.res(packageName, resourceName) }
+    }
+    waitForPermissionSelector(device, selectors, timeoutMillis = 3_000L)?.let { selector ->
       device.findObject(selector)?.click()
     }
   }
 
-  // The system dialog can appear later than one pass over the selectors allows, so retry the
-  // whole pass until the permission dialog timeout instead of a single 3 s pass.
   private fun waitForPermissionSelector(
       device: UiDevice,
       selectors: List<BySelector>,
       timeoutMillis: Long = PERMISSION_DIALOG_TIMEOUT_MS,
   ): BySelector? {
-    val deadline = System.currentTimeMillis() + timeoutMillis
-    do {
-      val found = selectors.firstOrNull { device.wait(Until.hasObject(it), SELECTOR_TIMEOUT_MS) }
-      if (found != null) {
-        return found
-      }
-    } while (System.currentTimeMillis() < deadline)
+    val deadline = SystemClock.uptimeMillis() + timeoutMillis
+    while (SystemClock.uptimeMillis() < deadline) {
+      selectors
+          .firstOrNull { device.findObject(it) != null }
+          ?.let {
+            return it
+          }
+      SystemClock.sleep(SELECTOR_POLL_INTERVAL_MS)
+    }
     return null
   }
 
@@ -779,7 +762,7 @@ class UserJourneyEndToEndTest {
   private companion object {
     const val PERMISSION_CONTROLLER_PACKAGE = "com.android.permissioncontroller"
     const val PERMISSION_DIALOG_TIMEOUT_MS = 10_000L
-    private const val SELECTOR_TIMEOUT_MS = 500L
+    private const val SELECTOR_POLL_INTERVAL_MS = 100L
     private const val INTERESTS_PROMPT_POLL_MS = 2_000L
     private const val INTERESTS_PROMPT_POLL_INTERVAL_MS = 50L
 
