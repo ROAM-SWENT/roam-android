@@ -43,9 +43,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
+import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
@@ -74,6 +76,7 @@ import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
+import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
 import com.github.roamswent.roam.ui.permission.rememberLocationPermissionController
@@ -145,6 +148,9 @@ internal fun RoamApp(
     isOnlineOverride: Boolean? = null,
     savedGuideRepositoryOverride: SavedGuideRepository? = null,
     publicProfileRepositoryOverride: PublicProfileRepository? = null,
+    friendRepositoryOverride: FriendRepository? = null,
+    exploreLocationProviderOverride: LocationProvider? = null,
+    exploreLocationPermissionControllerOverride: LocationPermissionController? = null,
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
@@ -465,20 +471,28 @@ internal fun RoamApp(
                   ),
               profileName = userName,
               onProfileClicked = onProfileClicked,
+              friendRepository = friendRepositoryOverride,
+              publicProfileRepository = publicProfileRepository,
           )
         }
       }
 
       composable(Routes.Explore) {
         val exploreViewModel: ExploreViewModel = viewModel {
-          ExploreViewModel(AndroidLocationProvider(context), savedGuideRepository.value)
+          ExploreViewModel(
+              exploreLocationProviderOverride ?: AndroidLocationProvider(context),
+              savedGuideRepository.value,
+          )
         }
         val explorePermissionController =
-            rememberLocationPermissionController(
-                remember(context.applicationContext) {
-                  SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
-                },
-            )
+            exploreLocationPermissionControllerOverride
+                ?: rememberLocationPermissionController(
+                    remember(context.applicationContext) {
+                      SharedPreferencesLocationPermissionDecisionRepository(
+                          context.applicationContext
+                      )
+                    },
+                )
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = ScreenBackground) { innerPadding ->
           Box(
