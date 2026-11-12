@@ -77,6 +77,31 @@ class OfflineActionGateTest {
   }
 
   @Test
+  fun exploreAndFriendsActionsAreBlockedOffline() {
+    val proceedCount = mutableIntStateOf(0)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        val runAction = rememberOfflineActionGate(isOnline = false)
+        Button(onClick = { runAction(OfflineAction.OPEN_EXPLORE) { proceedCount.intValue++ } }) {
+          Text("Explore")
+        }
+        Button(onClick = { runAction(OfflineAction.OPEN_FRIENDS) { proceedCount.intValue++ } }) {
+          Text("Friends")
+        }
+      }
+    }
+
+    composeTestRule.onNodeWithText("Explore").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog).assertIsDisplayed()
+    assertEquals(0, proceedCount.intValue)
+
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
+    composeTestRule.onNodeWithText("Friends").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog).assertIsDisplayed()
+    assertEquals(0, proceedCount.intValue)
+  }
+
+  @Test
   fun profileNavigationRemainsAvailableOffline() {
     val proceedCount = mutableIntStateOf(0)
     composeTestRule.setContent {

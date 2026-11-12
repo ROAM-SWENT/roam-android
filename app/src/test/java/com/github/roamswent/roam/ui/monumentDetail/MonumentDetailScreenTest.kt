@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -26,7 +28,9 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import org.junit.Assert.assertEquals
@@ -236,5 +240,74 @@ class MonumentDetailScreenTest {
       }
     }
     return false
+  }
+
+  private val scanLocation = Coordinates(48.8584, 2.2945)
+
+  private fun setExploreContent(
+      optIn: ExploreOptInUiState?,
+      onShowInExploreChange: (Boolean) -> Unit = {},
+  ) {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            exploreOptIn = optIn,
+            onShowInExploreChange = onShowInExploreChange,
+        )
+      }
+    }
+  }
+
+  @Test
+  fun showInExploreIsNotOfferedWithoutOptIn() {
+    setExploreContent(optIn = null)
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_show_in_explore).assertCountEquals(0)
+  }
+
+  @Test
+  fun showInExploreIsOffByDefaultAndRequestsOptIn() {
+    val requests = mutableListOf<Boolean>()
+    setExploreContent(ExploreOptInUiState(scanLocation = scanLocation)) { requests += it }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_show_in_explore)
+        .assertIsDisplayed()
+        .assertIsOff()
+        .performClick()
+
+    assertEquals(listOf(true), requests)
+  }
+
+  @Test
+  fun showInExploreReflectsSavedLocationAndRequestsOptOut() {
+    val requests = mutableListOf<Boolean>()
+    setExploreContent(
+        ExploreOptInUiState(scanLocation = scanLocation, savedLocation = scanLocation)
+    ) {
+      requests += it
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertIsOn().performClick()
+
+    assertEquals(listOf(false), requests)
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_show_in_explore_error)
+        .assertCountEquals(0)
+  }
+
+  @Test
+  fun failedExploreUpdateShowsAnError() {
+    setExploreContent(
+        ExploreOptInUiState(scanLocation = scanLocation, error = IllegalStateException("offline"))
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertIsOff()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_show_in_explore_error, useUnmergedTree = true)
+        .assertTextEquals("Could not update Explore. Try again.")
   }
 }

@@ -22,6 +22,7 @@ import com.github.roamswent.roam.model.ai.RejectionReason
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
@@ -30,6 +31,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -384,31 +386,36 @@ class LoadingViewModelTest {
           interestsRepository,
           savedGuides,
           clock = { discoveryDate },
+          newGuideId = { GUIDE_ID },
       )
 
   @Test
   fun successfulDiscoveryIsSavedToCollection() =
       runTest(dispatcher) {
-        val location = Coordinates(41.8902, 12.4922)
-        coEvery { repository.guideFor(request) } returns guide().copy(location = location)
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
         val viewModel = viewModel()
         val event = async { viewModel.navigationEvents.first() }
 
         advanceUntilIdle()
 
         val saved = savedGuides.guides.value.single()
+        assertEquals(GUIDE_ID, saved.id)
         assertEquals("The Colosseum", saved.monumentName)
         assertEquals(0.98, saved.confidence, 0.0)
         assertEquals("Built in ancient Rome.", saved.history)
         assertEquals(listOf("It could hold tens of thousands of spectators."), saved.facts)
         assertEquals("A symbol of Rome.", saved.culture)
-        assertEquals(location, saved.location)
+        // The guide is not on Explore until the user opts in.
+        assertNull(saved.location)
         assertEquals(discoveryDate, saved.discoveryDate)
         assertEquals(false, saved.isFavorite)
         // The photo the pipeline sent to the AI is saved as is, not prepared again.
         assertArrayEquals(preparedPhoto.bytes, saved.photoBytes)
-        assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
+        // The shown guide keeps the scan location for a later opt-in.
+        val shown = event.await() as LoadingNavigationEvent.NavigateToMonumentDetail
+        assertEquals(scanLocation, shown.guide.location)
         assertNull(viewModel.saveError.value)
+        assertEquals(ExploreOptInUiState(scanLocation = scanLocation), viewModel.exploreOptIn.value)
       }
 
   @Test
@@ -609,6 +616,363 @@ class LoadingViewModelTest {
         assertFalse(viewModel.isFavorite.value)
       }
 
+  @Test
+  fun showingInExploreSetsTheScanLocationOnTheSavedGuide() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        assertEquals(listOf(GUIDE_ID to scanLocation), savedGuides.locationUpdates)
+        val saved = savedGuides.guides.value.single()
+        assertEquals(GUIDE_ID, saved.id)
+        assertEquals(scanLocation, saved.location)
+        assertEquals(true, viewModel.exploreOptIn.value?.isShownInExplore)
+        assertNull(viewModel.exploreOptIn.value?.error)
+      }
+
+  @Test
+  fun hidingFromExploreClearsTheLocationAndKeepsTheGuide() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(GUIDE_ID to scanLocation, GUIDE_ID to null),
+            savedGuides.locationUpdates,
+        )
+        val saved = savedGuides.guides.value.single()
+        assertEquals(GUIDE_ID, saved.id)
+        assertNull(saved.location)
+        assertEquals(false, viewModel.exploreOptIn.value?.isShownInExplore)
+      }
+
+  @Test
+  fun repeatingTheCurrentChoiceWritesNothing() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(false)
+        advanceUntilIdle()
+
+        assertTrue(savedGuides.locationUpdates.isEmpty())
+      }
+
+  @Test
+  fun scanWithoutLocationDoesNotOfferExplore() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        assertNull(viewModel.exploreOptIn.value)
+        assertTrue(savedGuides.locationUpdates.isEmpty())
+        assertNull(savedGuides.guides.value.single().location)
+      }
+
+  @Test
+  fun failedSaveDoesNotOfferExplore() =
+      runTest(dispatcher) {
+        savedGuides.addError = IllegalStateException("A signed-in user is required")
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        assertNull(viewModel.exploreOptIn.value)
+      }
+
+  @Test
+  fun failedShowInExploreKeepsTheGuideAndRollsBack() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("permission denied")
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        val event = async { viewModel.navigationEvents.first() }
+        advanceUntilIdle()
+        savedGuides.locationError = failure
+
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        assertEquals(
+            ExploreOptInUiState(scanLocation = scanLocation, savedLocation = null, error = failure),
+            viewModel.exploreOptIn.value,
+        )
+        val saved = savedGuides.guides.value.single()
+        assertEquals(GUIDE_ID, saved.id)
+        assertNull(saved.location)
+        assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
+        assertEquals(LoadingUiState.Loading, viewModel.uiState.value)
+      }
+
+  @Test
+  fun failedHideFromExploreRestoresTheConfirmedLocation() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("offline")
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+        savedGuides.locationError = failure
+
+        viewModel.setShownInExplore(false)
+        advanceUntilIdle()
+
+        assertEquals(scanLocation, viewModel.exploreOptIn.value?.savedLocation)
+        assertEquals(failure, viewModel.exploreOptIn.value?.error)
+        assertEquals(scanLocation, savedGuides.guides.value.single().location)
+      }
+
+  @Test
+  fun olderUpdateFinishingLastDoesNotOverrideTheConfirmedLocation() =
+      runTest(dispatcher) {
+        // Each location update waits for its own gate, so the test decides the completion order.
+        val gates = ArrayDeque<CompletableDeferred<Unit>>()
+        val gatedRepository = mockk<SavedGuideRepository>()
+        coEvery { gatedRepository.addGuide(any()) } coAnswers { firstArg<Guide>() }
+        coEvery { gatedRepository.setLocation(any(), any()) } coAnswers
+            {
+              CompletableDeferred<Unit>().also { gates.addLast(it) }.await()
+            }
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel =
+            LoadingViewModel(
+                    repository,
+                    readImage,
+                    uri,
+                    "fr-FR",
+                    userInterestsRepository,
+                    gatedRepository,
+                    clock = { discoveryDate },
+                    newGuideId = { GUIDE_ID },
+                )
+                .also { it.startDiscovery() }
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        val (showRequest, hideRequest) = gates.toList()
+        // The newer hide request succeeds first, then the older show request.
+        hideRequest.complete(Unit)
+        runCurrent()
+        showRequest.complete(Unit)
+        runCurrent()
+        // A failed retry must roll back to the hide request, the latest one confirmed.
+        viewModel.setShownInExplore(true)
+        gates.last().completeExceptionally(IllegalStateException("offline"))
+        runCurrent()
+
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+        assertTrue(viewModel.exploreOptIn.value?.error is IllegalStateException)
+      }
+
+  @Test
+  fun olderUpdateSucceedingAfterTheLatestFailedIsShown() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        // Both updates are issued at once, in order, not queued behind each other.
+        assertEquals(listOf(scanLocation, null), store.requested)
+        val (showRequest, hideRequest) = store.gates.toList()
+        val failure = IllegalStateException("permission denied")
+        hideRequest.completeExceptionally(failure)
+        runCurrent()
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+        showRequest.complete(Unit)
+        runCurrent()
+
+        // The show request is the last one that succeeded, so it is what stays stored.
+        assertEquals(scanLocation, store.stored)
+        assertEquals(scanLocation, viewModel.exploreOptIn.value?.savedLocation)
+        // The failure of the latest request is still reported.
+        assertEquals(failure.message, viewModel.exploreOptIn.value?.error?.message)
+      }
+
+  @Test
+  fun olderUpdateFailingAfterTheLatestFailedKeepsTheConfirmedLocation() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        val (showRequest, hideRequest) = store.gates.toList()
+        val failure = IllegalStateException("permission denied")
+        hideRequest.completeExceptionally(failure)
+        runCurrent()
+        showRequest.completeExceptionally(IllegalStateException("offline"))
+        runCurrent()
+
+        assertNull(store.stored)
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+        // Only the latest request reports its failure.
+        assertEquals(failure.message, viewModel.exploreOptIn.value?.error?.message)
+      }
+
+  @Test
+  fun olderUpdateSucceedingDoesNotOverrideANewerPendingRequest() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        store.gates[1].completeExceptionally(IllegalStateException("permission denied"))
+        runCurrent()
+        // Retrying replaces the failure with a new pending request the switch must keep showing.
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        store.gates[0].complete(Unit)
+        runCurrent()
+
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+        assertNull(viewModel.exploreOptIn.value?.error)
+        store.gates[2].complete(Unit)
+        store.gates[3].complete(Unit)
+        runCurrent()
+        assertNull(store.stored)
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+      }
+
+  @Test
+  fun resultsArrivingOutOfOrderAfterTheLatestFailedKeepTheLocationHidden() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModel = gatedViewModel(store)
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        viewModel.setShownInExplore(true)
+        store.gates[2].completeExceptionally(IllegalStateException("permission denied"))
+        runCurrent()
+        store.gates[1].complete(Unit)
+        runCurrent()
+        // The show request was made before the hide request, so it cannot override it.
+        store.gates[0].complete(Unit)
+        runCurrent()
+
+        assertNull(store.stored)
+        assertNull(viewModel.exploreOptIn.value?.savedLocation)
+      }
+
+  @Test
+  fun leavingTheScreenWhileUpdatesArePendingKeepsTheLatestChoice() =
+      runTest(dispatcher) {
+        val store = GatedLocationStore()
+        val viewModelStore = ViewModelStore()
+        val viewModel =
+            ViewModelProvider(
+                viewModelStore,
+                object : ViewModelProvider.Factory {
+                  @Suppress("UNCHECKED_CAST")
+                  override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                      gatedViewModel(store) as T
+                },
+            )[LoadingViewModel::class.java]
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        viewModel.setShownInExplore(false)
+        // The user leaves while offline, before either update is acknowledged.
+        viewModelStore.clear()
+        store.gates.forEach { it.complete(Unit) }
+        runCurrent()
+
+        assertEquals(listOf(scanLocation, null), store.requested)
+        assertNull(store.stored)
+      }
+
+  /**
+   * Location store following the [SavedGuideRepository.setLocation] contract, like Firestore's
+   * write queue. Each update waits for its own gate, so a test decides when and how it completes.
+   * An update belongs to the store once called: it is applied even if the caller stops waiting, and
+   * in call order whatever order the results arrive in. [stored] is the location of the last call
+   * that succeeded.
+   */
+  private class GatedLocationStore {
+    val gates = mutableListOf<CompletableDeferred<Unit>>()
+    val requested = mutableListOf<Coordinates?>()
+    private var lastAppliedCall = -1
+    var stored: Coordinates? = null
+      private set
+
+    val repository =
+        mockk<SavedGuideRepository>().also { repository ->
+          coEvery { repository.addGuide(any()) } coAnswers { firstArg<Guide>() }
+          coEvery { repository.setLocation(any(), any()) } coAnswers
+              {
+                val location = secondArg<Coordinates?>()
+                val call = requested.size
+                requested += location
+                val gate = CompletableDeferred<Unit>().also { gates += it }
+                gate.invokeOnCompletion { failure ->
+                  if (failure == null && call > lastAppliedCall) {
+                    lastAppliedCall = call
+                    stored = location
+                  }
+                }
+                gate.await()
+              }
+        }
+  }
+
+  private fun gatedViewModel(store: GatedLocationStore): LoadingViewModel {
+    coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+    return LoadingViewModel(
+            repository,
+            readImage,
+            uri,
+            "fr-FR",
+            userInterestsRepository,
+            store.repository,
+            clock = { discoveryDate },
+            newGuideId = { GUIDE_ID },
+        )
+        .also { it.startDiscovery() }
+  }
+
+  @Test
+  fun retryingAfterAFailedUpdateClearsTheError() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+        savedGuides.locationError = IllegalStateException("offline")
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        savedGuides.locationError = null
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        assertEquals(
+            ExploreOptInUiState(scanLocation = scanLocation, savedLocation = scanLocation),
+            viewModel.exploreOptIn.value,
+        )
+        assertEquals(scanLocation, savedGuides.guides.value.single().location)
+      }
+
   private class FakeUserInterestsRepository(
       private var hasBeenAsked: Boolean = true,
       private var interests: List<String> = emptyList(),
@@ -628,6 +992,11 @@ class LoadingViewModelTest {
       hasBeenAsked = true
       interests = emptyList()
     }
+  }
+
+  private companion object {
+    const val GUIDE_ID = "scan-guide-id"
+    val scanLocation = Coordinates(41.8902, 12.4922)
   }
 
   private fun guide() =

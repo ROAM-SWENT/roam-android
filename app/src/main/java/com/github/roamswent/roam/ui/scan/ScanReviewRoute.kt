@@ -98,6 +98,7 @@ fun ScanReviewRoute(
   val saveError by loadingViewModel.saveError.collectAsState()
   val isFavorite by loadingViewModel.isFavorite.collectAsState()
   val favoriteError by loadingViewModel.favoriteError.collectAsState()
+  val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
@@ -153,6 +154,8 @@ fun ScanReviewRoute(
           onFavoriteClick = loadingViewModel::toggleFavorite,
           showFavoriteError = favoriteError != null,
           onFavoriteErrorShown = loadingViewModel::clearFavoriteError,
+          exploreOptIn = exploreOptIn,
+          onShowInExploreChange = loadingViewModel::setShownInExplore,
       )
     }
   }

@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam
@@ -622,6 +623,8 @@ private class FakeSavedGuideRepository : SavedGuideRepository {
   override suspend fun removeGuide(guideId: String) = Unit
 
   override suspend fun setFavorite(guideId: String, isFavorite: Boolean) = Unit
+
+  override suspend fun setLocation(guideId: String, location: Coordinates?) = Unit
 
   override suspend fun getSavedGuides(): List<Guide> = emptyList()
 

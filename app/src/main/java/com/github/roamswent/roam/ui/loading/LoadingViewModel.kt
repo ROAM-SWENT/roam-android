@@ -23,6 +23,7 @@ import com.github.roamswent.roam.model.ai.UserPreferences
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.toSavedGuide
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.location.Coordinates
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -45,6 +46,20 @@ sealed interface LoadingUiState {
   data class Error(@StringRes val messageResId: Int) : LoadingUiState
 }
 
+/**
+ * Explore opt-in for the guide saved by the last discovery, offered only when the scan has a
+ * [scanLocation]. [savedLocation] is the location requested for the saved guide (`null` keeps it
+ * off Explore); it is rolled back to the last confirmed value if the update fails, with [error].
+ */
+data class ExploreOptInUiState(
+    val scanLocation: Coordinates,
+    val savedLocation: Coordinates? = null,
+    val error: Exception? = null,
+) {
+  val isShownInExplore: Boolean
+    get() = savedLocation != null
+}
+
 sealed interface LoadingNavigationEvent {
   data class NavigateToMonumentDetail(val guide: MonumentGuide, val imageUri: String) :
       LoadingNavigationEvent
@@ -54,8 +69,9 @@ sealed interface LoadingNavigationEvent {
 
 /**
  * Runs the discovery for [imageUri]. Every successful discovery is also saved to
- * [savedGuideRepository], with the photo the pipeline sent to the AI and [clock] as discovery date,
- * and can then be added to favourites with [toggleFavorite].
+ * [savedGuideRepository] under an id from [newGuideId], with the photo the pipeline sent to the AI
+ * and [clock] as discovery date. It is saved without location, so it is not on Explore until the
+ * user opts in with [setShownInExplore]. It can also be added to favourites with [toggleFavorite].
  */
 class LoadingViewModel(
     private val repository: MonumentGuideRepository,
@@ -65,6 +81,7 @@ class LoadingViewModel(
     private val userInterestsRepository: UserInterestsRepository,
     private val savedGuideRepository: SavedGuideRepository,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val newGuideId: () -> String = { UUID.randomUUID().toString() },
 ) : ViewModel() {
   private val _showLoading = MutableStateFlow(false)
   val showLoading: StateFlow<Boolean> = _showLoading.asStateFlow()
@@ -87,12 +104,27 @@ class LoadingViewModel(
   /** Failure from the latest favourite change, cleared by [clearFavoriteError]. */
   val favoriteError: StateFlow<Exception?> = _favoriteError.asStateFlow()
 
-  /** ID of the guide saved from this discovery, or null while there is none to favourite. */
+  private val _exploreOptIn = MutableStateFlow<ExploreOptInUiState?>(null)
+  /** Explore opt-in of the saved guide, or `null` when it is not offered. */
+  val exploreOptIn: StateFlow<ExploreOptInUiState?> = _exploreOptIn.asStateFlow()
+
+  /** ID of the guide saved from this discovery, or null while there is none to update. */
   private var savedGuideId: String? = null
   /** Favourite value the repository last confirmed, restored when the latest write fails. */
   private var confirmedFavorite = false
   /** Increases with every favourite request so only the latest one may roll back or report. */
   private var lastFavoriteRequest = 0L
+  private var confirmedLocation: Coordinates? = null
+  private var lastLocationRequest = 0L
+  /**
+   * Request that set [confirmedLocation]; an older request finishing later must not override it.
+   */
+  private var confirmedLocationRequest = 0L
+  /**
+   * Whether the latest request failed, so the switch shows [confirmedLocation]. An older request
+   * still in flight can then succeed and become the stored value, which the switch must follow.
+   */
+  private var latestLocationRequestFailed = false
 
   private val _uiState = MutableStateFlow<LoadingUiState>(LoadingUiState.Loading)
   val uiState: StateFlow<LoadingUiState> = _uiState.asStateFlow()
@@ -193,23 +225,74 @@ class LoadingViewModel(
    */
   private fun saveToCollection(guide: MonumentGuide) {
     val discoveryDate = clock()
-    val guideId = UUID.randomUUID().toString()
+    // The id is chosen here, not by the repository, so later favourite and location updates target
+    // this guide without waiting for the save to be acknowledged, which never happens while
+    // offline.
+    val guideId = newGuideId()
     savedGuideId = guideId
     confirmedFavorite = false
     _isFavorite.value = false
     _favoriteError.value = null
+    confirmedLocation = null
+    // Results of requests made for a previous guide are now stale.
+    confirmedLocationRequest = ++lastLocationRequest
+    latestLocationRequestFailed = false
+    _exploreOptIn.value = guide.location?.let { ExploreOptInUiState(scanLocation = it) }
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
         _saveError.value = null
         val photo = checkNotNull(guide.photo) { "The discovery returned no photo to save" }
         savedGuideRepository.addGuide(
-            guide.toSavedGuide(photo.bytes, discoveryDate).copy(id = guideId)
+            guide.toSavedGuide(guideId, photo.bytes, discoveryDate, location = null)
         )
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
-        if (savedGuideId == guideId) savedGuideId = null
         _saveError.value = exception
+        if (savedGuideId == guideId) {
+          // Without a saved guide there is nothing to favourite or put on Explore.
+          savedGuideId = null
+          _exploreOptIn.value = null
+        }
+      }
+    }
+  }
+
+  /**
+   * Puts the saved guide on Explore at the scan location, or takes it off, by updating only its
+   * location. The switch reflects the request at once; a failure restores the last confirmed value.
+   * Like the save, the update starts undispatched so it is issued even if the user leaves at once.
+   */
+  fun setShownInExplore(shown: Boolean) {
+    val guideId = savedGuideId ?: return
+    val current = _exploreOptIn.value ?: return
+    val location = if (shown) current.scanLocation else null
+    if (current.savedLocation == location) return
+    val request = ++lastLocationRequest
+    latestLocationRequestFailed = false
+    _exploreOptIn.value = current.copy(savedLocation = location, error = null)
+    // Every update is issued at once rather than queued behind the previous one: a queued update
+    // would be lost if the user left meanwhile, and offline the previous one never completes.
+    viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+      try {
+        savedGuideRepository.setLocation(guideId, location)
+        if (request > confirmedLocationRequest) {
+          confirmedLocationRequest = request
+          confirmedLocation = location
+          // The latest request failed, so this one is what stays stored: show it.
+          if (latestLocationRequestFailed) {
+            _exploreOptIn.value = _exploreOptIn.value?.copy(savedLocation = location)
+          }
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        // A newer request decides the final value, so only the latest one reports an error.
+        if (request == lastLocationRequest) {
+          latestLocationRequestFailed = true
+          _exploreOptIn.value =
+              _exploreOptIn.value?.copy(savedLocation = confirmedLocation, error = exception)
+        }
       }
     }
   }

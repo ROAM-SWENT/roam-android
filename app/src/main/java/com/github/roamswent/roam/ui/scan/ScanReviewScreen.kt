@@ -59,6 +59,7 @@ import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.ShutterWhite
@@ -84,6 +85,8 @@ fun ScanReviewScreen(
     onFavoriteClick: () -> Unit = {},
     showFavoriteError: Boolean = false,
     onFavoriteErrorShown: () -> Unit = {},
+    exploreOptIn: ExploreOptInUiState? = null,
+    onShowInExploreChange: (Boolean) -> Unit = {},
 ) {
   if (state is ScanReviewUiState.Sent) {
     MonumentDetailScreen(
@@ -94,6 +97,8 @@ fun ScanReviewScreen(
         onFavoriteClick = onFavoriteClick,
         showFavoriteError = showFavoriteError,
         onFavoriteErrorShown = onFavoriteErrorShown,
+        exploreOptIn = exploreOptIn,
+        onShowInExploreChange = onShowInExploreChange,
     )
     return
   }
