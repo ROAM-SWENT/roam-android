@@ -62,6 +62,8 @@ import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.explore.exploreMapMarkers
+import com.github.roamswent.roam.ui.explore.toExploreMonuments
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
@@ -284,6 +286,19 @@ class UserJourneyEndToEndTest {
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
     waitAndAssertDisplayed(C.Tag.explore_map)
     assertEquals(3, savedGuides.guides.count { it.location == Coordinates(48.85837, 2.29448) })
+    // Maps Compose markers have no Compose semantics, so verify the marker data used by the map.
+    val mapMarkers =
+        exploreMapMarkers(
+            userLocation = Coordinates(48.85837, 2.29448),
+            userLocationTitle = composeTestRule.activity.getString(R.string.explore_user_location),
+            monuments = savedGuides.guides.toExploreMonuments(),
+        )
+    assertEquals(4, mapMarkers.size)
+    assertEquals(
+        setOf("Eiffel Tower", "Louvre Museum", "Arc de Triomphe"),
+        mapMarkers.drop(1).map { it.title }.toSet(),
+    )
+    assertTrue(mapMarkers.drop(1).all { it.coordinates == Coordinates(48.85837, 2.29448) })
 
     // Search for Micheal Jordan without opening his profile or sending a request.
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
