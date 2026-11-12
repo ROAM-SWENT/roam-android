@@ -291,8 +291,11 @@ class MainActivityNavigationTest {
       SampleAppTheme {
         RoamApp(
             authViewModel = authViewModel,
-            onSignInClickOverride = { _ -> signInClickCount++ },
-            publicProfileRepositoryOverride = TestPublicProfileRepository(),
+            testOverrides =
+                RoamAppTestOverrides(
+                    onSignInClick = { _ -> signInClickCount++ },
+                    publicProfileRepository = TestPublicProfileRepository(),
+                ),
         )
       }
     }
@@ -1183,7 +1186,8 @@ class MainActivityNavigationTest {
         RoamApp(
             authViewModel,
             controller,
-            publicProfileRepositoryOverride = TestPublicProfileRepository(),
+            testOverrides =
+                RoamAppTestOverrides(publicProfileRepository = TestPublicProfileRepository()),
         )
       }
     }
@@ -1480,12 +1484,15 @@ class MainActivityNavigationTest {
         RoamApp(
             authViewModel,
             navController = navController,
-            captureSenderOverride = captureSender,
-            onSignInClickOverride = onSignInClickOverride,
-            settingsViewModel = settingsViewModel,
-            savedGuideRepositoryOverride = savedGuideRepository,
-            isOnlineOverride = isOnlineOverride,
-            publicProfileRepositoryOverride = publicProfileRepositoryOverride,
+            testOverrides =
+                RoamAppTestOverrides(
+                    captureSender = captureSender,
+                    onSignInClick = onSignInClickOverride,
+                    settingsViewModel = settingsViewModel,
+                    savedGuideRepository = savedGuideRepository,
+                    isOnline = isOnlineOverride,
+                    publicProfileRepository = publicProfileRepositoryOverride,
+                ),
         )
       }
     }

@@ -176,22 +176,28 @@ class UserJourneyEndToEndTest {
           RoamApp(
               authViewModel = authViewModel,
               navController = navController,
-              captureSenderOverride = services.captureSender,
-              galleryImageUriOverride = galleryImageUri,
-              savedGuideRepositoryOverride = savedGuides,
-              publicProfileRepositoryOverride = fakeProfiles,
-              friendRepositoryOverride = fakeFriends,
-              exploreLocationProviderOverride = services.locationProvider,
-              exploreLocationPermissionControllerOverride = GrantedLocationPermissionController(),
-              settingsViewModel = settingsViewModel,
               themeMode = selectedThemeMode,
               onThemeModeSelected = { selectedThemeMode = it },
-              isOnlineOverride = true,
-              // The M2 journey skips Firebase authentication and enters the real Home graph.
-              onSignInClickOverride = { _ ->
-                auth.signIn()
-                navController.navigate(Routes.Home) { popUpTo(Routes.SignIn) { inclusive = true } }
-              },
+              testOverrides =
+                  RoamAppTestOverrides(
+                      captureSender = services.captureSender,
+                      galleryImageUri = galleryImageUri,
+                      savedGuideRepository = savedGuides,
+                      publicProfileRepository = fakeProfiles,
+                      friendRepository = fakeFriends,
+                      exploreLocationProvider = services.locationProvider,
+                      exploreLocationPermissionController = GrantedLocationPermissionController(),
+                      settingsViewModel = settingsViewModel,
+                      isOnline = true,
+                      // The M2 journey skips Firebase authentication and enters the real Home
+                      // graph.
+                      onSignInClick = {
+                        auth.signIn()
+                        navController.navigate(Routes.Home) {
+                          popUpTo(Routes.SignIn) { inclusive = true }
+                        }
+                      },
+                  ),
           )
         }
       }
@@ -365,15 +371,18 @@ class UserJourneyEndToEndTest {
         SampleAppTheme {
           RoamApp(
               authViewModel = authViewModel,
-              captureSenderOverride = services.captureSender,
-              savedGuideRepositoryOverride = FakeSavedGuideRepository(),
-              // Simulate successful sign-in without Firebase, then request permission through
-              // the app's real Android permission controller.
-              onSignInClickOverride = { onSignedIn ->
-                auth.signIn()
-                onSignedIn()
-              },
-              onSignedInOverride = { it.requestPermission() },
+              testOverrides =
+                  RoamAppTestOverrides(
+                      captureSender = services.captureSender,
+                      savedGuideRepository = FakeSavedGuideRepository(),
+                      // Simulate successful sign-in without Firebase, then request permission
+                      // through the app's real Android permission controller.
+                      onSignInClick = { onSignedIn ->
+                        auth.signIn()
+                        onSignedIn()
+                      },
+                      onSignedIn = { it.requestPermission() },
+                  ),
           )
         }
       }

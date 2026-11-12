@@ -136,31 +136,34 @@ class MainActivity : ComponentActivity() {
   }
 }
 
+/** Optional dependencies and callbacks used to isolate app journeys from external services. */
+internal data class RoamAppTestOverrides(
+    val captureSender: CaptureSender? = null,
+    val galleryImageUri: Uri? = null,
+    val onSignInClick: ((() -> Unit) -> Unit)? = null,
+    val onSignedIn: ((LocationPermissionController) -> Unit)? = null,
+    val settingsViewModel: SettingsViewModel? = null,
+    val isOnline: Boolean? = null,
+    val savedGuideRepository: SavedGuideRepository? = null,
+    val publicProfileRepository: PublicProfileRepository? = null,
+    val friendRepository: FriendRepository? = null,
+    val exploreLocationProvider: LocationProvider? = null,
+    val exploreLocationPermissionController: LocationPermissionController? = null,
+)
+
 @Composable
 internal fun RoamApp(
     authViewModel: SignInViewModel,
     navController: NavHostController = rememberNavController(),
-    captureSenderOverride: CaptureSender? = null,
-    // Test URI bypasses platform picker UI while preserving the gallery route.
-    galleryImageUriOverride: Uri? = null,
-    // Let journey tests bypass Firebase while retaining control of post-sign-in behavior.
-    onSignInClickOverride: ((() -> Unit) -> Unit)? = null,
-    onSignedInOverride: ((LocationPermissionController) -> Unit)? = null,
-    settingsViewModel: SettingsViewModel? = null,
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
-    isOnlineOverride: Boolean? = null,
-    savedGuideRepositoryOverride: SavedGuideRepository? = null,
-    publicProfileRepositoryOverride: PublicProfileRepository? = null,
-    friendRepositoryOverride: FriendRepository? = null,
-    exploreLocationProviderOverride: LocationProvider? = null,
-    exploreLocationPermissionControllerOverride: LocationPermissionController? = null,
+    testOverrides: RoamAppTestOverrides? = null,
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
   // Configure the shared Firestore instance before profile lookups can start it.
   val publicProfileRepository = remember {
-    publicProfileRepositoryOverride ?: FirestorePublicProfileRepository()
+    testOverrides?.publicProfileRepository ?: FirestorePublicProfileRepository()
   }
   val registerProfileViewModel: RegisterProfileViewModel = viewModel {
     RegisterProfileViewModel(publicProfileRepository)
@@ -170,13 +173,13 @@ internal fun RoamApp(
   LaunchedEffect(authUiState.user) {
     if (authUiState.user == null) registerProfileViewModel.reset()
   }
-  val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
+  val isOnline = testOverrides?.isOnline ?: rememberInternetConnectivity()
   val runOfflineAction = rememberOfflineActionGate(isOnline)
   // One instance shared by the collection, scan flow and Explore, so they see the same data.
   // It is created lazily, when the first of those screens needs it.
   val savedGuideRepository =
-      remember(savedGuideRepositoryOverride) {
-        lazy { savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository() }
+      remember(testOverrides?.savedGuideRepository) {
+        lazy { testOverrides?.savedGuideRepository ?: FirestoreSavedGuideRepository() }
       }
   val locationPermissionDecisionRepository =
       remember(context.applicationContext) {
@@ -354,10 +357,10 @@ internal fun RoamApp(
         SignInScreen(
             authViewModel = authViewModel,
             onSignedIn =
-                onSignedInOverride?.let { onSignedIn ->
+                testOverrides?.onSignedIn?.let { onSignedIn ->
                   { onSignedIn(locationPermissionController) }
                 } ?: registerProfileViewModel::checkCurrentProfile,
-            onSignInClickOverride = onSignInClickOverride,
+            onSignInClickOverride = testOverrides?.onSignInClick,
         )
       }
       composable(Routes.RegisterProfile) {
@@ -384,7 +387,7 @@ internal fun RoamApp(
         }
       }
       composable(Routes.Scan) {
-        ScanRoute(navController, galleryImageUriOverride = galleryImageUriOverride)
+        ScanRoute(navController, galleryImageUriOverride = testOverrides?.galleryImageUri)
       }
       composable(
           "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
@@ -401,7 +404,7 @@ internal fun RoamApp(
           ScanReviewRoute(
               navController,
               uri,
-              captureSenderOverride,
+              testOverrides?.captureSender,
               savedGuideRepository = savedGuideRepository.value,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
@@ -419,7 +422,7 @@ internal fun RoamApp(
                       top = innerPadding.calculateTopPadding(),
                       bottom = dockClearance,
                   ),
-              settingsViewModel = settingsViewModel,
+              settingsViewModel = testOverrides?.settingsViewModel,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               notificationPermissionController = notificationPermissionController,
@@ -480,7 +483,7 @@ internal fun RoamApp(
                   ),
               profileName = userName,
               onProfileClicked = onProfileClicked,
-              friendRepository = friendRepositoryOverride,
+              friendRepository = testOverrides?.friendRepository,
               publicProfileRepository = publicProfileRepository,
           )
         }
@@ -489,12 +492,12 @@ internal fun RoamApp(
       composable(Routes.Explore) {
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(
-              exploreLocationProviderOverride ?: AndroidLocationProvider(context),
+              testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
               savedGuideRepository.value,
           )
         }
         val explorePermissionController =
-            exploreLocationPermissionControllerOverride
+            testOverrides?.exploreLocationPermissionController
                 ?: rememberLocationPermissionController(
                     remember(context.applicationContext) {
                       SharedPreferencesLocationPermissionDecisionRepository(
