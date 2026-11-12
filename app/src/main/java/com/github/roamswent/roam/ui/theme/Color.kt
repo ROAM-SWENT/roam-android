@@ -2,6 +2,8 @@
 // Co-authored-by: Mistral Vibe <vibe@mistral.ai>
 package com.github.roamswent.roam.ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 val Purple80 = Color(0xFFD0BCFF)
@@ -32,3 +34,31 @@ val HomeTextSecondary = Color(0xFF6E7673)
 val HomeAccentGreen = Color(0xFF1B433E)
 val CollectionPlaceholder = Color(0xFFD5DDD9)
 val CollectionPlaceholderIcon = Color(0xFF8A9A94)
+
+/*
+ * Theme-aware colors for the app's own light palette. Each one resolves to the light brand color
+ * in light mode and to a color scheme role in dark mode, so screens never pick a light-only color.
+ */
+
+/** Background behind a full screen. */
+val MaterialTheme.screenBackground: Color
+  @Composable get() = if (isDark) colorScheme.background else ScreenBackground
+
+/** Container of a card floating over a screen or a map. */
+val MaterialTheme.cardContainer: Color
+  @Composable get() = if (isDark) colorScheme.surfaceVariant else Color.White
+
+/** Translucent circle behind an icon button drawn over a photo. */
+val MaterialTheme.photoButtonContainer: Color
+  @Composable
+  get() = (if (isDark) colorScheme.surface else Color.White).copy(alpha = PHOTO_BUTTON_ALPHA)
+
+/** Accent tint for icons drawn on a surface or on [photoButtonContainer]. */
+val MaterialTheme.accentIcon: Color
+  @Composable get() = if (isDark) LoadingProgressAccent else HomeAccentGreen
+
+/** Secondary text on a surface, such as a hint or an empty-state message. */
+val MaterialTheme.secondaryText: Color
+  @Composable get() = if (isDark) colorScheme.onSurfaceVariant else HomeTextSecondary
+
+private const val PHOTO_BUTTON_ALPHA = 0.85f

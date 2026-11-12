@@ -25,7 +25,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -41,10 +40,11 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
-import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.accentIcon
 import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.photoButtonContainer
 import kotlin.math.roundToInt
 
 /**
@@ -234,7 +234,7 @@ private fun MonumentDetailFavoriteButton(
             testTag = C.Tag.monument_detail_favorite_button
           },
       colors =
-          IconButtonDefaults.iconButtonColors(containerColor = Color.White.copy(alpha = 0.85f)),
+          IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.photoButtonContainer),
   ) {
     Icon(
         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -243,7 +243,7 @@ private fun MonumentDetailFavoriteButton(
                 if (isFavorite) R.string.collection_favorite_remove
                 else R.string.collection_favorite_add
             ),
-        tint = HomeAccentGreen,
+        tint = MaterialTheme.accentIcon,
     )
   }
 }

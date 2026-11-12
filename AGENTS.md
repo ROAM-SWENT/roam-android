@@ -38,6 +38,26 @@ on an **MVVM** architecture and based on the SwEnt bootcamp B3 solution.
 - Adding text or sizes for new features: extend `strings.xml` or the
   typography scale, never the call site.
 
+## Color rules
+
+- **No color is hardcoded outside `ui/theme/Color.kt`.** Every screen
+  must look right in light and dark mode. Never write `Color.White`,
+  `Color.Black` or `Color(0xFF...)` at a call site: a white card or a
+  white button over a photo stays white in dark mode, and dark-green
+  text or icons vanish on a dark background.
+- Use `MaterialTheme.colorScheme.<role>` or a theme-aware color from
+  `Color.kt` (`MaterialTheme.screenBackground`, `cardContainer`,
+  `photoButtonContainer`, `accentIcon`, `secondaryText`). The light-only
+  tokens in `Color.kt` (`ScreenBackground`, `HomeAccentGreen`,
+  `LoadingTextPrimary`, ...) must never be used alone at a call site.
+- A new color need: add a theme-aware color to `Color.kt` that picks a
+  light value and a dark `colorScheme` role, then use it.
+- `HardcodedColorGuardTest` fails the build on any new raw color literal
+  in production UI code. Its allowlist only covers reviewed exceptions
+  (camera overlays, white content on a brand-color button, the Google
+  brand mark); never raise a count, lower it when you remove one.
+- Check every UI change in both themes before submitting.
+
 ## Definition of done
 
 - The feature works and matches its acceptance criteria.

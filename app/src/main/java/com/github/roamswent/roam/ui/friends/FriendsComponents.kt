@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
@@ -60,9 +61,9 @@ import coil.compose.AsyncImage
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
-import com.github.roamswent.roam.ui.theme.LoadingProgressAccent
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.accentIcon
 import com.github.roamswent.roam.ui.theme.isDark
 
 @Composable
@@ -278,7 +279,7 @@ internal fun FriendRequestCard(
         Icon(
             imageVector = Icons.Default.Check,
             contentDescription = acceptRequestDescription,
-            tint = if (MaterialTheme.isDark) LoadingProgressAccent else HomeAccentGreen,
+            tint = MaterialTheme.accentIcon,
         )
       }
       IconButton(

@@ -70,10 +70,11 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
-import com.github.roamswent.roam.ui.theme.HomeTextSecondary
 import com.github.roamswent.roam.ui.theme.ScanTeal
-import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.screenBackground
+import com.github.roamswent.roam.ui.theme.secondaryText
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.ComposeMapColorScheme
@@ -149,7 +150,7 @@ fun ExploreScreen(
   }
 
   Scaffold(
-      containerColor = ScreenBackground,
+      containerColor = MaterialTheme.screenBackground,
       contentWindowInsets =
           ScaffoldDefaults.contentWindowInsets.only(
               WindowInsetsSides.Top + WindowInsetsSides.Horizontal
@@ -266,7 +267,7 @@ internal fun ExploreMonumentCard(
               .padding(16.dp)
               .then(if (isExpanded) Modifier else Modifier.clickable(onClick = onExpand)),
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {
     if (isExpanded) {
       Column(
@@ -417,13 +418,13 @@ private fun ExploreStateCard(
   Card(
       modifier = Modifier.fillMaxWidth().padding(20.dp),
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(containerColor = Color.White),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-      Text(text = message, color = HomeTextSecondary)
+      Text(text = message, color = MaterialTheme.secondaryText)
       if (actionLabel != null && onAction != null) {
         Spacer(Modifier.size(12.dp))
         Button(

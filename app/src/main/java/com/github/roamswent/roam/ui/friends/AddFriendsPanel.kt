@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
@@ -36,7 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
-import com.github.roamswent.roam.ui.theme.HomeAccentGreen
+import com.github.roamswent.roam.ui.theme.accentIcon
 
 @Composable
 internal fun AddFriendsPanel(
@@ -179,7 +180,7 @@ private fun AddFriendUserRow(
           Icon(
               Icons.Default.Check,
               contentDescription = acceptRequestDescription,
-              tint = HomeAccentGreen,
+              tint = MaterialTheme.accentIcon,
           )
         }
         IconButton(
@@ -211,7 +212,7 @@ private fun AddFriendUserRow(
         Icon(
             imageVector = Icons.Default.Check,
             contentDescription = alreadyFriendsDescription,
-            tint = HomeAccentGreen,
+            tint = MaterialTheme.accentIcon,
         )
       }
       else -> {

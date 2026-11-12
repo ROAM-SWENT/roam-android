@@ -89,10 +89,9 @@ import com.github.roamswent.roam.ui.scan.ScanRoute
 import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
-import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.ThemeViewModel
 import com.github.roamswent.roam.ui.theme.ThemeViewModelFactory
-import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.screenBackground
 
 /**
  * Clears tab and settings back stacks saved during navigation.
@@ -280,8 +279,7 @@ internal fun RoamApp(
         Routes.Explore -> DockDestination.EXPLORE
         else -> DockDestination.HOME
       }
-  val dockedScreenBackground =
-      if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground
+  val dockedScreenBackground = MaterialTheme.screenBackground
   val onScanClick = {
     if (cameraAvailable) {
       runOfflineAction(OfflineAction.OPEN_SCAN) { permissionController.requestPermission() }
@@ -372,11 +370,11 @@ internal fun RoamApp(
         // HomeScreen and the dock apply their own status/nav bar insets, so the
         // scaffold only contributes the ScreenBackground behind the status bar.
         Scaffold(
-            containerColor = ScreenBackground,
+            containerColor = MaterialTheme.screenBackground,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
         ) { innerPadding ->
           HomeScreen(
-              modifier = Modifier.padding(innerPadding).background(ScreenBackground),
+              modifier = Modifier.padding(innerPadding).background(MaterialTheme.screenBackground),
               onScanClicked = onScanClick,
               cameraAvailable = cameraAvailable,
               userName = userName,
@@ -506,7 +504,7 @@ internal fun RoamApp(
                     },
                 )
         val dockClearance = dockContentClearance()
-        DockedScaffold(containerColor = ScreenBackground) { innerPadding ->
+        DockedScaffold(containerColor = MaterialTheme.screenBackground) { innerPadding ->
           Box(
               modifier =
                   Modifier.padding(

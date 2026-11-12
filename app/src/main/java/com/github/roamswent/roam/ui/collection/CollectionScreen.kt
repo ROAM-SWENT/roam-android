@@ -75,7 +75,9 @@ import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.accentIcon
 import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.photoButtonContainer
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
@@ -480,14 +482,15 @@ private fun DeleteButton(onClick: () -> Unit, enabled: Boolean, modifier: Modifi
       onClick = onClick,
       enabled = enabled,
       modifier =
-          modifier.size(36.dp).background(Color.White.copy(alpha = 0.85f), CircleShape).semantics {
-            testTag = C.Tag.collection_card_delete
-          },
+          modifier
+              .size(36.dp)
+              .background(MaterialTheme.photoButtonContainer, CircleShape)
+              .semantics { testTag = C.Tag.collection_card_delete },
   ) {
     Icon(
         imageVector = Icons.Filled.Delete,
         contentDescription = stringResource(R.string.collection_delete),
-        tint = HomeAccentGreen,
+        tint = MaterialTheme.accentIcon,
         modifier = Modifier.size(20.dp),
     )
   }
@@ -499,9 +502,10 @@ private fun FavoriteButton(isFavorite: Boolean, onClick: () -> Unit, modifier: M
   IconButton(
       onClick = onClick,
       modifier =
-          modifier.size(36.dp).background(Color.White.copy(alpha = 0.85f), CircleShape).semantics {
-            testTag = C.Tag.collection_card_favorite
-          },
+          modifier
+              .size(36.dp)
+              .background(MaterialTheme.photoButtonContainer, CircleShape)
+              .semantics { testTag = C.Tag.collection_card_favorite },
   ) {
     Icon(
         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -510,7 +514,7 @@ private fun FavoriteButton(isFavorite: Boolean, onClick: () -> Unit, modifier: M
                 if (isFavorite) R.string.collection_favorite_remove
                 else R.string.collection_favorite_add
             ),
-        tint = HomeAccentGreen,
+        tint = MaterialTheme.accentIcon,
         modifier = Modifier.size(20.dp),
     )
   }
