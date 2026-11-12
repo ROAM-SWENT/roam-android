@@ -329,6 +329,11 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
     _uiState.update { it.copy(favoriteError = null) }
   }
 
+  /** Clears [SavedGuidesUiState.deleteError] once the UI has shown it. */
+  fun clearDeleteError() {
+    _uiState.update { it.copy(deleteError = null) }
+  }
+
   /** Flips the favourite state of [guideId]. */
   fun toggleFavorite(guideId: String) {
     val current = displayedGuide(guideId) ?: return

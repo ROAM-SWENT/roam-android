@@ -88,6 +88,8 @@
     <string name="collection_favorite_removed">Retiré des favoris</string>
     <string name="collection_favorite_undo">Annuler</string>
     <string name="collection_favorite_error">Impossible de mettre à jour les favoris. Veuillez réessayer.</string>
+    <string name="collection_delete">Supprimer le guide</string>
+    <string name="collection_delete_error">Impossible de supprimer ce guide. Veuillez réessayer.</string>
     <string name="camera_permission_title">Autorisation de l\'appareil photo requise</string>
     <string name="camera_permission_message">Autorisez l\'accès à l\'appareil photo dans les Paramètres pour scanner des monuments.</string>
     <string name="camera_permission_open_settings">Ouvrir les Paramètres</string>
