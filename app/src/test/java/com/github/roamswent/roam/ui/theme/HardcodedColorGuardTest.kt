@@ -15,40 +15,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Fails the build on a new raw color (`Color.White`, `Color(0xFF...)`, ...) in production UI code:
- * a raw color does not follow dark mode. Colors belong in `ui/theme/Color.kt`.
+ * Fails the build on any raw color (`Color.White`, `Color(0xFF...)`, ...) in production UI code
+ * outside `ui/theme/`: a raw color does not follow dark mode. Every color lives in `Color.kt`.
  */
 class HardcodedColorGuardTest {
   @Test
-  fun productionUiSourcesContainNoUnallowlistedColorLiterals() {
+  fun productionUiSourcesContainNoColorLiterals() {
     assertProductionUiSourcesPass("Hardcoded UI color violations", ColorScanner::scan)
   }
 
   @Test
   fun rawWhiteInCopiedExploreScreenIsFlagged() {
     withCopiedUiFile("explore/ExploreScreen.kt") { rootDir, file ->
-      val legacyCount = ColorScanner.legacyFiles.getValue("explore/ExploreScreen.kt")
+      val lineCount = file.readText().count { it == '\n' } + 1
       file.appendText("val scratch = Color.White\n")
 
       val result = ColorScanner.scan(rootDir)
 
-      assertEquals(1, result.violations.size)
-      assertTrue(
-          result.violations.single(),
-          result.violations
-              .single()
-              .startsWith(
-                  "explore/ExploreScreen.kt: expected $legacyCount legacy literal(s), " +
-                      "found ${legacyCount + 1}"
-              ),
-      )
+      assertEquals(listOf("explore/ExploreScreen.kt:$lineCount: Color.White"), result.violations)
     }
   }
 
   @Test
   fun hexColorInNewFileIsFlagged() {
     withScratchKotlinFile("Sample.kt", "val a = 1\nval b = Color(0xFF1B433E)\n") { rootDir ->
-      val result = ColorScanner.scan(rootDir, emptyMap())
+      val result = ColorScanner.scan(rootDir)
 
       assertEquals(listOf("Sample.kt:2: Color(0xFF1B433E)"), result.violations)
     }
@@ -63,7 +54,7 @@ class HardcodedColorGuardTest {
             "val c = Color.Transparent\n" +
             "// Color.White in a comment\n",
     ) { rootDir ->
-      val result = ColorScanner.scan(rootDir, emptyMap())
+      val result = ColorScanner.scan(rootDir)
 
       assertTrue(result.violations.toString(), result.violations.isEmpty())
     }
@@ -81,19 +72,6 @@ class HardcodedColorGuardTest {
   }
 
   @Test
-  fun legacyFileUnderCountIsFlagged() {
-    withScratchKotlinFile("LegacySample.kt", "val a = MaterialTheme.colorScheme.surface\n") {
-        rootDir ->
-      val result = ColorScanner.scan(rootDir, mapOf("LegacySample.kt" to 1))
-
-      assertEquals(
-          listOf("LegacySample.kt: expected 1 legacy literal(s), found 0 [none]"),
-          result.violations,
-      )
-    }
-  }
-
-  @Test
   fun missingSourcesProduceSkipResult() {
     assertMissingDirectoryProducesSkip(ColorScanner::scan)
   }
@@ -104,52 +82,15 @@ class HardcodedColorGuardTest {
             """(Color\.(?:White|Black|Gray|LightGray|DarkGray|Red|Green|Blue|Yellow|Cyan|Magenta)\b|Color\(0x[0-9A-Fa-f]+\))"""
         )
 
-    /**
-     * Existing literals that are reviewed and kept: each is behind an `isDark` branch, drawn over
-     * the camera feed, white content on a brand-color button, or the Google brand mark. Lower a
-     * count when you remove one; never raise it, use a theme-aware color from `Color.kt` instead.
-     */
-    val legacyFiles: Map<String, Int> =
-        mapOf(
-            "authentication/SignInScreen.kt" to 1,
-            "collection/CollectionScreen.kt" to 4,
-            "components/bottomdock/DockDestination.kt" to 2,
-            "explore/ExploreScreen.kt" to 1,
-            "friends/FriendsComponents.kt" to 2,
-            "home/HomeScreen.kt" to 1,
-            "home/OfflineNoticeCard.kt" to 2,
-            "home/ScanPromptCard.kt" to 3,
-            "scan/ScanReviewScreen.kt" to 3,
-            "scan/ScanScreen.kt" to 7,
-            "scan/components/FramingReticle.kt" to 1,
-            "settings/SettingsScreen.kt" to 8,
-        )
-
-    fun scan(sourceDirectory: File): ScanResult = scan(sourceDirectory, legacyFiles)
-
-    fun scan(sourceDirectory: File, legacyCounts: Map<String, Int>): ScanResult =
+    fun scan(sourceDirectory: File): ScanResult =
         scanKotlinSources(sourceDirectory) { relativePath, source ->
-          evaluateFile(relativePath, source, legacyCounts)
+          if (relativePath.startsWith("theme/")) {
+            emptyList()
+          } else {
+            findLineMatches(stripComments(source), colorLiteralPattern).map {
+              "$relativePath:${it.line}: ${it.literal}"
+            }
+          }
         }
-
-    private fun evaluateFile(
-        relativePath: String,
-        source: String,
-        legacyCounts: Map<String, Int>,
-    ): List<String> {
-      if (relativePath.startsWith("theme/")) return emptyList()
-      val matches = findLineMatches(stripComments(source), colorLiteralPattern)
-      val expectedCount = legacyCounts[relativePath]
-      if (expectedCount != null) {
-        if (matches.size == expectedCount) return emptyList()
-        val details =
-            if (matches.isEmpty()) "none"
-            else matches.joinToString(", ") { "$relativePath:${it.line}: ${it.literal}" }
-        return listOf(
-            "$relativePath: expected $expectedCount legacy literal(s), found ${matches.size} [$details]"
-        )
-      }
-      return matches.map { "$relativePath:${it.line}: ${it.literal}" }
-    }
   }
 }

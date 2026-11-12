@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
@@ -25,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
+import com.github.roamswent.roam.ui.theme.OnBrand
 
 @Composable
 fun ScanPromptCard(
@@ -55,7 +56,7 @@ fun ScanPromptCard(
           text = stringResource(R.string.home_scan_card_title),
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
-          color = Color.White,
+          color = OnBrand,
           modifier = Modifier.semantics { testTag = C.Tag.home_scan_card_title },
       )
       Spacer(modifier = Modifier.height(8.dp))
@@ -63,14 +64,14 @@ fun ScanPromptCard(
           text = stringResource(R.string.home_scan_card_body),
           style = MaterialTheme.typography.labelMedium,
           fontWeight = FontWeight.Normal,
-          color = Color.White.copy(alpha = 0.85f),
+          color = OnBrand.copy(alpha = 0.85f),
           modifier = Modifier.semantics { testTag = C.Tag.home_scan_card_body },
       )
     }
     Icon(
         imageVector = Icons.Filled.AccountBalance,
         contentDescription = stringResource(R.string.home_scan_card_icon_description),
-        tint = Color.White.copy(alpha = 0.12f),
+        tint = OnBrand.copy(alpha = 0.12f),
         modifier =
             Modifier.align(Alignment.BottomEnd).size(84.dp).offset(x = 8.dp, y = 10.dp).semantics {
               testTag = C.Tag.home_scan_card_icon

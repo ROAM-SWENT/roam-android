@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -62,6 +61,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
+import com.github.roamswent.roam.ui.theme.OnBrand
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.accentIcon
 import com.github.roamswent.roam.ui.theme.isDark
@@ -184,7 +184,7 @@ private fun AddFriendsButton(pendingRequestCount: Int, onClick: () -> Unit) {
         Icon(
             imageVector = Icons.Default.PersonAdd,
             contentDescription = null,
-            tint = Color.White,
+            tint = OnBrand,
         )
       }
     }
@@ -229,7 +229,7 @@ private fun ProfileButton(name: String?, onClick: () -> Unit) {
     Box(contentAlignment = Alignment.Center) {
       Text(
           text = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-          color = Color.White,
+          color = OnBrand,
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
       )

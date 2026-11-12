@@ -52,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -70,6 +69,7 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
+import com.github.roamswent.roam.ui.theme.OnBrand
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
@@ -434,7 +434,7 @@ private fun ExploreStateCard(
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = ScanTeal,
-                    contentColor = Color.White,
+                    contentColor = OnBrand,
                 ),
         ) {
           Row(verticalAlignment = Alignment.CenterVertically) {

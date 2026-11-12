@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
@@ -56,7 +57,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -77,8 +77,12 @@ import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.NotificationPermissionController
 import com.github.roamswent.roam.ui.permission.rememberNotificationPermissionController
+import com.github.roamswent.roam.ui.theme.GoogleBrandBlue
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.cardContainer
+import com.github.roamswent.roam.ui.theme.destructiveContainer
+import com.github.roamswent.roam.ui.theme.destructiveContent
 import com.github.roamswent.roam.ui.theme.isDark
 import java.util.Locale
 
@@ -305,12 +309,7 @@ private fun ThemeCard(
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_theme_card),
       shape = RoundedCornerShape(20.dp),
-      colors =
-          CardDefaults.cardColors(
-              containerColor =
-                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
-                  else Color.White
-          ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -382,12 +381,7 @@ private fun LanguageCard() {
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_language_card),
       shape = RoundedCornerShape(20.dp),
-      colors =
-          CardDefaults.cardColors(
-              containerColor =
-                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
-                  else Color.White
-          ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -434,12 +428,7 @@ private fun ProfileCard(
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_profile_card),
       shape = RoundedCornerShape(20.dp),
-      colors =
-          CardDefaults.cardColors(
-              containerColor =
-                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
-                  else Color.White
-          ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -486,7 +475,7 @@ private fun ProfileCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-              Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold)
+              Text("G", color = GoogleBrandBlue, fontWeight = FontWeight.Bold)
               Text(
                   text = profile.provider,
                   style = MaterialTheme.typography.labelMedium,
@@ -502,12 +491,8 @@ private fun ProfileCard(
           shape = RoundedCornerShape(14.dp),
           colors =
               ButtonDefaults.buttonColors(
-                  containerColor =
-                      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
-                      else Color(0xFFFFF1F0),
-                  contentColor =
-                      if (MaterialTheme.isDark) MaterialTheme.colorScheme.error
-                      else Color(0xFFDB4038),
+                  containerColor = MaterialTheme.destructiveContainer,
+                  contentColor = MaterialTheme.destructiveContent,
               ),
       ) {
         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
@@ -528,12 +513,7 @@ private fun PermissionsCard(
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_permissions_card),
       shape = RoundedCornerShape(20.dp),
-      colors =
-          CardDefaults.cardColors(
-              containerColor =
-                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
-                  else Color.White
-          ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -578,12 +558,7 @@ private fun InterestsCard(
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_interests_card),
       shape = RoundedCornerShape(20.dp),
-      colors =
-          CardDefaults.cardColors(
-              containerColor =
-                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
-                  else Color.White
-          ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(18.dp),

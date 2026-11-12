@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * This code was adapted from the bootcamp solution provided for SWENT.
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
@@ -36,7 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -49,6 +49,7 @@ import androidx.credentials.CredentialManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.OnBrand
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.isDark
@@ -188,7 +189,7 @@ fun GoogleSignInButton(onSignInClick: () -> Unit) {
       colors =
           ButtonDefaults.buttonColors(
               containerColor = ScanTeal,
-              contentColor = Color.White,
+              contentColor = OnBrand,
           ),
   ) {
     Row(

@@ -1,10 +1,10 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  */
 
 package com.github.roamswent.roam.ui.components.bottomdock
 
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.theme.IconPathColor
 
 private fun dockIcon(name: String, paths: ImageVector.Builder.() -> Unit): ImageVector =
     ImageVector.Builder(
@@ -31,7 +32,7 @@ private fun dockIcon(name: String, paths: ImageVector.Builder.() -> Unit): Image
 private fun ImageVector.Builder.dockPath(pathBuilder: PathBuilder.() -> Unit) {
   path(
       fill = null,
-      stroke = SolidColor(Color.Black),
+      stroke = SolidColor(IconPathColor),
       strokeLineWidth = 2f,
       strokeLineCap = StrokeCap.Round,
       strokeLineJoin = StrokeJoin.Round,
@@ -105,7 +106,7 @@ private val ExplorerIcon =
     dockIcon("ExplorerIcon") {
       dockPath { dockOuterCircle() }
       path(
-          fill = SolidColor(Color.Black),
+          fill = SolidColor(IconPathColor),
           pathFillType = PathFillType.NonZero,
       ) {
         moveTo(10.4f, 9.2f)

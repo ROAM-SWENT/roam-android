@@ -304,8 +304,8 @@ fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier)
           },
       colors =
           IconButtonDefaults.iconButtonColors(
-              containerColor = MaterialTheme.colorScheme.inverseSurface,
-              contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+              containerColor = MaterialTheme.photoButtonContainer,
+              contentColor = MaterialTheme.accentIcon,
           ),
   ) {
     Icon(

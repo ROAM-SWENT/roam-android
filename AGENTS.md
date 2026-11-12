@@ -47,15 +47,20 @@ on an **MVVM** architecture and based on the SwEnt bootcamp B3 solution.
   text or icons vanish on a dark background.
 - Use `MaterialTheme.colorScheme.<role>` or a theme-aware color from
   `Color.kt` (`MaterialTheme.screenBackground`, `cardContainer`,
-  `photoButtonContainer`, `accentIcon`, `secondaryText`). The light-only
-  tokens in `Color.kt` (`ScreenBackground`, `HomeAccentGreen`,
-  `LoadingTextPrimary`, ...) must never be used alone at a call site.
+  `photoButtonContainer`, `accentIcon`, `secondaryText`,
+  `accentContainer`, ...). The light-only tokens in `Color.kt`
+  (`ScreenBackground`, `HomeAccentGreen`, `LoadingTextPrimary`, ...) must
+  never be used alone at a call site.
+- Buttons and cards drawn over a photo (home, favourite, delete) use
+  `photoButtonContainer` with `accentIcon`, so they match each other.
+- The only fixed colors are named tokens in `Color.kt` for content whose
+  background never changes with the theme: `OnBrand` on a brand-color
+  button, `CameraOverlayScrim` / `CameraOverlayContent` over the camera
+  feed, and the `GoogleBrandBlue` brand mark.
 - A new color need: add a theme-aware color to `Color.kt` that picks a
   light value and a dark `colorScheme` role, then use it.
-- `HardcodedColorGuardTest` fails the build on any new raw color literal
-  in production UI code. Its allowlist only covers reviewed exceptions
-  (camera overlays, white content on a brand-color button, the Google
-  brand mark); never raise a count, lower it when you remove one.
+- `HardcodedColorGuardTest` fails the build on any raw color literal in
+  production UI code outside `ui/theme/`. It has no allowlist.
 - Check every UI change in both themes before submitting.
 
 ## Definition of done

@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Mistral Vibe <noreply@mistral.ai>
  */
@@ -7,7 +8,6 @@ package com.github.roamswent.roam.ui.scan.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -15,10 +15,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.theme.CameraOverlayContent
 
 private val RETICLE_STROKE_WIDTH = 3.dp
 private val RETICLE_ARM_LENGTH = 32.dp
-private val RETICLE_COLOR = Color.White
+private val RETICLE_COLOR = CameraOverlayContent
 
 /**
  * Four white corner brackets framing the monument capture area. Purely decorative: no clicks, no

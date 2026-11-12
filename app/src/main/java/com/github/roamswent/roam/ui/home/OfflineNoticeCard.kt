@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
@@ -21,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -29,14 +29,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
-import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.offlineNoticeContainer
+import com.github.roamswent.roam.ui.theme.offlineNoticeContent
 
 @Composable
 fun OfflineNoticeCard(modifier: Modifier = Modifier) {
-  val backgroundColor =
-      if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFFFE9E6)
-  val contentColor =
-      if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF7A271A)
+  val backgroundColor = MaterialTheme.offlineNoticeContainer
+  val contentColor = MaterialTheme.offlineNoticeContent
   Row(
       modifier =
           modifier
