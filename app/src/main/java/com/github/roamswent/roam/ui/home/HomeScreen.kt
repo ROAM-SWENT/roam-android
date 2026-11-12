@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
@@ -22,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -36,6 +36,7 @@ import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
+import com.github.roamswent.roam.ui.theme.OnBrand
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.isDark
@@ -118,7 +119,7 @@ private fun ProfileBubble(
     Box(contentAlignment = Alignment.Center) {
       Text(
           text = initial ?: "?",
-          color = Color.White,
+          color = OnBrand,
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
       )
