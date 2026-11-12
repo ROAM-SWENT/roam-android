@@ -69,8 +69,14 @@ class GuideMappingTest {
 
   @Test
   fun savedGuideMapsBackToTheContentShownOnTheDetailScreen() {
-    val saved = monumentGuide.toSavedGuide(byteArrayOf(1, 2, 3), discoveryDate = 0L)
+    val saved =
+        monumentGuide.toSavedGuide(
+            id = "guide-1",
+            photoBytes = byteArrayOf(1, 2, 3),
+            discoveryDate = 0L,
+            location = monumentGuide.location,
+        )
 
-    assertEquals(monumentGuide.copy(language = ""), saved.copy(id = "guide-1").toMonumentGuide())
+    assertEquals(monumentGuide.copy(language = ""), saved.toMonumentGuide())
   }
 }
