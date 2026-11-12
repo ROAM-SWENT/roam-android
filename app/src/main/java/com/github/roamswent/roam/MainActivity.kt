@@ -43,9 +43,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
+import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
@@ -74,6 +76,7 @@ import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
+import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.rememberCameraAvailability
 import com.github.roamswent.roam.ui.permission.rememberCameraPermissionController
 import com.github.roamswent.roam.ui.permission.rememberLocationPermissionController
@@ -133,24 +136,34 @@ class MainActivity : ComponentActivity() {
   }
 }
 
+/** Optional dependencies and callbacks used to isolate app journeys from external services. */
+internal data class RoamAppTestOverrides(
+    val captureSender: CaptureSender? = null,
+    val galleryImageUri: Uri? = null,
+    val onSignInClick: ((() -> Unit) -> Unit)? = null,
+    val onSignedIn: ((LocationPermissionController) -> Unit)? = null,
+    val settingsViewModel: SettingsViewModel? = null,
+    val isOnline: Boolean? = null,
+    val savedGuideRepository: SavedGuideRepository? = null,
+    val publicProfileRepository: PublicProfileRepository? = null,
+    val friendRepository: FriendRepository? = null,
+    val exploreLocationProvider: LocationProvider? = null,
+    val exploreLocationPermissionController: LocationPermissionController? = null,
+)
+
 @Composable
 internal fun RoamApp(
     authViewModel: SignInViewModel,
     navController: NavHostController = rememberNavController(),
-    captureSenderOverride: CaptureSender? = null,
-    onSignInClickOverride: (() -> Unit)? = null,
-    settingsViewModel: SettingsViewModel? = null,
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
-    isOnlineOverride: Boolean? = null,
-    savedGuideRepositoryOverride: SavedGuideRepository? = null,
-    publicProfileRepositoryOverride: PublicProfileRepository? = null,
+    testOverrides: RoamAppTestOverrides? = null,
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
   // Configure the shared Firestore instance before profile lookups can start it.
   val publicProfileRepository = remember {
-    publicProfileRepositoryOverride ?: FirestorePublicProfileRepository()
+    testOverrides?.publicProfileRepository ?: FirestorePublicProfileRepository()
   }
   val registerProfileViewModel: RegisterProfileViewModel = viewModel {
     RegisterProfileViewModel(publicProfileRepository)
@@ -160,13 +173,13 @@ internal fun RoamApp(
   LaunchedEffect(authUiState.user) {
     if (authUiState.user == null) registerProfileViewModel.reset()
   }
-  val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
+  val isOnline = testOverrides?.isOnline ?: rememberInternetConnectivity()
   val runOfflineAction = rememberOfflineActionGate(isOnline)
   // One instance shared by the collection, scan flow and Explore, so they see the same data.
   // It is created lazily, when the first of those screens needs it.
   val savedGuideRepository =
-      remember(savedGuideRepositoryOverride) {
-        lazy { savedGuideRepositoryOverride ?: FirestoreSavedGuideRepository() }
+      remember(testOverrides?.savedGuideRepository) {
+        lazy { testOverrides?.savedGuideRepository ?: FirestoreSavedGuideRepository() }
       }
   val locationPermissionDecisionRepository =
       remember(context.applicationContext) {
@@ -343,8 +356,11 @@ internal fun RoamApp(
       composable(Routes.SignIn) {
         SignInScreen(
             authViewModel = authViewModel,
-            onSignedIn = registerProfileViewModel::checkCurrentProfile,
-            onSignInClickOverride = onSignInClickOverride,
+            onSignedIn =
+                testOverrides?.onSignedIn?.let { onSignedIn ->
+                  { onSignedIn(locationPermissionController) }
+                } ?: registerProfileViewModel::checkCurrentProfile,
+            onSignInClickOverride = testOverrides?.onSignInClick,
         )
       }
       composable(Routes.RegisterProfile) {
@@ -370,7 +386,9 @@ internal fun RoamApp(
           )
         }
       }
-      composable(Routes.Scan) { ScanRoute(navController) }
+      composable(Routes.Scan) {
+        ScanRoute(navController, galleryImageUriOverride = testOverrides?.galleryImageUri)
+      }
       composable(
           "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
           arguments =
@@ -386,7 +404,7 @@ internal fun RoamApp(
           ScanReviewRoute(
               navController,
               uri,
-              captureSenderOverride,
+              testOverrides?.captureSender,
               savedGuideRepository = savedGuideRepository.value,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
@@ -404,7 +422,7 @@ internal fun RoamApp(
                       top = innerPadding.calculateTopPadding(),
                       bottom = dockClearance,
                   ),
-              settingsViewModel = settingsViewModel,
+              settingsViewModel = testOverrides?.settingsViewModel,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               notificationPermissionController = notificationPermissionController,
@@ -465,20 +483,28 @@ internal fun RoamApp(
                   ),
               profileName = userName,
               onProfileClicked = onProfileClicked,
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
           )
         }
       }
 
       composable(Routes.Explore) {
         val exploreViewModel: ExploreViewModel = viewModel {
-          ExploreViewModel(AndroidLocationProvider(context), savedGuideRepository.value)
+          ExploreViewModel(
+              testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
+              savedGuideRepository.value,
+          )
         }
         val explorePermissionController =
-            rememberLocationPermissionController(
-                remember(context.applicationContext) {
-                  SharedPreferencesLocationPermissionDecisionRepository(context.applicationContext)
-                },
-            )
+            testOverrides?.exploreLocationPermissionController
+                ?: rememberLocationPermissionController(
+                    remember(context.applicationContext) {
+                      SharedPreferencesLocationPermissionDecisionRepository(
+                          context.applicationContext
+                      )
+                    },
+                )
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = ScreenBackground) { innerPadding ->
           Box(
