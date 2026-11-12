@@ -259,6 +259,12 @@ class UserJourneyEndToEndTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
     waitAndAssertDisplayed(C.Tag.friends_screen_container)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithText("Taylor Reed").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Taylor Reed").assertIsDisplayed()
+
+    // The existing friendship is loaded independently of profile search.
     composeTestRule.onNodeWithTag(C.Tag.friends_add_button).performClick()
     composeTestRule.onNodeWithTag(C.Tag.friends_user_search).performTextInput("Mich")
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -878,12 +884,13 @@ private class FakeProfileRepository : ProfileRepository {
 
 private class FakePublicProfileRepository : PublicProfileRepository {
   private val currentUser = PublicProfile("journey-user", "RoamUser")
+  private val existingFriend = PublicProfile("existing-friend", "Taylor Reed")
   private val searchUser = PublicProfile("micheal-jordan", "Micheal Jordan")
 
   override suspend fun getCurrentProfile(): PublicProfile = currentUser
 
   override suspend fun getProfile(uid: String): PublicProfile? =
-      listOf(currentUser, searchUser).firstOrNull { it.uid == uid }
+      listOf(currentUser, existingFriend, searchUser).firstOrNull { it.uid == uid }
 
   override suspend fun registerUsername(username: String): PublicProfile =
       currentUser.copy(username = username)
@@ -909,7 +916,8 @@ private class FakeFriendRepository : FriendRepository {
 
   override suspend fun getOutgoingRequests(): List<RepositoryFriendRequest> = emptyList()
 
-  override suspend fun getFriends(): List<Friendship> = emptyList()
+  override suspend fun getFriends(): List<Friendship> =
+      listOf(Friendship("existing-friendship", "existing-friend"))
 
   override suspend fun removeFriend(friendUid: String) = Unit
 }
