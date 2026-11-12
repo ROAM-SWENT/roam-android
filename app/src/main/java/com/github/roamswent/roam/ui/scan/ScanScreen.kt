@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 package com.github.roamswent.roam.ui.scan
@@ -35,7 +36,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -46,6 +46,8 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.scan.components.FramingReticle
 import com.github.roamswent.roam.ui.theme.CameraCaptureOverlay
+import com.github.roamswent.roam.ui.theme.CameraOverlayContent
+import com.github.roamswent.roam.ui.theme.CameraOverlayScrim
 import com.github.roamswent.roam.ui.theme.ShutterHalo
 import com.github.roamswent.roam.ui.theme.ShutterWhite
 
@@ -87,7 +89,7 @@ fun ScanScreen(
           Box(
               modifier =
                   Modifier.size(40.dp)
-                      .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                      .background(CameraOverlayScrim, CircleShape)
                       .clickable(onClick = onGoBack)
                       .semantics { testTag = C.Tag.scan_close_button },
               contentAlignment = Alignment.Center,
@@ -95,7 +97,7 @@ fun ScanScreen(
             Icon(
                 imageVector = Icons.Rounded.Close,
                 contentDescription = stringResource(R.string.scan_close_description),
-                tint = Color.White,
+                tint = CameraOverlayContent,
                 modifier = Modifier.size(20.dp),
             )
           }
@@ -105,12 +107,12 @@ fun ScanScreen(
           ) {
             Surface(
                 shape = RoundedCornerShape(percent = 50),
-                color = Color.Black.copy(alpha = 0.45f),
+                color = CameraOverlayScrim,
                 modifier = Modifier.semantics { testTag = C.Tag.scan_prompt_pill },
             ) {
               Text(
                   text = stringResource(R.string.scan_frame_hint),
-                  color = Color.White,
+                  color = CameraOverlayContent,
                   style = MaterialTheme.typography.bodyMedium,
                   modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
               )
@@ -124,7 +126,7 @@ fun ScanScreen(
                     .navigationBarsPadding()
                     .padding(start = 16.dp, bottom = 40.dp)
                     .size(48.dp)
-                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                    .background(CameraOverlayScrim, CircleShape)
                     .clickable(enabled = shutterEnabled, onClick = onPickImage)
                     .semantics { testTag = C.Tag.scan_gallery_button },
             contentAlignment = Alignment.Center,
@@ -132,7 +134,7 @@ fun ScanScreen(
           Icon(
               imageVector = Icons.Rounded.PhotoLibrary,
               contentDescription = stringResource(R.string.scan_gallery_description),
-              tint = Color.White,
+              tint = CameraOverlayContent,
               modifier = Modifier.size(20.dp),
           )
         }
@@ -148,7 +150,7 @@ fun ScanScreen(
                     .semantics { testTag = C.Tag.scan_shutter_button },
         ) {
           Box(
-              modifier = Modifier.size(80.dp).border(4.dp, Color.White, CircleShape),
+              modifier = Modifier.size(80.dp).border(4.dp, CameraOverlayContent, CircleShape),
           ) {
             Box(Modifier.align(Alignment.Center).size(64.dp).background(ShutterWhite, CircleShape))
           }

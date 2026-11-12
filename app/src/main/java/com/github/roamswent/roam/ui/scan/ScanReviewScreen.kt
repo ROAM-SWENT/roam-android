@@ -46,7 +46,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -63,6 +62,9 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
+import com.github.roamswent.roam.ui.theme.CameraOverlayContent
+import com.github.roamswent.roam.ui.theme.CameraOverlayScrim
+import com.github.roamswent.roam.ui.theme.PhotoDimOverlay
 import com.github.roamswent.roam.ui.theme.ShutterWhite
 
 @Composable
@@ -143,12 +145,12 @@ fun ScanReviewScreen(
     ) {
       Surface(
           shape = RoundedCornerShape(percent = 50),
-          color = Color.Black.copy(alpha = 0.45f),
+          color = CameraOverlayScrim,
           modifier = Modifier.semantics { testTag = C.Tag.scan_review_prompt_pill },
       ) {
         Text(
             stringResource(R.string.scan_review_photo_title),
-            color = Color.White,
+            color = CameraOverlayContent,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
@@ -225,7 +227,7 @@ private fun InterestsPromptDialog(onSave: (List<String>) -> Unit, onSkip: () -> 
   Box(
       modifier =
           Modifier.fillMaxSize()
-              .background(Color.Black.copy(alpha = 0.32f))
+              .background(PhotoDimOverlay)
               .clickable(
                   interactionSource = remember { MutableInteractionSource() },
                   indication = null,

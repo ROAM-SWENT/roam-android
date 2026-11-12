@@ -69,13 +69,17 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
-import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.LoadingTextSecondary
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.accentContainer
+import com.github.roamswent.roam.ui.theme.accentIcon
+import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.onAccentContainer
+import com.github.roamswent.roam.ui.theme.photoButtonContainer
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
@@ -201,7 +205,7 @@ private fun CollectionSearchBar(
     modifier: Modifier = Modifier,
 ) {
   val isDark = MaterialTheme.isDark
-  val containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
+  val containerColor = MaterialTheme.cardContainer
   val textColor = if (isDark) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary
   val hintColor = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else LoadingTextSecondary
 
@@ -293,9 +297,9 @@ private fun CollectionFilterChip(
     showHeart: Boolean = false,
 ) {
   val isDark = MaterialTheme.isDark
-  val selectedContainer = if (isDark) MaterialTheme.colorScheme.primary else HomeAccentGreen
-  val selectedContent = if (isDark) MaterialTheme.colorScheme.onPrimary else Color.White
-  val container = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
+  val selectedContainer = MaterialTheme.accentContainer
+  val selectedContent = MaterialTheme.onAccentContainer
+  val container = MaterialTheme.cardContainer
   val content = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else LoadingTextSecondary
   FilterChip(
       selected = selected,
@@ -372,12 +376,7 @@ private fun GuideCard(
   Card(
       onClick = onClick,
       shape = RoundedCornerShape(16.dp),
-      colors =
-          CardDefaults.cardColors(
-              containerColor =
-                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
-                  else Color.White
-          ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
       modifier = Modifier.fillMaxWidth().semantics { testTag = C.Tag.collection_card },
   ) {
     Box {
@@ -480,14 +479,15 @@ private fun DeleteButton(onClick: () -> Unit, enabled: Boolean, modifier: Modifi
       onClick = onClick,
       enabled = enabled,
       modifier =
-          modifier.size(36.dp).background(Color.White.copy(alpha = 0.85f), CircleShape).semantics {
-            testTag = C.Tag.collection_card_delete
-          },
+          modifier
+              .size(36.dp)
+              .background(MaterialTheme.photoButtonContainer, CircleShape)
+              .semantics { testTag = C.Tag.collection_card_delete },
   ) {
     Icon(
         imageVector = Icons.Filled.Delete,
         contentDescription = stringResource(R.string.collection_delete),
-        tint = HomeAccentGreen,
+        tint = MaterialTheme.accentIcon,
         modifier = Modifier.size(20.dp),
     )
   }
@@ -499,9 +499,10 @@ private fun FavoriteButton(isFavorite: Boolean, onClick: () -> Unit, modifier: M
   IconButton(
       onClick = onClick,
       modifier =
-          modifier.size(36.dp).background(Color.White.copy(alpha = 0.85f), CircleShape).semantics {
-            testTag = C.Tag.collection_card_favorite
-          },
+          modifier
+              .size(36.dp)
+              .background(MaterialTheme.photoButtonContainer, CircleShape)
+              .semantics { testTag = C.Tag.collection_card_favorite },
   ) {
     Icon(
         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -510,7 +511,7 @@ private fun FavoriteButton(isFavorite: Boolean, onClick: () -> Unit, modifier: M
                 if (isFavorite) R.string.collection_favorite_remove
                 else R.string.collection_favorite_add
             ),
-        tint = HomeAccentGreen,
+        tint = MaterialTheme.accentIcon,
         modifier = Modifier.size(20.dp),
     )
   }
