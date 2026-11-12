@@ -7,6 +7,7 @@ package com.github.roamswent.roam.ui.settings
 
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
@@ -117,7 +118,7 @@ class SettingsViewModelTest {
         viewModel.loadProfile()
         advanceUntilIdle()
 
-        assertEquals("Profile unavailable", viewModel.uiState.value.errorMsg)
+        assertEquals(R.string.settings_error_profile_load, viewModel.uiState.value.errorMsg)
 
         viewModel.clearErrorMsg()
 
@@ -173,7 +174,7 @@ class SettingsViewModelTest {
         viewModel.signOut(credentialManager)
         advanceUntilIdle()
 
-        assertEquals("Unable to log out", viewModel.uiState.value.errorMsg)
+        assertEquals(R.string.settings_error_sign_out, viewModel.uiState.value.errorMsg)
         assertFalse(viewModel.uiState.value.signedOut)
         verify(repository).signOut()
         verifyNoInteractions(credentialManager)
@@ -210,7 +211,7 @@ class SettingsViewModelTest {
 
         assertNull(viewModel.uiState.value.profile)
         assertFalse(viewModel.uiState.value.profileLoading)
-        assertEquals("Profile unavailable", viewModel.uiState.value.errorMsg)
+        assertEquals(R.string.settings_error_profile_load, viewModel.uiState.value.errorMsg)
         verify(profileRepository).loadProfile()
       }
 

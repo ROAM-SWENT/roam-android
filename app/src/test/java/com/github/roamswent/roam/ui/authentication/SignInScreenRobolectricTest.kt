@@ -131,7 +131,13 @@ class SignInScreenRobolectricTest {
   fun errorState_clearsErrorMessage() {
     val viewModel = mock<SignInViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(AuthUIState(errorMsg = "Unable to sign in")))
+        .thenReturn(
+            MutableStateFlow(
+                AuthUIState(
+                    errorMsg = AuthError(R.string.sign_in_error_unexpected, "Unable to sign in")
+                )
+            )
+        )
 
     composeTestRule.setContent { SignInScreen(authViewModel = viewModel) }
     composeTestRule.waitForIdle()
@@ -201,7 +207,8 @@ class SignInScreenRobolectricTest {
     }
     composeTestRule.waitForIdle()
 
-    state.value = AuthUIState(errorMsg = "Unable to sign in")
+    state.value =
+        AuthUIState(errorMsg = AuthError(R.string.sign_in_error_unexpected, "Unable to sign in"))
     composeTestRule.waitForIdle()
     state.value = AuthUIState(user = mock())
     composeTestRule.waitForIdle()

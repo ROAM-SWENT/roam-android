@@ -4,6 +4,7 @@
 package com.github.roamswent.roam.ui.scan
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -199,7 +200,11 @@ fun ScanReviewScreen(
     SendingDialog()
   }
   if (state is ScanReviewUiState.SendFailed) {
-    SendFailedDialog(message = state.message, onRetry = onRetrySend, onDismiss = onDismissSendError)
+    SendFailedDialog(
+        messageRes = state.messageRes,
+        onRetry = onRetrySend,
+        onDismiss = onDismissSendError,
+    )
   }
   if (showInterestsPrompt) {
     BackHandler {}
@@ -252,7 +257,7 @@ private fun InterestsPromptDialog(onSave: (List<String>) -> Unit, onSkip: () -> 
             Text(stringResource(R.string.scan_review_skip))
           }
           TextButton(
-              onClick = { onSave(UserInterestCategories.all.filter(selectedInterests::contains)) },
+              onClick = { onSave(UserInterestCategories.ids.filter(selectedInterests::contains)) },
               enabled = selectedInterests.isNotEmpty(),
               modifier = Modifier.semantics { testTag = C.Tag.scan_interests_save },
           ) {
@@ -276,14 +281,14 @@ private fun InterestCategoryChips(
   ) {
     UserInterestCategories.all.forEach { category ->
       FilterChip(
-          selected = category in selectedInterests,
+          selected = category.id in selectedInterests,
           onClick = {
             onSelectionChange(
-                if (category in selectedInterests) selectedInterests - category
-                else selectedInterests + category
+                if (category.id in selectedInterests) selectedInterests - category.id
+                else selectedInterests + category.id
             )
           },
-          label = { Text(category) },
+          label = { Text(stringResource(category.labelRes)) },
           modifier = Modifier.semantics { testTag = C.Tag.scan_interests_chip },
       )
     }
@@ -317,11 +322,15 @@ private fun DeleteFailedDialog(onRetry: () -> Unit, onStay: () -> Unit) {
 }
 
 @Composable
-private fun SendFailedDialog(message: String, onRetry: () -> Unit, onDismiss: () -> Unit) {
+private fun SendFailedDialog(
+    @StringRes messageRes: Int,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
   AlertDialog(
       onDismissRequest = onDismiss,
       title = { Text(stringResource(R.string.scan_review_send_failed_title)) },
-      text = { Text(message) },
+      text = { Text(stringResource(messageRes)) },
       confirmButton = {
         TextButton(
             onClick = onRetry,

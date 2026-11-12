@@ -232,7 +232,10 @@ class SignInViewModelTest {
         viewModel.signIn(context, credentialManager)
         advanceUntilIdle()
 
-        assertEquals("invalid account", viewModel.uiState.value.errorMsg)
+        assertEquals(
+            AuthError(R.string.sign_in_error_unexpected, "invalid account"),
+            viewModel.uiState.value.errorMsg,
+        )
         assertFalse(viewModel.uiState.value.signOutCompleted)
         assertNull(viewModel.uiState.value.user)
         assertFalse(viewModel.uiState.value.isLoading)
@@ -254,7 +257,10 @@ class SignInViewModelTest {
         viewModel.signIn(context, credentialManager)
         advanceUntilIdle()
 
-        assertEquals("Sign-in cancelled", viewModel.uiState.value.errorMsg)
+        assertEquals(
+            AuthError(R.string.sign_in_error_cancelled),
+            viewModel.uiState.value.errorMsg,
+        )
         assertFalse(viewModel.uiState.value.signOutCompleted)
         verify(repository, never()).signInWithGoogle(any())
       }
@@ -278,7 +284,7 @@ class SignInViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            "Failed to get credentials: credential failure",
+            AuthError(R.string.sign_in_error_credentials, "credential failure"),
             viewModel.uiState.value.errorMsg,
         )
         assertFalse(viewModel.uiState.value.signOutCompleted)
@@ -300,7 +306,10 @@ class SignInViewModelTest {
         viewModel.signIn(context, credentialManager)
         advanceUntilIdle()
 
-        assertEquals("Unexpected error: boom", viewModel.uiState.value.errorMsg)
+        assertEquals(
+            AuthError(R.string.sign_in_error_unexpected, "boom"),
+            viewModel.uiState.value.errorMsg,
+        )
         assertFalse(viewModel.uiState.value.signOutCompleted)
       }
 

@@ -5,6 +5,7 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.graphics.Bitmap
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -28,6 +29,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -50,9 +52,11 @@ import com.github.roamswent.roam.ui.permission.NotificationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,6 +65,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowToast
 
@@ -68,6 +73,28 @@ import org.robolectric.shadows.ShadowToast
 class SettingsScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
   private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+  private var appCompatActivityController:
+      org.robolectric.android.controller.ActivityController<
+          androidx.appcompat.app.AppCompatActivity
+      >? =
+      null
+
+  @Before
+  fun setUpApplicationLocales() {
+    appCompatActivityController =
+        org.robolectric.Robolectric.buildActivity(
+                androidx.appcompat.app.AppCompatActivity::class.java
+            )
+            .setup()
+    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+  }
+
+  @After
+  fun tearDownApplicationLocales() {
+    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    appCompatActivityController?.close()
+    appCompatActivityController = null
+  }
 
   /** Verifies the profile, settings sections, and initial permission statuses. */
   @Test
@@ -461,9 +488,9 @@ class SettingsScreenTest {
 
     composeTestRule.onNodeWithText("No interests selected yet.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.settings_add_interest_button).performClick()
-    UserInterestCategories.all.forEach { interest ->
+    UserInterestCategories.all.forEach { category ->
       composeTestRule
-          .onNodeWithTag(C.Tag.settings_interest_option_prefix + interest)
+          .onNodeWithTag(C.Tag.settings_interest_option_prefix + category.id)
           .assertIsDisplayed()
     }
     composeTestRule
@@ -476,7 +503,7 @@ class SettingsScreenTest {
   fun interests_whenAllSelected_showsEmptyStateMessage() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(SettingsUIState(interests = UserInterestCategories.all)))
+        .thenReturn(MutableStateFlow(SettingsUIState(interests = UserInterestCategories.ids)))
     val (cameraController, locationController) = permissionControllers()
 
     composeTestRule.setContent {
@@ -503,7 +530,7 @@ class SettingsScreenTest {
   fun errorState_displaysToastAndClearsErrorMessage() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState)
-        .thenReturn(MutableStateFlow(SettingsUIState(errorMsg = "Unable to log out")))
+        .thenReturn(MutableStateFlow(SettingsUIState(errorMsg = R.string.settings_error_sign_out)))
     val (cameraController, locationController) = permissionControllers()
 
     composeTestRule.setContent {
@@ -517,7 +544,10 @@ class SettingsScreenTest {
     }
     composeTestRule.waitForIdle()
 
-    assertEquals("Unable to log out", ShadowToast.getTextOfLatestToast())
+    assertEquals(
+        context.getString(R.string.settings_error_sign_out),
+        ShadowToast.getTextOfLatestToast(),
+    )
     verify(viewModel).clearErrorMsg()
   }
 
@@ -540,12 +570,12 @@ class SettingsScreenTest {
       }
     }
 
-    state.value = SettingsUIState(errorMsg = "Logout failed")
+    state.value = SettingsUIState(errorMsg = R.string.settings_error_sign_out)
 
     composeTestRule.waitForIdle()
 
     assertEquals(
-        "Logout failed",
+        context.getString(R.string.settings_error_sign_out),
         ShadowToast.getTextOfLatestToast(),
     )
 
@@ -651,6 +681,144 @@ class SettingsScreenTest {
     verify(viewModel).setLocationPermissionGranted(false)
     verify(cameraController).hasPermission()
     verify(locationController).hasPermission()
+  }
+
+  @Test
+  fun languageCard_rendersHeaderAndOptionsUnderDefaultLocale_regressionDetectsMissingLanguagePicker() {
+    renderSettingsScreen()
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_language_section_header))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_en)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("English"))
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_fr)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("Français"))
+  }
+
+  @Test
+  @Config(qualifiers = "fr")
+  fun languageCard_underFrenchQualifier_rendersEndonyms_regressionDetectsTranslatedEndonyms() {
+    renderSettingsScreen()
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.settings_language_section_header))
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_en)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("English"))
+    composeTestRule
+        .onNodeWithTag(C.Tag.settings_language_option_fr)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assert(hasText("Français"))
+  }
+
+  @Test
+  fun languageCard_selectionState_neitherSelectedWhenLocalesEmpty_regressionDetectsDefaultFallback() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .assertIsNotSelected()
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .assertIsNotSelected()
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_selectionState_englishSelectedWhenLocaleIsEn_regressionDetectsBrokenEnSelection() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en"))
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .assertIsSelected()
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .assertIsNotSelected()
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_selectionState_frenchSelectedWhenLocaleIsFr_regressionDetectsBrokenFrSelection() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("fr"))
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .assertIsNotSelected()
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .assertIsSelected()
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_interaction_updatesApplicationLocales_regressionDetectsSwappedOrMissingDispatch() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      renderSettingsScreen()
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_en)
+          .performScrollTo()
+          .performClick()
+      assertEquals("en", AppCompatDelegate.getApplicationLocales()[0]?.language)
+
+      composeTestRule
+          .onNodeWithTag(C.Tag.settings_language_option_fr)
+          .performScrollTo()
+          .performClick()
+      assertEquals("fr", AppCompatDelegate.getApplicationLocales()[0]?.language)
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  private fun renderSettingsScreen(
+      viewModel: SettingsViewModel =
+          mock<SettingsViewModel>().also {
+            whenever(it.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+          }
+  ) {
+    val (cameraController, locationController) = permissionControllers()
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+        )
+      }
+    }
   }
 
   private fun permissionControllers():

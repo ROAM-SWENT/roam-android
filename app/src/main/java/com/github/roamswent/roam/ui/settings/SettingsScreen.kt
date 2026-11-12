@@ -5,6 +5,8 @@
 package com.github.roamswent.roam.ui.settings
 
 import android.widget.Toast
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +61,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -111,6 +114,7 @@ fun SettingsScreen(
   val notificationPermissionState by notificationPermissionController.state.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
   val logoutSuccessfulMessage = stringResource(R.string.settings_logout_successful)
+  val errorMessage = uiState.errorMsg?.let { stringResource(it) }
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
@@ -122,7 +126,7 @@ fun SettingsScreen(
   }
 
   LaunchedEffect(uiState.errorMsg) {
-    uiState.errorMsg?.let { message ->
+    errorMessage?.let { message ->
       Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
       resolvedSettingsViewModel.clearErrorMsg()
     }
@@ -248,6 +252,7 @@ private fun SettingsContent(
           themeMode = themeMode,
           onThemeSelected = onThemeModeSelected,
       )
+      LanguageCard()
     }
   }
 
@@ -256,22 +261,22 @@ private fun SettingsContent(
         onDismissRequest = { showAddInterestDialog = false },
         title = { Text(stringResource(R.string.settings_add_interest)) },
         text = {
-          val availableInterests = UserInterestCategories.all.filterNot { it in interests }
+          val availableInterests = UserInterestCategories.all.filterNot { it.id in interests }
           if (availableInterests.isEmpty()) {
             Text(stringResource(R.string.settings_all_interests_selected))
           } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              availableInterests.forEach { interest ->
+              availableInterests.forEach { category ->
                 TextButton(
                     onClick = {
-                      onAddInterest(interest)
+                      onAddInterest(category.id)
                       showAddInterestDialog = false
                     },
                     modifier =
                         Modifier.fillMaxWidth()
-                            .testTag(C.Tag.settings_interest_option_prefix + interest),
+                            .testTag(C.Tag.settings_interest_option_prefix + category.id),
                 ) {
-                  Text(interest, modifier = Modifier.fillMaxWidth())
+                  Text(stringResource(category.labelRes), modifier = Modifier.fillMaxWidth())
                 }
               }
             }
@@ -341,6 +346,71 @@ private fun ThemeCard(
               modifier = Modifier.testTag(testTag),
           ) {
             Text(label)
+          }
+        }
+      }
+    }
+  }
+}
+
+private data class LanguageOption(
+    val languageTag: String,
+    @param:StringRes val labelRes: Int,
+    val testTag: String,
+)
+
+private val languageOptions =
+    listOf(
+        LanguageOption(
+            "en",
+            R.string.settings_language_english,
+            C.Tag.settings_language_option_en,
+        ),
+        LanguageOption(
+            "fr",
+            R.string.settings_language_french,
+            C.Tag.settings_language_option_fr,
+        ),
+    )
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun LanguageCard() {
+  Card(
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_language_card),
+      shape = RoundedCornerShape(20.dp),
+      colors =
+          CardDefaults.cardColors(
+              containerColor =
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surfaceVariant
+                  else Color.White
+          ),
+  ) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Text(
+          text = stringResource(R.string.settings_language_section_header),
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold,
+      )
+      val currentLocales = AppCompatDelegate.getApplicationLocales()
+      val currentTag = if (currentLocales.isEmpty) null else currentLocales[0]?.language
+      SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        languageOptions.forEachIndexed { index, option ->
+          SegmentedButton(
+              selected = currentTag == option.languageTag,
+              onClick = {
+                AppCompatDelegate.setApplicationLocales(
+                    LocaleListCompat.forLanguageTags(option.languageTag)
+                )
+              },
+              shape =
+                  SegmentedButtonDefaults.itemShape(index = index, count = languageOptions.size),
+              modifier = Modifier.testTag(option.testTag),
+          ) {
+            Text(stringResource(option.labelRes))
           }
         }
       }
@@ -565,6 +635,8 @@ private fun InterestsCard(
 
 @Composable
 private fun InterestChip(interest: String, onRemove: () -> Unit) {
+  val category = UserInterestCategories.all.firstOrNull { it.id == interest }
+  val label = category?.let { stringResource(it.labelRes) } ?: interest
   Surface(
       shape = RoundedCornerShape(50),
       color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
@@ -575,7 +647,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
-          text = interest,
+          text = label,
           modifier = Modifier.padding(vertical = 10.dp),
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.onSurface,
@@ -586,7 +658,7 @@ private fun InterestChip(interest: String, onRemove: () -> Unit) {
       ) {
         Icon(
             Icons.Default.Close,
-            contentDescription = stringResource(R.string.settings_remove_interest, interest),
+            contentDescription = stringResource(R.string.settings_remove_interest, label),
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )

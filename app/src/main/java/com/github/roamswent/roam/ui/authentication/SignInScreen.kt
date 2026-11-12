@@ -64,12 +64,17 @@ fun SignInScreen(
   val context = LocalContext.current
   val uiState by authViewModel.uiState.collectAsState()
   val signInSuccessMessage = stringResource(R.string.sign_in_success)
+  val errorMessage =
+      uiState.errorMsg?.let { error ->
+        error.formatArg?.let { stringResource(error.messageRes, it) }
+            ?: stringResource(error.messageRes)
+      }
   var isRestoredUser by remember { mutableStateOf(uiState.user != null) }
   var isRestoringInitialSession by remember { mutableStateOf(uiState.isRestoringSession) }
 
   // Show error message if login fails
   LaunchedEffect(uiState.errorMsg) {
-    uiState.errorMsg?.let {
+    errorMessage?.let {
       Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
       authViewModel.clearErrorMsg()
     }
