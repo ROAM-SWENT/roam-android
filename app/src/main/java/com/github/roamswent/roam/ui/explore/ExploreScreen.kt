@@ -76,12 +76,16 @@ import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.isDark
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.ComposeMapColorScheme
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 
 private fun Coordinates.toLatLng() = LatLng(latitude, longitude)
+
+internal fun exploreMapColorScheme(isDark: Boolean): ComposeMapColorScheme =
+    if (isDark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT
 
 /** A standard marker drawn on the Explore map, identified by a [key] unique within the map. */
 internal data class ExploreMapMarker(
@@ -201,6 +205,7 @@ fun ExploreScreen(
             GoogleMap(
                 modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
                 cameraPositionState = cameraPositionState,
+                mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
             ) {
               markers.forEach { marker ->
                 key(marker.key) {

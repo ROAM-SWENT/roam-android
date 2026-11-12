@@ -29,6 +29,7 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.google.maps.android.compose.ComposeMapColorScheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -76,6 +77,12 @@ class ExploreScreenTest {
 
     composeTestRule.onNodeWithText("Explore").assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+  }
+
+  @Test
+  fun mapColorSchemeFollowsTheSelectedAppTheme() {
+    assertEquals(ComposeMapColorScheme.LIGHT, exploreMapColorScheme(isDark = false))
+    assertEquals(ComposeMapColorScheme.DARK, exploreMapColorScheme(isDark = true))
   }
 
   /**

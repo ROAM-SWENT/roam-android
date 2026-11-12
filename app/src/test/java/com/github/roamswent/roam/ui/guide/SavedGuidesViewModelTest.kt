@@ -313,6 +313,26 @@ class SavedGuidesViewModelTest {
       }
 
   @Test
+  fun clearDeleteErrorClearsReportedDeletionFailure() =
+      runTest(dispatcher) {
+        val error = IllegalStateException("delete failed")
+        coEvery { repository.getSavedGuides() } returns listOf(guide)
+        coEvery { repository.removeGuide(guide.id) } throws error
+        val viewModel = SavedGuidesViewModel(repository)
+
+        viewModel.loadSavedGuides()
+        advanceUntilIdle()
+        viewModel.deleteGuide(guide.id)
+        advanceUntilIdle()
+
+        assertEquals(error, viewModel.uiState.value.deleteError)
+
+        viewModel.clearDeleteError()
+
+        assertNull(viewModel.uiState.value.deleteError)
+      }
+
+  @Test
   fun removesGuideFromUiBeforeOfflineDeleteIsAcknowledged() =
       runTest(dispatcher) {
         val deleteAcknowledgement = CompletableDeferred<Unit>()

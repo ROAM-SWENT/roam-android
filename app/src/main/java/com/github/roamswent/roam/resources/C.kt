@@ -124,6 +124,7 @@ object C {
     const val collection_card_name = "collection_card_name"
     const val collection_card_date = "collection_card_date"
     const val collection_card_favorite = "collection_card_favorite"
+    const val collection_card_delete = "collection_card_delete"
     const val collection_filter_all = "collection_filter_all"
     const val collection_filter_favorites = "collection_filter_favorites"
     const val collection_favorites_empty = "collection_favorites_empty"

@@ -4,6 +4,7 @@
 
 package com.github.roamswent.roam.ui.settings
 
+import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
@@ -79,6 +80,7 @@ import com.github.roamswent.roam.ui.permission.rememberNotificationPermissionCon
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.isDark
+import java.util.Locale
 
 private data class ProfileDisplayData(
     val initial: String,
@@ -373,6 +375,7 @@ private val languageOptions =
         ),
     )
 
+@SuppressLint("NonObservableLocale")
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun LanguageCard() {
@@ -396,7 +399,12 @@ private fun LanguageCard() {
           fontWeight = FontWeight.Bold,
       )
       val currentLocales = AppCompatDelegate.getApplicationLocales()
-      val currentTag = if (currentLocales.isEmpty) null else currentLocales[0]?.language
+      val currentTag =
+          when {
+            !currentLocales.isEmpty -> currentLocales[0]?.language
+            Locale.getDefault().language == "fr" -> "fr"
+            else -> "en"
+          }
       SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         languageOptions.forEachIndexed { index, option ->
           SegmentedButton(
