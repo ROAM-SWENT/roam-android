@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.explore
@@ -11,11 +12,17 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import coil.Coil
+import coil.ImageLoader
+import coil.intercept.Interceptor
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.resources.C
@@ -23,12 +30,15 @@ import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -39,6 +49,11 @@ import org.robolectric.annotation.GraphicsMode
 class ExploreScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
+  @After
+  fun resetImageLoader() {
+    Coil.reset()
+  }
+
   /** Verifies that the explore title and map container are shown when location is available. */
   @Test
   fun displaysExploreTitleAndMapContainerWhenLocationIsAvailable() {
@@ -47,6 +62,7 @@ class ExploreScreenTest {
         .thenReturn(
             MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
         )
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     val locationPermissionController = permissionController(granted = true)
     composeTestRule.setContent {
       SampleAppTheme {
@@ -60,6 +76,206 @@ class ExploreScreenTest {
 
     composeTestRule.onNodeWithText("Explore").assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+  }
+
+  /**
+   * Verifies that the shown map reads the saved monuments from the view model. Google Maps markers
+   * expose no Compose semantics, so the markers built from these monuments are checked in
+   * [ExploreMapMarkersTest].
+   */
+  @Test
+  fun readsSavedMonumentsWhenMapIsShown() {
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
+        )
+    whenever(exploreViewModel.monuments)
+        .thenReturn(
+            MutableStateFlow(
+                listOf(
+                    ExploreMonument("guide-1", "Eiffel Tower", Coordinates(48.85837, 2.29448)),
+                    ExploreMonument("guide-2", "Colosseum", Coordinates(41.89021, 12.49223)),
+                )
+            )
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = permissionController(granted = true),
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+    verify(exploreViewModel, atLeastOnce()).monuments
+  }
+
+  /** Verifies that the monument card displays its content and invokes dismissal when closed. */
+  @Test
+  fun monumentCardDisplaysContentAndDismissesWhenCloseIsClicked() {
+    var dismissed = false
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            description = "Built for the 1889 exposition.",
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme { ExploreMonumentCard(monument = monument, onDismiss = { dismissed = true }) }
+    }
+
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Built for the 1889 exposition.").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithContentDescription("Close monument information")
+        .assertIsDisplayed()
+        .performClick()
+
+    assertEquals(true, dismissed)
+  }
+
+  /** Verifies that the expanded card shows its full content, scrolls, and minimizes. */
+  @Test
+  fun expandedMonumentCardShowsScrollableContentAndMinimizes() {
+    var minimized = false
+    val description = (1..80).joinToString("\n") { "History detail $it" }
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            description = description,
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreMonumentCard(
+            monument = monument,
+            onDismiss = {},
+            isExpanded = true,
+            onMinimize = { minimized = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_placeholder, useUnmergedTree = true)
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText(description).assertExists()
+    composeTestRule.onNode(hasScrollAction()).assertExists()
+    composeTestRule
+        .onNodeWithContentDescription("Minimize monument information")
+        .assertIsDisplayed()
+        .performClick()
+
+    assertTrue(minimized)
+  }
+
+  /** Verifies that clicking a compact monument card requests expansion. */
+  @Test
+  fun compactMonumentCardRequestsExpansionWhenClicked() {
+    var expanded = false
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            description = "Built for the 1889 exposition.",
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreMonumentCard(
+            monument = monument,
+            onDismiss = {},
+            onExpand = { expanded = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Eiffel Tower").performClick()
+
+    assertTrue(expanded)
+  }
+
+  /** Verifies that a monument without photo bytes shows the image placeholder. */
+  @Test
+  fun monumentCardShowsPlaceholderWhenPhotoIsMissing() {
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            photoBytes = ByteArray(0),
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme { ExploreMonumentCard(monument = monument, onDismiss = {}) }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_placeholder, useUnmergedTree = true)
+        .assertIsDisplayed()
+  }
+
+  /** Verifies that a photo decoding failure shows the image placeholder. */
+  @Test
+  fun monumentCardShowsPlaceholderWhenPhotoCannotBeDecoded() {
+    Coil.setImageLoader(
+        ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components { add(Interceptor { error("forced image failure") }) }
+            .build()
+    )
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            photoBytes = byteArrayOf(1, 2, 3),
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme { ExploreMonumentCard(monument = monument, onDismiss = {}) }
+    }
+
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.explore_monument_photo_error, useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_error, useUnmergedTree = true)
+        .assertIsDisplayed()
+  }
+
+  /** Verifies that saved monuments are not read while the map is not shown. */
+  @Test
+  fun doesNotReadMonumentsWithoutLocationPermission() {
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = permissionController(granted = false),
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(0)
+    verify(exploreViewModel, never()).monuments
   }
 
   @Test

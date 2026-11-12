@@ -730,12 +730,9 @@ class MainActivityNavigationTest {
     assertEquals(listOf(Routes.Home), backStackRoutes(navController))
   }
 
-  /**
-   * Like the settings and home tabs, the collection and explore tab navigations are not gated on
-   * connectivity: offline, tapping them navigates without the offline dialog.
-   */
+  /** Collection remains accessible offline, while Explore and Friends require internet. */
   @Test
-  fun offlineCollectionAndExploreTabsRemainAccessible() {
+  fun offlineExploreAndFriendsAreBlockedButCollectionRemainsAccessible() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(
         onNavControllerReady = { navController = it },
@@ -750,15 +747,21 @@ class MainActivityNavigationTest {
       assertEquals(Routes.Collection, navController.currentDestination?.route)
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
-    waitAndAssertDisplayed(C.Tag.explore_screen_container)
-    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
-    composeTestRule.runOnIdle {
-      assertEquals(Routes.Explore, navController.currentDestination?.route)
-    }
-
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
+    waitForGone(C.Tag.offline_action_dialog)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
+    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
+    waitForGone(C.Tag.offline_action_dialog)
+
     composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
     composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
   }

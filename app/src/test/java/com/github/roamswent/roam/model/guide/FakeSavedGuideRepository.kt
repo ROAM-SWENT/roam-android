@@ -1,6 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.location.Coordinates
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +19,10 @@ class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : Saved
   var addError: Exception? = null
   /** When non-null, [setFavorite] fails with it and leaves [guides] unchanged. */
   var favoriteError: Exception? = null
+  /** When non-null, [setLocation] fails with it and leaves [guides] unchanged. */
+  var locationError: Exception? = null
+  /** Every [setLocation] call, in order, as (guide id, location). */
+  val locationUpdates = mutableListOf<Pair<String, Coordinates?>>()
 
   override suspend fun addGuide(guide: Guide): Guide {
     addError?.let { throw it }
@@ -34,6 +39,16 @@ class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : Saved
     favoriteError?.let { throw it }
     guides.update { current ->
       current.map { if (it.id == guideId) it.copy(isFavorite = isFavorite) else it }
+    }
+  }
+
+  override suspend fun setLocation(guideId: String, location: Coordinates?) {
+    locationUpdates += guideId to location
+    locationError?.let { throw it }
+    // Like a Firestore update(), this fails instead of recreating a missing guide.
+    check(guides.value.any { it.id == guideId }) { "No saved guide $guideId" }
+    guides.update { current ->
+      current.map { if (it.id == guideId) it.copy(location = location) else it }
     }
   }
 

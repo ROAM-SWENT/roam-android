@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.foundation.Image
@@ -5,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -13,6 +15,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +26,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.isDark
@@ -42,6 +47,8 @@ fun MonumentDetailScreen(
     guide: MonumentGuide,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    exploreOptIn: ExploreOptInUiState? = null,
+    onShowInExploreChange: (Boolean) -> Unit = {},
 ) {
   val textBackgroundColor =
       if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
@@ -129,6 +136,13 @@ fun MonumentDetailScreen(
                     testTag = C.Tag.monument_detail_confidence
                   },
           )
+          exploreOptIn?.let {
+            ShowInExploreRow(
+                optIn = it,
+                onCheckedChange = onShowInExploreChange,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+          }
           Text(
               text = guide.history,
               style = MaterialTheme.typography.bodyLarge,
@@ -166,6 +180,52 @@ fun MonumentDetailScreen(
         onClick = onBackClick,
         modifier = Modifier.align(Alignment.TopStart),
     )
+  }
+}
+
+/** Switch that puts the saved guide on Explore at the place it was scanned. */
+@Composable
+private fun ShowInExploreRow(
+    optIn: ExploreOptInUiState,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  Column(modifier = modifier.fillMaxWidth()) {
+    Row(
+        modifier =
+            Modifier.fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .toggleable(
+                    value = optIn.isShownInExplore,
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                )
+                .semantics { testTag = C.Tag.monument_detail_show_in_explore },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+        Text(
+            text = stringResource(R.string.monument_detail_show_in_explore),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = stringResource(R.string.monument_detail_show_in_explore_supporting),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      // The row handles the toggle, so the switch is only its visual state.
+      Switch(checked = optIn.isShownInExplore, onCheckedChange = null)
+    }
+    if (optIn.error != null) {
+      Text(
+          text = stringResource(R.string.monument_detail_show_in_explore_error),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.semantics { testTag = C.Tag.monument_detail_show_in_explore_error },
+      )
+    }
   }
 }
 

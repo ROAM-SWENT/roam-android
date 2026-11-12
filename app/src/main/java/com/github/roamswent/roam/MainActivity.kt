@@ -162,7 +162,7 @@ internal fun RoamApp(
   }
   val isOnline = isOnlineOverride ?: rememberInternetConnectivity()
   val runOfflineAction = rememberOfflineActionGate(isOnline)
-  // One instance shared by the collection and the scan flow, so both use the same repository.
+  // One instance shared by the collection, scan flow and Explore, so they see the same data.
   // It is created lazily, when the first of those screens needs it.
   val savedGuideRepository =
       remember(savedGuideRepositoryOverride) {
@@ -275,24 +275,33 @@ internal fun RoamApp(
     }
   }
   val onDockDestinationSelected = { destination: DockDestination ->
-    if (destination.route != currentBackStackEntry?.destination?.route) {
-      if (destination.route == Routes.Home) {
-        // Home is the navigation root: pop back to it instead of navigating,
-        // which launchSingleTop would swallow because popUpTo(Home) already
-        // leaves Home as the current destination.
-        navController.popBackStack(Routes.Home, inclusive = false)
-      } else {
-        // Other tabs stack above Home so system back returns to it.
-        navController.navigate(destination.route) {
-          popUpTo(Routes.Home) {
-            inclusive = false
-            saveState = true
+    val navigate = {
+      if (destination.route != currentBackStackEntry?.destination?.route) {
+        if (destination.route == Routes.Home) {
+          // Home is the navigation root: pop back to it instead of navigating,
+          // which launchSingleTop would swallow because popUpTo(Home) already
+          // leaves Home as the current destination.
+          navController.popBackStack(Routes.Home, inclusive = false)
+        } else {
+          // Other tabs stack above Home so system back returns to it.
+          navController.navigate(destination.route) {
+            popUpTo(Routes.Home) {
+              inclusive = false
+              saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
           }
-          launchSingleTop = true
-          restoreState = true
         }
       }
     }
+    val offlineAction =
+        when (destination) {
+          DockDestination.EXPLORE -> OfflineAction.OPEN_EXPLORE
+          DockDestination.FRIENDS -> OfflineAction.OPEN_FRIENDS
+          else -> null
+        }
+    if (offlineAction == null) navigate() else runOfflineAction(offlineAction, navigate)
   }
   val onProfileClicked = {
     navController.navigate(Routes.Settings) {
@@ -462,7 +471,7 @@ internal fun RoamApp(
 
       composable(Routes.Explore) {
         val exploreViewModel: ExploreViewModel = viewModel {
-          ExploreViewModel(AndroidLocationProvider(context))
+          ExploreViewModel(AndroidLocationProvider(context), savedGuideRepository.value)
         }
         val explorePermissionController =
             rememberLocationPermissionController(

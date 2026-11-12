@@ -291,6 +291,23 @@ Before submitting a pull request, run:
 
 The project can then be opened and run from Android Studio on a compatible emulator or Android device.
 
+### Firebase App Check in Debug Builds
+
+Gemini calls are protected by Firebase App Check. Debug builds choose the App Check provider at runtime:
+
+- **Real device**: Play Integrity. Debug APKs shared with testers work without any setup.
+- **Emulator**: the App Check debug provider, because emulators cannot pass Play Integrity. Each emulator needs its debug token registered once. Until then, the monument scan fails with "The service is busy".
+
+To register your emulator's debug token:
+
+1. Run a debug build on the emulator once.
+2. In Logcat, filter on `DebugAppCheckProvider` with the log level set to **Debug** (the token is logged at debug level), and copy the token from the line `Firebase App Check debug token: <token>`. From a terminal: `adb logcat -d | grep "App Check debug token"`.
+3. In the [Firebase console](https://console.firebase.google.com/), open the project, then **App Check** → **Apps**, open the menu (⋮) of the Android app, and choose **Manage debug tokens**.
+4. Click **Add debug token**, give it a name that identifies you and the emulator (for example `alice-medium-phone`), paste the token, and save. Alternatively, run the `firebase appcheck:debugtokens:create ...` command printed in the same Logcat block.
+5. Restart the app.
+
+The token stays valid until you wipe the emulator's data or uninstall the app; a new one is then generated and must be registered again. **Never commit a debug token**: anyone holding it can call the backend as the app. Delete tokens you no longer use from the same screen.
+
 ---
 
 ## Development Workflow
