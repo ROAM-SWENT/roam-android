@@ -116,6 +116,22 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun clickingDeleteButtonReportsItsGuideIdWithoutOpeningTheCard() {
+    val deleted = mutableListOf<String>()
+    val clicked = mutableListOf<String>()
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide, newerGuide)),
+        onGuideClick = clicked::add,
+        onDeleteGuide = deleted::add,
+    )
+
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card_delete)[1].performClick()
+
+    assertEquals(listOf("older"), deleted)
+    assertTrue(clicked.isEmpty())
+  }
+
+  @Test
   fun showsEmptyStateWhenCollectionIsEmpty() {
     setScreen(SavedGuidesUiState())
 
@@ -465,6 +481,23 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun deleteErrorIsShownAndReported() {
+    var reported = 0
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide),
+            deleteError = IllegalStateException("offline"),
+        ),
+        onDeleteErrorShown = { reported++ },
+    )
+
+    composeTestRule
+        .onNodeWithText("Couldn’t delete this guide. Please try again.")
+        .assertIsDisplayed()
+    assertEquals(1, reported)
+  }
+
+  @Test
   fun searchBarRendersWithPlaceholderWhenGuidesExist() {
     setScreen(SavedGuidesUiState(guides = listOf(olderGuide)))
 
@@ -596,6 +629,8 @@ class CollectionScreenTest {
   private fun setScreen(
       state: SavedGuidesUiState,
       onGuideClick: (String) -> Unit = {},
+      onDeleteGuide: (String) -> Unit = {},
+      onDeleteErrorShown: () -> Unit = {},
       onToggleFavorite: (String) -> Unit = {},
       onRestoreFavorite: (String) -> Unit = {},
       onFavoriteErrorShown: () -> Unit = {},
@@ -607,6 +642,8 @@ class CollectionScreenTest {
         CollectionScreen(
             state = state,
             onGuideClick = onGuideClick,
+            onDeleteGuide = onDeleteGuide,
+            onDeleteErrorShown = onDeleteErrorShown,
             onToggleFavorite = onToggleFavorite,
             onRestoreFavorite = onRestoreFavorite,
             onFavoriteErrorShown = onFavoriteErrorShown,

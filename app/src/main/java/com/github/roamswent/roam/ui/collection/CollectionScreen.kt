@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -86,7 +87,8 @@ import org.apache.commons.text.similarity.LevenshteinDistance
 /**
  * Shows the user's saved guides as a two-column grid of cards, newest first. Guides already loaded
  * stay visible while the collection reloads or fails to refresh. Each card has a heart that calls
- * [onToggleFavorite], and the All/Favourites chips call [onShowFavoritesOnlyChange].
+ * [onToggleFavorite], a delete button that calls [onDeleteGuide], and the All/Favourites chips call
+ * [onShowFavoritesOnlyChange].
  *
  * Unliking a guide while only favourites are shown hides its card, so a snackbar offers to undo it
  * through [onRestoreFavorite]. A [SavedGuidesUiState.favoriteError] is shown in the same snackbar,
@@ -97,6 +99,8 @@ fun CollectionScreen(
     state: SavedGuidesUiState,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
+    onDeleteGuide: (String) -> Unit = {},
+    onDeleteErrorShown: () -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
     onRestoreFavorite: (String) -> Unit = {},
     onFavoriteErrorShown: () -> Unit = {},
@@ -108,6 +112,7 @@ fun CollectionScreen(
   val removedMessage = stringResource(R.string.collection_favorite_removed)
   val undoLabel = stringResource(R.string.collection_favorite_undo)
   val errorMessage = stringResource(R.string.collection_favorite_error)
+  val deleteErrorMessage = stringResource(R.string.collection_delete_error)
 
   // Showing a message replaces the current one, so taps never queue up stale snackbars.
   fun showMessage(message: String, actionLabel: String? = null, onAction: () -> Unit = {}) {
@@ -123,6 +128,13 @@ fun CollectionScreen(
       showMessage(errorMessage)
       // Cleared at once so the error is not shown again after a rotation or a tab switch.
       onFavoriteErrorShown()
+    }
+  }
+
+  LaunchedEffect(state.deleteError) {
+    if (state.deleteError != null) {
+      showMessage(deleteErrorMessage)
+      onDeleteErrorShown()
     }
   }
 
@@ -170,7 +182,7 @@ fun CollectionScreen(
               CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
             }
             else -> {
-              GuideGrid(guides, onGuideClick, toggleFavorite)
+              GuideGrid(guides, onGuideClick, onDeleteGuide, state.deletingGuideIds, toggleFavorite)
             }
           }
         }
@@ -326,6 +338,8 @@ private fun CollectionFilterChip(
 private fun GuideGrid(
     guides: List<Guide>,
     onGuideClick: (String) -> Unit,
+    onDeleteGuide: (String) -> Unit,
+    deletingGuideIds: Set<String>,
     onToggleFavorite: (Guide) -> Unit,
 ) {
   LazyVerticalGrid(
@@ -339,6 +353,8 @@ private fun GuideGrid(
       GuideCard(
           guide,
           onClick = { onGuideClick(guide.id) },
+          onDelete = { onDeleteGuide(guide.id) },
+          isDeleting = guide.id in deletingGuideIds,
           onToggleFavorite = { onToggleFavorite(guide) },
       )
     }
@@ -346,7 +362,13 @@ private fun GuideGrid(
 }
 
 @Composable
-private fun GuideCard(guide: Guide, onClick: () -> Unit, onToggleFavorite: () -> Unit) {
+private fun GuideCard(
+    guide: Guide,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    isDeleting: Boolean,
+    onToggleFavorite: () -> Unit,
+) {
   Card(
       onClick = onClick,
       shape = RoundedCornerShape(16.dp),
@@ -360,6 +382,11 @@ private fun GuideCard(guide: Guide, onClick: () -> Unit, onToggleFavorite: () ->
   ) {
     Box {
       GuidePhoto(guide)
+      DeleteButton(
+          onClick = onDelete,
+          enabled = !isDeleting,
+          modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
+      )
       FavoriteButton(
           isFavorite = guide.isFavorite,
           onClick = onToggleFavorite,
@@ -443,6 +470,26 @@ private fun GuidePhoto(guide: Guide) {
           )
       is AsyncImagePainter.State.Success -> Unit
     }
+  }
+}
+
+/** Trash button over the card photo. */
+@Composable
+private fun DeleteButton(onClick: () -> Unit, enabled: Boolean, modifier: Modifier) {
+  IconButton(
+      onClick = onClick,
+      enabled = enabled,
+      modifier =
+          modifier.size(36.dp).background(Color.White.copy(alpha = 0.85f), CircleShape).semantics {
+            testTag = C.Tag.collection_card_delete
+          },
+  ) {
+    Icon(
+        imageVector = Icons.Filled.Delete,
+        contentDescription = stringResource(R.string.collection_delete),
+        tint = HomeAccentGreen,
+        modifier = Modifier.size(20.dp),
+    )
   }
 }
 
