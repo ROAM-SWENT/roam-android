@@ -15,8 +15,13 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import coil.Coil
+import coil.ImageLoader
+import coil.intercept.Interceptor
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.resources.C
@@ -24,6 +29,7 @@ import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -41,6 +47,11 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(RobolectricTestRunner::class)
 class ExploreScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
+
+  @After
+  fun resetImageLoader() {
+    Coil.reset()
+  }
 
   /** Verifies that the explore title and map container are shown when location is available. */
   @Test
@@ -125,6 +136,57 @@ class ExploreScreenTest {
         .performClick()
 
     assertEquals(true, dismissed)
+  }
+
+  /** Verifies that a monument without photo bytes shows the image placeholder. */
+  @Test
+  fun monumentCardShowsPlaceholderWhenPhotoIsMissing() {
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            photoBytes = ByteArray(0),
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme { ExploreMonumentCard(monument = monument, onDismiss = {}) }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_placeholder, useUnmergedTree = true)
+        .assertIsDisplayed()
+  }
+
+  /** Verifies that a photo decoding failure shows the image placeholder. */
+  @Test
+  fun monumentCardShowsPlaceholderWhenPhotoCannotBeDecoded() {
+    Coil.setImageLoader(
+        ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components { add(Interceptor { error("forced image failure") }) }
+            .build()
+    )
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            photoBytes = byteArrayOf(1, 2, 3),
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme { ExploreMonumentCard(monument = monument, onDismiss = {}) }
+    }
+
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.explore_monument_photo_error, useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_error, useUnmergedTree = true)
+        .assertIsDisplayed()
   }
 
   /** Verifies that saved monuments are not read while the map is not shown. */

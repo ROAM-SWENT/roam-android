@@ -5,6 +5,7 @@
 
 package com.github.roamswent.roam.ui.explore
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -25,6 +27,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,14 +56,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
+import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
+import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
 import com.github.roamswent.roam.ui.theme.HomeTextSecondary
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.isDark
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
@@ -242,17 +249,7 @@ internal fun ExploreMonumentCard(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalAlignment = Alignment.Top,
     ) {
-      AsyncImage(
-          model =
-              ImageRequest.Builder(LocalContext.current)
-                  .data(monument.photoBytes)
-                  .crossfade(true)
-                  .build(),
-          contentDescription =
-              stringResource(R.string.explore_monument_photo_description, monument.name),
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)),
-      )
+      ExploreMonumentPhoto(monument)
       Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
         Text(
             text = monument.name,
@@ -278,6 +275,77 @@ internal fun ExploreMonumentCard(
         )
       }
     }
+  }
+}
+
+@Composable
+private fun ExploreMonumentPhoto(monument: ExploreMonument) {
+  val photoModifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp))
+  if (monument.photoBytes.isEmpty()) {
+    ExplorePhotoPlaceholder(photoModifier, C.Tag.explore_monument_photo_placeholder)
+    return
+  }
+
+  var photoState by
+      remember(monument.photoBytes) {
+        mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty)
+      }
+  Box(contentAlignment = Alignment.Center, modifier = photoModifier) {
+    AsyncImage(
+        model =
+            ImageRequest.Builder(LocalContext.current)
+                .data(monument.photoBytes)
+                .crossfade(true)
+                .build(),
+        contentDescription =
+            stringResource(R.string.explore_monument_photo_description, monument.name),
+        contentScale = ContentScale.Crop,
+        onState = { photoState = it },
+        modifier =
+            Modifier.matchParentSize()
+                .background(
+                    if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface
+                    else CollectionPlaceholder
+                )
+                .semantics { testTag = C.Tag.explore_monument_photo },
+    )
+    when (photoState) {
+      is AsyncImagePainter.State.Empty,
+      is AsyncImagePainter.State.Loading ->
+          CircularProgressIndicator(
+              modifier =
+                  Modifier.size(24.dp).semantics { testTag = C.Tag.explore_monument_photo_loading }
+          )
+      is AsyncImagePainter.State.Error ->
+          ExplorePhotoPlaceholder(
+              Modifier.matchParentSize(),
+              C.Tag.explore_monument_photo_error,
+          )
+      is AsyncImagePainter.State.Success -> Unit
+    }
+  }
+}
+
+@Composable
+private fun ExplorePhotoPlaceholder(modifier: Modifier, tag: String) {
+  Box(
+      contentAlignment = Alignment.Center,
+      modifier =
+          modifier
+              .background(
+                  if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface
+                  else CollectionPlaceholder
+              )
+              .semantics { testTag = tag },
+  ) {
+    Icon(
+        imageVector = Icons.Filled.AccountBalance,
+        contentDescription = null,
+        tint =
+            if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
+            else CollectionPlaceholderIcon,
+        modifier = Modifier.size(32.dp),
+    )
   }
 }
 
