@@ -20,7 +20,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,6 +37,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,6 +81,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
+import org.apache.commons.text.similarity.LevenshteinDistance
 
 /**
  * Shows the user's saved guides as a two-column grid of cards, newest first. Guides already loaded
@@ -96,6 +101,7 @@ fun CollectionScreen(
     onRestoreFavorite: (String) -> Unit = {},
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
+    onSearchQueryChange: (String) -> Unit = {},
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
@@ -149,12 +155,23 @@ fun CollectionScreen(
       )
       when {
         state.guides.isNotEmpty() -> {
+          CollectionSearchBar(
+              query = state.searchQuery,
+              onQueryChange = onSearchQueryChange,
+              modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+          )
           CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
-          val guides = visibleGuides(state.guides, state.showFavoritesOnly)
-          if (guides.isEmpty()) {
-            CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
-          } else {
-            GuideGrid(guides, onGuideClick, toggleFavorite)
+          val guides = visibleGuides(state.guides, state.showFavoritesOnly, state.searchQuery)
+          when {
+            guides.isEmpty() && state.searchQuery.isNotBlank() -> {
+              CollectionMessage(C.Tag.collection_search_no_matches) { CollectionSearchNoMatches() }
+            }
+            guides.isEmpty() -> {
+              CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
+            }
+            else -> {
+              GuideGrid(guides, onGuideClick, toggleFavorite)
+            }
           }
         }
         state.isLoadingGuides -> CollectionLoading()
@@ -163,6 +180,73 @@ fun CollectionScreen(
       }
     }
   }
+}
+
+@Composable
+private fun CollectionSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  val isDark = MaterialTheme.isDark
+  val containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
+  val textColor = if (isDark) MaterialTheme.colorScheme.onSurface else LoadingTextPrimary
+  val hintColor = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else LoadingTextSecondary
+
+  TextField(
+      value = query,
+      onValueChange = { if (it.length <= 40) onQueryChange(it) },
+      modifier = modifier.fillMaxWidth().semantics { testTag = C.Tag.collection_search_bar },
+      singleLine = true,
+      textStyle = MaterialTheme.typography.bodyMedium,
+      placeholder = {
+        Text(
+            text = stringResource(R.string.collection_search_hint),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+      },
+      leadingIcon = {
+        Icon(
+            imageVector = Icons.Default.Search,
+            contentDescription = null,
+        )
+      },
+      trailingIcon =
+          if (query.isNotEmpty()) {
+            {
+              IconButton(
+                  onClick = { onQueryChange("") },
+                  modifier = Modifier.semantics { testTag = C.Tag.collection_search_clear_button },
+              ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription =
+                        stringResource(R.string.collection_search_clear_description),
+                )
+              }
+            }
+          } else {
+            null
+          },
+      shape = RoundedCornerShape(16.dp),
+      colors =
+          TextFieldDefaults.colors(
+              focusedContainerColor = containerColor,
+              unfocusedContainerColor = containerColor,
+              disabledContainerColor = containerColor,
+              focusedTextColor = textColor,
+              unfocusedTextColor = textColor,
+              focusedLeadingIconColor = hintColor,
+              unfocusedLeadingIconColor = hintColor,
+              focusedTrailingIconColor = hintColor,
+              unfocusedTrailingIconColor = hintColor,
+              focusedPlaceholderColor = hintColor,
+              unfocusedPlaceholderColor = hintColor,
+              focusedIndicatorColor = Color.Transparent,
+              unfocusedIndicatorColor = Color.Transparent,
+              disabledIndicatorColor = Color.Transparent,
+          ),
+  )
 }
 
 /** The All and Favourites chips; Favourites is selected when [favoritesOnly] is true. */
@@ -491,6 +575,35 @@ private fun FavoritesEmpty() {
 }
 
 @Composable
+private fun CollectionSearchNoMatches() {
+  Icon(
+      imageVector = Icons.Default.Search,
+      contentDescription = null,
+      tint =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
+          else CollectionPlaceholderIcon,
+      modifier = Modifier.size(56.dp),
+  )
+  Text(
+      text = stringResource(R.string.collection_search_no_matches_title),
+      style = MaterialTheme.typography.titleSmall,
+      fontWeight = FontWeight.Bold,
+      color =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground else LoadingTextPrimary,
+      modifier = Modifier.padding(top = 16.dp),
+  )
+  Text(
+      text = stringResource(R.string.collection_search_no_matches_subtitle),
+      style = MaterialTheme.typography.bodySmall,
+      color =
+          if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
+          else LoadingTextSecondary,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.padding(top = 4.dp),
+  )
+}
+
+@Composable
 private fun CollectionError() {
   Text(
       text = stringResource(R.string.collection_error),
@@ -510,9 +623,46 @@ internal fun formatDiscoveryDate(
 ): String =
     discoveryDateFormatter.withLocale(locale).format(Instant.ofEpochMilli(epochMillis).atZone(zone))
 
+private val levenshtein = LevenshteinDistance.getDefaultInstance()
+
+internal fun matchesTier2Word(query: String, word: String): Boolean {
+  val cleanQuery = query.trim().lowercase()
+  if (cleanQuery.length < 3) return false
+  if (cleanQuery.any { it.isDigit() }) return false
+  val maxDistance = if (cleanQuery.length <= 4) 1 else 2
+  val cleanWord = word.trim { !it.isLetterOrDigit() }.lowercase()
+  if (cleanWord.isEmpty()) return false
+  val distance = levenshtein.apply(cleanQuery, cleanWord)
+  return distance in 0..maxDistance
+}
+
+private fun guideSearchableText(guide: Guide): String {
+  val formattedDate = guide.discoveryDate?.let { formatDiscoveryDate(it) }.orEmpty()
+  val joinedFacts = guide.facts.joinToString(" ")
+  return listOf(guide.monumentName, formattedDate, guide.history, guide.culture, joinedFacts)
+      .joinToString(" ")
+}
+
+private fun matchesGuide(guide: Guide, query: String): Boolean {
+  if (query.isBlank()) return true
+  val searchableText = guideSearchableText(guide)
+  val trimmedQuery = query.trim()
+  if (searchableText.contains(trimmedQuery, ignoreCase = true)) return true
+  val words = searchableText.split("\\s+".toRegex())
+  return words.any { matchesTier2Word(trimmedQuery, it) }
+}
+
 /** The guides to show: only favourites when [favoritesOnly], newest first. */
-internal fun visibleGuides(guides: List<Guide>, favoritesOnly: Boolean): List<Guide> =
-    newestFirst(if (favoritesOnly) guides.filter { it.isFavorite } else guides)
+internal fun visibleGuides(
+    guides: List<Guide>,
+    favoritesOnly: Boolean,
+    query: String = "",
+): List<Guide> {
+  val favoriteFiltered = if (favoritesOnly) guides.filter { it.isFavorite } else guides
+  val queryFiltered =
+      if (query.isBlank()) favoriteFiltered else favoriteFiltered.filter { matchesGuide(it, query) }
+  return newestFirst(queryFiltered)
+}
 
 /** Sorts [guides] by discovery date, most recent first; guides without a date come last. */
 internal fun newestFirst(guides: List<Guide>): List<Guide> =
