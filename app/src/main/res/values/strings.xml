@@ -171,7 +171,6 @@
     <string name="settings_interests_empty">No interests selected yet.</string>
     <string name="settings_theme_section_header">Theme</string>
     <string name="settings_language_section_header">Language</string>
-    <string name="settings_language_system">System</string>
     <string name="settings_language_english">English</string>
     <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">App Permissions</string>

@@ -23,4 +23,23 @@ class LocalesConfigTest {
 
     assertEquals(listOf("en", "fr"), locales)
   }
+
+  @Test
+  fun manifest_declaresAppLocalesMetadataHolderServiceWithAutoStoreLocales() {
+    val userDir = File(System.getProperty("user.dir") ?: ".")
+    val manifestFile =
+        listOf(
+                userDir.resolve("app/src/main/AndroidManifest.xml"),
+                userDir.resolve("src/main/AndroidManifest.xml"),
+            )
+            .firstOrNull(File::isFile)
+    checkNotNull(manifestFile) { "AndroidManifest.xml not found" }
+
+    val content = manifestFile.readText()
+    org.junit.Assert.assertTrue(
+        content.contains("androidx.appcompat.app.AppLocalesMetadataHolderService")
+    )
+    org.junit.Assert.assertTrue(content.contains("android:name=\"autoStoreLocales\""))
+    org.junit.Assert.assertTrue(content.contains("android:value=\"true\""))
+  }
 }

@@ -13,9 +13,19 @@ class RoamApplication : Application() {
     super.onCreate()
     Firebase.initialize(this)
     AppCheckInstaller.install()
-    if (AppCompatDelegate.getApplicationLocales().isEmpty) {
-      val defaultTag = if (Locale.getDefault().language == "fr") "fr" else "en"
-      AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(defaultTag))
+    snapDefaultLocale()
+  }
+
+  internal companion object {
+    fun snapDefaultLocale(
+        currentLocales: LocaleListCompat = AppCompatDelegate.getApplicationLocales(),
+        defaultLocale: Locale = Locale.getDefault(),
+        setLocales: (LocaleListCompat) -> Unit = AppCompatDelegate::setApplicationLocales,
+    ) {
+      if (currentLocales.isEmpty) {
+        val defaultTag = if (defaultLocale.language == "fr") "fr" else "en"
+        setLocales(LocaleListCompat.forLanguageTags(defaultTag))
+      }
     }
   }
 }

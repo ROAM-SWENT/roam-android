@@ -161,7 +161,6 @@
     <string name="settings_interests_empty">Aucun centre d\'intérêt sélectionné pour l\'instant.</string>
     <string name="settings_theme_section_header">Thème</string>
     <string name="settings_language_section_header">Langue</string>
-    <string name="settings_language_system">Système</string>
     <string name="settings_language_english">English</string>
     <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">Autorisations de l\'application</string>
@@ -170,4 +169,14 @@
     <string name="monument_detail_show_in_explore">Afficher dans Explorer</string>
     <string name="monument_detail_show_in_explore_supporting">Épinglez ce monument sur la carte à l\'endroit où vous l\'avez scanné.</string>
     <string name="monument_detail_show_in_explore_error">Impossible de mettre à jour Explorer. Veuillez réessayer.</string>
+    <string name="explore_monument_photo_description">Photo de %1$s</string>
+    <string name="explore_close_monument_description">Fermer les informations sur le monument</string>
+    <string name="explore_minimize_monument_description">Réduire les informations sur le monument</string>
+    <string name="collection_search_hint">Rechercher dans votre collection</string>
+    <string name="collection_search_no_matches_title">Aucun résultat</string>
+    <string name="collection_search_no_matches_subtitle">Aucun monument ne correspond à votre recherche.</string>
+    <string name="collection_search_clear_description">Effacer la recherche</string>
+    <string name="saved_monument_detail_error">Impossible de charger ce monument. Veuillez réessayer.</string>
+    <string name="saved_monument_detail_not_found">Ce monument n\'est plus dans votre collection.</string>
+    <string name="saved_monument_detail_retry">Réessayer</string>
 </resources>
