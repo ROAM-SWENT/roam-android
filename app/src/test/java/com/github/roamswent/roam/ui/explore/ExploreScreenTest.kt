@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -136,6 +137,71 @@ class ExploreScreenTest {
         .performClick()
 
     assertEquals(true, dismissed)
+  }
+
+  /** Verifies that the expanded card shows its full content, scrolls, and minimizes. */
+  @Test
+  fun expandedMonumentCardShowsScrollableContentAndMinimizes() {
+    var minimized = false
+    val description = (1..80).joinToString("\n") { "History detail $it" }
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            description = description,
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreMonumentCard(
+            monument = monument,
+            onDismiss = {},
+            isExpanded = true,
+            onMinimize = { minimized = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_placeholder, useUnmergedTree = true)
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText(description).assertExists()
+    composeTestRule.onNode(hasScrollAction()).assertExists()
+    composeTestRule
+        .onNodeWithContentDescription("Minimize monument information")
+        .assertIsDisplayed()
+        .performClick()
+
+    assertTrue(minimized)
+  }
+
+  /** Verifies that clicking a compact monument card requests expansion. */
+  @Test
+  fun compactMonumentCardRequestsExpansionWhenClicked() {
+    var expanded = false
+    val monument =
+        ExploreMonument(
+            guideId = "guide-1",
+            name = "Eiffel Tower",
+            coordinates = Coordinates(48.85837, 2.29448),
+            description = "Built for the 1889 exposition.",
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreMonumentCard(
+            monument = monument,
+            onDismiss = {},
+            onExpand = { expanded = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Eiffel Tower").performClick()
+
+    assertTrue(expanded)
   }
 
   /** Verifies that a monument without photo bytes shows the image placeholder. */
