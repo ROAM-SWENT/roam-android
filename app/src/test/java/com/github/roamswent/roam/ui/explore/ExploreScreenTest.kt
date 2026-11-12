@@ -164,7 +164,9 @@ class ExploreScreenTest {
     }
 
     composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
-    composeTestRule.onNodeWithContentDescription("Photo of Eiffel Tower").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_placeholder, useUnmergedTree = true)
+        .assertIsDisplayed()
     composeTestRule.onNodeWithText(description).assertExists()
     composeTestRule.onNode(hasScrollAction()).assertExists()
     composeTestRule

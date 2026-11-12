@@ -263,42 +263,77 @@ internal fun ExploreMonumentCard(
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = Color.White),
   ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-      ExploreMonumentPhoto(monument)
-      Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-        Text(
-            text = monument.name,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+    if (isExpanded) {
+      Column(
+          modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
+      ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) {
+          Text(
+              text = monument.name,
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.weight(1f),
+          )
+          IconButton(onClick = onMinimize, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.explore_minimize_monument_description),
+            )
+          }
+        }
+        ExploreMonumentPhoto(
+            monument = monument,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(220.dp),
         )
         Text(
             text = monument.description,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 12.dp),
         )
       }
-      IconButton(
-          onClick = onDismiss,
-          modifier = Modifier.size(48.dp),
+    } else {
+      Row(
+          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          verticalAlignment = Alignment.Top,
       ) {
-        Icon(
-            imageVector = Icons.Default.Close,
-            contentDescription = stringResource(R.string.explore_close_monument_description),
-        )
+        ExploreMonumentPhoto(monument)
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+          Text(
+              text = monument.name,
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+          )
+          Text(
+              text = monument.description,
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 4,
+              overflow = TextOverflow.Ellipsis,
+          )
+        }
+        IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+          Icon(
+              imageVector = Icons.Default.Close,
+              contentDescription = stringResource(R.string.explore_close_monument_description),
+          )
+        }
       }
     }
   }
 }
 
 @Composable
-private fun ExploreMonumentPhoto(monument: ExploreMonument) {
-  val photoModifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp))
+private fun ExploreMonumentPhoto(
+    monument: ExploreMonument,
+    modifier: Modifier = Modifier.size(96.dp),
+) {
+  val photoModifier = modifier.clip(RoundedCornerShape(12.dp))
   if (monument.photoBytes.isEmpty()) {
     ExplorePhotoPlaceholder(photoModifier, C.Tag.explore_monument_photo_placeholder)
     return
