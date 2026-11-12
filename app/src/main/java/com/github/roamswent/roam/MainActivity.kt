@@ -141,6 +141,8 @@ internal fun RoamApp(
     authViewModel: SignInViewModel,
     navController: NavHostController = rememberNavController(),
     captureSenderOverride: CaptureSender? = null,
+    // Test URI bypasses platform picker UI while preserving the gallery route.
+    galleryImageUriOverride: Uri? = null,
     // Let journey tests bypass Firebase while retaining control of post-sign-in behavior.
     onSignInClickOverride: ((() -> Unit) -> Unit)? = null,
     onSignedInOverride: ((LocationPermissionController) -> Unit)? = null,
@@ -381,7 +383,9 @@ internal fun RoamApp(
           )
         }
       }
-      composable(Routes.Scan) { ScanRoute(navController) }
+      composable(Routes.Scan) {
+        ScanRoute(navController, galleryImageUriOverride = galleryImageUriOverride)
+      }
       composable(
           "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
           arguments =

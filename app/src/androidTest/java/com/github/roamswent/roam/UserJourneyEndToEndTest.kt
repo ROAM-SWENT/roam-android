@@ -9,6 +9,8 @@ package com.github.roamswent.roam
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -93,6 +95,7 @@ class UserJourneyEndToEndTest {
           ApplicationProvider.getApplicationContext()
       )
   private var latestCapturedPhoto: File? = null
+  private var galleryImageFile: File? = null
   // Set once the interests prompt is answered or loading is known to have started, so later
   // validate taps skip the prompt poll.
   private var interestsPromptHandled = false
@@ -113,11 +116,14 @@ class UserJourneyEndToEndTest {
         .edit()
         .clear()
         .commit()
+    galleryImageFile?.delete()
+    galleryImageFile = null
   }
 
   @Test
   fun userCanExploreAllScreensAndManageGuidesInM2Journey() {
     val context = ApplicationProvider.getApplicationContext<Context>()
+    val (galleryImageUri, galleryImageBytes) = createGalleryImage(context)
     val interestsRepository = SharedPreferencesUserInterestsRepository(context)
     interestsRepository.updateInterests(emptyList())
     val services =
@@ -130,6 +136,7 @@ class UserJourneyEndToEndTest {
                         listOf(
                             """{"monumentName":"Eiffel Tower","confidence":0.92,"history":"Built in 1889.","facts":["It grew taller in summer."],"culture":"A symbol of Paris.","language":"en"}""",
                             """{"monumentName":"Louvre Museum","confidence":0.91,"history":"Opened as a museum in 1793.","facts":["It is the world's largest art museum."],"culture":"A landmark of Paris.","language":"en"}""",
+                            """{"monumentName":"Arc de Triomphe","confidence":0.9,"history":"Completed in 1836.","facts":["It honors those who fought for France."],"culture":"A Parisian landmark.","language":"en"}""",
                         ),
                 ),
             imageScreen = ScriptedImageScreen(rejectFirst = false),
@@ -155,6 +162,7 @@ class UserJourneyEndToEndTest {
               authViewModel = authViewModel,
               navController = navController,
               captureSenderOverride = services.captureSender,
+              galleryImageUriOverride = galleryImageUri,
               savedGuideRepositoryOverride = savedGuides,
               publicProfileRepositoryOverride = fakeProfiles,
               friendRepositoryOverride = fakeFriends,
@@ -236,25 +244,46 @@ class UserJourneyEndToEndTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
-    // All shows both guides; Favourites shows only the first guide.
+    // Send a synthetic gallery photo through the bottom-left picker button.
+    enterCapture()
+    composeTestRule.onNodeWithTag(C.Tag.scan_gallery_button).performClick()
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    skipInterestsPromptIfShown()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithText("Arc de Triomphe").assertIsDisplayed()
+    assertPhotoWasScreened(services, 2, galleryImageBytes)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      savedGuides.guides.size == 3 && savedGuides.guides.all { it.location != null }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    // All shows three guides; Favourites shows only the first guide.
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
     waitAndAssertDisplayed(C.Tag.collection_filter_all)
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
       composeTestRule.onAllNodesWithText("Eiffel Tower").fetchSemanticsNodes().isNotEmpty() &&
-          composeTestRule.onAllNodesWithText("Louvre Museum").fetchSemanticsNodes().isNotEmpty()
+          composeTestRule.onAllNodesWithText("Louvre Museum").fetchSemanticsNodes().isNotEmpty() &&
+          composeTestRule.onAllNodesWithText("Arc de Triomphe").fetchSemanticsNodes().isNotEmpty()
     }
     composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).performClick()
     composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
     assertTrue(composeTestRule.onAllNodesWithText("Louvre Museum").fetchSemanticsNodes().isEmpty())
+    assertTrue(
+        composeTestRule.onAllNodesWithText("Arc de Triomphe").fetchSemanticsNodes().isEmpty()
+    )
     composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).performClick()
     composeTestRule.onNodeWithText("Eiffel Tower").assertIsDisplayed()
     composeTestRule.onNodeWithText("Louvre Museum").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Arc de Triomphe").assertIsDisplayed()
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
     waitAndAssertDisplayed(C.Tag.explore_map)
-    assertEquals(2, savedGuides.guides.count { it.location == Coordinates(48.85837, 2.29448) })
+    assertEquals(3, savedGuides.guides.count { it.location == Coordinates(48.85837, 2.29448) })
 
     // Search for Micheal Jordan without opening his profile or sending a request.
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
@@ -489,6 +518,23 @@ class UserJourneyEndToEndTest {
     check(newFiles.size == 1) { "Expected exactly one new capture, found ${newFiles.size}" }
 
     latestCapturedPhoto = newFiles.single()
+  }
+
+  private fun createGalleryImage(context: Context): Pair<Uri, ByteArray> {
+    val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+    try {
+      bitmap.eraseColor(0xFF3F7CAC.toInt())
+      val file = File.createTempFile("journey-gallery-", ".jpg", context.cacheDir)
+      file.outputStream().use { output ->
+        check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, output)) {
+          "Could not encode the fake gallery image"
+        }
+      }
+      galleryImageFile = file
+      return Uri.fromFile(file) to file.readBytes()
+    } finally {
+      bitmap.recycle()
+    }
   }
 
   private fun pressSystemBack() {
