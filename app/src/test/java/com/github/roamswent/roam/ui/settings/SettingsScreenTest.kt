@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Gemini 4 Hydrogen <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.settings
@@ -60,7 +61,10 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.Mockito
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -824,6 +828,57 @@ class SettingsScreenTest {
           .performClick()
       assertEquals("fr", AppCompatDelegate.getApplicationLocales()[0]?.language)
     } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_tappingAlreadyExplicitlySelectedLanguage_skipsSetApplicationLocales_regressionRedundantLocaleCall() {
+    try {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en"))
+      renderSettingsScreen()
+
+      Mockito.mockStatic(AppCompatDelegate::class.java, Mockito.CALLS_REAL_METHODS).use { mocked ->
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_language_option_en)
+            .performScrollTo()
+            .performClick()
+        mocked.verify({ AppCompatDelegate.setApplicationLocales(any()) }, never())
+
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_language_option_fr)
+            .performScrollTo()
+            .performClick()
+        mocked.verify(
+            { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("fr")) },
+            times(1),
+        )
+      }
+    } finally {
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun languageCard_tappingDefaultLanguageWhenLocalesEmpty_dispatchesSetApplicationLocales() {
+    val originalDefault = java.util.Locale.getDefault()
+    try {
+      java.util.Locale.setDefault(java.util.Locale.ENGLISH)
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      renderSettingsScreen()
+
+      Mockito.mockStatic(AppCompatDelegate::class.java, Mockito.CALLS_REAL_METHODS).use { mocked ->
+        composeTestRule
+            .onNodeWithTag(C.Tag.settings_language_option_en)
+            .performScrollTo()
+            .performClick()
+        mocked.verify(
+            { AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en")) },
+            times(1),
+        )
+      }
+    } finally {
+      java.util.Locale.setDefault(originalDefault)
       AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
     }
   }

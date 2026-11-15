@@ -2,6 +2,7 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Gemini 4 Hydrogen <noreply@google.com>
  */
 
 package com.github.roamswent.roam
@@ -15,6 +16,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -29,6 +31,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
@@ -1232,6 +1235,24 @@ class MainActivityNavigationTest {
       waitAndAssertDisplayed(C.Tag.main_screen_container)
     } finally {
       controller.pause().stop().destroy()
+    }
+  }
+
+  @Test
+  fun mainActivityOnCreate_populatesEmptyApplicationLocalesImmediately_regressionMissingSnapDefaultLocale() {
+    val originalDefault = java.util.Locale.getDefault()
+    java.util.Locale.setDefault(java.util.Locale.FRENCH)
+    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    assertTrue(AppCompatDelegate.getApplicationLocales().isEmpty)
+
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    try {
+      assertFalse(AppCompatDelegate.getApplicationLocales().isEmpty)
+      assertEquals("fr", AppCompatDelegate.getApplicationLocales()[0]?.language)
+    } finally {
+      controller.destroy()
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      java.util.Locale.setDefault(originalDefault)
     }
   }
 
