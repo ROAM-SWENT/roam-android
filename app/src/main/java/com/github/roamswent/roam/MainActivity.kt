@@ -2,6 +2,7 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Gemini 4 Hydrogen <noreply@google.com>
  */
 
 package com.github.roamswent.roam
@@ -108,28 +109,27 @@ private fun NavHostController.clearSavedUserNavigation() {
 class MainActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    RoamApplication.snapDefaultLocale()
     setContent {
       val themeRepository = remember { DataStoreThemePreferencesRepository(applicationContext) }
       val themeViewModel: ThemeViewModel =
           viewModel(factory = remember(themeRepository) { ThemeViewModelFactory(themeRepository) })
       val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
 
-      if (themeMode != null) {
-        val selectedTheme = requireNotNull(themeMode)
-        val darkTheme =
-            when (selectedTheme) {
-              ThemeMode.AUTO -> isSystemInDarkTheme()
-              ThemeMode.LIGHT -> false
-              ThemeMode.DARK -> true
-            }
-        SampleAppTheme(darkTheme = darkTheme) {
-          val authViewModel: SignInViewModel = viewModel()
-          RoamApp(
-              authViewModel = authViewModel,
-              themeMode = selectedTheme,
-              onThemeModeSelected = themeViewModel::setThemeMode,
-          )
-        }
+      val selectedTheme = themeMode ?: ThemeMode.AUTO
+      val darkTheme =
+          when (selectedTheme) {
+            ThemeMode.AUTO -> isSystemInDarkTheme()
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+          }
+      SampleAppTheme(darkTheme = darkTheme) {
+        val authViewModel: SignInViewModel = viewModel()
+        RoamApp(
+            authViewModel = authViewModel,
+            themeMode = selectedTheme,
+            onThemeModeSelected = themeViewModel::setThemeMode,
+        )
       }
     }
   }

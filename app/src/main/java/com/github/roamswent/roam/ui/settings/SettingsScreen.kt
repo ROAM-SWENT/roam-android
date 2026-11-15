@@ -1,6 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Gemini 4 Hydrogen <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.settings
@@ -404,9 +405,13 @@ private fun LanguageCard() {
           SegmentedButton(
               selected = currentTag == option.languageTag,
               onClick = {
-                AppCompatDelegate.setApplicationLocales(
-                    LocaleListCompat.forLanguageTags(option.languageTag)
-                )
+                val explicitlySelected =
+                    !currentLocales.isEmpty && currentLocales[0]?.language == option.languageTag
+                if (!explicitlySelected) {
+                  AppCompatDelegate.setApplicationLocales(
+                      LocaleListCompat.forLanguageTags(option.languageTag)
+                  )
+                }
               },
               shape =
                   SegmentedButtonDefaults.itemShape(index = index, count = languageOptions.size),
