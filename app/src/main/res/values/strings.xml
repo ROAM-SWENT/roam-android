@@ -30,6 +30,7 @@
     <string name="home_tab_scan">Scan</string>
     <string name="home_tab_friends">Friends</string>
     <string name="friends_title">Friends</string>
+    <string name="friends_refreshing">Refreshing friends</string>
     <string name="friends_no_users_found">No users found</string>
     <string name="friends_add_title">Add friends</string>
     <string name="friends_search_users_hint">Search users</string>

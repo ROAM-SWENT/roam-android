@@ -30,6 +30,7 @@
     <string name="home_tab_scan">Scanner</string>
     <string name="home_tab_friends">Amis</string>
     <string name="friends_title">Amis</string>
+    <string name="friends_refreshing">Actualisation des amis</string>
     <string name="friends_no_users_found">Aucun utilisateur trouvé</string>
     <string name="friends_add_title">Ajouter des amis</string>
     <string name="friends_search_users_hint">Rechercher des utilisateurs</string>

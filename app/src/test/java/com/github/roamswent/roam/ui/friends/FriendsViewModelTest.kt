@@ -192,6 +192,28 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun explicitRefreshReloadsCachedProfiles() =
+      runTest(dispatcher) {
+        var username = "OldName"
+        coEvery { friendsRepository.getFriends() } returns
+            listOf(Friendship("friendship", "friend"))
+        coEvery { profilesRepository.getProfile("friend") } coAnswers
+            {
+              PublicProfile("friend", username)
+            }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+        username = "NewName"
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals("NewName", viewModel.uiState.value.friends.single().username)
+        coVerify(exactly = 2) { profilesRepository.getProfile("friend") }
+      }
+
+  @Test
   fun searchFailureIsShownAndCanBeCleared() =
       runTest(dispatcher) {
         val error = IllegalStateException("profile search failed")
