@@ -261,6 +261,43 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun refreshDoesNotStartAnotherLoadWhileLoading() =
+      runTest(dispatcher) {
+        val friendsResult = CompletableDeferred<List<Friendship>>()
+        coEvery { friendsRepository.getFriends() } coAnswers { friendsResult.await() }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        runCurrent()
+        viewModel.refresh()
+        friendsResult.complete(emptyList())
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { friendsRepository.getFriends() }
+        assertFalse(viewModel.uiState.value.isLoading)
+      }
+
+  @Test
+  fun refreshDoesNotStartAnotherLoadWhileMutating() =
+      runTest(dispatcher) {
+        val pendingRequest = CompletableDeferred<RepositoryFriendRequest>()
+        coEvery { friendsRepository.sendFriendRequest("target") } coAnswers
+            {
+              pendingRequest.await()
+            }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.sendRequest(FriendUser("target", "Target"))
+        runCurrent()
+        viewModel.refresh()
+        pendingRequest.complete(RepositoryFriendRequest("request-id", "self", "target"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { friendsRepository.getFriends() }
+        assertFalse(viewModel.uiState.value.isMutating)
+      }
+
+  @Test
   fun missingPublicProfileFallsBackToUidAndLoadFailuresAreReported() =
       runTest(dispatcher) {
         coEvery { friendsRepository.getFriends() } returns listOf(Friendship("id", "friend"))

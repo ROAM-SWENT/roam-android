@@ -66,15 +66,19 @@ class FriendsViewModel(
   private val profileCache = mutableMapOf<String, CachedProfile>()
 
   fun loadFriends() {
-    if (loadJob?.isActive == true || _uiState.value.isLoading) return
-    _uiState.update { it.copy(isLoading = true, error = null) }
-    loadJob = viewModelScope.launch { refreshFriends() }
+    startLoading(forceRefresh = false)
   }
 
   fun refresh() {
-    if (loadJob?.isActive == true || _uiState.value.isLoading || _uiState.value.isMutating) return
-    profileCache.clear()
-    loadFriends()
+    if (_uiState.value.isMutating) return
+    startLoading(forceRefresh = true)
+  }
+
+  private fun startLoading(forceRefresh: Boolean) {
+    if (loadJob?.isActive == true || _uiState.value.isLoading) return
+    if (forceRefresh) profileCache.clear()
+    _uiState.update { it.copy(isLoading = true, error = null) }
+    loadJob = viewModelScope.launch { refreshFriends() }
   }
 
   fun searchUsers(prefix: String) {
