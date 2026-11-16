@@ -29,6 +29,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.exifinterface.media.ExifInterface
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -36,11 +37,13 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
 import com.github.roamswent.roam.data.GuideCaptureSender
+import com.github.roamswent.roam.data.ScanLocationSource
 import com.github.roamswent.roam.model.ai.GeminiClient
 import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.model.ai.ImageScreen
+import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.NetworkUnavailableException
 import com.github.roamswent.roam.model.ai.ScreenVerdict
 import com.github.roamswent.roam.model.authentication.AuthRepository
@@ -82,6 +85,19 @@ import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+
+/** Fixed position of the fake device, returned by [FakeLocationProvider]. */
+private val DEVICE_LOCATION = Coordinates(48.85837, 2.29448)
+
+/**
+ * Where the fake gallery photo was taken, per its EXIF GPS metadata. It is within 1 km of the Arc
+ * de Triomphe reply's monument position but differs from [DEVICE_LOCATION], so the journey can tell
+ * which one a gallery scan used.
+ */
+private val GALLERY_PHOTO_LOCATION = Coordinates(48.8600, 2.2960)
+
+/** EXIF stores coordinates as rationals, so a round trip is only this precise. */
+private const val EXIF_TOLERANCE_METERS = 1.0
 
 /**
  * Tests one user journey with Roam's real screens and navigation. The test uses Android's
@@ -158,6 +174,7 @@ class UserJourneyEndToEndTest {
                         ),
                 ),
             imageScreen = ScriptedImageScreen(rejectFirst = false),
+            galleryImageUri = galleryImageUri,
         )
     val savedGuides = InMemorySavedGuideRepository()
     val fakeProfiles = FakePublicProfileRepository()
@@ -277,10 +294,15 @@ class UserJourneyEndToEndTest {
     waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
     composeTestRule.onNodeWithText("Arc de Triomphe").assertIsDisplayed()
     assertPhotoWasScreened(services, 2, galleryImageBytes)
+    // The gallery photo is checked and pinned at its own EXIF location, never the device's.
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).performClick()
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
       savedGuides.guides.size == 3 && savedGuides.guides.all { it.location != null }
     }
+    val galleryPin =
+        checkNotNull(savedGuides.guides.single { it.monumentName == "Arc de Triomphe" }.location)
+    assertTrue(galleryPin.distanceTo(GALLERY_PHOTO_LOCATION) < EXIF_TOLERANCE_METERS)
+    assertTrue(galleryPin != DEVICE_LOCATION)
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
@@ -307,11 +329,12 @@ class UserJourneyEndToEndTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
     waitAndAssertDisplayed(C.Tag.explore_map)
-    assertEquals(3, savedGuides.guides.count { it.location == Coordinates(48.85837, 2.29448) })
+    // The two camera scans are pinned at the device, the gallery photo where it was taken.
+    assertEquals(2, savedGuides.guides.count { it.location == DEVICE_LOCATION })
     // Maps Compose markers have no Compose semantics, so verify the marker data used by the map.
     val mapMarkers =
         exploreMapMarkers(
-            userLocation = Coordinates(48.85837, 2.29448),
+            userLocation = DEVICE_LOCATION,
             userLocationTitle = composeTestRule.activity.getString(R.string.explore_user_location),
             monuments = savedGuides.guides.toExploreMonuments(),
         )
@@ -320,7 +343,13 @@ class UserJourneyEndToEndTest {
         setOf("Eiffel Tower", "Louvre Museum", "Arc de Triomphe"),
         mapMarkers.drop(1).map { it.title }.toSet(),
     )
-    assertTrue(mapMarkers.drop(1).all { it.coordinates == Coordinates(48.85837, 2.29448) })
+    val markersByTitle = mapMarkers.drop(1).associateBy { it.title }
+    assertEquals(DEVICE_LOCATION, markersByTitle.getValue("Eiffel Tower").coordinates)
+    assertEquals(DEVICE_LOCATION, markersByTitle.getValue("Louvre Museum").coordinates)
+    assertTrue(
+        markersByTitle.getValue("Arc de Triomphe").coordinates.distanceTo(GALLERY_PHOTO_LOCATION) <
+            EXIF_TOLERANCE_METERS
+    )
 
     // Search for Micheal Jordan without opening his profile or sending a request.
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
@@ -566,6 +595,11 @@ class UserJourneyEndToEndTest {
         check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, output)) {
           "Could not encode the fake gallery image"
         }
+      }
+      // Like a real camera photo, the gallery image records where it was taken.
+      ExifInterface(file).apply {
+        setLatLong(GALLERY_PHOTO_LOCATION.latitude, GALLERY_PHOTO_LOCATION.longitude)
+        saveAttributes()
       }
       galleryImageFile = file
       return Uri.fromFile(file) to file.readBytes()
@@ -817,6 +851,7 @@ private class GrantedLocationPermissionController : LocationPermissionController
 private class FakeDiscoveryServices(
     val gemini: ScriptedGeminiClient = ScriptedGeminiClient(),
     val imageScreen: ScriptedImageScreen = ScriptedImageScreen(),
+    private val galleryImageUri: Uri? = null,
 ) {
   // Fixed coordinates make the guide request predictable and protect the user's real location.
   val locationProvider = FakeLocationProvider()
@@ -830,14 +865,28 @@ private class FakeDiscoveryServices(
           locationProvider = locationProvider,
           pause = {},
       )
-  // The production sender reads the captured photo and passes it to the real repository.
-  val captureSender: CaptureSender =
+
+  private fun productionSender(locationSource: ScanLocationSource) =
       GuideCaptureSender(
           context = ApplicationProvider.getApplicationContext(),
           guideRepository = repository,
           userInterestsRepository =
               SharedPreferencesUserInterestsRepository(ApplicationProvider.getApplicationContext()),
+          locationSource = locationSource,
       )
+
+  private val cameraSender = productionSender(ScanLocationSource.forScan(isGalleryImage = false))
+  private val gallerySender = productionSender(ScanLocationSource.forScan(isGalleryImage = true))
+
+  // The production senders read the photo and pass it to the real repository. The app injects a
+  // single sender for every scan, so the gallery photo goes to the one located by its EXIF
+  // metadata, as ScanReviewRoute chooses in production.
+  val captureSender: CaptureSender =
+      object : CaptureSender {
+        override suspend fun send(uri: Uri): Result<MonumentGuide> =
+            if (uri.toString() == galleryImageUri?.toString()) gallerySender.send(uri)
+            else cameraSender.send(uri)
+      }
 }
 
 /**
