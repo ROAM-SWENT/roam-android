@@ -61,7 +61,32 @@ class GuideRepositoryImplTest {
     val gemini = FakeGeminiClient(reply(validGuide))
     repository(FakeImageScreen(verdict()), gemini).guideFor(request())
 
-    assertFalse(gemini.prompts.single().contains("latitude"))
+    assertFalse(gemini.prompts.single().contains("The photo was taken near"))
+  }
+
+  @Test
+  fun returnedGuideKeepsMonumentLocationSeparateFromObservedLocation() = runBlocking {
+    val observed = Coordinates(46.5191, 6.5668)
+    val withMonument =
+        validGuide.replace(
+            "\"language\":\"fr\"}",
+            "\"language\":\"fr\",\"monumentLatitude\":48.8584,\"monumentLongitude\":2.2945}",
+        )
+    val guide =
+        repository(FakeImageScreen(verdict()), FakeGeminiClient(reply(withMonument)))
+            .guideFor(request(observed))
+
+    assertEquals(observed, guide.location)
+    assertEquals(Coordinates(48.8584, 2.2945), guide.monumentLocation)
+  }
+
+  @Test
+  fun returnedGuideHasNoMonumentLocationWhenAiGivesNone() = runBlocking {
+    val guide =
+        repository(FakeImageScreen(verdict()), FakeGeminiClient(reply(validGuide)))
+            .guideFor(request(Coordinates(46.5191, 6.5668)))
+
+    assertNull(guide.monumentLocation)
   }
 
   @Test

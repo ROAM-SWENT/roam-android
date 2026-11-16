@@ -27,9 +27,17 @@ data class DiscoveryRequest(
 )
 
 /**
- * The structured guide returned only when a monument was identified. [location] is the position the
- * discovery pipeline already resolved for the prompt, or null if it was unavailable. [photo] is the
- * downscaled JPEG the pipeline sent to the AI, so callers can store it without preparing it again.
+ * The structured guide returned only when a monument was identified.
+ *
+ * Two positions are kept apart on purpose:
+ * - [location] is the observed position, where the user was when the pipeline resolved it for the
+ *   prompt, or null if it was unavailable. It is the only position ever pinned on Explore.
+ * - [monumentLocation] is where the monument itself stands, according to the AI, or null when it
+ *   gave no trustworthy position. It is only used to check the observed position is near the
+ *   monument, and is never stored.
+ *
+ * [photo] is the downscaled JPEG the pipeline sent to the AI, so callers can store it without
+ * preparing it again.
  */
 data class MonumentGuide(
     val monumentName: String,
@@ -40,6 +48,7 @@ data class MonumentGuide(
     val language: String,
     val location: Coordinates? = null,
     val photo: ImagePayload? = null,
+    val monumentLocation: Coordinates? = null,
 )
 
 /** Result of the cloud pre-screen on the photo. */
