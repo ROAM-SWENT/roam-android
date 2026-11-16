@@ -416,6 +416,7 @@ class LoadingViewModelTest {
         assertEquals(scanLocation, shown.guide.location)
         assertNull(viewModel.saveError.value)
         assertEquals(ExploreOptInUiState(scanLocation = scanLocation), viewModel.exploreOptIn.value)
+        assertNull(viewModel.exploreUnavailableReason.value)
       }
 
   @Test
@@ -679,8 +680,94 @@ class LoadingViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.exploreOptIn.value)
+        assertEquals(
+            ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+            viewModel.exploreUnavailableReason.value,
+        )
         assertTrue(savedGuides.locationUpdates.isEmpty())
         assertNull(savedGuides.guides.value.single().location)
+      }
+
+  @Test
+  fun scanFarFromTheMonumentIsSavedButNotOfferedOnExplore() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = farMonumentLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        assertNull(viewModel.exploreOptIn.value)
+        assertEquals(ExploreUnavailableReason.TOO_FAR, viewModel.exploreUnavailableReason.value)
+        val saved = savedGuides.guides.value.single()
+        assertEquals(GUIDE_ID, saved.id)
+        assertNull(saved.location)
+        assertTrue(savedGuides.locationUpdates.isEmpty())
+      }
+
+  @Test
+  fun guideWithoutMonumentLocationIsSavedButNotOfferedOnExplore() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = null)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        assertNull(viewModel.exploreOptIn.value)
+        assertEquals(
+            ExploreUnavailableReason.NO_MONUMENT_LOCATION,
+            viewModel.exploreUnavailableReason.value,
+        )
+        assertEquals(GUIDE_ID, savedGuides.guides.value.single().id)
+        assertTrue(savedGuides.locationUpdates.isEmpty())
+      }
+
+  @Test
+  fun showingInExplorePinsTheObservedLocationNotTheMonumentLocation() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.setShownInExplore(true)
+        advanceUntilIdle()
+
+        assertTrue(scanLocation != monumentLocation)
+        assertEquals(listOf(GUIDE_ID to scanLocation), savedGuides.locationUpdates)
+        assertEquals(scanLocation, savedGuides.guides.value.single().location)
+        assertEquals(scanLocation, viewModel.exploreOptIn.value?.scanLocation)
+      }
+
+  @Test
+  fun newDiscoveryReplacesThePreviousExploreState() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returnsMany
+            listOf(
+                guide().copy(location = scanLocation, monumentLocation = farMonumentLocation),
+                guide().copy(location = scanLocation),
+                guide(),
+            )
+        val viewModel = viewModel()
+        advanceUntilIdle()
+        assertEquals(ExploreUnavailableReason.TOO_FAR, viewModel.exploreUnavailableReason.value)
+
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        assertEquals(ExploreOptInUiState(scanLocation = scanLocation), viewModel.exploreOptIn.value)
+        assertNull(viewModel.exploreUnavailableReason.value)
+
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        assertNull(viewModel.exploreOptIn.value)
+        assertEquals(
+            ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+            viewModel.exploreUnavailableReason.value,
+        )
       }
 
   @Test
@@ -692,6 +779,20 @@ class LoadingViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.exploreOptIn.value)
+        assertNull(viewModel.exploreUnavailableReason.value)
+      }
+
+  @Test
+  fun failedSaveClearsTheUnavailableReason() =
+      runTest(dispatcher) {
+        savedGuides.addError = IllegalStateException("A signed-in user is required")
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = farMonumentLocation)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        assertNull(viewModel.exploreOptIn.value)
+        assertNull(viewModel.exploreUnavailableReason.value)
       }
 
   @Test
@@ -996,7 +1097,12 @@ class LoadingViewModelTest {
 
   private companion object {
     const val GUIDE_ID = "scan-guide-id"
+    /** Where the user was: the observed position, the only one ever pinned on Explore. */
     val scanLocation = Coordinates(41.8902, 12.4922)
+    /** The Colosseum's own position per the AI, about 40 m from [scanLocation]. */
+    val monumentLocation = Coordinates(41.8899, 12.4925)
+    /** A monument position about 1 400 km from [scanLocation]. */
+    val farMonumentLocation = Coordinates(48.8584, 2.2945)
   }
 
   private fun guide() =
@@ -1008,5 +1114,6 @@ class LoadingViewModelTest {
           culture = "A symbol of Rome.",
           language = "en",
           photo = preparedPhoto,
+          monumentLocation = monumentLocation,
       )
 }

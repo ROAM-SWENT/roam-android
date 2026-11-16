@@ -99,6 +99,7 @@ fun ScanReviewRoute(
   val isFavorite by loadingViewModel.isFavorite.collectAsState()
   val favoriteError by loadingViewModel.favoriteError.collectAsState()
   val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
+  val exploreUnavailableReason by loadingViewModel.exploreUnavailableReason.collectAsState()
 
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
@@ -155,8 +156,10 @@ fun ScanReviewRoute(
           showFavoriteError = favoriteError != null,
           onFavoriteErrorShown = loadingViewModel::clearFavoriteError,
           // A gallery photo has no scan location: the phone position at send time is not where
-          // the photo was taken, so it is never offered on Explore.
+          // the photo was taken, so it is never offered on Explore, nor explained from that
+          // position.
           exploreOptIn = exploreOptIn.takeIf { !isGalleryImage },
+          exploreUnavailableReason = exploreUnavailableReason.takeIf { !isGalleryImage },
           onShowInExploreChange = loadingViewModel::setShownInExplore,
       )
     }

@@ -40,6 +40,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
+import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.accentIcon
@@ -51,7 +52,9 @@ import kotlin.math.roundToInt
  * Shows [guide] over its [image]. The favourite heart is shown only when [isFavorite] is not null,
  * that is once the guide is in the collection, and [showFavoriteError] shows a snackbar that is
  * reported back with [onFavoriteErrorShown]. The Explore switch is shown only when [exploreOptIn]
- * is not null, and reports changes with [onShowInExploreChange].
+ * is not null, and reports changes with [onShowInExploreChange]. Otherwise, when
+ * [exploreUnavailableReason] is not null, a message explains why the guide cannot be put on
+ * Explore.
  */
 @Composable
 fun MonumentDetailScreen(
@@ -65,6 +68,7 @@ fun MonumentDetailScreen(
     onFavoriteErrorShown: () -> Unit = {},
     exploreOptIn: ExploreOptInUiState? = null,
     onShowInExploreChange: (Boolean) -> Unit = {},
+    exploreUnavailableReason: ExploreUnavailableReason? = null,
 ) {
   val textBackgroundColor =
       if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
@@ -152,10 +156,15 @@ fun MonumentDetailScreen(
                     testTag = C.Tag.monument_detail_confidence
                   },
           )
-          exploreOptIn?.let {
+          if (exploreOptIn != null) {
             ShowInExploreRow(
-                optIn = it,
+                optIn = exploreOptIn,
                 onCheckedChange = onShowInExploreChange,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+          } else if (exploreUnavailableReason != null) {
+            ExploreUnavailableMessage(
+                reason = exploreUnavailableReason,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
           }
@@ -292,6 +301,29 @@ private fun ShowInExploreRow(
       )
     }
   }
+}
+
+/** Explains why the guide cannot be put on Explore, shown in place of the Explore switch. */
+@Composable
+private fun ExploreUnavailableMessage(
+    reason: ExploreUnavailableReason,
+    modifier: Modifier = Modifier,
+) {
+  val message =
+      when (reason) {
+        ExploreUnavailableReason.NO_OBSERVED_LOCATION ->
+            R.string.monument_detail_explore_unavailable_no_location
+        ExploreUnavailableReason.NO_MONUMENT_LOCATION ->
+            R.string.monument_detail_explore_unavailable_no_monument_location
+        ExploreUnavailableReason.TOO_FAR -> R.string.monument_detail_explore_unavailable_too_far
+      }
+  Text(
+      text = stringResource(message),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier =
+          modifier.fillMaxWidth().semantics { testTag = C.Tag.monument_detail_explore_unavailable },
+  )
 }
 
 @Composable

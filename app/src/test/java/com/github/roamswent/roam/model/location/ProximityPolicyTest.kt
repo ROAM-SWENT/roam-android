@@ -43,6 +43,48 @@ class ProximityPolicyTest {
   }
 
   @Test
+  fun checkIsNearWithinThreshold() {
+    assertEquals(
+        ProximityResult.Near,
+        ProximityPolicy.check(northOf(monument, 990.0), monument),
+    )
+  }
+
+  @Test
+  fun checkIsTooFarBeyondThresholdAndKeepsTheDistance() {
+    val result = ProximityPolicy.check(northOf(monument, 1_500.0), monument)
+    assertTrue(result is ProximityResult.TooFar)
+    assertEquals(1_500.0, (result as ProximityResult.TooFar).distanceMeters, 1e-6)
+  }
+
+  @Test
+  fun checkReportsMissingObservedLocation() {
+    assertEquals(ProximityResult.ObservedLocationMissing, ProximityPolicy.check(null, monument))
+  }
+
+  @Test
+  fun checkReportsMissingMonumentLocation() {
+    assertEquals(ProximityResult.MonumentLocationMissing, ProximityPolicy.check(monument, null))
+  }
+
+  @Test
+  fun checkReportsMissingObservedLocationFirstWhenBothAreMissing() {
+    assertEquals(ProximityResult.ObservedLocationMissing, ProximityPolicy.check(null, null))
+  }
+
+  @Test
+  fun checkAgreesWithIsNear() {
+    listOf(0.0, 500.0, 999.0, 1_001.0, 5_000.0).forEach { meters ->
+      val observed = northOf(monument, meters)
+      assertEquals(
+          "at $meters m",
+          ProximityPolicy.isNear(observed, monument),
+          ProximityPolicy.check(observed, monument) == ProximityResult.Near,
+      )
+    }
+  }
+
+  @Test
   fun isNearIsSymmetric() {
     val observed = northOf(monument, 500.0)
     assertEquals(
