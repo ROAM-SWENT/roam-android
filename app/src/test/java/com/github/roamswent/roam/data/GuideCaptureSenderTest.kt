@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.data
@@ -13,12 +14,14 @@ import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.ai.MonumentNotIdentifiedException
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
+import com.github.roamswent.roam.model.location.Coordinates
 import io.mockk.every
 import io.mockk.mockk
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -69,6 +72,89 @@ class GuideCaptureSenderTest {
     assertTrue(request.image.bytes.contentEquals(bytes))
     assertNull(request.location)
     assertTrue(request.preferences.interests.isEmpty())
+  }
+
+  @Test
+  fun cameraScanLetsThePipelineAskTheDeviceAndNeverReadsPhotoMetadata() = runTest {
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+            readPhotoLocation = { error("A camera scan must not read photo metadata") },
+        )
+
+    assertTrue(sender.send(uri).isSuccess)
+
+    val request = requireNotNull(repository.lastRequest)
+    assertNull(request.location)
+    assertTrue(request.useDeviceLocation)
+  }
+
+  @Test
+  fun galleryScanUsesThePhotoLocationAndNeverTheDevice() = runTest {
+    val photoLocation = Coordinates(48.8584, 2.2945)
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+            locationSource = ScanLocationSource.PHOTO_METADATA,
+            readPhotoLocation = { photoLocation },
+        )
+
+    assertTrue(sender.send(uri).isSuccess)
+
+    val request = requireNotNull(repository.lastRequest)
+    assertEquals(photoLocation, request.location)
+    assertFalse(request.useDeviceLocation)
+  }
+
+  @Test
+  fun galleryScanWithoutPhotoLocationHasNoLocationAndNeverTheDevice() = runTest {
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+            locationSource = ScanLocationSource.PHOTO_METADATA,
+            readPhotoLocation = { null },
+        )
+
+    assertTrue(sender.send(uri).isSuccess)
+
+    val request = requireNotNull(repository.lastRequest)
+    assertNull(request.location)
+    assertFalse(request.useDeviceLocation)
+  }
+
+  @Test
+  fun galleryScanReadsTheLocationFromTheBytesItSends() = runTest {
+    var readFrom: ByteArray? = null
+    val repository = FakeMonumentGuideRepository { guide }
+    val sender =
+        GuideCaptureSender(
+            context,
+            repository,
+            FakeUserInterestsRepository(),
+            readBytes = { bytes },
+            locationSource = ScanLocationSource.PHOTO_METADATA,
+            readPhotoLocation = {
+              readFrom = it
+              null
+            },
+        )
+
+    sender.send(uri)
+
+    assertTrue(requireNotNull(readFrom).contentEquals(bytes))
+    assertTrue(requireNotNull(repository.lastRequest).image.bytes.contentEquals(bytes))
   }
 
   @Test

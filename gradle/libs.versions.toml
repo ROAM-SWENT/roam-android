@@ -2,6 +2,7 @@
 agp = "9.3.0"
 kotlin = "2.3.0"
 coreKtx = "1.19.0"
+exifinterface = "1.3.7"
 ktfmt = "0.27.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -43,6 +44,7 @@ commonsText = "1.13.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

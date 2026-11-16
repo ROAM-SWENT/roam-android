@@ -19,11 +19,19 @@ class ImagePayload(val bytes: ByteArray, val mimeType: String) {
 /** Traveler settings that shape the guide. */
 data class UserPreferences(val language: String, val interests: List<String> = emptyList())
 
-/** Everything one scan needs. [location] is null when unavailable or denied. */
+/**
+ * Everything one scan needs. [location] is the observed position, or null when it is unknown.
+ *
+ * When [location] is null and [useDeviceLocation] is true, the pipeline asks the device for its
+ * current position, as for a camera scan taken on the spot. When [useDeviceLocation] is false, a
+ * null [location] means no location at all and the device is never asked, as for a gallery photo
+ * whose only source is its own metadata.
+ */
 data class DiscoveryRequest(
     val image: ImagePayload,
     val location: Coordinates?,
     val preferences: UserPreferences,
+    val useDeviceLocation: Boolean = true,
 )
 
 /**
