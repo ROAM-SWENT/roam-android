@@ -120,5 +120,15 @@ service cloud.firestore {
             && request.auth.uid in resource.data.participantUids)
         );
     }
+
+    match /notificationTokens/{uid}/tokens/{token} {
+        allow read: if false;
+        allow create, update: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['token', 'updatedAt'])
+          && request.resource.data.token == token
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+    }
   }
 }
