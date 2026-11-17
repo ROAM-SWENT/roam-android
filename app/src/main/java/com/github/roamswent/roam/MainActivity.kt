@@ -8,6 +8,7 @@ package com.github.roamswent.roam
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -48,6 +49,8 @@ import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.location.LocationProvider
+import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
@@ -74,6 +77,7 @@ import com.github.roamswent.roam.ui.monumentDetail.SavedMonumentDetailRoute
 import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
+import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -92,6 +96,10 @@ import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ThemeViewModel
 import com.github.roamswent.roam.ui.theme.ThemeViewModelFactory
 import com.github.roamswent.roam.ui.theme.screenBackground
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Clears tab and settings back stacks saved during navigation.
@@ -105,7 +113,12 @@ private fun NavHostController.clearSavedUserNavigation() {
   }
 }
 
+private const val TAG = "RoamMainActivity"
+
 class MainActivity : AppCompatActivity() {
+  private val notificationNavigationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+  private val notificationNavigationFlow: Flow<Unit> = notificationNavigationEvents
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContent {
@@ -128,9 +141,26 @@ class MainActivity : AppCompatActivity() {
               authViewModel = authViewModel,
               themeMode = selectedTheme,
               onThemeModeSelected = themeViewModel::setThemeMode,
+              openFriendsOnLaunch =
+                  intent?.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS,
+              notificationNavigationEvents = notificationNavigationFlow,
           )
         }
       }
+    }
+  }
+
+  /**
+   * Routes notification taps received by an existing singleTop activity through the app graph.
+   *
+   * The matching ACTION is private to the app's notification PendingIntent; other intents are
+   * ignored so unrelated launches do not affect navigation.
+   */
+  override fun onNewIntent(intent: android.content.Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    if (intent.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS) {
+      notificationNavigationEvents.tryEmit(Unit)
     }
   }
 }
@@ -148,6 +178,7 @@ internal data class RoamAppTestOverrides(
     val friendRepository: FriendRepository? = null,
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
+    val notificationInstallationRepository: NotificationInstallationRepository? = null,
 )
 
 @Composable
@@ -157,6 +188,8 @@ internal fun RoamApp(
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     testOverrides: RoamAppTestOverrides? = null,
+    openFriendsOnLaunch: Boolean = false,
+    notificationNavigationEvents: Flow<Unit> = emptyFlow(),
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
@@ -169,6 +202,10 @@ internal fun RoamApp(
   }
   val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()
   val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
+  var openFriendsAfterAuthentication by remember { mutableStateOf(openFriendsOnLaunch) }
+  LaunchedEffect(notificationNavigationEvents) {
+    notificationNavigationEvents.collect { openFriendsAfterAuthentication = true }
+  }
   LaunchedEffect(authUiState.user) {
     if (authUiState.user == null) registerProfileViewModel.reset()
   }
@@ -195,6 +232,32 @@ internal fun RoamApp(
       rememberNotificationPermissionController(notificationPermissionDecisionRepository) {
         navigateToHome()
       }
+  val notificationPermissionState by notificationPermissionController.state.collectAsState()
+  val notificationInstallationRepository =
+      remember(testOverrides?.notificationInstallationRepository) {
+        testOverrides?.notificationInstallationRepository
+            ?: FirestoreNotificationInstallationRepository()
+      }
+  LaunchedEffect(
+      profileUiState.status,
+      notificationPermissionState.isGranted,
+      authUiState.user?.uid,
+      notificationInstallationRepository,
+  ) {
+    if (profileUiState.status == ProfileRegistrationStatus.REGISTERED) {
+      try {
+        if (notificationPermissionState.isGranted) {
+          notificationInstallationRepository.synchronizeCurrentInstallation()
+        } else {
+          notificationInstallationRepository.removeCurrentInstallation()
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.e(TAG, "Could not register the notification installation.", exception)
+      }
+    }
+  }
   val requestNotificationPermission = {
     if (
         notificationPermissionController.state.value.decision ==
@@ -269,6 +332,28 @@ internal fun RoamApp(
             .show()
       }
       else -> Unit
+    }
+  }
+  LaunchedEffect(
+      profileUiState.status,
+      openFriendsAfterAuthentication,
+      currentBackStackEntry?.destination?.route,
+  ) {
+    val route = currentBackStackEntry?.destination?.route
+    if (
+        profileUiState.status == ProfileRegistrationStatus.REGISTERED &&
+            openFriendsAfterAuthentication &&
+            route != null &&
+            route !in setOf(Routes.SignIn, Routes.RegisterProfile)
+    ) {
+      if (route != Routes.Friends) {
+        navController.navigate(Routes.Friends) {
+          popUpTo(Routes.Home) { inclusive = false }
+          launchSingleTop = true
+          restoreState = true
+        }
+      }
+      openFriendsAfterAuthentication = false
     }
   }
   val currentDestination =
@@ -424,10 +509,12 @@ internal fun RoamApp(
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               notificationPermissionController = notificationPermissionController,
+              notificationInstallationRepository = notificationInstallationRepository,
               themeMode = themeMode,
               onThemeModeSelected = onThemeModeSelected,
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
+                FriendRequestNotifications.cancelAllFriendRequests(context)
                 authViewModel.clearSignedInUser()
                 registerProfileViewModel.reset()
                 navController.clearSavedUserNavigation()
