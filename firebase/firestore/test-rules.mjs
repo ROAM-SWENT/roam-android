@@ -19,8 +19,20 @@ function fields(values) {
 }
 
 function toFirestoreValue(value) {
+  if (value === null) return { nullValue: null };
   if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "boolean") return { booleanValue: value };
+  if (typeof value === "number") {
+    if (Number.isInteger(value)) return { integerValue: value.toString() };
+    return { doubleValue: value };
+  }
+  if (value instanceof Uint8Array || Buffer.isBuffer(value)) {
+    return { bytesValue: Buffer.from(value).toString("base64") };
+  }
   if (Array.isArray(value)) return { arrayValue: { values: value.map(toFirestoreValue) } };
+  if (typeof value === "object") {
+    return { mapValue: { fields: fields(value) } };
+  }
   throw new Error(`Unsupported Firestore test value: ${value}`);
 }
 
@@ -277,3 +289,330 @@ await expectAllowed(
   "requester can cancel a pending request",
   await firestoreRequest(friendshipPath, otherUser.token, { method: "DELETE" }),
 );
+
+// --- users/{ownerUid}/savedGuides/{guideId} rules tests ---
+
+function savedGuideWrite(ownerUid, guideId, data) {
+  return {
+    update: {
+      name: documentName(`users/${ownerUid}/savedGuides/${guideId}`),
+      fields: fields(data),
+    },
+  };
+}
+
+const guideOwner = await createUser();
+const friend = await createUser();
+const unlistedFriend = await createUser();
+const follower = await createUser();
+const strangerUser = await createUser();
+
+// Set up public profiles
+await commit(guideOwner.token, [
+  profileWrite(guideOwner.uid, `Owner_${guideOwner.uid.slice(0, 8)}`),
+  claimWrite(guideOwner.uid, `Owner_${guideOwner.uid.slice(0, 8)}`),
+]);
+await commit(friend.token, [
+  profileWrite(friend.uid, `Friend_${friend.uid.slice(0, 8)}`),
+  claimWrite(friend.uid, `Friend_${friend.uid.slice(0, 8)}`),
+]);
+await commit(unlistedFriend.token, [
+  profileWrite(unlistedFriend.uid, `Unlist_${unlistedFriend.uid.slice(0, 8)}`),
+  claimWrite(unlistedFriend.uid, `Unlist_${unlistedFriend.uid.slice(0, 8)}`),
+]);
+await commit(follower.token, [
+  profileWrite(follower.uid, `Follow_${follower.uid.slice(0, 8)}`),
+  claimWrite(follower.uid, `Follow_${follower.uid.slice(0, 8)}`),
+]);
+await commit(strangerUser.token, [
+  profileWrite(strangerUser.uid, `Strang_${strangerUser.uid.slice(0, 8)}`),
+  claimWrite(strangerUser.uid, `Strang_${strangerUser.uid.slice(0, 8)}`),
+]);
+
+// Set up accepted friendships via admin
+await commit("owner", [
+  friendshipWrite(guideOwner.uid, friend.uid, "ACCEPTED"),
+  friendshipWrite(guideOwner.uid, unlistedFriend.uid, "ACCEPTED"),
+]);
+
+// Set up follow relation (guideOwner is followed by follower) via admin
+await commit("owner", [
+  {
+    update: {
+      name: documentName(`follows/${guideOwner.uid}~${follower.uid}`),
+      fields: fields({ ownerUid: guideOwner.uid, followerUid: follower.uid }),
+    },
+  },
+]);
+
+// 1. Owner can create, read, update, and delete their own guide.
+const ownerGuidePath = `users/${guideOwner.uid}/savedGuides/guide-owner-crud`;
+await expectAllowed(
+  "owner can create own guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-owner-crud", {
+      monumentName: "Eiffel Tower",
+      photo: "bytes123",
+      confidence: 0.95,
+      shareAudience: "ALL_FRIENDS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "owner can read own guide",
+  await firestoreRequest(ownerGuidePath, guideOwner.token),
+);
+await expectAllowed(
+  "owner can update own guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-owner-crud", {
+      monumentName: "Eiffel Tower Updated",
+      photo: "bytes123",
+      confidence: 0.99,
+      shareAudience: "ALL_FRIENDS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "owner can delete own guide",
+  await firestoreRequest(ownerGuidePath, guideOwner.token, { method: "DELETE" }),
+);
+
+// 2. NONE: denied to accepted bidirectional friend and stranger.
+const noneGuidePath = `users/${guideOwner.uid}/savedGuides/guide-none`;
+await expectAllowed(
+  "owner can create NONE audience guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-none", {
+      monumentName: "Private Monument",
+      photo: "bytes",
+      shareAudience: "NONE",
+    }),
+  ]),
+);
+await expectDenied(
+  "NONE audience denied to accepted friend",
+  await firestoreRequest(noneGuidePath, friend.token),
+);
+await expectDenied(
+  "NONE audience denied to stranger",
+  await firestoreRequest(noneGuidePath, strangerUser.token),
+);
+
+// 3. SELECTED_FRIENDS: allowed to listed accepted friend; denied to unlisted accepted friend and non-friend.
+const selectedGuidePath = `users/${guideOwner.uid}/savedGuides/guide-selected`;
+await expectAllowed(
+  "owner can create SELECTED_FRIENDS guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-selected", {
+      monumentName: "Selected Friends Monument",
+      photo: "bytes",
+      shareAudience: "SELECTED_FRIENDS",
+      sharedWithUids: [friend.uid],
+    }),
+  ]),
+);
+await expectAllowed(
+  "SELECTED_FRIENDS allowed to listed accepted friend",
+  await firestoreRequest(selectedGuidePath, friend.token),
+);
+await expectDenied(
+  "SELECTED_FRIENDS denied to unlisted accepted friend",
+  await firestoreRequest(selectedGuidePath, unlistedFriend.token),
+);
+await expectDenied(
+  "SELECTED_FRIENDS denied to non-friend",
+  await firestoreRequest(selectedGuidePath, strangerUser.token),
+);
+
+// If stranger is somehow in sharedWithUids, read is still denied because not an accepted friend
+const selectedWithStrangerPath = `users/${guideOwner.uid}/savedGuides/guide-selected-stranger`;
+await commit(guideOwner.token, [
+  savedGuideWrite(guideOwner.uid, "guide-selected-stranger", {
+    monumentName: "Selected With Stranger Monument",
+    photo: "bytes",
+    shareAudience: "SELECTED_FRIENDS",
+    sharedWithUids: [friend.uid, strangerUser.uid],
+  }),
+]);
+await expectDenied(
+  "SELECTED_FRIENDS denied to listed non-friend",
+  await firestoreRequest(selectedWithStrangerPath, strangerUser.token),
+);
+
+// 4. ALL_FRIENDS: allowed to accepted friend; denied to stranger / non-friend.
+const allFriendsGuidePath = `users/${guideOwner.uid}/savedGuides/guide-all-friends`;
+await expectAllowed(
+  "owner can create ALL_FRIENDS guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-all-friends", {
+      monumentName: "All Friends Monument",
+      photo: "bytes",
+      shareAudience: "ALL_FRIENDS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "ALL_FRIENDS allowed to accepted friend",
+  await firestoreRequest(allFriendsGuidePath, friend.token),
+);
+await expectAllowed(
+  "ALL_FRIENDS allowed to other accepted friend",
+  await firestoreRequest(allFriendsGuidePath, unlistedFriend.token),
+);
+await expectDenied(
+  "ALL_FRIENDS denied to stranger",
+  await firestoreRequest(allFriendsGuidePath, strangerUser.token),
+);
+
+// 5. Legacy/#198 doc (no shareAudience field): allowed to accepted friend; denied to stranger.
+const legacyGuidePath = `users/${guideOwner.uid}/savedGuides/guide-legacy`;
+await expectAllowed(
+  "owner can create legacy guide without shareAudience",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-legacy", {
+      monumentName: "Legacy Monument",
+      photo: "bytes",
+    }),
+  ]),
+);
+await expectAllowed(
+  "legacy guide allowed to accepted friend",
+  await firestoreRequest(legacyGuidePath, friend.token),
+);
+await expectDenied(
+  "legacy guide denied to stranger",
+  await firestoreRequest(legacyGuidePath, strangerUser.token),
+);
+
+// 6. ALL_FOLLOWERS: allowed to accepted friend and to unidirectional follower; denied to stranger.
+const allFollowersGuidePath = `users/${guideOwner.uid}/savedGuides/guide-all-followers`;
+await expectAllowed(
+  "owner can create ALL_FOLLOWERS guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-all-followers", {
+      monumentName: "All Followers Monument",
+      photo: "bytes",
+      shareAudience: "ALL_FOLLOWERS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "ALL_FOLLOWERS allowed to accepted friend",
+  await firestoreRequest(allFollowersGuidePath, friend.token),
+);
+await expectAllowed(
+  "ALL_FOLLOWERS allowed to unidirectional follower",
+  await firestoreRequest(allFollowersGuidePath, follower.token),
+);
+await expectDenied(
+  "ALL_FOLLOWERS denied to stranger",
+  await firestoreRequest(allFollowersGuidePath, strangerUser.token),
+);
+
+// 7. Recipient dismissal:
+// Authorized friend can update *only* dismissedByUids (adding own UID) and sharedWithUids (removing own UID),
+// after which their read is denied. Recipient cannot delete the owner's guide, cannot modify monumentName/photo,
+// and cannot add another user's UID to dismissedByUids.
+const dismissGuidePath = `users/${guideOwner.uid}/savedGuides/guide-dismiss`;
+await commit(guideOwner.token, [
+  savedGuideWrite(guideOwner.uid, "guide-dismiss", {
+    monumentName: "Dismissible Monument",
+    photo: "bytes",
+    shareAudience: "SELECTED_FRIENDS",
+    sharedWithUids: [friend.uid, unlistedFriend.uid],
+    dismissedByUids: [],
+  }),
+]);
+
+// Recipient cannot delete the owner's guide
+await expectDenied(
+  "recipient cannot delete owner guide",
+  await firestoreRequest(dismissGuidePath, friend.token, { method: "DELETE" }),
+);
+
+// Recipient cannot modify monumentName or other non-dismissal fields
+await expectDenied(
+  "recipient cannot modify monumentName",
+  await commit(friend.token, [
+    {
+      update: {
+        name: documentName(dismissGuidePath),
+        fields: fields({
+          monumentName: "Hacked Monument Name",
+          dismissedByUids: [friend.uid],
+          sharedWithUids: [unlistedFriend.uid],
+        }),
+      },
+      updateMask: {
+        fieldPaths: ["monumentName", "dismissedByUids", "sharedWithUids"],
+      },
+    },
+  ]),
+);
+
+// Recipient cannot add another user's UID to dismissedByUids
+await expectDenied(
+  "recipient cannot add another user to dismissedByUids",
+  await commit(friend.token, [
+    {
+      update: {
+        name: documentName(dismissGuidePath),
+        fields: fields({
+          dismissedByUids: [unlistedFriend.uid],
+          sharedWithUids: [unlistedFriend.uid],
+        }),
+      },
+      updateMask: {
+        fieldPaths: ["dismissedByUids", "sharedWithUids"],
+      },
+    },
+  ]),
+);
+
+// Recipient dismissal: authorized friend updates only dismissedByUids (adding own UID) and sharedWithUids (removing own UID)
+await expectAllowed(
+  "recipient can dismiss shared guide",
+  await commit(friend.token, [
+    {
+      update: {
+        name: documentName(dismissGuidePath),
+        fields: fields({
+          dismissedByUids: [friend.uid],
+          sharedWithUids: [unlistedFriend.uid],
+        }),
+      },
+      updateMask: {
+        fieldPaths: ["dismissedByUids", "sharedWithUids"],
+      },
+    },
+  ]),
+);
+
+// After dismissal, their read is denied
+await expectDenied(
+  "read denied to dismissed recipient",
+  await firestoreRequest(dismissGuidePath, friend.token),
+);
+
+// But unlistedFriend (who wasn't dismissed) can still read
+await expectAllowed(
+  "non-dismissed friend can still read",
+  await firestoreRequest(dismissGuidePath, unlistedFriend.token),
+);
+
+// Dismissed recipient on ALL_FRIENDS guide is denied read by dismissedByUids guard
+const allFriendsDismissedPath = `users/${guideOwner.uid}/savedGuides/guide-all-friends-dismissed`;
+await commit(guideOwner.token, [
+  savedGuideWrite(guideOwner.uid, "guide-all-friends-dismissed", {
+    monumentName: "Dismissed All Friends Monument",
+    photo: "bytes",
+    shareAudience: "ALL_FRIENDS",
+    dismissedByUids: [friend.uid],
+  }),
+]);
+await expectDenied(
+  "dismissed friend on ALL_FRIENDS guide is denied read",
+  await firestoreRequest(allFriendsDismissedPath, friend.token),
+);
+
