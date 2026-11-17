@@ -72,4 +72,57 @@ class FriendRequestNotificationTest {
     assertEquals("A", profilePictureInitial("Alice"))
     assertEquals("?", profilePictureInitial("   "))
   }
+
+  @Test
+  fun disabledNotifications_doNotCreateRequestOrFailureNotifications() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(false)
+
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("request-disabled", "alice", "Alice", "bob"),
+    )
+    FriendRequestNotifications.showActionFailure(context, "request-disabled")
+
+    assertTrue(shadowOf(manager).allNotifications.isEmpty())
+  }
+
+  @Test
+  fun cancelAndCancelAllFriendRequests_removeDisplayedRequests() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(true)
+
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("request-one", "alice", "Alice", "bob"),
+    )
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("request-two", "carol", "Carol", "bob"),
+    )
+    FriendRequestNotifications.cancel(context, "request-one")
+    assertEquals(1, shadowOf(manager).allNotifications.size)
+
+    FriendRequestNotifications.cancelAllFriendRequests(context)
+
+    assertTrue(shadowOf(manager).allNotifications.isEmpty())
+  }
+
+  @Test
+  fun actionFailure_createsFriendsShortcutNotification() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(true)
+
+    FriendRequestNotifications.showActionFailure(context, "failed-request")
+
+    val notification = shadowOf(manager).allNotifications.single()
+    assertEquals(
+        context.getString(R.string.notification_friend_request_action_failed),
+        notification.extras.getString(Notification.EXTRA_TEXT),
+    )
+    assertNotNull(notification.contentIntent)
+  }
 }
