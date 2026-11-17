@@ -111,6 +111,25 @@ class SettingsViewModelTest {
     assertEquals(listOf("History"), viewModel.uiState.value.interests)
   }
 
+  @Test
+  fun addExistingInterest_doesNotPersistOrDuplicate() {
+    userInterestsRepository.updateInterests(listOf("Architecture"))
+    val viewModel = newViewModel()
+
+    viewModel.addInterest("Architecture")
+
+    assertEquals(listOf("Architecture"), viewModel.uiState.value.interests)
+  }
+
+  @Test
+  fun removeMissingInterest_doesNotChangeState() {
+    val viewModel = newViewModel()
+
+    viewModel.removeInterest("Architecture")
+
+    assertTrue(viewModel.uiState.value.interests.isEmpty())
+  }
+
   /** Verifies that clearing an error removes it from the observable UI state. */
   @Test
   fun clearErrorMsg_removesCurrentError() =
