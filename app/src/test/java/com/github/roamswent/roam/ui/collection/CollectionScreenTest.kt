@@ -383,6 +383,23 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun galleryButtonHasAccessibleDescriptionAndInvokesCallback() {
+    var pickCount = 0
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        onPickFromGallery = { pickCount++ },
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_gallery_button)
+        .assertIsDisplayed()
+        .assertContentDescriptionEquals("Choose photo from gallery")
+        .performClick()
+
+    assertEquals(1, pickCount)
+  }
+
+  @Test
   fun favouritesFilterShowsOnlyFavouriteGuides() {
     setScreen(
         SavedGuidesUiState(
@@ -636,6 +653,7 @@ class CollectionScreenTest {
       onFavoriteErrorShown: () -> Unit = {},
       onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
       onSearchQueryChange: (String) -> Unit = {},
+      onPickFromGallery: () -> Unit = {},
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -649,6 +667,7 @@ class CollectionScreenTest {
             onFavoriteErrorShown = onFavoriteErrorShown,
             onShowFavoritesOnlyChange = onShowFavoritesOnlyChange,
             onSearchQueryChange = onSearchQueryChange,
+            onPickFromGallery = onPickFromGallery,
         )
       }
     }

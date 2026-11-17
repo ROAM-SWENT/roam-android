@@ -27,9 +27,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.ImagePayload
@@ -258,6 +260,23 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
+  }
+
+  @Test
+  fun galleryReviewBackReturnsToCollectionWhenOpenedFromCollection() {
+    showReviewRoute(
+        captureSender =
+            object : CaptureSender {
+              override suspend fun send(uri: Uri): Result<MonumentGuide> =
+                  Result.failure(UnsupportedOperationException())
+            },
+        isGalleryImage = true,
+        fromCollection = true,
+    )
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
   }
 
   @Test
@@ -686,6 +705,7 @@ class ScanReviewScreenTest {
       captureSender: CaptureSender,
       userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
       isGalleryImage: Boolean = false,
+      fromCollection: Boolean = false,
       savedGuideRepository: SavedGuideRepository = FakeSavedGuideRepository(),
   ) {
     val photo =
@@ -710,14 +730,31 @@ class ScanReviewScreenTest {
             Box(Modifier.fillMaxSize().testTag(C.Tag.home_screen_container))
           }
           composable(Routes.Scan) { Box(Modifier.fillMaxSize().testTag(C.Tag.scan_camera_screen)) }
-          composable("${Routes.ScanReview}?uri={uri}&gallery={gallery}") { entry ->
+          composable(Routes.Collection) {
+            Box(Modifier.fillMaxSize().testTag(C.Tag.collection_screen))
+          }
+          composable(
+              "${Routes.ScanReview}?uri={uri}&gallery={gallery}&fromCollection={fromCollection}",
+              arguments =
+                  listOf(
+                      navArgument("gallery") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                      },
+                      navArgument("fromCollection") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                      },
+                  ),
+          ) { entry ->
             ScanReviewRoute(
                 navController = controller,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
                 savedGuideRepository = savedGuideRepository,
-                isGalleryImage = isGalleryImage,
+                isGalleryImage = entry.arguments?.getBoolean("gallery") ?: false,
+                fromCollection = entry.arguments?.getBoolean("fromCollection") ?: false,
             )
           }
         }
@@ -725,8 +762,10 @@ class ScanReviewScreenTest {
     }
     composeTestRule.waitForIdle()
     composeTestRule.runOnIdle {
-      navController.navigate(Routes.Scan)
-      navController.navigate("${Routes.ScanReview}?uri=${Uri.encode(photoUri.toString())}")
+      navController.navigate(if (fromCollection) Routes.Collection else Routes.Scan)
+      navController.navigate(
+          "${Routes.ScanReview}?uri=${Uri.encode(photoUri.toString())}&gallery=$isGalleryImage&fromCollection=$fromCollection",
+      )
     }
     waitAndAssertDisplayed(C.Tag.scan_review_screen)
   }
