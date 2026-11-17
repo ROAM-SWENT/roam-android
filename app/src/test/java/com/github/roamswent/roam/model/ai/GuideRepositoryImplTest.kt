@@ -90,6 +90,33 @@ class GuideRepositoryImplTest {
   }
 
   @Test
+  fun neverAsksTheDeviceWhenDeviceLocationIsDisabled() = runBlocking {
+    val gemini = FakeGeminiClient(reply(validGuide))
+    val provider = FakeLocationProvider(Coordinates(48.85837, 2.29448))
+    val guide =
+        repository(FakeImageScreen(verdict()), gemini, provider)
+            .guideFor(request(useDeviceLocation = false))
+
+    assertEquals(0, provider.calls)
+    assertNull(guide.location)
+    assertFalse(gemini.prompts.single().contains("The photo was taken near"))
+  }
+
+  @Test
+  fun usesTheGivenLocationWhenDeviceLocationIsDisabled() = runBlocking {
+    val gemini = FakeGeminiClient(reply(validGuide))
+    val photoLocation = Coordinates(48.85837, 2.29448)
+    val provider = FakeLocationProvider(Coordinates(1.0, 2.0))
+    val guide =
+        repository(FakeImageScreen(verdict()), gemini, provider)
+            .guideFor(request(photoLocation, useDeviceLocation = false))
+
+    assertEquals(0, provider.calls)
+    assertEquals(photoLocation, guide.location)
+    assertTrue(gemini.prompts.single().contains("latitude 48.858, longitude 2.294"))
+  }
+
+  @Test
   fun returnedGuideCarriesRequestLocationWithoutAskingProvider() = runBlocking {
     val location = Coordinates(48.85837, 2.29448)
     val provider = FakeLocationProvider(Coordinates(1.0, 2.0))
@@ -260,8 +287,8 @@ class GuideRepositoryImplTest {
 
   private val prefs = UserPreferences("fr")
 
-  private fun request(location: Coordinates? = null) =
-      DiscoveryRequest(ImagePayload(fixture(), "image/jpeg"), location, prefs)
+  private fun request(location: Coordinates? = null, useDeviceLocation: Boolean = true) =
+      DiscoveryRequest(ImagePayload(fixture(), "image/jpeg"), location, prefs, useDeviceLocation)
 
   private fun repository(
       screen: ImageScreen,

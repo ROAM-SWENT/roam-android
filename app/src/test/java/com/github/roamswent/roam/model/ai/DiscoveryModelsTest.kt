@@ -1,7 +1,9 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DiscoveryModelsTest {
@@ -26,6 +28,13 @@ class DiscoveryModelsTest {
     val first = ImagePayload(byteArrayOf(1, 2, 3), "image/jpeg")
     val second = ImagePayload(byteArrayOf(1, 2, 3), "image/png")
     assertNotEquals(first, second)
+  }
+
+  @Test
+  fun discoveryRequestAsksTheDeviceForItsLocationByDefault() {
+    val request =
+        DiscoveryRequest(ImagePayload(byteArrayOf(1), "image/jpeg"), null, UserPreferences("en"))
+    assertTrue(request.useDeviceLocation)
   }
 
   @Test
