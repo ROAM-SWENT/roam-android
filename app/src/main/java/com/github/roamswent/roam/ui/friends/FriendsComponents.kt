@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,8 +46,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,9 +53,9 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.OnBrand
@@ -258,7 +255,7 @@ internal fun FriendRequestCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Avatar(
+      ProfilePicture(
           name = request.user.username,
           avatarUrl = request.user.avatarUrl,
           modifier = Modifier.size(48.dp),
@@ -349,7 +346,7 @@ private fun FriendRow(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(14.dp),
       ) {
-        Avatar(
+        ProfilePicture(
             name = friend.username,
             avatarUrl = friend.avatarUrl,
             modifier = Modifier.size(52.dp),
@@ -420,32 +417,6 @@ private fun FriendRow(
           TextButton(onClick = { showRemoveConfirmation = false }) { Text(cancelLabel) }
         },
     )
-  }
-}
-
-@Composable
-internal fun Avatar(name: String, avatarUrl: String?, modifier: Modifier = Modifier) {
-  Box(
-      modifier = modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
-      contentAlignment = Alignment.Center,
-  ) {
-    if (avatarUrl != null) {
-      AsyncImage(
-          model = avatarUrl,
-          contentDescription = null,
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize().clip(CircleShape),
-      )
-    } else {
-      Text(
-          text = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-          color =
-              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
-              else HomeAccentGreen,
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-      )
-    }
   }
 }
 
