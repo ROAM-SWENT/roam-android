@@ -7,10 +7,13 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.MetadataChanges
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 class FirestoreMonumentSharingRepository(
@@ -148,18 +151,33 @@ class FirestoreMonumentSharingRepository(
     validateUid(ownerUid)
 
     return withFirestoreErrors {
-      val snapshot = savedGuidesCollection(ownerUid).get().await()
-      snapshot.documents
-          .map { document ->
-            GuideFirestoreMapper.fromFields(
-                id = document.id,
-                fields = checkNotNull(document.data) { "Saved guide ${document.id} has no data" },
-            )
+      val guides =
+          if (currentUid == ownerUid) {
+            getGuidesFromQuery(savedGuidesCollection(ownerUid))
+          } else {
+            val broadcastQuery =
+                savedGuidesCollection(ownerUid)
+                    .whereIn(
+                        GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+                        listOf(ShareAudience.ALL_FRIENDS.name, ShareAudience.ALL_FOLLOWERS.name),
+                    )
+            val selectedQuery =
+                savedGuidesCollection(ownerUid)
+                    .whereEqualTo(
+                        GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+                        ShareAudience.SELECTED_FRIENDS.name,
+                    )
+                    .whereArrayContains(GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD, currentUid)
+
+            val broadcastGuides = getGuidesFromQuery(broadcastQuery)
+            val selectedGuides = getGuidesFromQuery(selectedQuery)
+            (broadcastGuides + selectedGuides).distinctBy { it.id }
           }
-          .filter { guide ->
-            currentUid !in guide.shareSettings.dismissedByUids &&
-                guide.shareSettings.audience != ShareAudience.NONE
-          }
+
+      guides.filter { guide ->
+        currentUid !in guide.shareSettings.dismissedByUids &&
+            guide.shareSettings.audience != ShareAudience.NONE
+      }
     }
   }
 
@@ -167,42 +185,78 @@ class FirestoreMonumentSharingRepository(
     val currentUid = requireCurrentUid()
     validateUid(ownerUid)
 
-    return callbackFlow {
-      val registration =
-          savedGuidesCollection(ownerUid).addSnapshotListener(MetadataChanges.INCLUDE) {
-              snapshot,
-              error ->
-            if (error != null) {
-              close(MonumentSharingException.FirestoreFailure(error))
-            } else {
-              try {
-                val guides =
-                    checkNotNull(snapshot) { "Saved guides snapshot is missing" }
-                        .documents
-                        .map { document ->
-                          GuideFirestoreMapper.fromFields(
-                              id = document.id,
-                              fields =
-                                  checkNotNull(document.data) {
-                                    "Saved guide ${document.id} has no data"
-                                  },
-                          )
-                        }
-                        .filter { guide ->
-                          currentUid !in guide.shareSettings.dismissedByUids &&
-                              guide.shareSettings.audience != ShareAudience.NONE
-                        }
-                trySend(guides)
-              } catch (exception: Exception) {
-                close(
-                    if (exception is MonumentSharingException) exception
-                    else MonumentSharingException.FirestoreFailure(exception),
-                )
-              }
+    return if (currentUid == ownerUid) {
+      observeQuery(savedGuidesCollection(ownerUid)).map { guides ->
+        guides.filter { guide ->
+          currentUid !in guide.shareSettings.dismissedByUids &&
+              guide.shareSettings.audience != ShareAudience.NONE
+        }
+      }
+    } else {
+      val broadcastQuery =
+          savedGuidesCollection(ownerUid)
+              .whereIn(
+                  GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+                  listOf(ShareAudience.ALL_FRIENDS.name, ShareAudience.ALL_FOLLOWERS.name),
+              )
+      val selectedQuery =
+          savedGuidesCollection(ownerUid)
+              .whereEqualTo(
+                  GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+                  ShareAudience.SELECTED_FRIENDS.name,
+              )
+              .whereArrayContains(GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD, currentUid)
+
+      observeQuery(broadcastQuery).combine(observeQuery(selectedQuery)) {
+          broadcastGuides,
+          selectedGuides ->
+        (broadcastGuides + selectedGuides)
+            .distinctBy { it.id }
+            .filter { guide ->
+              currentUid !in guide.shareSettings.dismissedByUids &&
+                  guide.shareSettings.audience != ShareAudience.NONE
+            }
+      }
+    }
+  }
+
+  private suspend fun getGuidesFromQuery(query: Query): List<Guide> =
+      query.get().await().documents.map { document ->
+        GuideFirestoreMapper.fromFields(
+            id = document.id,
+            fields = checkNotNull(document.data) { "Saved guide ${document.id} has no data" },
+        )
+      }
+
+  private fun observeQuery(query: Query): Flow<List<Guide>> = callbackFlow {
+    val registration =
+        query.addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+          if (error != null) {
+            close(MonumentSharingException.FirestoreFailure(error))
+          } else {
+            try {
+              val guides =
+                  checkNotNull(snapshot) { "Saved guides snapshot is missing" }
+                      .documents
+                      .map { document ->
+                        GuideFirestoreMapper.fromFields(
+                            id = document.id,
+                            fields =
+                                checkNotNull(document.data) {
+                                  "Saved guide ${document.id} has no data"
+                                },
+                        )
+                      }
+              trySend(guides)
+            } catch (exception: Exception) {
+              close(
+                  if (exception is MonumentSharingException) exception
+                  else MonumentSharingException.FirestoreFailure(exception),
+              )
             }
           }
-      awaitClose { registration.remove() }
-    }
+        }
+    awaitClose { registration.remove() }
   }
 
   private fun requireCurrentUid(): String =
