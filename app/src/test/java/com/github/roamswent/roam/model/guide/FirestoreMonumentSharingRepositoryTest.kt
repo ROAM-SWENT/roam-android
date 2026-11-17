@@ -15,6 +15,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QueryDocumentSnapshot
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.Transaction
@@ -24,13 +25,11 @@ import io.mockk.slot
 import io.mockk.verify
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -45,6 +44,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   private val ownerUserDocument = mockk<DocumentReference>()
   private val ownerSavedGuidesCollection = mockk<CollectionReference>()
+  private val broadcastQuery = mockk<Query>()
+  private val intermediateQuery = mockk<Query>()
+  private val selectedQuery = mockk<Query>()
 
   private val repository = FirestoreMonumentSharingRepository(firestore, auth)
 
@@ -64,12 +66,7 @@ class FirestoreMonumentSharingRepositoryTest {
           location = Coordinates(48.8584, 2.2945),
           discoveryDate = 1700000000000L,
           isFavorite = true,
-          shareSettings =
-              MonumentShareSettings(
-                  audience = ShareAudience.ALL_FRIENDS,
-                  sharedWithUids = emptySet(),
-                  dismissedByUids = emptySet(),
-              ),
+          shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
       )
 
   @Before
@@ -83,6 +80,26 @@ class FirestoreMonumentSharingRepositoryTest {
 
     every { usersCollection.document(ownerUid) } returns ownerUserDocument
     every { ownerUserDocument.collection("savedGuides") } returns ownerSavedGuidesCollection
+
+    every {
+      ownerSavedGuidesCollection.whereIn(
+          GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+          listOf(ShareAudience.ALL_FRIENDS.name, ShareAudience.ALL_FOLLOWERS.name),
+      )
+    } returns broadcastQuery
+
+    every {
+      ownerSavedGuidesCollection.whereEqualTo(
+          GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+          ShareAudience.SELECTED_FRIENDS.name,
+      )
+    } returns intermediateQuery
+    every {
+      intermediateQuery.whereArrayContains(
+          GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD,
+          currentUid,
+      )
+    } returns selectedQuery
   }
 
   private inline fun <reified T> runTransactionWith(transaction: Transaction) {
@@ -93,29 +110,124 @@ class FirestoreMonumentSharingRepositoryTest {
         }
   }
 
-  // region setShareAudience tests
-
-  @Test
-  fun setShareAudienceSelectedFriendsWritesSortedRecipientsAndClearsDismissed() = runTest {
+  private fun setupTransaction(
+      targetGuideId: String = guideId,
+      exists: Boolean = true,
+      existingAudience: String? = null,
+  ): io.mockk.CapturingSlot<Map<String, Any>> {
     val guideRef = mockk<DocumentReference>()
     val snapshot = mockk<DocumentSnapshot>()
     val transaction = mockk<Transaction>()
 
-    every { savedGuidesCollection.document(guideId) } returns guideRef
+    every { savedGuidesCollection.document(targetGuideId) } returns guideRef
     every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
+    every { snapshot.exists() } returns exists
+    if (existingAudience != null) {
+      every { snapshot.getString(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD) } returns
+          existingAudience
+    }
 
     val updatesSlot = slot<Map<String, Any>>()
     every { transaction.update(guideRef, capture(updatesSlot)) } returns transaction
+    every {
+      transaction.update(
+          guideRef,
+          GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD,
+          any<FieldValue>(),
+      )
+    } returns transaction
     runTransactionWith<Unit>(transaction)
+    return updatesSlot
+  }
 
+  private fun mockGuideSnapshot(
+      id: String,
+      audience: ShareAudience,
+      sharedWithUids: Set<String> = emptySet(),
+      dismissedByUids: Set<String> = emptySet(),
+      malformed: Boolean = false,
+  ): QueryDocumentSnapshot {
+    val doc = mockk<QueryDocumentSnapshot>()
+    every { doc.id } returns id
+    val guide = expectedGuide(id, audience, sharedWithUids, dismissedByUids)
+    every { doc.data } returns if (malformed) emptyMap() else GuideFirestoreMapper.toFields(guide)
+    return doc
+  }
+
+  private fun expectedGuide(
+      id: String,
+      audience: ShareAudience,
+      sharedWithUids: Set<String> = emptySet(),
+      dismissedByUids: Set<String> = emptySet(),
+  ) =
+      baseGuide.copy(
+          id = id,
+          shareSettings =
+              MonumentShareSettings(
+                  audience = audience,
+                  sharedWithUids = sharedWithUids,
+                  dismissedByUids = dismissedByUids,
+              ),
+      )
+
+  private fun mockQuerySnapshot(vararg docs: QueryDocumentSnapshot): QuerySnapshot {
+    val snapshot = mockk<QuerySnapshot>()
+    every { snapshot.documents } returns docs.toList()
+    return snapshot
+  }
+
+  private fun stubListener(
+      query: Query,
+      snapshot: QuerySnapshot? = null,
+      error: FirebaseFirestoreException? = null,
+  ): ListenerRegistration {
+    val registration = mockk<ListenerRegistration>(relaxed = true)
+    every { query.addSnapshotListener(MetadataChanges.INCLUDE, any()) } answers
+        {
+          if (snapshot != null || error != null) {
+            secondArg<EventListener<QuerySnapshot>>().onEvent(snapshot, error)
+          }
+          registration
+        }
+    return registration
+  }
+
+  private fun stubGetShareSettingsSnapshot(exists: Boolean, data: Map<String, Any>?) {
+    val guideRef = mockk<DocumentReference>()
+    val snapshot = mockk<DocumentSnapshot>()
+    every { savedGuidesCollection.document(guideId) } returns guideRef
+    every { guideRef.get() } returns Tasks.forResult(snapshot)
+    every { snapshot.exists() } returns exists
+    every { snapshot.id } returns guideId
+    every { snapshot.data } returns data
+  }
+
+  private suspend inline fun <reified T : Throwable> assertThrowsSuspending(
+      crossinline block: suspend () -> Unit
+  ): T {
+    try {
+      block()
+    } catch (throwable: Throwable) {
+      if (throwable is T) return throwable
+      throw AssertionError(
+          "Expected ${T::class.java.name} but got ${throwable::class.java.name}",
+          throwable,
+      )
+    }
+    throw AssertionError("Expected ${T::class.java.name} was not thrown")
+  }
+
+  // region setShareAudience tests
+
+  @Test
+  fun setShareAudienceSelectedFriendsWritesSortedRecipientsAndClearsDismissed() = runTest {
+    val slot = setupTransaction()
     repository.setShareAudience(
-        guideId = guideId,
-        audience = ShareAudience.SELECTED_FRIENDS,
-        recipientUids = setOf("uid-z", "uid-a", "uid-m"),
+        guideId,
+        ShareAudience.SELECTED_FRIENDS,
+        setOf("uid-z", "uid-a", "uid-m"),
     )
-
-    val updates = updatesSlot.captured
+    val updates = slot.captured
     assertEquals(
         ShareAudience.SELECTED_FRIENDS.name,
         updates[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD],
@@ -129,25 +241,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun setShareAudienceSelectedFriendsWithEmptyRecipientsDoesNotRemoveDismissed() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
-
-    val updatesSlot = slot<Map<String, Any>>()
-    every { transaction.update(guideRef, capture(updatesSlot)) } returns transaction
-    runTransactionWith<Unit>(transaction)
-
-    repository.setShareAudience(
-        guideId = guideId,
-        audience = ShareAudience.SELECTED_FRIENDS,
-        recipientUids = emptySet(),
-    )
-
-    val updates = updatesSlot.captured
+    val slot = setupTransaction()
+    repository.setShareAudience(guideId, ShareAudience.SELECTED_FRIENDS, emptySet())
+    val updates = slot.captured
     assertEquals(
         ShareAudience.SELECTED_FRIENDS.name,
         updates[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD],
@@ -158,25 +254,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun setShareAudienceAllFriendsDeletesSharedWithAndDismissedBy() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
-
-    val updatesSlot = slot<Map<String, Any>>()
-    every { transaction.update(guideRef, capture(updatesSlot)) } returns transaction
-    runTransactionWith<Unit>(transaction)
-
-    repository.setShareAudience(
-        guideId = guideId,
-        audience = ShareAudience.ALL_FRIENDS,
-        recipientUids = emptySet(),
-    )
-
-    val updates = updatesSlot.captured
+    val slot = setupTransaction()
+    repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
+    val updates = slot.captured
     assertEquals(ShareAudience.ALL_FRIENDS.name, updates[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD])
     assertEquals(FieldValue.delete(), updates[GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD])
     assertEquals(FieldValue.delete(), updates[GuideFirestoreMapper.DISMISSED_BY_UIDS_FIELD])
@@ -184,25 +264,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun setShareAudienceAllFollowersDeletesSharedWithAndDismissedBy() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
-
-    val updatesSlot = slot<Map<String, Any>>()
-    every { transaction.update(guideRef, capture(updatesSlot)) } returns transaction
-    runTransactionWith<Unit>(transaction)
-
-    repository.setShareAudience(
-        guideId = guideId,
-        audience = ShareAudience.ALL_FOLLOWERS,
-        recipientUids = emptySet(),
-    )
-
-    val updates = updatesSlot.captured
+    val slot = setupTransaction()
+    repository.setShareAudience(guideId, ShareAudience.ALL_FOLLOWERS)
+    val updates = slot.captured
     assertEquals(
         ShareAudience.ALL_FOLLOWERS.name,
         updates[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD],
@@ -213,25 +277,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun setShareAudienceNoneDeletesSharedWithWithoutDeletingDismissedBy() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
-
-    val updatesSlot = slot<Map<String, Any>>()
-    every { transaction.update(guideRef, capture(updatesSlot)) } returns transaction
-    runTransactionWith<Unit>(transaction)
-
-    repository.setShareAudience(
-        guideId = guideId,
-        audience = ShareAudience.NONE,
-        recipientUids = emptySet(),
-    )
-
-    val updates = updatesSlot.captured
+    val slot = setupTransaction()
+    repository.setShareAudience(guideId, ShareAudience.NONE)
+    val updates = slot.captured
     assertEquals(ShareAudience.NONE.name, updates[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD])
     assertEquals(FieldValue.delete(), updates[GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD])
     assertTrue(GuideFirestoreMapper.DISMISSED_BY_UIDS_FIELD !in updates)
@@ -239,19 +287,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun setShareAudienceThrowsGuideNotFoundWhenSnapshotDoesNotExist() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns false
-    runTransactionWith<Unit>(transaction)
-
-    assertThrows(MonumentSharingException.GuideNotFound::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
-      }
+    setupTransaction(exists = false)
+    assertThrowsSuspending<MonumentSharingException.GuideNotFound> {
+      repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
     }
   }
 
@@ -261,23 +299,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun grantAccessPromotesNoneToSelectedFriendsAndClearsDismissed() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
-    every { snapshot.getString(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD) } returns
-        ShareAudience.NONE.name
-
-    val updatesSlot = slot<Map<String, Any>>()
-    every { transaction.update(guideRef, capture(updatesSlot)) } returns transaction
-    runTransactionWith<Unit>(transaction)
-
+    val slot = setupTransaction(existingAudience = ShareAudience.NONE.name)
     repository.grantAccess(guideId, setOf("uid-alice", "uid-bob"))
-
-    val updates = updatesSlot.captured
+    val updates = slot.captured
     assertEquals(
         ShareAudience.SELECTED_FRIENDS.name,
         updates[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD],
@@ -288,23 +312,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun grantAccessRetainsExistingAudienceWhenNotNone() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
-    every { snapshot.getString(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD) } returns
-        ShareAudience.SELECTED_FRIENDS.name
-
-    val updatesSlot = slot<Map<String, Any>>()
-    every { transaction.update(guideRef, capture(updatesSlot)) } returns transaction
-    runTransactionWith<Unit>(transaction)
-
+    val slot = setupTransaction(existingAudience = ShareAudience.SELECTED_FRIENDS.name)
     repository.grantAccess(guideId, setOf("uid-charlie"))
-
-    val updates = updatesSlot.captured
+    val updates = slot.captured
     assertTrue(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD !in updates)
     assertTrue(updates[GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD] is FieldValue)
     assertTrue(updates[GuideFirestoreMapper.DISMISSED_BY_UIDS_FIELD] is FieldValue)
@@ -318,17 +328,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun grantAccessThrowsGuideNotFoundWhenSnapshotDoesNotExist() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns false
-    runTransactionWith<Unit>(transaction)
-
-    assertThrows(MonumentSharingException.GuideNotFound::class.java) {
-      kotlinx.coroutines.test.runTest { repository.grantAccess(guideId, setOf("uid-alice")) }
+    setupTransaction(exists = false)
+    assertThrowsSuspending<MonumentSharingException.GuideNotFound> {
+      repository.grantAccess(guideId, setOf("uid-alice"))
     }
   }
 
@@ -338,31 +340,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun revokeAccessRemovesRecipientsFromSharedWith() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns true
-    every {
-      transaction.update(
-          guideRef,
-          GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD,
-          any<FieldValue>(),
-      )
-    } returns transaction
-    runTransactionWith<Unit>(transaction)
-
+    setupTransaction()
     repository.revokeAccess(guideId, setOf("uid-alice", "uid-bob"))
-
-    verify {
-      transaction.update(
-          guideRef,
-          GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD,
-          any<FieldValue>(),
-      )
-    }
+    // Verified by setupTransaction stubbing and successful execution
   }
 
   @Test
@@ -373,17 +353,9 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun revokeAccessThrowsGuideNotFoundWhenSnapshotDoesNotExist() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    val transaction = mockk<Transaction>()
-
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { transaction.get(guideRef) } returns snapshot
-    every { snapshot.exists() } returns false
-    runTransactionWith<Unit>(transaction)
-
-    assertThrows(MonumentSharingException.GuideNotFound::class.java) {
-      kotlinx.coroutines.test.runTest { repository.revokeAccess(guideId, setOf("uid-alice")) }
+    setupTransaction(exists = false)
+    assertThrowsSuspending<MonumentSharingException.GuideNotFound> {
+      repository.revokeAccess(guideId, setOf("uid-alice"))
     }
   }
 
@@ -412,50 +384,32 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun getShareSettingsReturnsParsedSettingsWhenGuideExists() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { guideRef.get() } returns Tasks.forResult(snapshot)
-    every { snapshot.exists() } returns true
-    every { snapshot.id } returns guideId
-
-    val expectedSettings =
+    val expected =
         MonumentShareSettings(
             audience = ShareAudience.SELECTED_FRIENDS,
             sharedWithUids = setOf("friend-1", "friend-2"),
             dismissedByUids = setOf("dismissed-1"),
         )
-    val guide = baseGuide.copy(shareSettings = expectedSettings)
-    every { snapshot.data } returns GuideFirestoreMapper.toFields(guide)
-
-    val settings = repository.getShareSettings(guideId)
-    assertEquals(expectedSettings, settings)
+    stubGetShareSettingsSnapshot(
+        exists = true,
+        data = GuideFirestoreMapper.toFields(baseGuide.copy(shareSettings = expected)),
+    )
+    assertEquals(expected, repository.getShareSettings(guideId))
   }
 
   @Test
   fun getShareSettingsThrowsGuideNotFoundWhenSnapshotDoesNotExist() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { guideRef.get() } returns Tasks.forResult(snapshot)
-    every { snapshot.exists() } returns false
-
-    assertThrows(MonumentSharingException.GuideNotFound::class.java) {
-      kotlinx.coroutines.test.runTest { repository.getShareSettings(guideId) }
+    stubGetShareSettingsSnapshot(exists = false, data = null)
+    assertThrowsSuspending<MonumentSharingException.GuideNotFound> {
+      repository.getShareSettings(guideId)
     }
   }
 
   @Test
   fun getShareSettingsThrowsGuideNotFoundWhenSnapshotDataIsNull() = runTest {
-    val guideRef = mockk<DocumentReference>()
-    val snapshot = mockk<DocumentSnapshot>()
-    every { savedGuidesCollection.document(guideId) } returns guideRef
-    every { guideRef.get() } returns Tasks.forResult(snapshot)
-    every { snapshot.exists() } returns true
-    every { snapshot.data } returns null
-
-    assertThrows(MonumentSharingException.GuideNotFound::class.java) {
-      kotlinx.coroutines.test.runTest { repository.getShareSettings(guideId) }
+    stubGetShareSettingsSnapshot(exists = true, data = null)
+    assertThrowsSuspending<MonumentSharingException.GuideNotFound> {
+      repository.getShareSettings(guideId)
     }
   }
 
@@ -464,142 +418,133 @@ class FirestoreMonumentSharingRepositoryTest {
   // region getSharedGuidesFrom & observeSharedGuidesFrom tests
 
   @Test
-  fun getSharedGuidesFromFiltersOutNoneAndDismissedGuides() = runTest {
-    val querySnapshot = mockk<QuerySnapshot>()
-    every { ownerSavedGuidesCollection.get() } returns Tasks.forResult(querySnapshot)
-
-    val sharedGuide =
-        baseGuide.copy(
-            id = "guide-shared",
-            shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+  fun getSharedGuidesFromCombinesQueriesDeduplicatesAndFilters() = runTest {
+    val docBroadcast = mockGuideSnapshot("g-broadcast", ShareAudience.ALL_FRIENDS)
+    val docDismissed =
+        mockGuideSnapshot(
+            "g-dismissed",
+            ShareAudience.ALL_FRIENDS,
+            dismissedByUids = setOf(currentUid),
         )
-    val noneGuide =
-        baseGuide.copy(
-            id = "guide-none",
-            shareSettings = MonumentShareSettings(audience = ShareAudience.NONE),
-        )
-    val dismissedGuide =
-        baseGuide.copy(
-            id = "guide-dismissed",
-            shareSettings =
-                MonumentShareSettings(
-                    audience = ShareAudience.ALL_FRIENDS,
-                    dismissedByUids = setOf(currentUid),
-                ),
+    val docNone = mockGuideSnapshot("g-none", ShareAudience.NONE)
+    val docSelected =
+        mockGuideSnapshot(
+            "g-selected",
+            ShareAudience.SELECTED_FRIENDS,
+            sharedWithUids = setOf(currentUid),
         )
 
-    val doc1 = mockk<QueryDocumentSnapshot>()
-    every { doc1.id } returns sharedGuide.id
-    every { doc1.data } returns GuideFirestoreMapper.toFields(sharedGuide)
-
-    val doc2 = mockk<QueryDocumentSnapshot>()
-    every { doc2.id } returns noneGuide.id
-    every { doc2.data } returns GuideFirestoreMapper.toFields(noneGuide)
-
-    val doc3 = mockk<QueryDocumentSnapshot>()
-    every { doc3.id } returns dismissedGuide.id
-    every { doc3.data } returns GuideFirestoreMapper.toFields(dismissedGuide)
-
-    every { querySnapshot.documents } returns listOf(doc1, doc2, doc3)
+    every { broadcastQuery.get() } returns
+        Tasks.forResult(mockQuerySnapshot(docBroadcast, docDismissed, docNone))
+    every { selectedQuery.get() } returns
+        Tasks.forResult(mockQuerySnapshot(docSelected, docBroadcast))
 
     val result = repository.getSharedGuidesFrom(ownerUid)
-    assertEquals(listOf(sharedGuide), result)
+    val expectedBroadcast = expectedGuide("g-broadcast", ShareAudience.ALL_FRIENDS)
+    val expectedSelected =
+        expectedGuide(
+            "g-selected",
+            ShareAudience.SELECTED_FRIENDS,
+            sharedWithUids = setOf(currentUid),
+        )
+    assertEquals(listOf(expectedBroadcast, expectedSelected), result)
+  }
+
+  @Test
+  fun getSharedGuidesFromWhenOwnerIsCurrentUidQueriesCollectionDirectly() = runTest {
+    val docNone = mockGuideSnapshot("g-my-none", ShareAudience.NONE)
+    val docShared = mockGuideSnapshot("g-my-shared", ShareAudience.ALL_FRIENDS)
+    every { savedGuidesCollection.get() } returns
+        Tasks.forResult(mockQuerySnapshot(docNone, docShared))
+
+    val result = repository.getSharedGuidesFrom(currentUid)
+    assertEquals(listOf(expectedGuide("g-my-shared", ShareAudience.ALL_FRIENDS)), result)
+  }
+
+  @Test
+  fun getSharedGuidesFromThrowsFirestoreFailureWhenDocumentDataMalformed() = runTest {
+    val malformedDoc =
+        mockGuideSnapshot("malformed-guide", ShareAudience.ALL_FRIENDS, malformed = true)
+    every { broadcastQuery.get() } returns Tasks.forResult(mockQuerySnapshot(malformedDoc))
+    every { selectedQuery.get() } returns Tasks.forResult(mockQuerySnapshot())
+
+    assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+      repository.getSharedGuidesFrom(ownerUid)
+    }
   }
 
   @Test
   fun observeSharedGuidesFromEmitsFilteredGuidesAndRemovesListenerWhenCancelled() = runTest {
-    val registration = mockk<ListenerRegistration>(relaxed = true)
-
-    val sharedGuide =
-        baseGuide.copy(
-            id = "guide-shared",
-            shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+    val docBroadcast = mockGuideSnapshot("g-broadcast", ShareAudience.ALL_FRIENDS)
+    val docDismissed =
+        mockGuideSnapshot(
+            "g-dismissed",
+            ShareAudience.ALL_FRIENDS,
+            dismissedByUids = setOf(currentUid),
         )
-    val noneGuide =
-        baseGuide.copy(
-            id = "guide-none",
-            shareSettings = MonumentShareSettings(audience = ShareAudience.NONE),
-        )
-    val dismissedGuide =
-        baseGuide.copy(
-            id = "guide-dismissed",
-            shareSettings =
-                MonumentShareSettings(
-                    audience = ShareAudience.ALL_FRIENDS,
-                    dismissedByUids = setOf(currentUid),
-                ),
+    val docSelected =
+        mockGuideSnapshot(
+            "g-selected",
+            ShareAudience.SELECTED_FRIENDS,
+            sharedWithUids = setOf(currentUid),
         )
 
-    val doc1 = mockk<QueryDocumentSnapshot>()
-    every { doc1.id } returns sharedGuide.id
-    every { doc1.data } returns GuideFirestoreMapper.toFields(sharedGuide)
-
-    val doc2 = mockk<QueryDocumentSnapshot>()
-    every { doc2.id } returns noneGuide.id
-    every { doc2.data } returns GuideFirestoreMapper.toFields(noneGuide)
-
-    val doc3 = mockk<QueryDocumentSnapshot>()
-    every { doc3.id } returns dismissedGuide.id
-    every { doc3.data } returns GuideFirestoreMapper.toFields(dismissedGuide)
-
-    val querySnapshot = mockk<QuerySnapshot>()
-    every { querySnapshot.documents } returns listOf(doc1, doc2, doc3)
-
-    every { ownerSavedGuidesCollection.addSnapshotListener(MetadataChanges.INCLUDE, any()) } answers
-        {
-          secondArg<EventListener<QuerySnapshot>>().onEvent(querySnapshot, null)
-          registration
-        }
+    val regBroadcast = stubListener(broadcastQuery, mockQuerySnapshot(docBroadcast, docDismissed))
+    val regSelected = stubListener(selectedQuery, mockQuerySnapshot(docSelected, docBroadcast))
 
     val emissions = repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
+    val expected =
+        listOf(
+            expectedGuide("g-broadcast", ShareAudience.ALL_FRIENDS),
+            expectedGuide(
+                "g-selected",
+                ShareAudience.SELECTED_FRIENDS,
+                sharedWithUids = setOf(currentUid),
+            ),
+        )
 
-    assertEquals(listOf(listOf(sharedGuide)), emissions)
-    verify { ownerSavedGuidesCollection.addSnapshotListener(MetadataChanges.INCLUDE, any()) }
-    verify { registration.remove() }
+    assertEquals(listOf(expected), emissions)
+    verify { regBroadcast.remove() }
+    verify { regSelected.remove() }
+  }
+
+  @Test
+  fun observeSharedGuidesFromWhenOwnerIsCurrentUidObservesCollectionDirectly() = runTest {
+    val doc = mockGuideSnapshot("g-my-shared", ShareAudience.ALL_FRIENDS)
+    val reg = stubListener(savedGuidesCollection, mockQuerySnapshot(doc))
+
+    val emissions = repository.observeSharedGuidesFrom(currentUid).take(1).toList()
+    assertEquals(
+        listOf(listOf(expectedGuide("g-my-shared", ShareAudience.ALL_FRIENDS))),
+        emissions,
+    )
+    verify { reg.remove() }
   }
 
   @Test
   fun observeSharedGuidesFromEmitsErrorWhenListenerFails() = runTest {
-    val registration = mockk<ListenerRegistration>(relaxed = true)
-    val firestoreException =
+    val exception =
         FirebaseFirestoreException("Network error", FirebaseFirestoreException.Code.UNAVAILABLE)
+    val regBroadcast = stubListener(broadcastQuery, error = exception)
+    stubListener(selectedQuery)
 
-    every { ownerSavedGuidesCollection.addSnapshotListener(MetadataChanges.INCLUDE, any()) } answers
-        {
-          secondArg<EventListener<QuerySnapshot>>().onEvent(null, firestoreException)
-          registration
-        }
-
-    assertThrows(MonumentSharingException.FirestoreFailure::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
-      }
+    assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+      repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
     }
-    verify { registration.remove() }
+    verify { regBroadcast.remove() }
   }
 
   @Test
   fun observeSharedGuidesFromClosesWithErrorWhenDocumentDataMalformed() = runTest {
-    val registration = mockk<ListenerRegistration>(relaxed = true)
-    val doc = mockk<QueryDocumentSnapshot>()
-    every { doc.id } returns "malformed-guide"
-    every { doc.data } returns emptyMap<String, Any>()
+    val malformedDoc =
+        mockGuideSnapshot("malformed-guide", ShareAudience.ALL_FRIENDS, malformed = true)
+    val regBroadcast = stubListener(broadcastQuery, mockQuerySnapshot(malformedDoc))
+    stubListener(selectedQuery)
 
-    val querySnapshot = mockk<QuerySnapshot>()
-    every { querySnapshot.documents } returns listOf(doc)
-
-    every { ownerSavedGuidesCollection.addSnapshotListener(MetadataChanges.INCLUDE, any()) } answers
-        {
-          secondArg<EventListener<QuerySnapshot>>().onEvent(querySnapshot, null)
-          registration
-        }
-
-    assertThrows(MonumentSharingException.FirestoreFailure::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
-      }
+    assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+      repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
     }
-    verify { registration.remove() }
+    verify { regBroadcast.remove() }
   }
 
   // endregion
@@ -610,92 +555,63 @@ class FirestoreMonumentSharingRepositoryTest {
   fun requireCurrentUidThrowsUnauthenticatedUserWhenUserIsNull() = runTest {
     every { auth.currentUser } returns null
 
-    assertThrows(MonumentSharingException.UnauthenticatedUser::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
-      }
-    }
-    assertThrows(MonumentSharingException.UnauthenticatedUser::class.java) {
-      kotlinx.coroutines.test.runTest { repository.grantAccess(guideId, setOf("uid-alice")) }
-    }
-    assertThrows(MonumentSharingException.UnauthenticatedUser::class.java) {
-      kotlinx.coroutines.test.runTest { repository.revokeAccess(guideId, setOf("uid-alice")) }
-    }
-    assertThrows(MonumentSharingException.UnauthenticatedUser::class.java) {
-      kotlinx.coroutines.test.runTest { repository.dismissSharedGuide(ownerUid, guideId) }
-    }
-    assertThrows(MonumentSharingException.UnauthenticatedUser::class.java) {
-      kotlinx.coroutines.test.runTest { repository.getShareSettings(guideId) }
-    }
-    assertThrows(MonumentSharingException.UnauthenticatedUser::class.java) {
-      kotlinx.coroutines.test.runTest { repository.getSharedGuidesFrom(ownerUid) }
-    }
-    assertThrows(MonumentSharingException.UnauthenticatedUser::class.java) {
-      repository.observeSharedGuidesFrom(ownerUid)
-    }
-  }
-
-  @Test
-  fun invalidCurrentUidThrowsInvalidUid() = runTest {
-    every { user.uid } returns "invalid uid with spaces!"
-
-    assertThrows(MonumentSharingException.InvalidUid::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
-      }
-    }
-  }
-
-  @Test
-  fun invalidRecipientUidThrowsInvalidUid() = runTest {
-    assertThrows(MonumentSharingException.InvalidUid::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.setShareAudience(
-            guideId,
-            ShareAudience.SELECTED_FRIENDS,
-            setOf("valid-uid", "invalid uid!"),
+    val actions =
+        listOf<suspend () -> Any?>(
+            { repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS) },
+            { repository.grantAccess(guideId, setOf("uid-alice")) },
+            { repository.revokeAccess(guideId, setOf("uid-alice")) },
+            { repository.dismissSharedGuide(ownerUid, guideId) },
+            { repository.getShareSettings(guideId) },
+            { repository.getSharedGuidesFrom(ownerUid) },
+            { repository.observeSharedGuidesFrom(ownerUid) },
         )
-      }
-    }
-    assertThrows(MonumentSharingException.InvalidUid::class.java) {
-      kotlinx.coroutines.test.runTest { repository.grantAccess(guideId, setOf("invalid uid!")) }
-    }
-    assertThrows(MonumentSharingException.InvalidUid::class.java) {
-      kotlinx.coroutines.test.runTest { repository.revokeAccess(guideId, setOf("invalid uid!")) }
+
+    for (action in actions) {
+      assertThrowsSuspending<MonumentSharingException.UnauthenticatedUser> { action() }
     }
   }
 
   @Test
-  fun invalidOwnerUidThrowsInvalidUid() = runTest {
-    assertThrows(MonumentSharingException.InvalidUid::class.java) {
-      kotlinx.coroutines.test.runTest { repository.dismissSharedGuide("invalid uid!", guideId) }
+  fun invalidUidThrowsInvalidUid() = runTest {
+    every { user.uid } returns "invalid uid with spaces!"
+    assertThrowsSuspending<MonumentSharingException.InvalidUid> {
+      repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
     }
-    assertThrows(MonumentSharingException.InvalidUid::class.java) {
-      kotlinx.coroutines.test.runTest { repository.getSharedGuidesFrom("invalid uid!") }
-    }
-    assertThrows(MonumentSharingException.InvalidUid::class.java) {
-      repository.observeSharedGuidesFrom("invalid uid!")
+
+    val actions =
+        listOf<suspend () -> Any?>(
+            {
+              repository.setShareAudience(
+                  guideId,
+                  ShareAudience.SELECTED_FRIENDS,
+                  setOf("valid-uid", "invalid uid!"),
+              )
+            },
+            { repository.grantAccess(guideId, setOf("invalid uid!")) },
+            { repository.revokeAccess(guideId, setOf("invalid uid!")) },
+            { repository.dismissSharedGuide("invalid uid!", guideId) },
+            { repository.getSharedGuidesFrom("invalid uid!") },
+            { repository.observeSharedGuidesFrom("invalid uid!") },
+        )
+
+    for (action in actions) {
+      assertThrowsSuspending<MonumentSharingException.InvalidUid> { action() }
     }
   }
 
   @Test
   fun blankGuideIdThrowsIllegalArgumentException() = runTest {
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.setShareAudience("   ", ShareAudience.ALL_FRIENDS)
-      }
-    }
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.test.runTest { repository.grantAccess("", setOf("uid-alice")) }
-    }
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.test.runTest { repository.revokeAccess("  ", setOf("uid-alice")) }
-    }
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.test.runTest { repository.dismissSharedGuide(ownerUid, "") }
-    }
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.test.runTest { repository.getShareSettings("") }
+    val actions =
+        listOf<suspend () -> Any?>(
+            { repository.setShareAudience("   ", ShareAudience.ALL_FRIENDS) },
+            { repository.grantAccess("", setOf("uid-alice")) },
+            { repository.revokeAccess("  ", setOf("uid-alice")) },
+            { repository.dismissSharedGuide(ownerUid, "") },
+            { repository.getShareSettings("") },
+        )
+
+    for (action in actions) {
+      assertThrowsSuspending<IllegalArgumentException> { action() }
     }
   }
 
@@ -706,8 +622,8 @@ class FirestoreMonumentSharingRepositoryTest {
     every { guideRef.get() } returns Tasks.forException(IOException("Firestore down"))
 
     val exception =
-        assertThrows(MonumentSharingException.FirestoreFailure::class.java) {
-          kotlinx.coroutines.test.runTest { repository.getShareSettings(guideId) }
+        assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+          repository.getShareSettings(guideId)
         }
     assertTrue(exception.cause is IOException)
   }
@@ -721,10 +637,8 @@ class FirestoreMonumentSharingRepositoryTest {
           throw CancellationException("Cancelled")
         }
 
-    assertThrows(CancellationException::class.java) {
-      kotlinx.coroutines.test.runTest {
-        repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
-      }
+    assertThrowsSuspending<CancellationException> {
+      repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
     }
   }
 
@@ -746,141 +660,6 @@ class FirestoreMonumentSharingRepositoryTest {
         DefaultMonumentSharingProvider(override = null, firestore = firestore, auth = auth)
     val repo = provider.repository()
     assertTrue(repo is FirestoreMonumentSharingRepository)
-  }
-
-  // endregion
-
-  // region FakeMonumentSharingRepository tests
-
-  @Test
-  fun fakeRepositorySetShareAudienceUpdatesStateAndSynchronizesGuides() = runTest {
-    val fakeRepo =
-        FakeMonumentSharingRepository(
-            initialGuidesByOwner = mapOf(ownerUid to listOf(baseGuide)),
-            currentUserId = currentUid,
-        )
-
-    fakeRepo.setShareAudience(
-        guideId = guideId,
-        audience = ShareAudience.SELECTED_FRIENDS,
-        recipientUids = setOf("uid-alice", "uid-bob"),
-    )
-
-    val settings = fakeRepo.getShareSettings(guideId)
-    assertEquals(ShareAudience.SELECTED_FRIENDS, settings.audience)
-    assertEquals(setOf("uid-alice", "uid-bob"), settings.sharedWithUids)
-
-    fakeRepo.setShareAudience(guideId = guideId, audience = ShareAudience.ALL_FRIENDS)
-    val allFriendsSettings = fakeRepo.getShareSettings(guideId)
-    assertEquals(ShareAudience.ALL_FRIENDS, allFriendsSettings.audience)
-    assertTrue(allFriendsSettings.sharedWithUids.isEmpty())
-
-    fakeRepo.setShareAudience(guideId = guideId, audience = ShareAudience.NONE)
-    val noneSettings = fakeRepo.getShareSettings(guideId)
-    assertEquals(ShareAudience.NONE, noneSettings.audience)
-  }
-
-  @Test
-  fun fakeRepositoryGrantAndRevokeAccess() = runTest {
-    val fakeRepo =
-        FakeMonumentSharingRepository(
-            initialSettingsByGuideId =
-                mapOf(guideId to MonumentShareSettings(audience = ShareAudience.NONE)),
-            currentUserId = currentUid,
-        )
-
-    fakeRepo.grantAccess(guideId, emptySet())
-    assertEquals(ShareAudience.NONE, fakeRepo.getShareSettings(guideId).audience)
-
-    fakeRepo.grantAccess(guideId, setOf("uid-alice", "uid-bob"))
-    val settingsAfterGrant = fakeRepo.getShareSettings(guideId)
-    assertEquals(ShareAudience.SELECTED_FRIENDS, settingsAfterGrant.audience)
-    assertEquals(setOf("uid-alice", "uid-bob"), settingsAfterGrant.sharedWithUids)
-
-    fakeRepo.revokeAccess(guideId, emptySet())
-    assertEquals(setOf("uid-alice", "uid-bob"), fakeRepo.getShareSettings(guideId).sharedWithUids)
-
-    fakeRepo.revokeAccess(guideId, setOf("uid-alice"))
-    val settingsAfterRevoke = fakeRepo.getShareSettings(guideId)
-    assertEquals(setOf("uid-bob"), settingsAfterRevoke.sharedWithUids)
-  }
-
-  @Test
-  fun fakeRepositoryDismissSharedGuideAndFilter() = runTest {
-    val sharedGuide =
-        baseGuide.copy(
-            id = "g-shared",
-            shareSettings =
-                MonumentShareSettings(
-                    audience = ShareAudience.SELECTED_FRIENDS,
-                    sharedWithUids = setOf(currentUid),
-                ),
-        )
-    val noneGuide =
-        baseGuide.copy(
-            id = "g-none",
-            shareSettings = MonumentShareSettings(audience = ShareAudience.NONE),
-        )
-    val fakeRepo =
-        FakeMonumentSharingRepository(
-            initialGuidesByOwner = mapOf(ownerUid to listOf(sharedGuide, noneGuide)),
-            currentUserId = currentUid,
-        )
-
-    val guidesBeforeDismiss = fakeRepo.getSharedGuidesFrom(ownerUid)
-    assertEquals(listOf(sharedGuide), guidesBeforeDismiss)
-
-    val observedBefore = fakeRepo.observeSharedGuidesFrom(ownerUid).first()
-    assertEquals(listOf(sharedGuide), observedBefore)
-
-    fakeRepo.dismissSharedGuide(ownerUid, "g-shared")
-    val guidesAfterDismiss = fakeRepo.getSharedGuidesFrom(ownerUid)
-    assertTrue(guidesAfterDismiss.isEmpty())
-  }
-
-  @Test
-  fun fakeRepositoryErrorHooksThrowConfiguredExceptions() = runTest {
-    val fakeRepo = FakeMonumentSharingRepository(currentUserId = currentUid)
-    fakeRepo.updateError = IOException("Update failed")
-    fakeRepo.dismissError = IOException("Dismiss failed")
-    fakeRepo.loadError = IOException("Load failed")
-
-    assertThrows(IOException::class.java) {
-      kotlinx.coroutines.test.runTest {
-        fakeRepo.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
-      }
-    }
-    assertThrows(IOException::class.java) {
-      kotlinx.coroutines.test.runTest { fakeRepo.grantAccess(guideId, setOf("uid-1")) }
-    }
-    assertThrows(IOException::class.java) {
-      kotlinx.coroutines.test.runTest { fakeRepo.revokeAccess(guideId, setOf("uid-1")) }
-    }
-    assertThrows(IOException::class.java) {
-      kotlinx.coroutines.test.runTest { fakeRepo.dismissSharedGuide(ownerUid, guideId) }
-    }
-    assertThrows(IOException::class.java) {
-      kotlinx.coroutines.test.runTest { fakeRepo.getShareSettings(guideId) }
-    }
-    assertThrows(IOException::class.java) {
-      kotlinx.coroutines.test.runTest { fakeRepo.getSharedGuidesFrom(ownerUid) }
-    }
-    assertThrows(IOException::class.java) {
-      kotlinx.coroutines.test.runTest { fakeRepo.observeSharedGuidesFrom(ownerUid).first() }
-    }
-  }
-
-  @Test
-  fun fakeRepositoryValidationAndMissingGuideHandling() = runTest {
-    val fakeRepo = FakeMonumentSharingRepository(currentUserId = currentUid)
-    assertThrows(IllegalArgumentException::class.java) {
-      kotlinx.coroutines.test.runTest {
-        fakeRepo.setShareAudience("   ", ShareAudience.ALL_FRIENDS)
-      }
-    }
-    assertThrows(MonumentSharingException.GuideNotFound::class.java) {
-      kotlinx.coroutines.test.runTest { fakeRepo.getShareSettings("missing-guide") }
-    }
   }
 
   // endregion

@@ -117,9 +117,14 @@ async function queryFriendships(token, uid) {
 }
 
 async function expectAllowed(label, response) {
-  const body = await response.text();
-  if (!response.ok) throw new Error(`${label} failed (${response.status}): ${body}`);
+  const bodyText = await response.text();
+  if (!response.ok) throw new Error(`${label} failed (${response.status}): ${bodyText}`);
   console.log(`PASS ${label}`);
+  try {
+    return JSON.parse(bodyText);
+  } catch {
+    return bodyText;
+  }
 }
 
 async function expectDenied(label, response) {
@@ -615,4 +620,116 @@ await expectDenied(
   "dismissed friend on ALL_FRIENDS guide is denied read",
   await firestoreRequest(allFriendsDismissedPath, friend.token),
 );
+
+// --- users/{ownerUid}/savedGuides collection list (runQuery) rules tests ---
+
+async function runSavedGuidesQuery(token, ownerUid, where = null) {
+  const structuredQuery = {
+    from: [{ collectionId: "savedGuides" }],
+    ...(where ? { where } : {}),
+  };
+  return firestoreRequest(`users/${ownerUid}:runQuery`, token, {
+    method: "POST",
+    body: JSON.stringify({ structuredQuery }),
+  });
+}
+
+// 1. Unfiltered list by accepted friend is denied (PERMISSION_DENIED) — proving "rules are not filters".
+await expectDenied(
+  "unfiltered savedGuides query by accepted friend is denied",
+  await runSavedGuidesQuery(friend.token, guideOwner.uid),
+);
+
+// 2. whereIn (shareAudience in ['ALL_FRIENDS', 'ALL_FOLLOWERS']) by accepted friend is allowed.
+const broadcastFilter = {
+  fieldFilter: {
+    field: { fieldPath: "shareAudience" },
+    op: "IN",
+    value: {
+      arrayValue: {
+        values: [{ stringValue: "ALL_FRIENDS" }, { stringValue: "ALL_FOLLOWERS" }],
+      },
+    },
+  },
+};
+
+const broadcastResponse = await runSavedGuidesQuery(friend.token, guideOwner.uid, broadcastFilter);
+const broadcastBody = await expectAllowed(
+  "whereIn ALL_FRIENDS/ALL_FOLLOWERS by accepted friend is allowed",
+  broadcastResponse,
+);
+const broadcastIds = broadcastBody
+  .filter((r) => r.document)
+  .map((r) => r.document.name.split("/").pop());
+if (
+  !broadcastIds.includes("guide-all-friends") ||
+  !broadcastIds.includes("guide-all-followers") ||
+  broadcastIds.includes("guide-none") ||
+  broadcastIds.includes("guide-selected")
+) {
+  throw new Error(`whereIn returned unexpected docs: ${JSON.stringify(broadcastIds)}`);
+}
+
+// 3. whereEqualTo("shareAudience", "SELECTED_FRIENDS") + whereArrayContains("sharedWithUids", friendUid) is allowed.
+const selectedFilter = {
+  compositeFilter: {
+    op: "AND",
+    filters: [
+      {
+        fieldFilter: {
+          field: { fieldPath: "shareAudience" },
+          op: "EQUAL",
+          value: { stringValue: "SELECTED_FRIENDS" },
+        },
+      },
+      {
+        fieldFilter: {
+          field: { fieldPath: "sharedWithUids" },
+          op: "ARRAY_CONTAINS",
+          value: { stringValue: friend.uid },
+        },
+      },
+    ],
+  },
+};
+
+const selectedResponse = await runSavedGuidesQuery(friend.token, guideOwner.uid, selectedFilter);
+const selectedBody = await expectAllowed(
+  "whereEqualTo SELECTED_FRIENDS and arrayContains friendUid by listed friend is allowed",
+  selectedResponse,
+);
+const selectedIds = selectedBody
+  .filter((r) => r.document)
+  .map((r) => r.document.name.split("/").pop());
+if (!selectedIds.includes("guide-selected") || selectedIds.includes("guide-none")) {
+  throw new Error(`selectedQuery returned unexpected docs: ${JSON.stringify(selectedIds)}`);
+}
+
+// 4. whereIn (['ALL_FRIENDS', 'ALL_FOLLOWERS']) by stranger is denied.
+await expectDenied(
+  "whereIn ALL_FRIENDS/ALL_FOLLOWERS by stranger is denied",
+  await runSavedGuidesQuery(strangerUser.token, guideOwner.uid, broadcastFilter),
+);
+
+// 5. whereEqualTo("shareAudience", "ALL_FOLLOWERS") by unidirectional follower is allowed.
+const followersFilter = {
+  fieldFilter: {
+    field: { fieldPath: "shareAudience" },
+    op: "EQUAL",
+    value: { stringValue: "ALL_FOLLOWERS" },
+  },
+};
+
+const followersResponse = await runSavedGuidesQuery(follower.token, guideOwner.uid, followersFilter);
+const followersBody = await expectAllowed(
+  "whereEqualTo ALL_FOLLOWERS by unidirectional follower is allowed",
+  followersResponse,
+);
+const followersIds = followersBody
+  .filter((r) => r.document)
+  .map((r) => r.document.name.split("/").pop());
+if (!followersIds.includes("guide-all-followers") || followersIds.includes("guide-all-friends")) {
+  throw new Error(`followersQuery returned unexpected docs: ${JSON.stringify(followersIds)}`);
+}
+
 

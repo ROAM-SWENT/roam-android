@@ -31,6 +31,27 @@ class FakeMonumentSharingRepository(
   var updateError: Exception? = null
   var dismissError: Exception? = null
 
+  private fun updateSettings(
+      guideId: String,
+      transform: (MonumentShareSettings) -> MonumentShareSettings,
+  ) {
+    val current =
+        shareSettings.value[guideId]
+            ?: guidesByOwner.value.values.flatten().firstOrNull { it.id == guideId }?.shareSettings
+            ?: MonumentShareSettings()
+    val updated = transform(current)
+    shareSettings.update { it + (guideId to updated) }
+    guidesByOwner.update { map ->
+      map.mapValues { (_, guides) ->
+        guides.map { if (it.id == guideId) it.copy(shareSettings = updated) else it }
+      }
+    }
+  }
+
+  private fun isVisible(guide: Guide) =
+      currentUserId !in guide.shareSettings.dismissedByUids &&
+          guide.shareSettings.audience != ShareAudience.NONE
+
   override suspend fun setShareAudience(
       guideId: String,
       audience: ShareAudience,
@@ -38,40 +59,26 @@ class FakeMonumentSharingRepository(
   ) {
     updateError?.let { throw it }
     validateGuideId(guideId)
-
-    val currentSettings =
-        shareSettings.value[guideId]
-            ?: guidesByOwner.value.values.flatten().firstOrNull { it.id == guideId }?.shareSettings
-            ?: MonumentShareSettings()
-
-    val newSettings =
-        when (audience) {
-          ShareAudience.SELECTED_FRIENDS ->
-              currentSettings.copy(
-                  audience = audience,
-                  sharedWithUids = recipientUids,
-                  dismissedByUids = currentSettings.dismissedByUids - recipientUids,
-              )
-          ShareAudience.ALL_FRIENDS,
-          ShareAudience.ALL_FOLLOWERS ->
-              currentSettings.copy(
-                  audience = audience,
-                  sharedWithUids = emptySet(),
-                  dismissedByUids = emptySet(),
-              )
-          ShareAudience.NONE ->
-              currentSettings.copy(
-                  audience = audience,
-                  sharedWithUids = emptySet(),
-              )
-        }
-
-    shareSettings.update { it + (guideId to newSettings) }
-    guidesByOwner.update { map ->
-      map.mapValues { (_, guides) ->
-        guides.map { guide ->
-          if (guide.id == guideId) guide.copy(shareSettings = newSettings) else guide
-        }
+    updateSettings(guideId) { current ->
+      when (audience) {
+        ShareAudience.SELECTED_FRIENDS ->
+            current.copy(
+                audience = audience,
+                sharedWithUids = recipientUids,
+                dismissedByUids = current.dismissedByUids - recipientUids,
+            )
+        ShareAudience.ALL_FRIENDS,
+        ShareAudience.ALL_FOLLOWERS ->
+            current.copy(
+                audience = audience,
+                sharedWithUids = emptySet(),
+                dismissedByUids = emptySet(),
+            )
+        ShareAudience.NONE ->
+            current.copy(
+                audience = audience,
+                sharedWithUids = emptySet(),
+            )
       }
     }
   }
@@ -80,30 +87,14 @@ class FakeMonumentSharingRepository(
     updateError?.let { throw it }
     validateGuideId(guideId)
     if (recipientUids.isEmpty()) return
-
-    val currentSettings =
-        shareSettings.value[guideId]
-            ?: guidesByOwner.value.values.flatten().firstOrNull { it.id == guideId }?.shareSettings
-            ?: MonumentShareSettings()
-
-    val audience =
-        if (currentSettings.audience == ShareAudience.NONE) ShareAudience.SELECTED_FRIENDS
-        else currentSettings.audience
-
-    val newSettings =
-        currentSettings.copy(
-            audience = audience,
-            sharedWithUids = currentSettings.sharedWithUids + recipientUids,
-            dismissedByUids = currentSettings.dismissedByUids - recipientUids,
-        )
-
-    shareSettings.update { it + (guideId to newSettings) }
-    guidesByOwner.update { map ->
-      map.mapValues { (_, guides) ->
-        guides.map { guide ->
-          if (guide.id == guideId) guide.copy(shareSettings = newSettings) else guide
-        }
-      }
+    updateSettings(guideId) { current ->
+      current.copy(
+          audience =
+              if (current.audience == ShareAudience.NONE) ShareAudience.SELECTED_FRIENDS
+              else current.audience,
+          sharedWithUids = current.sharedWithUids + recipientUids,
+          dismissedByUids = current.dismissedByUids - recipientUids,
+      )
     }
   }
 
@@ -111,55 +102,17 @@ class FakeMonumentSharingRepository(
     updateError?.let { throw it }
     validateGuideId(guideId)
     if (recipientUids.isEmpty()) return
-
-    val currentSettings =
-        shareSettings.value[guideId]
-            ?: guidesByOwner.value.values.flatten().firstOrNull { it.id == guideId }?.shareSettings
-            ?: MonumentShareSettings()
-
-    val newSettings =
-        currentSettings.copy(
-            sharedWithUids = currentSettings.sharedWithUids - recipientUids,
-        )
-
-    shareSettings.update { it + (guideId to newSettings) }
-    guidesByOwner.update { map ->
-      map.mapValues { (_, guides) ->
-        guides.map { guide ->
-          if (guide.id == guideId) guide.copy(shareSettings = newSettings) else guide
-        }
-      }
-    }
+    updateSettings(guideId) { it.copy(sharedWithUids = it.sharedWithUids - recipientUids) }
   }
 
   override suspend fun dismissSharedGuide(ownerUid: String, guideId: String) {
     dismissError?.let { throw it }
     validateGuideId(guideId)
-
-    guidesByOwner.update { map ->
-      val ownerGuides = map[ownerUid] ?: return@update map
-      map +
-          (ownerUid to
-              ownerGuides.map { guide ->
-                if (guide.id == guideId) {
-                  val newSettings =
-                      guide.shareSettings.copy(
-                          dismissedByUids = guide.shareSettings.dismissedByUids + currentUserId,
-                          sharedWithUids = guide.shareSettings.sharedWithUids - currentUserId,
-                      )
-                  guide.copy(shareSettings = newSettings)
-                } else guide
-              })
-    }
-
-    shareSettings.update { map ->
-      val current = map[guideId] ?: return@update map
-      map +
-          (guideId to
-              current.copy(
-                  dismissedByUids = current.dismissedByUids + currentUserId,
-                  sharedWithUids = current.sharedWithUids - currentUserId,
-              ))
+    updateSettings(guideId) {
+      it.copy(
+          dismissedByUids = it.dismissedByUids + currentUserId,
+          sharedWithUids = it.sharedWithUids - currentUserId,
+      )
     }
   }
 
@@ -173,22 +126,14 @@ class FakeMonumentSharingRepository(
 
   override suspend fun getSharedGuidesFrom(ownerUid: String): List<Guide> {
     loadError?.let { throw it }
-    return (guidesByOwner.value[ownerUid] ?: emptyList()).filter { guide ->
-      currentUserId !in guide.shareSettings.dismissedByUids &&
-          guide.shareSettings.audience != ShareAudience.NONE
-    }
+    return (guidesByOwner.value[ownerUid] ?: emptyList()).filter(::isVisible)
   }
 
   override fun observeSharedGuidesFrom(ownerUid: String): Flow<List<Guide>> {
     loadError?.let { error ->
       return flow { throw error }
     }
-    return guidesByOwner.map { map ->
-      (map[ownerUid] ?: emptyList()).filter { guide ->
-        currentUserId !in guide.shareSettings.dismissedByUids &&
-            guide.shareSettings.audience != ShareAudience.NONE
-      }
-    }
+    return guidesByOwner.map { map -> (map[ownerUid] ?: emptyList()).filter(::isVisible) }
   }
 
   private fun validateGuideId(guideId: String) {
