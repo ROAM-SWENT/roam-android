@@ -31,6 +31,8 @@ object C {
     const val settings_language_card = "settings_language_card"
     const val settings_screen_container = "settings_screen_container"
     const val settings_sign_out_button = "settings_sign_out_button"
+    const val settings_username_field = "settings_username_field"
+    const val settings_username_save = "settings_username_save"
     const val settings_manage_permissions_button = "settings_manage_permissions_button"
     const val settings_camera_permission_tag = "settings_camera_permission_tag"
     const val settings_location_permission_tag = "settings_location_permission_tag"

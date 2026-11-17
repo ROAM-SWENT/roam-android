@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
 
 package com.github.roamswent.roam.ui.home
@@ -8,30 +9,67 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
  * ViewModel for the Home screen.
  *
- * Exposes the display name of the currently signed-in user for the greeting header, reactively
- * updating on every authentication state change.
+ * Exposes the registered username of the signed-in user, falling back to their authentication
+ * display name when no public profile is available.
  *
  * @property repository The repository used to observe the currently signed-in user.
  */
-class HomeViewModel(private val repository: AuthRepository = AuthRepositoryFirebase()) :
-    ViewModel() {
+class HomeViewModel(
+    private val repository: AuthRepository = AuthRepositoryFirebase(),
+    private val publicProfileRepository: PublicProfileRepository? = null,
+) : ViewModel() {
 
   private val _userName = MutableStateFlow(DEFAULT_USER_NAME)
   val userName: StateFlow<String> = _userName
+  private var currentUser: FirebaseUser? = repository.currentUser()
+  private var profileJob: Job? = null
 
   init {
-    _userName.value = resolveDisplayName(repository.currentUser())
+    refreshUserName(currentUser)
     viewModelScope.launch {
-      repository.currentUserFlow().map { resolveDisplayName(it) }.collect { _userName.value = it }
+      repository.currentUserFlow().collect { user ->
+        val userChanged = currentUser?.uid != user?.uid
+        currentUser = user
+        if (userChanged && publicProfileRepository != null) {
+          _userName.value = DEFAULT_USER_NAME
+        }
+        refreshUserName(user)
+      }
+    }
+  }
+
+  /** Refreshes the username when returning to the home screen from settings. */
+  fun refreshUserName() {
+    refreshUserName(currentUser)
+  }
+
+  private fun refreshUserName(user: FirebaseUser?) {
+    val fallbackName = resolveDisplayName(user)
+    profileJob?.cancel()
+    if (publicProfileRepository == null || user == null) {
+      _userName.value = fallbackName
+      return
+    }
+
+    profileJob = viewModelScope.launch {
+      try {
+        _userName.value = publicProfileRepository.getCurrentProfile()?.username ?: fallbackName
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (_: Exception) {
+        _userName.value = fallbackName
+      }
     }
   }
 

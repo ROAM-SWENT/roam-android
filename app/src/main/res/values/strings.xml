@@ -129,6 +129,12 @@
     <string name="sign_in_error_unexpected">Unexpected error: %1$s</string>
     <string name="settings_error_profile_load">Unable to load your profile.</string>
     <string name="settings_error_sign_out">Unable to sign out.</string>
+    <string name="settings_username_label">Username</string>
+    <string name="settings_username_save">Save username</string>
+    <string name="settings_username_error_invalid">Username must contain 3 to 20 ASCII letters, numbers, or underscores.</string>
+    <string name="settings_username_error_taken">That username is already taken.</string>
+    <string name="settings_username_error_update">Unable to update your username. Please try again.</string>
+    <string name="settings_username_error_load">Unable to load your username. Please try again.</string>
     <string name="scan_review_sending_title">Image being treated…</string>
     <string name="scan_review_sending_message">Please wait.</string>
     <string name="scan_close_description">Close</string>
