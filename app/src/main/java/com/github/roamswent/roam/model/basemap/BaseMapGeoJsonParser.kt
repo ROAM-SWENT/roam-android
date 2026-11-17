@@ -46,9 +46,13 @@ object BaseMapGeoJsonParser {
 
   /** A polygon is a list of rings: the outline first, then its holes. */
   private fun polygonOf(rings: JsonElement): BaseMapPolygon? {
-    val parsed = rings.jsonArray.map(::ringOf).filter { it.size >= MIN_RING_SIZE }
-    val outline = parsed.firstOrNull() ?: return null
-    return BaseMapPolygon(outline = outline, holes = parsed.drop(1))
+    val parsed = rings.jsonArray.map(::ringOf)
+    // The first ring is the outline; a hole must never be promoted to outline if it is invalid.
+    val outline = parsed.firstOrNull()?.takeIf { it.size >= MIN_RING_SIZE } ?: return null
+    return BaseMapPolygon(
+        outline = outline,
+        holes = parsed.drop(1).filter { it.size >= MIN_RING_SIZE },
+    )
   }
 
   private fun ringOf(ring: JsonElement): List<Coordinates> =

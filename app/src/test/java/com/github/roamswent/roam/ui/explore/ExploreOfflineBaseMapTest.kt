@@ -1,6 +1,9 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.explore
 
+import com.github.roamswent.roam.model.basemap.BaseMapPolygon
+import com.github.roamswent.roam.model.location.Coordinates
+import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.MapType
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
@@ -32,6 +35,33 @@ class ExploreOfflineBaseMapTest {
     offlineSeaBands().forEach { band ->
       assertTrue(band.maxOf { it.longitude } - band.minOf { it.longitude } < 180.0)
     }
+  }
+
+  @Test
+  fun seaShapesMatchTheSeaBandsInGoogleMapsPoints() {
+    val shapes = offlineSeaShapes()
+
+    assertEquals(offlineSeaBands().size, shapes.size)
+    assertEquals(LatLng(-85.0, -180.0), shapes.first().first())
+  }
+
+  @Test
+  fun landShapesKeepOutlinesAndHolesInLatLngOrder() {
+    val outline = listOf(Coordinates(0.0, 10.0), Coordinates(0.0, 20.0), Coordinates(5.0, 20.0))
+    val hole = listOf(Coordinates(1.0, 12.0), Coordinates(1.0, 13.0), Coordinates(2.0, 13.0))
+
+    val shapes =
+        offlineLandShapes(listOf(BaseMapPolygon(outline, listOf(hole)), BaseMapPolygon(outline)))
+
+    assertEquals(2, shapes.size)
+    assertEquals(LatLng(0.0, 20.0), shapes[0].outline[1])
+    assertEquals(LatLng(1.0, 13.0), shapes[0].holes[0][1])
+    assertTrue(shapes[1].holes.isEmpty())
+  }
+
+  @Test
+  fun noCountriesGiveNoLandShapes() {
+    assertTrue(offlineLandShapes(emptyList()).isEmpty())
   }
 
   @Test

@@ -161,6 +161,22 @@ internal fun offlineSeaBands(): List<List<Coordinates>> =
         }
         .toList()
 
+/** The sea bands as Google Maps points. */
+internal fun offlineSeaShapes(): List<List<LatLng>> =
+    offlineSeaBands().map { band -> band.map { it.toLatLng() } }
+
+/** A land polygon as Google Maps points: its outline and the holes cut out of it. */
+internal data class OfflineLandShape(val outline: List<LatLng>, val holes: List<List<LatLng>>)
+
+/** Converts the bundled countries to the shapes drawn on the map. */
+internal fun offlineLandShapes(countries: List<BaseMapPolygon>): List<OfflineLandShape> =
+    countries.map { country ->
+      OfflineLandShape(
+          outline = country.outline.map { it.toLatLng() },
+          holes = country.holes.map { hole -> hole.map { it.toLatLng() } },
+      )
+    }
+
 /**
  * Map properties for the connection state: offline, the Google tiles are switched off so the
  * bundled base map is the only background, rather than a patchwork of whatever tiles were cached.
@@ -301,24 +317,18 @@ fun ExploreScreen(
 @Composable
 @GoogleMapComposable
 private fun OfflineBaseMap(countries: List<BaseMapPolygon>) {
-  val sea = remember { offlineSeaBands().map { band -> band.map { it.toLatLng() } } }
-  val land =
-      remember(countries) {
-        countries.map { country ->
-          country.outline.map { it.toLatLng() } to
-              country.holes.map { hole -> hole.map { it.toLatLng() } }
-        }
-      }
+  val sea = remember { offlineSeaShapes() }
+  val land = remember(countries) { offlineLandShapes(countries) }
   val seaColor = MaterialTheme.offlineMapWater
   val landColor = MaterialTheme.offlineMapLand
   val borderColor = MaterialTheme.offlineMapBorder
   sea.forEach { band ->
     Polygon(points = band, fillColor = seaColor, strokeColor = seaColor, strokeWidth = 0f)
   }
-  land.forEach { (outline, holes) ->
+  land.forEach { shape ->
     Polygon(
-        points = outline,
-        holes = holes,
+        points = shape.outline,
+        holes = shape.holes,
         fillColor = landColor,
         strokeColor = borderColor,
         strokeWidth = OFFLINE_BORDER_WIDTH_PX,

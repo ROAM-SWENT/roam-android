@@ -67,6 +67,16 @@ class BaseMapGeoJsonParserTest {
   }
 
   @Test
+  fun polygonWithAnInvalidOutlineIsDroppedEvenIfItHasValidHoles() {
+    val polygons =
+        BaseMapGeoJsonParser.parse(
+            collection("""{"type":"Polygon","coordinates":[[[0,0],[1,1],[0,0]],$square]}""")
+        )
+
+    assertTrue(polygons.isEmpty())
+  }
+
+  @Test
   fun collectionWithoutFeaturesIsEmpty() {
     assertTrue(BaseMapGeoJsonParser.parse("""{"type":"FeatureCollection"}""").isEmpty())
   }
