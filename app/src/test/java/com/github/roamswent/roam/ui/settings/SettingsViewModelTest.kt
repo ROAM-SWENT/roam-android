@@ -12,6 +12,9 @@ import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.model.profile.ProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileException
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.profile.UserProfile
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +45,7 @@ class SettingsViewModelTest {
   private val dispatcher = StandardTestDispatcher()
   private lateinit var repository: AuthRepository
   private lateinit var profileRepository: ProfileRepository
+  private lateinit var publicProfileRepository: PublicProfileRepository
   private lateinit var credentialManager: CredentialManager
   private lateinit var userInterestsRepository: FakeUserInterestsRepository
 
@@ -50,6 +54,7 @@ class SettingsViewModelTest {
     Dispatchers.setMain(dispatcher)
     repository = mock()
     profileRepository = mock()
+    publicProfileRepository = mock()
     userInterestsRepository = FakeUserInterestsRepository()
     credentialManager = mock()
     runBlocking {
@@ -69,7 +74,14 @@ class SettingsViewModelTest {
   fun initialState_isEmpty() {
     assertEquals(
         SettingsUIState(),
-        SettingsViewModel(repository, profileRepository, userInterestsRepository).uiState.value,
+        SettingsViewModel(
+                repository,
+                profileRepository,
+                userInterestsRepository,
+                publicProfileRepository,
+            )
+            .uiState
+            .value,
     )
   }
 
@@ -215,6 +227,54 @@ class SettingsViewModelTest {
         verify(profileRepository).loadProfile()
       }
 
+  @Test
+  fun renameUsername_successUpdatesDisplayedPublicProfile() =
+      runTest(dispatcher) {
+        val originalProfile = PublicProfile("uid", "old_name")
+        val updatedProfile = PublicProfile("uid", "new_name")
+        whenever(publicProfileRepository.getCurrentProfile()).thenReturn(originalProfile)
+        whenever(profileRepository.loadProfile())
+            .thenReturn(Result.success(UserProfile("Name", "user@example.com", "Google")))
+        whenever(publicProfileRepository.renameUsername("new_name")).thenReturn(updatedProfile)
+        val viewModel = newViewModel()
+
+        viewModel.loadProfile()
+        advanceUntilIdle()
+        viewModel.renameUsername(" new_name ")
+        advanceUntilIdle()
+
+        assertEquals(updatedProfile, viewModel.uiState.value.publicProfile)
+        assertFalse(viewModel.uiState.value.isUsernameSaving)
+        assertNull(viewModel.uiState.value.usernameErrorMsg)
+        verify(publicProfileRepository).renameUsername("new_name")
+      }
+
+  @Test
+  fun renameUsername_invalidAndTakenNamesExposeSpecificErrors() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.renameUsername("bad-name")).thenAnswer {
+          throw PublicProfileException.InvalidUsername()
+        }
+        whenever(publicProfileRepository.renameUsername("taken_name")).thenAnswer {
+          throw PublicProfileException.UsernameTaken()
+        }
+        val viewModel = newViewModel()
+
+        viewModel.renameUsername("bad-name")
+        advanceUntilIdle()
+        assertEquals(
+            R.string.settings_username_error_invalid,
+            viewModel.uiState.value.usernameErrorMsg,
+        )
+
+        viewModel.renameUsername("taken_name")
+        advanceUntilIdle()
+        assertEquals(
+            R.string.settings_username_error_taken,
+            viewModel.uiState.value.usernameErrorMsg,
+        )
+      }
+
   /** Verifies that a profile load already in progress is not started a second time. */
   @Test
   fun loadProfile_whileAlreadyLoading_ignoresSecondRequest() =
@@ -241,7 +301,12 @@ class SettingsViewModelTest {
       }
 
   private fun newViewModel() =
-      SettingsViewModel(repository, profileRepository, userInterestsRepository)
+      SettingsViewModel(
+          repository,
+          profileRepository,
+          userInterestsRepository,
+          publicProfileRepository,
+      )
 
   private class FakeUserInterestsRepository(
       private var hasBeenAsked: Boolean = false,

@@ -29,6 +29,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
@@ -40,6 +42,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
+import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
@@ -107,6 +110,7 @@ class SettingsScreenTest {
                     cameraPermissionGranted = true,
                     locationPermissionGranted = false,
                     profile = UserProfile("Victor", "victor@epfl.ch", "Google"),
+                    publicProfile = PublicProfile("uid", "roamer"),
                     interests = listOf("Architecture"),
                 )
             )
@@ -123,7 +127,7 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Victor").assertIsDisplayed()
+    composeTestRule.onNodeWithText("roamer").assertIsDisplayed()
     composeTestRule
         .onNodeWithText(context.getString(R.string.settings_permissions_section_header))
         .assertIsDisplayed()
@@ -135,10 +139,10 @@ class SettingsScreenTest {
     composeTestRule
         .onNodeWithText(context.getString(R.string.settings_interests_title))
         .assertIsDisplayed()
-    composeTestRule.onNodeWithText("Architecture").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Camera permission").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Location permission").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Notification permission").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Architecture").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("Camera permission").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("Location permission").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("Notification permission").performScrollTo().assertIsDisplayed()
     composeTestRule
         .onNodeWithText(context.getString(R.string.settings_camera_permission))
         .assertIsDisplayed()
@@ -151,6 +155,32 @@ class SettingsScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.settings_location_permission_tag, useUnmergedTree = true)
         .assert(hasAnyChild(hasText(context.getString(R.string.settings_permission_denied))))
+  }
+
+  @Test
+  fun profileUsernameCanBeEditedAndSaved() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(SettingsUIState(publicProfile = PublicProfile("uid", "roamer")))
+        )
+    val (cameraController, locationController) = permissionControllers()
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.settings_username_field).performTextClearance()
+    composeTestRule.onNodeWithTag(C.Tag.settings_username_field).performTextInput("new_name")
+    composeTestRule.onNodeWithTag(C.Tag.settings_username_save).performClick()
+
+    verify(viewModel).renameUsername("new_name")
   }
 
   @Test
@@ -280,9 +310,9 @@ class SettingsScreenTest {
     assertTrue(containsColor(darkThemeCard, darkCardColor))
   }
 
-  /** Verifies that an empty display name falls back to the default profile label. */
+  /** Verifies that the username editor is still available while profile data is empty. */
   @Test
-  fun emptyProfileName_usesTravelerFallback() {
+  fun emptyProfileName_showsUsernameEditor() {
     val viewModel = mock<SettingsViewModel>()
     whenever(viewModel.uiState)
         .thenReturn(
@@ -302,7 +332,7 @@ class SettingsScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Traveler").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.settings_username_field).assertIsDisplayed()
   }
 
   /**
