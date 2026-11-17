@@ -16,6 +16,7 @@ import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileException
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.profile.UserProfile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -228,6 +229,46 @@ class SettingsViewModelTest {
       }
 
   @Test
+  fun loadPublicProfile_failureSetsUsernameLoadError() =
+      runTest(dispatcher) {
+        whenever(profileRepository.loadProfile())
+            .thenReturn(Result.success(UserProfile("Name", "user@example.com", "Google")))
+        whenever(publicProfileRepository.getCurrentProfile()).thenAnswer {
+          throw IllegalStateException("Public profile unavailable")
+        }
+        val viewModel = newViewModel()
+
+        viewModel.loadProfile()
+        advanceUntilIdle()
+
+        assertEquals(
+            R.string.settings_username_error_load,
+            viewModel.uiState.value.usernameErrorMsg,
+        )
+      }
+
+  @Test
+  fun loadPublicProfile_cancellationIsRethrownWithoutSettingAnError() =
+      runTest(dispatcher) {
+        val currentProfile = PublicProfile("uid", "traveler")
+        whenever(profileRepository.loadProfile())
+            .thenReturn(Result.success(UserProfile("Name", "user@example.com", "Google")))
+        whenever(publicProfileRepository.getCurrentProfile())
+            .thenReturn(currentProfile)
+            .thenAnswer { throw CancellationException("Profile lookup cancelled") }
+        val viewModel = newViewModel()
+
+        viewModel.loadProfile()
+        advanceUntilIdle()
+        viewModel.loadProfile()
+        advanceUntilIdle()
+
+        assertEquals(currentProfile, viewModel.uiState.value.publicProfile)
+        assertNull(viewModel.uiState.value.usernameErrorMsg)
+        verify(publicProfileRepository, org.mockito.kotlin.times(2)).getCurrentProfile()
+      }
+
+  @Test
   fun renameUsername_successUpdatesDisplayedPublicProfile() =
       runTest(dispatcher) {
         val originalProfile = PublicProfile("uid", "old_name")
@@ -247,6 +288,80 @@ class SettingsViewModelTest {
         assertFalse(viewModel.uiState.value.isUsernameSaving)
         assertNull(viewModel.uiState.value.usernameErrorMsg)
         verify(publicProfileRepository).renameUsername("new_name")
+      }
+
+  @Test
+  fun renameUsername_withoutPublicProfileRepositorySetsUpdateError() {
+    val viewModel = SettingsViewModel(repository, profileRepository, userInterestsRepository, null)
+
+    viewModel.renameUsername("new_name")
+
+    assertEquals(
+        R.string.settings_username_error_update,
+        viewModel.uiState.value.usernameErrorMsg,
+    )
+    assertFalse(viewModel.uiState.value.isUsernameSaving)
+  }
+
+  @Test
+  fun renameUsername_ignoresSecondModificationWhileSaving() =
+      runTest(dispatcher) {
+        val result = CompletableDeferred<PublicProfile>()
+        val blockingRepository = BlockingRenamePublicProfileRepository(result)
+        val viewModel =
+            SettingsViewModel(
+                repository,
+                profileRepository,
+                userInterestsRepository,
+                blockingRepository,
+            )
+
+        viewModel.renameUsername("first_name")
+        runCurrent()
+        viewModel.renameUsername("second_name")
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isUsernameSaving)
+        assertEquals(1, blockingRepository.renameCalls)
+
+        result.complete(PublicProfile("uid", "first_name"))
+        advanceUntilIdle()
+
+        assertEquals(PublicProfile("uid", "first_name"), viewModel.uiState.value.publicProfile)
+        assertFalse(viewModel.uiState.value.isUsernameSaving)
+      }
+
+  @Test
+  fun renameUsername_cancellationIsRethrownWithoutSettingAnError() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.renameUsername("cancel_name")).thenAnswer {
+          throw CancellationException("Username update cancelled")
+        }
+        val viewModel = newViewModel()
+
+        viewModel.renameUsername("cancel_name")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isUsernameSaving)
+        assertNull(viewModel.uiState.value.usernameErrorMsg)
+      }
+
+  @Test
+  fun renameUsername_unexpectedFailureSetsGenericUpdateError() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.renameUsername("failure_name")).thenAnswer {
+          throw IllegalStateException("Update failed")
+        }
+        val viewModel = newViewModel()
+
+        viewModel.renameUsername("failure_name")
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUsernameSaving)
+        assertEquals(
+            R.string.settings_username_error_update,
+            viewModel.uiState.value.usernameErrorMsg,
+        )
       }
 
   @Test
@@ -307,6 +422,26 @@ class SettingsViewModelTest {
           userInterestsRepository,
           publicProfileRepository,
       )
+
+  private class BlockingRenamePublicProfileRepository(
+      private val renameResult: CompletableDeferred<PublicProfile>
+  ) : PublicProfileRepository {
+    var renameCalls = 0
+
+    override suspend fun getCurrentProfile(): PublicProfile? = null
+
+    override suspend fun getProfile(uid: String): PublicProfile? = null
+
+    override suspend fun registerUsername(username: String): PublicProfile =
+        error("Registration is not used in this test.")
+
+    override suspend fun renameUsername(username: String): PublicProfile {
+      renameCalls++
+      return renameResult.await()
+    }
+
+    override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
+  }
 
   private class FakeUserInterestsRepository(
       private var hasBeenAsked: Boolean = false,

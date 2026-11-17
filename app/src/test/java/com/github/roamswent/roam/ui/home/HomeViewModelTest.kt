@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseUser
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -224,5 +225,110 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals("new_name", viewModel.userName.value)
+      }
+
+  @Test
+  fun authUidChangeClearsUsernameUntilNewPublicProfileLoads() =
+      runTest(dispatcher) {
+        val userA = mockUser(displayName = "Ada Lovelace", email = null)
+        val userB = mockUser(displayName = "Grace Hopper", email = null)
+        every { userA.uid } returns "uid-a"
+        every { userB.uid } returns "uid-b"
+        every { repository.currentUser() } returns userA
+        every { repository.currentUserFlow() } returns flowOf(userB)
+        val newProfile = CompletableDeferred<PublicProfile?>()
+        val publicProfileRepository = mockk<PublicProfileRepository>()
+        var lookupCount = 0
+        coEvery { publicProfileRepository.getCurrentProfile() } coAnswers
+            {
+              if (lookupCount++ == 0) PublicProfile("uid-a", "ada") else newProfile.await()
+            }
+
+        val viewModel = HomeViewModel(repository, publicProfileRepository)
+        runCurrent()
+
+        assertEquals(2, lookupCount)
+        assertEquals(HomeViewModel.DEFAULT_USER_NAME, viewModel.userName.value)
+
+        newProfile.complete(PublicProfile("uid-b", "grace"))
+        advanceUntilIdle()
+
+        assertEquals("grace", viewModel.userName.value)
+      }
+
+  @Test
+  fun cancelledPublicProfileLookupIsNotConvertedToFallback() =
+      runTest(dispatcher) {
+        val user = mockUser(displayName = "Ada Lovelace", email = null)
+        every { user.uid } returns "uid"
+        every { repository.currentUser() } returns user
+        every { repository.currentUserFlow() } returns emptyFlow()
+        val firstLookup = CompletableDeferred<PublicProfile?>()
+        val publicProfileRepository = mockk<PublicProfileRepository>()
+        var lookupCount = 0
+        coEvery { publicProfileRepository.getCurrentProfile() } coAnswers
+            {
+              if (lookupCount++ == 0) firstLookup.await()
+              else throw CancellationException("Profile lookup cancelled")
+            }
+
+        val viewModel = HomeViewModel(repository, publicProfileRepository)
+        runCurrent()
+        assertEquals(1, lookupCount)
+
+        viewModel.refreshUserName()
+        runCurrent()
+
+        assertEquals(2, lookupCount)
+        assertEquals(HomeViewModel.DEFAULT_USER_NAME, viewModel.userName.value)
+      }
+
+  @Test
+  fun initialPublicProfileLookupFailurePreservesDefaultUsername() =
+      runTest(dispatcher) {
+        val user = mockUser(displayName = "Ada Lovelace", email = null)
+        every { user.uid } returns "uid"
+        every { repository.currentUser() } returns user
+        every { repository.currentUserFlow() } returns emptyFlow()
+        val publicProfileRepository = mockk<PublicProfileRepository>()
+        coEvery { publicProfileRepository.getCurrentProfile() } throws
+            IllegalStateException("Profile lookup failed")
+
+        val viewModel = HomeViewModel(repository, publicProfileRepository)
+        advanceUntilIdle()
+
+        assertEquals(HomeViewModel.DEFAULT_USER_NAME, viewModel.userName.value)
+      }
+
+  @Test
+  fun missingOrFailedRefreshPreservesLastKnownUsername() =
+      runTest(dispatcher) {
+        val user = mockUser(displayName = "Ada Lovelace", email = null)
+        every { user.uid } returns "uid"
+        every { repository.currentUser() } returns user
+        every { repository.currentUserFlow() } returns emptyFlow()
+        val publicProfileRepository = mockk<PublicProfileRepository>()
+        var lookupCount = 0
+        coEvery { publicProfileRepository.getCurrentProfile() } coAnswers
+            {
+              when (lookupCount++) {
+                0 -> PublicProfile("uid", "roamer")
+                1 -> null
+                else -> throw IllegalStateException("Profile lookup failed")
+              }
+            }
+
+        val viewModel = HomeViewModel(repository, publicProfileRepository)
+        advanceUntilIdle()
+        assertEquals("roamer", viewModel.userName.value)
+
+        viewModel.refreshUserName()
+        advanceUntilIdle()
+        assertEquals("roamer", viewModel.userName.value)
+
+        viewModel.refreshUserName()
+        advanceUntilIdle()
+
+        assertEquals("roamer", viewModel.userName.value)
       }
 }

@@ -14,13 +14,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyChild
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -181,6 +184,37 @@ class SettingsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.settings_username_save).performClick()
 
     verify(viewModel).renameUsername("new_name")
+  }
+
+  @Test
+  fun usernameSaving_disablesFieldAndShowsProgressIndicator() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(
+                SettingsUIState(
+                    publicProfile = PublicProfile("uid", "roamer"),
+                    isUsernameSaving = true,
+                )
+            )
+        )
+    val (cameraController, locationController) = permissionControllers()
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SettingsScreen(
+            settingsViewModel = viewModel,
+            cameraPermissionController = cameraController,
+            locationPermissionController = locationController,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.settings_username_field).assertIsNotEnabled()
+    composeTestRule.onAllNodesWithTag(C.Tag.settings_username_save).assertCountEquals(0)
+    composeTestRule
+        .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
+        .assertIsDisplayed()
   }
 
   @Test
