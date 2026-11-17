@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.github.roamswent.roam.data.FileCapturedImageManager
 import com.github.roamswent.roam.data.GuideCaptureSender
+import com.github.roamswent.roam.data.ScanLocationSource
 import com.github.roamswent.roam.model.ai.DiscoveryRequest
 import com.github.roamswent.roam.model.ai.FirebaseGeminiClient
 import com.github.roamswent.roam.model.ai.GeminiImageScreen
@@ -52,7 +53,7 @@ fun ScanReviewRoute(
             ?: SharedPreferencesUserInterestsRepository(context.applicationContext)
       }
   val captureSender: CaptureSender =
-      remember(context, captureSenderOverride) {
+      remember(context, captureSenderOverride, isGalleryImage) {
         captureSenderOverride
             ?: run {
               val geminiClient = FirebaseGeminiClient(context)
@@ -67,6 +68,8 @@ fun ScanReviewRoute(
                   context,
                   guideRepository,
                   userInterestsRepository,
+                  // A gallery photo is located only by its own metadata, never by the device.
+                  locationSource = ScanLocationSource.forScan(isGalleryImage),
               )
             }
       }

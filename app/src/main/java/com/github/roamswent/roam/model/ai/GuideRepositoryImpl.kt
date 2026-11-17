@@ -14,7 +14,9 @@ import kotlinx.coroutines.withContext
  * Malformed replies are retried once. Blocked, network, and configuration errors are not retried.
  *
  * The request location is used when set. When it is null, [LocationProvider] is asked, and the
- * location is omitted from the prompt if it is still unavailable.
+ * location is omitted from the prompt if it is still unavailable. A request that disables
+ * [DiscoveryRequest.useDeviceLocation], such as a gallery photo, never asks [LocationProvider]: its
+ * location is the one it carries, or none.
  */
 class GuideRepositoryImpl(
     private val imagePreparer: ImagePreparer,
@@ -43,7 +45,9 @@ class GuideRepositoryImpl(
     }
     if (!verdict.isMonument) throw MonumentNotIdentifiedException()
 
-    val location = request.location ?: locationProvider.currentCoordinates()
+    val location =
+        request.location
+            ?: if (request.useDeviceLocation) locationProvider.currentCoordinates() else null
     val prompt = PromptBuilder.guidePrompt(request.preferences, location)
     val guide = withRetries { ResponseParser.parseGuide(geminiClient.generate(prompt, photo)) }
     // Reuse the position and photo prepared here so callers can store them without redoing it.
