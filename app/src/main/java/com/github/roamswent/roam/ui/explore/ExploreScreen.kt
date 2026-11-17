@@ -48,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,16 +100,21 @@ internal data class ExploreMapMarker(
 internal const val USER_LOCATION_MARKER_KEY = "user_location"
 
 /**
- * Lists the markers of the Explore map: the user's location first, then one marker per saved
- * monument, titled with the monument name.
+ * Lists the markers of the Explore map: the user's location first when it is known, then one marker
+ * per saved monument, titled with the monument name.
  */
 internal fun exploreMapMarkers(
-    userLocation: Coordinates,
+    userLocation: Coordinates?,
     userLocationTitle: String,
     monuments: List<ExploreMonument>,
 ): List<ExploreMapMarker> =
-    listOf(ExploreMapMarker(USER_LOCATION_MARKER_KEY, userLocation, userLocationTitle)) +
-        monuments.map { ExploreMapMarker("monument_${it.guideId}", it.coordinates, it.name) }
+    listOfNotNull(
+        userLocation?.let { ExploreMapMarker(USER_LOCATION_MARKER_KEY, it, userLocationTitle) }
+    ) + monuments.map { ExploreMapMarker("monument_${it.guideId}", it.coordinates, it.name) }
+
+/** The user's coordinates when [state] has them, so the map can draw without a location. */
+internal fun exploreUserLocation(state: ExploreUiState): Coordinates? =
+    (state as? ExploreUiState.LocationAvailable)?.coordinates
 
 internal fun selectedMonumentForId(
     monuments: List<ExploreMonument>,
@@ -181,72 +187,104 @@ fun ExploreScreen(
               testTag = C.Tag.explore_screen_container
             }
     ) {
-      when (val state = uiState) {
-        is ExploreUiState.LocationAvailable -> {
-          val monuments by exploreViewModel.monuments.collectAsState()
-          val coordinates = state.coordinates
-          val userLocation = coordinates.toLatLng()
-          val cameraPositionState = rememberCameraPositionState {
-            position = CameraPosition.fromLatLngZoom(userLocation, 14f)
-          }
-          val markers =
-              exploreMapMarkers(
-                  userLocation = coordinates,
-                  userLocationTitle = stringResource(R.string.explore_user_location),
-                  monuments = monuments,
-              )
-          var selectedMonumentId by remember { mutableStateOf<String?>(null) }
-          LaunchedEffect(monuments, selectedMonumentId) {
-            selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
-          }
-          val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
-          var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
+      val monuments by exploreViewModel.monuments.collectAsState()
+      val userLocation = exploreUserLocation(uiState)
+      val cameraFocus = exploreCameraFocus(userLocation, monuments)
+      val cameraPositionState = rememberCameraPositionState {
+        position = exploreCameraTarget(userLocation, monuments).toCameraPosition()
+      }
+      // Reframe only when the focus changes (the location arrives, the first monuments load), so
+      // the user's panning is kept when monuments are added and across configuration changes.
+      var framedFocus by rememberSaveable { mutableStateOf(cameraFocus) }
+      LaunchedEffect(cameraFocus) {
+        if (framedFocus != cameraFocus) {
+          cameraPositionState.position =
+              exploreCameraTarget(userLocation, monuments).toCameraPosition()
+          framedFocus = cameraFocus
+        }
+      }
+      val markers =
+          exploreMapMarkers(
+              userLocation = userLocation,
+              userLocationTitle = stringResource(R.string.explore_user_location),
+              monuments = monuments,
+          )
+      var selectedMonumentId by remember { mutableStateOf<String?>(null) }
+      LaunchedEffect(monuments, selectedMonumentId) {
+        selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
+      }
+      val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
+      var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
 
-          Box(Modifier.fillMaxSize()) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
-                cameraPositionState = cameraPositionState,
-                mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
-            ) {
-              markers.forEach { marker ->
-                key(marker.key) {
-                  val position = marker.coordinates.toLatLng()
-                  val markerState = remember(position) { MarkerState(position = position) }
-                  Marker(
-                      state = markerState,
-                      title = marker.title,
-                      onClick = {
-                        handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
-                      },
-                  )
-                }
-              }
-            }
-            selectedMonument?.let { monument ->
-              ExploreMonumentCard(
-                  monument = monument,
-                  onDismiss = { selectedMonumentId = null },
-                  isExpanded = isMonumentExpanded,
-                  onExpand = { isMonumentExpanded = true },
-                  onMinimize = { isMonumentExpanded = false },
-                  modifier = Modifier.align(Alignment.BottomCenter),
-              )
-            }
+      GoogleMap(
+          modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
+          cameraPositionState = cameraPositionState,
+          mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
+      ) {
+        markers.forEach { marker ->
+          key(marker.key) {
+            val position = marker.coordinates.toLatLng()
+            val markerState = remember(position) { MarkerState(position = position) }
+            Marker(
+                state = markerState,
+                title = marker.title,
+                onClick = { handleExploreMarkerClick(marker.key) { selectedMonumentId = it } },
+            )
           }
         }
-        ExploreUiState.Loading ->
-            ExploreStateCard(message = stringResource(R.string.explore_loading_location))
-        is ExploreUiState.PermissionRequired ->
-            ExploreStateCard(message = stringResource(R.string.explore_permission_required))
-        ExploreUiState.LocationUnavailable ->
-            ExploreStateCard(
-                message = stringResource(R.string.explore_location_unavailable),
-                actionLabel = stringResource(R.string.explore_retry),
-                onAction = exploreViewModel::retryLocation,
-                showActionIcon = true,
-            )
+      }
+      ExploreLocationStatus(
+          state = uiState,
+          onRetry = exploreViewModel::retryLocation,
+          modifier = Modifier.align(Alignment.TopCenter),
+      )
+      selectedMonument?.let { monument ->
+        ExploreMonumentCard(
+            monument = monument,
+            onDismiss = { selectedMonumentId = null },
+            isExpanded = isMonumentExpanded,
+            onExpand = { isMonumentExpanded = true },
+            onMinimize = { isMonumentExpanded = false },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
       }
     }
+  }
+}
+
+private fun ExploreCameraTarget.toCameraPosition(): CameraPosition =
+    CameraPosition.fromLatLngZoom(center.toLatLng(), zoom)
+
+/**
+ * Explains, over the map, why the user's location is not shown; draws nothing once it is. The map
+ * and the saved monuments stay usable in every state.
+ */
+@Composable
+private fun ExploreLocationStatus(
+    state: ExploreUiState,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  when (state) {
+    is ExploreUiState.LocationAvailable -> Unit
+    ExploreUiState.Loading ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_loading_location),
+            modifier = modifier,
+        )
+    is ExploreUiState.PermissionRequired ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_permission_required),
+            modifier = modifier,
+        )
+    ExploreUiState.LocationUnavailable ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_location_unavailable),
+            actionLabel = stringResource(R.string.explore_retry),
+            onAction = onRetry,
+            showActionIcon = true,
+            modifier = modifier,
+        )
   }
 }
 
@@ -411,12 +449,16 @@ private fun ExplorePhotoPlaceholder(modifier: Modifier, tag: String) {
 @Composable
 private fun ExploreStateCard(
     message: String,
+    modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     showActionIcon: Boolean = false,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth().padding(20.dp),
+      modifier =
+          modifier.fillMaxWidth().padding(20.dp).semantics {
+            testTag = C.Tag.explore_location_status
+          },
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {

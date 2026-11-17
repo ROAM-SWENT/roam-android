@@ -39,7 +39,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -59,6 +58,7 @@ class ExploreScreenTest {
   @Test
   fun displaysExploreTitleAndMapContainerWhenLocationIsAvailable() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
             MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
@@ -93,6 +93,7 @@ class ExploreScreenTest {
   @Test
   fun readsSavedMonumentsWhenMapIsShown() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
             MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
@@ -262,10 +263,14 @@ class ExploreScreenTest {
         .assertIsDisplayed()
   }
 
-  /** Verifies that saved monuments are not read while the map is not shown. */
+  /**
+   * Verifies that the map and the saved monuments are shown even without location permission, with
+   * the permission guidance drawn over the map.
+   */
   @Test
-  fun doesNotReadMonumentsWithoutLocationPermission() {
+  fun showsMapAndMonumentsWithoutLocationPermission() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
             MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
@@ -281,14 +286,39 @@ class ExploreScreenTest {
     }
     composeTestRule.waitForIdle()
 
-    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(0)
-    verify(exploreViewModel, never()).monuments
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+    composeTestRule.onNodeWithTag(C.Tag.explore_location_status).assertIsDisplayed()
+    verify(exploreViewModel, atLeastOnce()).monuments
+  }
+
+  /** Verifies that no location status is drawn over the map once the location is known. */
+  @Test
+  fun hidesLocationStatusWhenLocationIsAvailable() {
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = permissionController(granted = true),
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_location_status).assertCountEquals(0)
   }
 
   @Test
   @GraphicsMode(GraphicsMode.Mode.NATIVE)
   fun exploreTitleUsesOnSurfaceColorInDarkTheme() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
     val locationPermissionController = permissionController(granted = true)
     var onSurfaceColor = 0
@@ -321,6 +351,7 @@ class ExploreScreenTest {
   fun backButtonInvokesCallback() {
     var backClicks = 0
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
             MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
@@ -346,6 +377,7 @@ class ExploreScreenTest {
   @Test
   fun displaysLoadingState() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
     val locationPermissionController = permissionController(granted = true)
     composeTestRule.setContent {
@@ -359,12 +391,14 @@ class ExploreScreenTest {
     }
 
     composeTestRule.onNodeWithText("Loading your location…").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
   }
 
   /** Verifies that denied permission displays guidance without an additional request action. */
   @Test
   fun displaysPermissionGuidanceWithoutRequestAction() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
             MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))
@@ -381,7 +415,7 @@ class ExploreScreenTest {
     }
 
     composeTestRule
-        .onNodeWithText("Please activate location permission to explore nearby places.")
+        .onNodeWithText("Turn on location permission to see where you are on the map.")
         .assertIsDisplayed()
     composeTestRule.onAllNodes(hasClickAction()).assertCountEquals(1)
   }
@@ -390,6 +424,7 @@ class ExploreScreenTest {
   @Test
   fun displaysUnavailableState() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(MutableStateFlow(ExploreUiState.LocationUnavailable))
     val locationPermissionController = permissionController(granted = true)
@@ -405,12 +440,14 @@ class ExploreScreenTest {
 
     composeTestRule.onNodeWithText("We could not determine your location.").assertIsDisplayed()
     composeTestRule.onNodeWithText("Retry").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
   }
 
   /** Verifies that clicking retry asks the view model to retry locating the user. */
   @Test
   fun retryButtonRetriesLocation() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(MutableStateFlow(ExploreUiState.LocationUnavailable))
     val locationPermissionController = permissionController(granted = true)
@@ -433,6 +470,7 @@ class ExploreScreenTest {
   @Test
   fun permissionStateChangesAreForwardedToViewModel() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
             MutableStateFlow(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED))

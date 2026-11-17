@@ -68,7 +68,7 @@
     <string name="explore_back_description">Retour</string>
     <string name="explore_user_location">Votre position</string>
     <string name="explore_loading_location">Chargement de votre position…</string>
-    <string name="explore_permission_required">Veuillez activer l\'autorisation de localisation pour explorer les lieux à proximité.</string>
+    <string name="explore_permission_required">Activez l\'autorisation de localisation pour voir où vous êtes sur la carte.</string>
     <string name="explore_location_unavailable">Impossible de déterminer votre position.</string>
     <string name="explore_retry">Réessayer</string>
     <string name="offline_action_required_title">Connexion Internet requise</string>

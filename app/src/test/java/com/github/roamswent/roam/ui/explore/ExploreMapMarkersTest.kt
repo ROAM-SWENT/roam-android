@@ -2,6 +2,7 @@
 package com.github.roamswent.roam.ui.explore
 
 import com.github.roamswent.roam.model.location.Coordinates
+import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -14,6 +15,33 @@ class ExploreMapMarkersTest {
   @Test
   fun emptyMonumentsLeaveOnlyUserMarker() {
     assertEquals(listOf(userMarker), exploreMapMarkers(userLocation, "Your location", emptyList()))
+  }
+
+  /** Verifies that without a known location only the monuments are drawn, with no user marker. */
+  @Test
+  fun unknownUserLocationDrawsOnlyMonuments() {
+    val eiffel = Coordinates(48.85837, 2.29448)
+
+    val markers =
+        exploreMapMarkers(
+            userLocation = null,
+            userLocationTitle = "Your location",
+            monuments = listOf(ExploreMonument("guide-1", "Eiffel Tower", eiffel)),
+        )
+
+    assertEquals(listOf(ExploreMapMarker("monument_guide-1", eiffel, "Eiffel Tower")), markers)
+  }
+
+  /** Verifies that the user's coordinates are only read from the location-available state. */
+  @Test
+  fun userLocationIsOnlyKnownWhenAvailable() {
+    assertEquals(userLocation, exploreUserLocation(ExploreUiState.LocationAvailable(userLocation)))
+    assertEquals(null, exploreUserLocation(ExploreUiState.Loading))
+    assertEquals(null, exploreUserLocation(ExploreUiState.LocationUnavailable))
+    assertEquals(
+        null,
+        exploreUserLocation(ExploreUiState.PermissionRequired(LocationPermissionDecision.DENIED)),
+    )
   }
 
   /** Verifies that each monument gets its own marker, titled with its name, after the user's. */
