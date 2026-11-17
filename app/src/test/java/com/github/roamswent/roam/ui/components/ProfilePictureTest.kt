@@ -38,11 +38,7 @@ class ProfilePictureTest {
 
   @Test
   fun profilePicture_withoutAvatarUrl_showsInitial() {
-    composeTestRule.setContent {
-      SampleAppTheme {
-        ProfilePicture(name = "Alice")
-      }
-    }
+    composeTestRule.setContent { SampleAppTheme { ProfilePicture(name = "Alice") } }
 
     composeTestRule.onNodeWithText("A").assertIsDisplayed()
   }
