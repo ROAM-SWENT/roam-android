@@ -13,6 +13,10 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
     }
 
+    match /users/{uid}/savedGuides/{guideId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     function validUsername(username) {
       return username is string
         && username.matches('^[A-Za-z0-9_]{3,20}$');
@@ -43,6 +47,14 @@ service cloud.firestore {
     function validFriendUid(uid) {
       return uid is string
         && uid.matches('^[A-Za-z0-9_-]{1,128}$');
+    }
+
+    function friendPairIncludesUid(pairId, uid) {
+      return validFriendUid(uid)
+        && (
+          pairId.matches('^' + uid + '~[A-Za-z0-9_-]{1,128}$')
+          || pairId.matches('^[A-Za-z0-9_-]{1,128}~' + uid + '$')
+        );
     }
 
     function validFriendship(data, pairId) {
@@ -95,7 +107,11 @@ service cloud.firestore {
     }
 
     match /friendships/{pairId} {
-      allow read: if request.auth != null
+      allow get: if request.auth != null
+        && ((!exists(/databases/$(database)/documents/friendships/$(pairId))
+            && friendPairIncludesUid(pairId, request.auth.uid))
+          || request.auth.uid in resource.data.participantUids);
+      allow list: if request.auth != null
         && request.auth.uid in resource.data.participantUids;
       allow create: if request.auth != null
         && validFriendship(request.resource.data, pairId)
@@ -119,6 +135,16 @@ service cloud.firestore {
           || (resource.data.status == 'ACCEPTED'
             && request.auth.uid in resource.data.participantUids)
         );
+    }
+
+    match /notificationInstallations/{uid}/installations/{fid} {
+        allow read: if false;
+        allow create, update: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['fid', 'updatedAt'])
+          && request.resource.data.fid == fid
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if request.auth != null && request.auth.uid == uid;
     }
   }
 }
