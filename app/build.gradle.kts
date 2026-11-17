@@ -158,6 +158,8 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.ai)
   implementation(libs.firebase.firestore)
+  implementation(libs.firebase.messaging)
+  implementation(libs.firebase.installations)
   implementation(libs.guava)
   implementation(libs.kotlinx.coroutines.play.services)
   debugImplementation(libs.firebase.appcheck.debug)
