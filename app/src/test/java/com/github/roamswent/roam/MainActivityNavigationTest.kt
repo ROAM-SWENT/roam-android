@@ -39,6 +39,7 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
@@ -54,7 +55,10 @@ import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import java.io.File
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -124,6 +128,92 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
     waitForGone(C.Tag.home_screen_container)
     waitForGone(C.Tag.scan_camera_screen)
+  }
+
+  /** Notification deep links wait for authentication, then open the Friends tab. */
+  @Test
+  fun notificationLaunchOpensFriendsAfterAuthentication() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        openFriendsOnLaunch = true,
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.Friends
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+    assertEquals(Routes.Friends, navController[0]?.currentDestination?.route)
+    assertEquals(
+        listOf(Routes.Home, Routes.Friends),
+        backStackRoutes(checkNotNull(navController[0])),
+    )
+  }
+
+  @Test
+  fun notificationTapFromAnotherScreenNavigatesToFriends() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val notificationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationEvents = notificationEvents,
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    navigateToSettings(checkNotNull(navController[0]))
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.runOnIdle { assertTrue(notificationEvents.tryEmit(Unit)) }
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.Friends
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+    assertEquals(
+        listOf(Routes.Home, Routes.Friends),
+        backStackRoutes(checkNotNull(navController[0])),
+    )
+  }
+
+  /** Existing server tokens are removed when notification permission is not granted. */
+  @Test
+  fun notificationPermissionDenialUnregistersTheDeviceToken() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.DENIED)
+    val installationRepository = FakeNotificationInstallationRepository()
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) { installationRepository.removeCalls > 0 }
+    assertEquals(0, installationRepository.synchronizeCalls)
+  }
+
+  /** Granted Android 13+ access enables synchronization of this installation's FCM token. */
+  @Test
+  fun notificationPermissionGrantRegistersTheDeviceToken() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.GRANTED)
+    val installationRepository = FakeNotificationInstallationRepository()
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      installationRepository.synchronizeCalls > 0
+    }
+    assertEquals(0, installationRepository.removeCalls)
   }
 
   @Test
@@ -1458,6 +1548,9 @@ class MainActivityNavigationTest {
       publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
       signOutFailure: Throwable? = null,
+      openFriendsOnLaunch: Boolean = false,
+      notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
+      notificationNavigationEvents: Flow<Unit> = emptyFlow(),
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -1492,7 +1585,10 @@ class MainActivityNavigationTest {
                     savedGuideRepository = savedGuideRepository,
                     isOnline = isOnlineOverride,
                     publicProfileRepository = publicProfileRepositoryOverride,
+                    notificationInstallationRepository = notificationInstallationRepositoryOverride,
                 ),
+            openFriendsOnLaunch = openFriendsOnLaunch,
+            notificationNavigationEvents = notificationNavigationEvents,
         )
       }
     }
@@ -1547,6 +1643,21 @@ class MainActivityNavigationTest {
   private fun waitFor(tag: String) {
     composeTestRule.waitUntil {
       composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    }
+  }
+
+  private class FakeNotificationInstallationRepository : NotificationInstallationRepository {
+    var synchronizeCalls = 0
+    var removeCalls = 0
+
+    override suspend fun synchronizeCurrentInstallation() {
+      synchronizeCalls++
+    }
+
+    override suspend fun saveInstallationId(installationId: String) = Unit
+
+    override suspend fun removeCurrentInstallation() {
+      removeCalls++
     }
   }
 

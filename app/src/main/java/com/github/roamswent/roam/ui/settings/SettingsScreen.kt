@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -71,8 +70,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestCategories
+import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.NotificationPermissionController
@@ -101,6 +103,7 @@ fun SettingsScreen(
         rememberNotificationPermissionController(),
     modifier: Modifier = Modifier,
     settingsViewModel: SettingsViewModel? = null,
+    notificationInstallationRepository: NotificationInstallationRepository? = null,
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onManagePermissionsClick: () -> Unit = {},
     onSignedOut: () -> Unit = {},
@@ -115,7 +118,14 @@ fun SettingsScreen(
       }
   val resolvedSettingsViewModel =
       settingsViewModel
-          ?: viewModel { SettingsViewModel(userInterestsRepository = userInterestsRepository) }
+          ?: viewModel {
+            SettingsViewModel(
+                userInterestsRepository = userInterestsRepository,
+                notificationInstallationRepository =
+                    notificationInstallationRepository
+                        ?: FirestoreNotificationInstallationRepository(),
+            )
+          }
   val uiState by resolvedSettingsViewModel.uiState.collectAsState()
   val notificationPermissionState by notificationPermissionController.state.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
@@ -439,21 +449,11 @@ private fun ProfileCard(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        Surface(
+        ProfilePicture(
+            name = profile.initial,
             modifier = Modifier.size(56.dp),
-            shape = CircleShape,
-            color =
-                if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
-        ) {
-          androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = profile.initial,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = ScanTeal,
-            )
-          }
-        }
+            textStyle = MaterialTheme.typography.headlineSmall,
+        )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
           Text(
               text = profile.name,
