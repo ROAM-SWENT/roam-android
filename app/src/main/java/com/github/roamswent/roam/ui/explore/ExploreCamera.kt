@@ -24,8 +24,11 @@ internal const val EXPLORE_POINT_ZOOM = 14f
 /** Zoom that shows the whole world on a phone screen. */
 internal const val EXPLORE_WORLD_ZOOM = 1f
 
-/** Closest and widest zoom used when framing several monuments. */
-internal const val EXPLORE_MIN_FRAMING_ZOOM = 2f
+/**
+ * Closest and widest zoom used when framing several monuments. The widest is the world view: a
+ * higher minimum would crop monuments more than about 110 degrees apart on a phone screen.
+ */
+internal const val EXPLORE_MIN_FRAMING_ZOOM = EXPLORE_WORLD_ZOOM
 internal const val EXPLORE_MAX_FRAMING_ZOOM = EXPLORE_POINT_ZOOM
 
 /** Center of the world view, slightly north so most land is on screen. */
