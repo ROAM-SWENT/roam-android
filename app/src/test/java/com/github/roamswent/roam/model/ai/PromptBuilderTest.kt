@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.model.ai
@@ -17,9 +18,29 @@ class PromptBuilderTest {
   @Test
   fun guidePromptRequestsEveryResponseField() {
     val prompt = PromptBuilder.guidePrompt(french, null)
-    listOf("monumentName", "confidence", "history", "facts", "culture", "language").forEach {
-      assertTrue("missing field $it", prompt.contains(it))
-    }
+    listOf(
+            "monumentName",
+            "confidence",
+            "history",
+            "facts",
+            "culture",
+            "language",
+            "monumentLatitude",
+            "monumentLongitude",
+        )
+        .forEach { assertTrue("missing field $it", prompt.contains(it)) }
+  }
+
+  @Test
+  fun guidePromptAsksForTheMonumentsOwnCoordinates() {
+    val prompt = PromptBuilder.guidePrompt(french, null)
+    assertTrue(prompt.contains("never the place where the photo was taken"))
+  }
+
+  @Test
+  fun guidePromptForbidsReusingTheUserLocationAsMonumentCoordinates() {
+    val prompt = PromptBuilder.guidePrompt(french, Coordinates(45.76543, 4.85678))
+    assertTrue(prompt.contains("never as the monument's coordinates"))
   }
 
   @Test
@@ -91,8 +112,8 @@ class PromptBuilderTest {
   @Test
   fun guidePromptOmitsLocationWhenNull() {
     val prompt = PromptBuilder.guidePrompt(french, null)
-    assertFalse(prompt.contains("latitude"))
-    assertFalse(prompt.contains("longitude"))
+    // The field list mentions latitude and longitude for the monument, so check the location line.
+    assertFalse(prompt.contains("The photo was taken near"))
   }
 
   @Test

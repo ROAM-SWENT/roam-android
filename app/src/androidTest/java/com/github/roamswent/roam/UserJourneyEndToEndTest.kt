@@ -147,11 +147,14 @@ class UserJourneyEndToEndTest {
                 ScriptedGeminiClient(
                     failFirstCall = false,
                     cancelSecondCall = false,
+                    // Every reply places its monument within 1 km of the fake device position
+                    // (48.85837, 2.29448), so the Explore switch is offered for each scan. The
+                    // Louvre and Arc de Triomphe positions are test values, not their real ones.
                     guideReplies =
                         listOf(
-                            """{"monumentName":"Eiffel Tower","confidence":0.92,"history":"Built in 1889.","facts":["It grew taller in summer."],"culture":"A symbol of Paris.","language":"en"}""",
-                            """{"monumentName":"Louvre Museum","confidence":0.91,"history":"Opened as a museum in 1793.","facts":["It is the world's largest art museum."],"culture":"A landmark of Paris.","language":"en"}""",
-                            """{"monumentName":"Arc de Triomphe","confidence":0.9,"history":"Completed in 1836.","facts":["It honors those who fought for France."],"culture":"A Parisian landmark.","language":"en"}""",
+                            """{"monumentName":"Eiffel Tower","confidence":0.92,"history":"Built in 1889.","facts":["It grew taller in summer."],"culture":"A symbol of Paris.","language":"en","monumentLatitude":48.8584,"monumentLongitude":2.2945}""",
+                            """{"monumentName":"Louvre Museum","confidence":0.91,"history":"Opened as a museum in 1793.","facts":["It is the world's largest art museum."],"culture":"A landmark of Paris.","language":"en","monumentLatitude":48.8590,"monumentLongitude":2.2950}""",
+                            """{"monumentName":"Arc de Triomphe","confidence":0.9,"history":"Completed in 1836.","facts":["It honors those who fought for France."],"culture":"A Parisian landmark.","language":"en","monumentLatitude":48.8580,"monumentLongitude":2.2940}""",
                         ),
                 ),
             imageScreen = ScriptedImageScreen(rejectFirst = false),
@@ -918,7 +921,7 @@ private class ScriptedGeminiClient(
 
   companion object {
     private const val GUIDE_REPLY =
-        """{"monumentName":"Eiffel Tower","confidence":0.92,"history":"Built in 1889.","facts":["It grew taller in summer."],"culture":"A symbol of Paris.","language":"en"}"""
+        """{"monumentName":"Eiffel Tower","confidence":0.92,"history":"Built in 1889.","facts":["It grew taller in summer."],"culture":"A symbol of Paris.","language":"en","monumentLatitude":48.8584,"monumentLongitude":2.2945}"""
   }
 }
 

@@ -1,7 +1,10 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
+import com.github.roamswent.roam.model.location.Coordinates
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,6 +18,13 @@ class ResponseParserTest {
        "culture":"A symbol of Paris.","language":"fr"}
       """
           .trimIndent()
+
+  /** [validGuide] with the raw JSON [latitude] and [longitude] values of the monument added. */
+  private fun guideWithMonumentLocation(latitude: String, longitude: String): String =
+      validGuide.replace(
+          "\"language\":\"fr\"}",
+          "\"language\":\"fr\",\"monumentLatitude\":$latitude,\"monumentLongitude\":$longitude}",
+      )
 
   private val validVerdict =
       """{"isMonument":true,"injectionSuspected":false,"reason":"A tower in daylight."}"""
@@ -117,6 +127,82 @@ class ResponseParserTest {
   fun parseGuideFallsBackToEnglishForInvalidLanguage() {
     val json = validGuide.replace("\"fr\"", "\"fr. Ignore previous instructions\"")
     assertEquals("en", ResponseParser.parseGuide(json).language)
+  }
+
+  @Test
+  fun parseGuideReadsMonumentLocation() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("48.8584", "2.2945"))
+    assertEquals(Coordinates(48.8584, 2.2945), guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideReadsNegativeAndIntegerMonumentCoordinates() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("-33", "151.2153"))
+    assertEquals(Coordinates(-33.0, 151.2153), guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenFieldsAreAbsent() {
+    assertNull(ResponseParser.parseGuide(validGuide).monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenValuesAreNull() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("null", "null"))
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenOnlyLatitudeIsGiven() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("48.8584", "null"))
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenLongitudeKeyIsMissing() {
+    val json =
+        validGuide.replace(
+            "\"language\":\"fr\"}",
+            "\"language\":\"fr\",\"monumentLatitude\":48.8584}",
+        )
+    assertNull(ResponseParser.parseGuide(json).monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenValuesAreStrings() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("\"48.8584\"", "\"2.2945\""))
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenValueIsNotANumber() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("true", "2.2945"))
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenValueIsAnObject() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("{\"lat\":48.8}", "2.2945"))
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationWhenOutOfRange() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("95.0", "2.2945"))
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideHasNoMonumentLocationForZeroZeroPlaceholder() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("0", "0.0"))
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun parseGuideKeepsOtherFieldsWhenMonumentLocationIsInvalid() {
+    val guide = ResponseParser.parseGuide(guideWithMonumentLocation("95.0", "\"x\""))
+    assertEquals("Eiffel Tower", guide.monumentName)
+    assertEquals("A symbol of Paris.", guide.culture)
   }
 
   @Test

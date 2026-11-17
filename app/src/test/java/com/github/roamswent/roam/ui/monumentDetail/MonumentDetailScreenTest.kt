@@ -31,6 +31,7 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
+import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import org.junit.Assert.assertEquals
@@ -246,6 +247,7 @@ class MonumentDetailScreenTest {
 
   private fun setExploreContent(
       optIn: ExploreOptInUiState?,
+      unavailableReason: ExploreUnavailableReason? = null,
       onShowInExploreChange: (Boolean) -> Unit = {},
   ) {
     composeTestRule.setContent {
@@ -256,6 +258,7 @@ class MonumentDetailScreenTest {
             onBackClick = {},
             exploreOptIn = optIn,
             onShowInExploreChange = onShowInExploreChange,
+            exploreUnavailableReason = unavailableReason,
         )
       }
     }
@@ -266,6 +269,57 @@ class MonumentDetailScreenTest {
     setExploreContent(optIn = null)
 
     composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_show_in_explore).assertCountEquals(0)
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
+  }
+
+  private fun assertUnavailableMessage(reason: ExploreUnavailableReason, expected: String) {
+    setExploreContent(optIn = null, unavailableReason = reason)
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_show_in_explore).assertCountEquals(0)
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_explore_unavailable, useUnmergedTree = true)
+        .assertIsDisplayed()
+        .assertTextEquals(expected)
+  }
+
+  @Test
+  fun missingObservedLocationIsExplainedInsteadOfTheSwitch() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+        "Your location wasn't available during the scan, so this monument can't be added to " +
+            "Explore.",
+    )
+  }
+
+  @Test
+  fun missingMonumentLocationIsExplainedInsteadOfTheSwitch() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_MONUMENT_LOCATION,
+        "We couldn't confirm where this monument is, so it can't be added to Explore.",
+    )
+  }
+
+  @Test
+  fun scanTooFarIsExplainedInsteadOfTheSwitch() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.TOO_FAR,
+        "You don't seem to be near this monument, so it can't be added to Explore.",
+    )
+  }
+
+  @Test
+  fun switchTakesPrecedenceOverAnUnavailableReason() {
+    setExploreContent(
+        optIn = ExploreOptInUiState(scanLocation = scanLocation),
+        unavailableReason = ExploreUnavailableReason.TOO_FAR,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertIsDisplayed()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
   }
 
   @Test

@@ -106,6 +106,7 @@ object C {
     const val saved_monument_detail_retry = "saved_monument_detail_retry"
     const val monument_detail_show_in_explore = "monument_detail_show_in_explore"
     const val monument_detail_show_in_explore_error = "monument_detail_show_in_explore_error"
+    const val monument_detail_explore_unavailable = "monument_detail_explore_unavailable"
     const val loading_screen_image = "loading_screen_image"
     const val loading_screen_container = "loading_screen_container"
     const val loading_screen_progress = "loading_screen_progress"
