@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.theme.accentIcon
 
 @Composable
@@ -161,7 +162,11 @@ private fun AddFriendUserRow(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    Avatar(name = user.username, avatarUrl = user.avatarUrl, modifier = Modifier.size(44.dp))
+    ProfilePicture(
+        name = user.username,
+        avatarUrl = user.avatarUrl,
+        modifier = Modifier.size(44.dp),
+    )
     Text(
         text = user.username,
         color = textPrimaryColor(),
