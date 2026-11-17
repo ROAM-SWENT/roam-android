@@ -86,6 +86,7 @@ credentials-play-services-auth = { module = "androidx.credentials:credentials-pl
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+firebase-installations = { module = "com.google.firebase:firebase-installations" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
