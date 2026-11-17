@@ -65,6 +65,7 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.basemap.BaseMapPolygon
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -74,14 +75,21 @@ import com.github.roamswent.roam.ui.theme.OnBrand
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.offlineMapBorder
+import com.github.roamswent.roam.ui.theme.offlineMapLand
+import com.github.roamswent.roam.ui.theme.offlineMapWater
 import com.github.roamswent.roam.ui.theme.screenBackground
 import com.github.roamswent.roam.ui.theme.secondaryText
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.ComposeMapColorScheme
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.GoogleMapComposable
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.rememberCameraPositionState
 
 private fun Coordinates.toLatLng() = LatLng(latitude, longitude)
@@ -129,6 +137,37 @@ internal fun updateSelectedMonumentId(
     selectedMonumentId: String?,
 ): String? = selectedMonumentId?.takeIf { selectedId -> monuments.any { it.guideId == selectedId } }
 
+/** Mercator maps stop around 85 degrees, so the sea is drawn up to there. */
+private const val OFFLINE_SEA_MAX_LATITUDE = 85.0
+
+/** Longitude width of each sea band; under 180 degrees so no band is drawn the short way round. */
+private const val OFFLINE_SEA_BAND_WIDTH = 90.0
+
+/**
+ * The sea of the offline base map, as rectangles that cover the world together. A single rectangle
+ * cannot be used: Google Maps joins two points by the shorter way round the globe.
+ */
+internal fun offlineSeaBands(): List<List<Coordinates>> =
+    generateSequence(-180.0) { it + OFFLINE_SEA_BAND_WIDTH }
+        .takeWhile { it < 180.0 }
+        .map { west ->
+          val east = west + OFFLINE_SEA_BAND_WIDTH
+          listOf(
+              Coordinates(-OFFLINE_SEA_MAX_LATITUDE, west),
+              Coordinates(-OFFLINE_SEA_MAX_LATITUDE, east),
+              Coordinates(OFFLINE_SEA_MAX_LATITUDE, east),
+              Coordinates(OFFLINE_SEA_MAX_LATITUDE, west),
+          )
+        }
+        .toList()
+
+/**
+ * Map properties for the connection state: offline, the Google tiles are switched off so the
+ * bundled base map is the only background, rather than a patchwork of whatever tiles were cached.
+ */
+internal fun exploreMapProperties(isOnline: Boolean): MapProperties =
+    MapProperties(mapType = if (isOnline) MapType.NORMAL else MapType.NONE)
+
 internal fun handleExploreMarkerClick(
     markerKey: String,
     onMonumentSelected: (String) -> Unit,
@@ -144,8 +183,12 @@ fun ExploreScreen(
     onBackClick: () -> Unit,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
+    isOnline: Boolean = true,
 ) {
   val uiState by exploreViewModel.uiState.collectAsState()
+  val offlineBaseMap by exploreViewModel.offlineBaseMap.collectAsState()
+
+  LaunchedEffect(isOnline) { if (!isOnline) exploreViewModel.loadOfflineBaseMap() }
   val permissionState by locationPermissionController.state.collectAsState()
 
   LaunchedEffect(permissionState) {
@@ -219,8 +262,10 @@ fun ExploreScreen(
       GoogleMap(
           modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
           cameraPositionState = cameraPositionState,
+          properties = exploreMapProperties(isOnline),
           mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
       ) {
+        if (!isOnline) OfflineBaseMap(offlineBaseMap)
         markers.forEach { marker ->
           key(marker.key) {
             val position = marker.coordinates.toLatLng()
@@ -251,6 +296,39 @@ fun ExploreScreen(
     }
   }
 }
+
+/** Draws the bundled world map, sea then land, with theme colors. Markers stay on top of it. */
+@Composable
+@GoogleMapComposable
+private fun OfflineBaseMap(countries: List<BaseMapPolygon>) {
+  val sea = remember { offlineSeaBands().map { band -> band.map { it.toLatLng() } } }
+  val land =
+      remember(countries) {
+        countries.map { country ->
+          country.outline.map { it.toLatLng() } to
+              country.holes.map { hole -> hole.map { it.toLatLng() } }
+        }
+      }
+  val seaColor = MaterialTheme.offlineMapWater
+  val landColor = MaterialTheme.offlineMapLand
+  val borderColor = MaterialTheme.offlineMapBorder
+  sea.forEach { band ->
+    Polygon(points = band, fillColor = seaColor, strokeColor = seaColor, strokeWidth = 0f)
+  }
+  land.forEach { (outline, holes) ->
+    Polygon(
+        points = outline,
+        holes = holes,
+        fillColor = landColor,
+        strokeColor = borderColor,
+        strokeWidth = OFFLINE_BORDER_WIDTH_PX,
+        zIndex = 1f,
+    )
+  }
+}
+
+/** Border width in pixels, as Google Maps expects; thin enough for small countries. */
+private const val OFFLINE_BORDER_WIDTH_PX = 2f
 
 private fun ExploreCameraTarget.toCameraPosition(): CameraPosition =
     CameraPosition.fromLatLngZoom(center.toLatLng(), zoom)

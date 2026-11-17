@@ -43,6 +43,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.github.roamswent.roam.model.basemap.AssetOfflineBaseMapRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
@@ -492,6 +493,7 @@ internal fun RoamApp(
           ExploreViewModel(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
               savedGuideRepository.value,
+              AssetOfflineBaseMapRepository(context),
           )
         }
         val explorePermissionController =
@@ -513,6 +515,7 @@ internal fun RoamApp(
                   )
           ) {
             ExploreScreen(
+                isOnline = isOnline,
                 onBackClick = { navController.popBackStack() },
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,

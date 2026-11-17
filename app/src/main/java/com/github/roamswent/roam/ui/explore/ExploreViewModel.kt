@@ -8,6 +8,8 @@ package com.github.roamswent.roam.ui.explore
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.roamswent.roam.model.basemap.BaseMapPolygon
+import com.github.roamswent.roam.model.basemap.OfflineBaseMapRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
@@ -36,11 +38,13 @@ sealed interface ExploreUiState {
 
 /**
  * Loads the user's current coordinates and exposes permission and retrieval state to the UI through
- * [uiState], and the saved monuments to pin on the map through [monuments].
+ * [uiState], the saved monuments to pin on the map through [monuments], and the world map drawn
+ * under them while offline through [offlineBaseMap].
  */
 class ExploreViewModel(
     private val locationProvider: LocationProvider,
     savedGuideRepository: SavedGuideRepository,
+    private val offlineBaseMapRepository: OfflineBaseMapRepository,
 ) : ViewModel() {
   private val _uiState =
       MutableStateFlow<ExploreUiState>(
@@ -63,6 +67,34 @@ class ExploreViewModel(
             Log.e(TAG, "Failed to observe saved monuments", exception)
           }
           .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+  private val _offlineBaseMap = MutableStateFlow<List<BaseMapPolygon>>(emptyList())
+
+  /**
+   * Country outlines drawn instead of the map tiles while offline. Empty until [loadOfflineBaseMap]
+   * has been called and has finished, or if the bundled map cannot be read.
+   */
+  val offlineBaseMap: StateFlow<List<BaseMapPolygon>> = _offlineBaseMap.asStateFlow()
+
+  private var offlineBaseMapRequest: Job? = null
+
+  /**
+   * Loads the offline base map once; later calls do nothing unless the previous load failed. Called
+   * when Explore goes offline, so users who stay online never parse it.
+   */
+  fun loadOfflineBaseMap() {
+    if (offlineBaseMapRequest?.isActive == true || _offlineBaseMap.value.isNotEmpty()) return
+    offlineBaseMapRequest = viewModelScope.launch {
+      try {
+        _offlineBaseMap.value = offlineBaseMapRepository.countries()
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        // The pins stay usable on an empty map, so the failure is only logged.
+        Log.e(TAG, "Failed to load the offline base map", exception)
+      }
+    }
+  }
 
   private var permissionGranted = false
   private var locationRequest: Job? = null
