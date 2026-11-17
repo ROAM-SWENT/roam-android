@@ -20,8 +20,8 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for the Home screen.
  *
- * Exposes the registered username of the signed-in user, falling back to their authentication
- * display name when no public profile is available.
+ * Exposes the registered username when available, or the authentication display name when no
+ * public-profile repository is provided.
  *
  * @property repository The repository used to observe the currently signed-in user.
  */
@@ -63,12 +63,16 @@ class HomeViewModel(
     }
 
     profileJob = viewModelScope.launch {
-      try {
-        _userName.value = publicProfileRepository.getCurrentProfile()?.username ?: fallbackName
-      } catch (exception: CancellationException) {
-        throw exception
-      } catch (_: Exception) {
-        _userName.value = fallbackName
+      val profile =
+          try {
+            publicProfileRepository.getCurrentProfile()
+          } catch (exception: CancellationException) {
+            throw exception
+          } catch (_: Exception) {
+            return@launch
+          }
+      if (profile != null) {
+        _userName.value = profile.username
       }
     }
   }
