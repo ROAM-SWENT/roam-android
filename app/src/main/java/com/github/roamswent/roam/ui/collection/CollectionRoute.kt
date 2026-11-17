@@ -20,6 +20,7 @@ fun CollectionRoute(
     repository: SavedGuideRepository,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
+    onPickFromGallery: () -> Unit = {},
 ) {
   val viewModel: SavedGuidesViewModel = viewModel { SavedGuidesViewModel(repository) }
   val state by viewModel.uiState.collectAsState()
@@ -37,5 +38,6 @@ fun CollectionRoute(
       onFavoriteErrorShown = viewModel::clearFavoriteError,
       onShowFavoritesOnlyChange = viewModel::setShowFavoritesOnly,
       onSearchQueryChange = viewModel::onSearchQueryChange,
+      onPickFromGallery = onPickFromGallery,
   )
 }

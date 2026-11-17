@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -110,6 +112,7 @@ fun CollectionScreen(
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
+    onPickFromGallery: () -> Unit = {},
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
@@ -176,7 +179,11 @@ fun CollectionScreen(
               onQueryChange = onSearchQueryChange,
               modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
           )
-          CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
+          CollectionFilterChips(
+              state.showFavoritesOnly,
+              onShowFavoritesOnlyChange,
+              onPickFromGallery,
+          )
           val guides = visibleGuides(state.guides, state.showFavoritesOnly, state.searchQuery)
           when {
             guides.isEmpty() && state.searchQuery.isNotBlank() -> {
@@ -267,10 +274,15 @@ private fun CollectionSearchBar(
 
 /** The All and Favourites chips; Favourites is selected when [favoritesOnly] is true. */
 @Composable
-private fun CollectionFilterChips(favoritesOnly: Boolean, onChange: (Boolean) -> Unit) {
+private fun CollectionFilterChips(
+    favoritesOnly: Boolean,
+    onChange: (Boolean) -> Unit,
+    onPickFromGallery: () -> Unit,
+) {
   Row(
       horizontalArrangement = Arrangement.spacedBy(8.dp),
-      modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
   ) {
     CollectionFilterChip(
         label = stringResource(R.string.collection_filter_all),
@@ -285,6 +297,17 @@ private fun CollectionFilterChips(favoritesOnly: Boolean, onChange: (Boolean) ->
         tag = C.Tag.collection_filter_favorites,
         showHeart = true,
     )
+    Spacer(Modifier.weight(1f))
+    IconButton(
+        onClick = onPickFromGallery,
+        modifier = Modifier.semantics { testTag = C.Tag.collection_gallery_button },
+    ) {
+      Icon(
+          imageVector = Icons.Rounded.AddPhotoAlternate,
+          contentDescription = stringResource(R.string.scan_gallery_description),
+          tint = MaterialTheme.accentIcon,
+      )
+    }
   }
 }
 
