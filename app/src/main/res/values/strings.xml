@@ -55,6 +55,12 @@
     <string name="home_scan_description">Scan a monument</string>
     <string name="settings_title">Profile</string>
     <string name="settings_notification_permission">Notification permission</string>
+    <string name="notification_friend_requests_channel">Friend requests</string>
+    <string name="notification_friend_request_title">New friend request</string>
+    <string name="notification_friend_request_body">%1$s wants to be your friend.</string>
+    <string name="notification_friend_request_accept">Accept</string>
+    <string name="notification_friend_request_decline">Decline</string>
+    <string name="notification_friend_request_action_failed">Couldn’t update the request. Open Roam to try again.</string>
     <string name="home_greeting_format">Hello %s,</string>
     <string name="home_greeting_no_name">Hello,</string>
     <string name="home_greeting_title">Ready to explore?</string>
