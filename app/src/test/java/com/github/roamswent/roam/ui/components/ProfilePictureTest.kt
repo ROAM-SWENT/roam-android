@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -19,6 +20,16 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class ProfilePictureTest {
   @get:Rule val composeTestRule = createComposeRule()
+
+  @Test
+  fun profilePictureInitial_trimsNameAndUppercasesFirstCharacter() {
+    assertEquals("A", profilePictureInitial("  alice  "))
+  }
+
+  @Test
+  fun profilePictureInitial_returnsQuestionMarkForBlankName() {
+    assertEquals("?", profilePictureInitial("   "))
+  }
 
   @Test
   fun profilePicture_withAvatarUrl_isClickable() {
