@@ -116,6 +116,13 @@ internal fun exploreMapMarkers(
 internal fun exploreUserLocation(state: ExploreUiState): Coordinates? =
     (state as? ExploreUiState.LocationAvailable)?.coordinates
 
+/**
+ * The map is drawn once the camera has something to frame: the user's location, or the saved
+ * monuments (loaded, even if there are none).
+ */
+internal fun shouldShowExploreMap(userLocation: Coordinates?, monumentsLoaded: Boolean): Boolean =
+    userLocation != null || monumentsLoaded
+
 internal fun selectedMonumentForId(
     monuments: List<ExploreMonument>,
     selectedMonumentId: String?,
@@ -188,6 +195,7 @@ fun ExploreScreen(
             }
     ) {
       val monuments by exploreViewModel.monuments.collectAsState()
+      val monumentsLoaded by exploreViewModel.monumentsLoaded.collectAsState()
       val userLocation = exploreUserLocation(uiState)
       val cameraFocus = exploreCameraFocus(userLocation, monuments)
       val cameraPositionState = rememberCameraPositionState {
@@ -216,20 +224,24 @@ fun ExploreScreen(
       val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
       var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
 
-      GoogleMap(
-          modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
-          cameraPositionState = cameraPositionState,
-          mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
-      ) {
-        markers.forEach { marker ->
-          key(marker.key) {
-            val position = marker.coordinates.toLatLng()
-            val markerState = remember(position) { MarkerState(position = position) }
-            Marker(
-                state = markerState,
-                title = marker.title,
-                onClick = { handleExploreMarkerClick(marker.key) { selectedMonumentId = it } },
-            )
+      // Wait for the saved monuments (a few frames at most) so the first frame is already framed
+      // on them rather than on the world view.
+      if (shouldShowExploreMap(userLocation, monumentsLoaded)) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
+            cameraPositionState = cameraPositionState,
+            mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
+        ) {
+          markers.forEach { marker ->
+            key(marker.key) {
+              val position = marker.coordinates.toLatLng()
+              val markerState = remember(position) { MarkerState(position = position) }
+              Marker(
+                  state = markerState,
+                  title = marker.title,
+                  onClick = { handleExploreMarkerClick(marker.key) { selectedMonumentId = it } },
+              )
+            }
           }
         }
       }

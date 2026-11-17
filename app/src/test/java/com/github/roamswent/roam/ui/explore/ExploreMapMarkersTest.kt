@@ -44,6 +44,14 @@ class ExploreMapMarkersTest {
     )
   }
 
+  /** Verifies that the map is drawn with a location, or once the monuments are loaded. */
+  @Test
+  fun mapIsShownOnceTheCameraHasSomethingToFrame() {
+    assertEquals(true, shouldShowExploreMap(userLocation, monumentsLoaded = false))
+    assertEquals(true, shouldShowExploreMap(null, monumentsLoaded = true))
+    assertEquals(false, shouldShowExploreMap(null, monumentsLoaded = false))
+  }
+
   /** Verifies that each monument gets its own marker, titled with its name, after the user's. */
   @Test
   fun monumentsAreAddedAfterUserMarker() {

@@ -53,6 +53,32 @@ class ExploreViewModelMonumentsTest {
         )
       }
 
+  /** Verifies that monuments are reported as loaded together with the first list, even empty. */
+  @Test
+  fun monumentsAreLoadedOnceTheFirstListArrives() =
+      runTest(dispatcher) {
+        val viewModel = viewModel(FakeSavedGuideRepository(emptyList()))
+        assertEquals(false, viewModel.monumentsLoaded.value)
+
+        observe(viewModel)
+
+        assertEquals(true, viewModel.monumentsLoaded.value)
+      }
+
+  /** Verifies that a failing observation still ends the loading wait, so the map is shown. */
+  @Test
+  fun observationFailureStillMarksMonumentsLoaded() =
+      runTest(dispatcher) {
+        val repository =
+            FakeSavedGuideRepository(listOf(eiffel)).apply {
+              loadError = IllegalStateException("offline")
+            }
+        val viewModel = viewModel(repository)
+        observe(viewModel)
+
+        assertEquals(true, viewModel.monumentsLoaded.value)
+      }
+
   /** Verifies that a guide without a location stays off the map. */
   @Test
   fun unlocatedGuideIsNotExposed() =
