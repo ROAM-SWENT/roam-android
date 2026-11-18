@@ -44,7 +44,8 @@ class FirestoreMonumentSharingRepositoryTest {
 
   private val ownerUserDocument = mockk<DocumentReference>()
   private val ownerSavedGuidesCollection = mockk<CollectionReference>()
-  private val broadcastQuery = mockk<Query>()
+  private val allFriendsQuery = mockk<Query>()
+  private val allFollowersQuery = mockk<Query>()
   private val intermediateQuery = mockk<Query>()
   private val selectedQuery = mockk<Query>()
 
@@ -82,11 +83,18 @@ class FirestoreMonumentSharingRepositoryTest {
     every { ownerUserDocument.collection("savedGuides") } returns ownerSavedGuidesCollection
 
     every {
-      ownerSavedGuidesCollection.whereIn(
+      ownerSavedGuidesCollection.whereEqualTo(
           GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
-          listOf(ShareAudience.ALL_FRIENDS.name, ShareAudience.ALL_FOLLOWERS.name),
+          ShareAudience.ALL_FRIENDS.name,
       )
-    } returns broadcastQuery
+    } returns allFriendsQuery
+
+    every {
+      ownerSavedGuidesCollection.whereEqualTo(
+          GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+          ShareAudience.ALL_FOLLOWERS.name,
+      )
+    } returns allFollowersQuery
 
     every {
       ownerSavedGuidesCollection.whereEqualTo(
@@ -419,7 +427,8 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun getSharedGuidesFromCombinesQueriesDeduplicatesAndFilters() = runTest {
-    val docBroadcast = mockGuideSnapshot("g-broadcast", ShareAudience.ALL_FRIENDS)
+    val docFriends = mockGuideSnapshot("g-friends", ShareAudience.ALL_FRIENDS)
+    val docFollowers = mockGuideSnapshot("g-followers", ShareAudience.ALL_FOLLOWERS)
     val docDismissed =
         mockGuideSnapshot(
             "g-dismissed",
@@ -434,20 +443,23 @@ class FirestoreMonumentSharingRepositoryTest {
             sharedWithUids = setOf(currentUid),
         )
 
-    every { broadcastQuery.get() } returns
-        Tasks.forResult(mockQuerySnapshot(docBroadcast, docDismissed, docNone))
+    every { allFriendsQuery.get() } returns
+        Tasks.forResult(mockQuerySnapshot(docFriends, docDismissed, docNone))
+    every { allFollowersQuery.get() } returns
+        Tasks.forResult(mockQuerySnapshot(docFollowers, docFriends))
     every { selectedQuery.get() } returns
-        Tasks.forResult(mockQuerySnapshot(docSelected, docBroadcast))
+        Tasks.forResult(mockQuerySnapshot(docSelected, docFriends))
 
     val result = repository.getSharedGuidesFrom(ownerUid)
-    val expectedBroadcast = expectedGuide("g-broadcast", ShareAudience.ALL_FRIENDS)
+    val expectedFriends = expectedGuide("g-friends", ShareAudience.ALL_FRIENDS)
+    val expectedFollowers = expectedGuide("g-followers", ShareAudience.ALL_FOLLOWERS)
     val expectedSelected =
         expectedGuide(
             "g-selected",
             ShareAudience.SELECTED_FRIENDS,
             sharedWithUids = setOf(currentUid),
         )
-    assertEquals(listOf(expectedBroadcast, expectedSelected), result)
+    assertEquals(listOf(expectedFriends, expectedFollowers, expectedSelected), result)
   }
 
   @Test
@@ -465,7 +477,42 @@ class FirestoreMonumentSharingRepositoryTest {
   fun getSharedGuidesFromThrowsFirestoreFailureWhenDocumentDataMalformed() = runTest {
     val malformedDoc =
         mockGuideSnapshot("malformed-guide", ShareAudience.ALL_FRIENDS, malformed = true)
-    every { broadcastQuery.get() } returns Tasks.forResult(mockQuerySnapshot(malformedDoc))
+    every { allFriendsQuery.get() } returns Tasks.forResult(mockQuerySnapshot(malformedDoc))
+    every { allFollowersQuery.get() } returns Tasks.forResult(mockQuerySnapshot())
+    every { selectedQuery.get() } returns Tasks.forResult(mockQuerySnapshot())
+
+    assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+      repository.getSharedGuidesFrom(ownerUid)
+    }
+  }
+
+  @Test
+  fun getSharedGuidesFromReturnsFollowerGuidesWhenFriendsAndSelectedQueriesDenied() = runTest {
+    val docFollower = mockGuideSnapshot("g-follower", ShareAudience.ALL_FOLLOWERS)
+    val permissionDenied =
+        FirebaseFirestoreException(
+            "Permission denied",
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        )
+
+    every { allFriendsQuery.get() } returns Tasks.forException(permissionDenied)
+    every { selectedQuery.get() } returns Tasks.forException(permissionDenied)
+    every { allFollowersQuery.get() } returns Tasks.forResult(mockQuerySnapshot(docFollower))
+
+    val result = repository.getSharedGuidesFrom(ownerUid)
+    assertEquals(listOf(expectedGuide("g-follower", ShareAudience.ALL_FOLLOWERS)), result)
+  }
+
+  @Test
+  fun getSharedGuidesFromThrowsFirestoreFailureWhenBranchFailsWithNonPermissionDenied() = runTest {
+    val unavailable =
+        FirebaseFirestoreException(
+            "Service unavailable",
+            FirebaseFirestoreException.Code.UNAVAILABLE,
+        )
+
+    every { allFriendsQuery.get() } returns Tasks.forException(unavailable)
+    every { allFollowersQuery.get() } returns Tasks.forResult(mockQuerySnapshot())
     every { selectedQuery.get() } returns Tasks.forResult(mockQuerySnapshot())
 
     assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
@@ -475,7 +522,8 @@ class FirestoreMonumentSharingRepositoryTest {
 
   @Test
   fun observeSharedGuidesFromEmitsFilteredGuidesAndRemovesListenerWhenCancelled() = runTest {
-    val docBroadcast = mockGuideSnapshot("g-broadcast", ShareAudience.ALL_FRIENDS)
+    val docFriends = mockGuideSnapshot("g-friends", ShareAudience.ALL_FRIENDS)
+    val docFollowers = mockGuideSnapshot("g-followers", ShareAudience.ALL_FOLLOWERS)
     val docDismissed =
         mockGuideSnapshot(
             "g-dismissed",
@@ -489,13 +537,15 @@ class FirestoreMonumentSharingRepositoryTest {
             sharedWithUids = setOf(currentUid),
         )
 
-    val regBroadcast = stubListener(broadcastQuery, mockQuerySnapshot(docBroadcast, docDismissed))
-    val regSelected = stubListener(selectedQuery, mockQuerySnapshot(docSelected, docBroadcast))
+    val regFriends = stubListener(allFriendsQuery, mockQuerySnapshot(docFriends, docDismissed))
+    val regFollowers = stubListener(allFollowersQuery, mockQuerySnapshot(docFollowers, docFriends))
+    val regSelected = stubListener(selectedQuery, mockQuerySnapshot(docSelected, docFriends))
 
     val emissions = repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
     val expected =
         listOf(
-            expectedGuide("g-broadcast", ShareAudience.ALL_FRIENDS),
+            expectedGuide("g-friends", ShareAudience.ALL_FRIENDS),
+            expectedGuide("g-followers", ShareAudience.ALL_FOLLOWERS),
             expectedGuide(
                 "g-selected",
                 ShareAudience.SELECTED_FRIENDS,
@@ -504,7 +554,8 @@ class FirestoreMonumentSharingRepositoryTest {
         )
 
     assertEquals(listOf(expected), emissions)
-    verify { regBroadcast.remove() }
+    verify { regFriends.remove() }
+    verify { regFollowers.remove() }
     verify { regSelected.remove() }
   }
 
@@ -525,26 +576,51 @@ class FirestoreMonumentSharingRepositoryTest {
   fun observeSharedGuidesFromEmitsErrorWhenListenerFails() = runTest {
     val exception =
         FirebaseFirestoreException("Network error", FirebaseFirestoreException.Code.UNAVAILABLE)
-    val regBroadcast = stubListener(broadcastQuery, error = exception)
+    val regFriends = stubListener(allFriendsQuery, error = exception)
+    stubListener(allFollowersQuery)
     stubListener(selectedQuery)
 
     assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
       repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
     }
-    verify { regBroadcast.remove() }
+    verify { regFriends.remove() }
   }
 
   @Test
   fun observeSharedGuidesFromClosesWithErrorWhenDocumentDataMalformed() = runTest {
     val malformedDoc =
         mockGuideSnapshot("malformed-guide", ShareAudience.ALL_FRIENDS, malformed = true)
-    val regBroadcast = stubListener(broadcastQuery, mockQuerySnapshot(malformedDoc))
+    val regFriends = stubListener(allFriendsQuery, mockQuerySnapshot(malformedDoc))
+    stubListener(allFollowersQuery)
     stubListener(selectedQuery)
 
     assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
       repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
     }
-    verify { regBroadcast.remove() }
+    verify { regFriends.remove() }
+  }
+
+  @Test
+  fun observeSharedGuidesFromEmitsFollowerGuidesWhenFriendsAndSelectedListenersDenied() = runTest {
+    val docFollower = mockGuideSnapshot("g-follower", ShareAudience.ALL_FOLLOWERS)
+    val permissionDenied =
+        FirebaseFirestoreException(
+            "Permission denied",
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        )
+
+    val regFriends = stubListener(allFriendsQuery, error = permissionDenied)
+    val regSelected = stubListener(selectedQuery, error = permissionDenied)
+    val regFollowers = stubListener(allFollowersQuery, mockQuerySnapshot(docFollower))
+
+    val emissions = repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
+    assertEquals(
+        listOf(listOf(expectedGuide("g-follower", ShareAudience.ALL_FOLLOWERS))),
+        emissions,
+    )
+    verify { regFriends.remove() }
+    verify { regSelected.remove() }
+    verify { regFollowers.remove() }
   }
 
   // endregion

@@ -828,4 +828,19 @@ if (!followersIds.includes("guide-all-followers") || followersIds.includes("guid
   throw new Error(`followersQuery returned unexpected docs: ${JSON.stringify(followersIds)}`);
 }
 
+// 6. whereEqualTo("shareAudience", "ALL_FRIENDS") by unidirectional follower is denied.
+const friendsFilter = {
+  fieldFilter: {
+    field: { fieldPath: "shareAudience" },
+    op: "EQUAL",
+    value: { stringValue: "ALL_FRIENDS" },
+  },
+};
+
+await expectDenied(
+  "whereEqualTo ALL_FRIENDS by unidirectional follower is denied",
+  await runSavedGuidesQuery(follower.token, guideOwner.uid, friendsFilter),
+);
+
+
 
