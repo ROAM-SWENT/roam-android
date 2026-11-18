@@ -77,11 +77,11 @@ val MaterialTheme.cardContainer: Color
 
 /** Soft container for short guide callouts, readable in both themes. */
 val MaterialTheme.guideCalloutContainer: Color
-  @Composable get() = if (isDark) colorScheme.primaryContainer else Color(0xFFDDEBDD)
+  @Composable get() = if (isDark) colorScheme.surfaceVariant else Color(0xFFDDEBDD)
 
-/** Lighter green for the guide eyebrow label. */
+/** Lighter green eyebrow in light mode; the subtitle accent in dark mode. */
 val MaterialTheme.guideEyebrow: Color
-  @Composable get() = if (isDark) colorScheme.primary else Color(0xFF3B8068)
+  @Composable get() = if (isDark) MaterialTheme.accentIcon else Color(0xFF3B8068)
 
 /** Translucent circle behind an icon button drawn over a photo. */
 val MaterialTheme.photoButtonContainer: Color
