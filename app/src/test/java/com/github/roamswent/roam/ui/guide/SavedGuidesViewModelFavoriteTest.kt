@@ -105,6 +105,43 @@ class SavedGuidesViewModelFavoriteTest {
       }
 
   @Test
+  fun setSharedWithFriendsUpdatesAndPersistsAllowedFriendUids() =
+      runTest(dispatcher) {
+        coEvery { repository.setSharedWithFriends(any(), any()) } just Runs
+        val viewModel = loadedViewModel()
+
+        viewModel.setSharedWithFriends(guide.id, listOf("friend-a"))
+        assertEquals(
+            listOf("friend-a"),
+            viewModel.uiState.value.guides.single().sharedWithFriendUids,
+        )
+        assertEquals(setOf(guide.id), viewModel.uiState.value.sharingGuideIds)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("friend-a"),
+            viewModel.uiState.value.guides.single().sharedWithFriendUids,
+        )
+        assertTrue(viewModel.uiState.value.sharingGuideIds.isEmpty())
+        assertNull(viewModel.uiState.value.sharingError)
+        coVerify(exactly = 1) { repository.setSharedWithFriends(guide.id, listOf("friend-a")) }
+      }
+
+  @Test
+  fun failedSharingChangeIsRolledBackAndReported() =
+      runTest(dispatcher) {
+        val error = IllegalStateException("sharing failed")
+        coEvery { repository.setSharedWithFriends(any(), any()) } throws error
+        val viewModel = loadedViewModel()
+
+        viewModel.setSharedWithFriends(guide.id, listOf("friend-a"))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.guides.single().sharedWithFriendUids.isEmpty())
+        assertEquals(error, viewModel.uiState.value.sharingError)
+      }
+
+  @Test
   fun settingTheCurrentValueOrAnUnknownGuideDoesNothing() =
       runTest(dispatcher) {
         val viewModel = loadedViewModel()

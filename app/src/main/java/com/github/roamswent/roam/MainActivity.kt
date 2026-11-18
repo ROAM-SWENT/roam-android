@@ -537,6 +537,8 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               onGuideClick = { guideId -> navController.navigate(Routes.monumentDetail(guideId)) },
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
           )
         }
       }

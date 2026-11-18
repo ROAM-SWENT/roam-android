@@ -67,6 +67,33 @@ class GuideFirestoreMapperTest {
   }
 
   @Test
+  fun sharedFriendUidsRoundTripAndLegacyGuidesDefaultToPrivate() {
+    val shared = guide.copy(sharedWithFriendUids = listOf("friend-a", "friend-b"))
+
+    assertEquals(
+        shared,
+        GuideFirestoreMapper.fromFields(shared.id, GuideFirestoreMapper.toFields(shared)),
+    )
+    val legacyFields = GuideFirestoreMapper.toFields(guide).toMutableMap()
+    legacyFields.remove(GuideFirestoreMapper.SHARED_WITH_FRIEND_UIDS_FIELD)
+    assertEquals(
+        emptyList<String>(),
+        GuideFirestoreMapper.fromFields(guide.id, legacyFields).sharedWithFriendUids,
+    )
+  }
+
+  @Test
+  fun fromFieldsRejectsInvalidSharedFriendUids() {
+    val fields =
+        GuideFirestoreMapper.toFields(guide) +
+            (GuideFirestoreMapper.SHARED_WITH_FRIEND_UIDS_FIELD to listOf(42))
+
+    assertThrows(IllegalStateException::class.java) {
+      GuideFirestoreMapper.fromFields(guide.id, fields)
+    }
+  }
+
+  @Test
   fun fromFieldsTreatsLegacyGuidesWithoutFavoriteFlagAsNotFavorite() {
     val fields = GuideFirestoreMapper.toFields(guide.copy(isFavorite = true)).toMutableMap()
     fields.remove(GuideFirestoreMapper.FAVORITE_FIELD)

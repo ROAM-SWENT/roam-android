@@ -16,6 +16,9 @@ interface SavedGuideRepository {
   /** Marks the guide identified by [guideId] as a favourite, or removes it from favourites. */
   suspend fun setFavorite(guideId: String, isFavorite: Boolean)
 
+  /** Sets the friend UIDs allowed to view the guide identified by [guideId]. */
+  suspend fun setSharedWithFriends(guideId: String, friendUids: List<String>)
+
   /**
    * Sets the location of the guide identified by [guideId], which puts it on Explore, or removes it
    * when [location] is `null`. The guide stays in the collection either way.
@@ -36,4 +39,7 @@ interface SavedGuideRepository {
 
   /** Retrieves a saved guide by [guideId], or returns `null` if it does not exist. */
   suspend fun getGuide(guideId: String): Guide?
+
+  /** Returns guides owned by [friendUid] that the signed-in user is allowed to view. */
+  suspend fun getGuidesSharedBy(friendUid: String): List<Guide>
 }

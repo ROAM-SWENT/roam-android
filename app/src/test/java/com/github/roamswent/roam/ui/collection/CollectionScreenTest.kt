@@ -367,6 +367,96 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun sharingPickerSelectsFriendsAndConfirmsTheSelection() {
+    val selectedUids = mutableListOf<List<String>>()
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friends = listOf(CollectionFriend("friend-a", "Alice")),
+        onSetSharedWithFriends = { _, uids -> selectedUids += uids },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    assertEquals(listOf(listOf("friend-a")), selectedUids)
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertDoesNotExist()
+  }
+
+  @Test
+  fun sharingPickerSelectsAllFriendsAtOnce() {
+    val selectedUids = mutableListOf<List<String>>()
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
+        onSetSharedWithFriends = { _, uids -> selectedUids += uids },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_select_all).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    assertEquals(listOf(listOf("friend-a", "friend-b")), selectedUids)
+  }
+
+  @Test
+  fun sharingPickerDeselectsAllFriendsAtOnce() {
+    val selectedUids = mutableListOf<List<String>>()
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide.copy(sharedWithFriendUids = listOf("friend-a", "friend-b")))
+        ),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
+        onSetSharedWithFriends = { _, uids -> selectedUids += uids },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_select_all).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    assertEquals(listOf(emptyList<String>()), selectedUids)
+  }
+
+  @Test
+  fun cancellingSharingDoesNotSaveDraftChanges() {
+    val saved = mutableListOf<List<String>>()
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friends = listOf(CollectionFriend("friend-a", "Alice")),
+        onSetSharedWithFriends = { _, uids -> saved += uids },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_cancel).performClick()
+
+    assertTrue(saved.isEmpty())
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertDoesNotExist()
+  }
+
+  @Test
+  fun cardDisplaysItsSharingStatus() {
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide.copy(sharedWithFriendUids = listOf("a", "b")))
+        )
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_share_status, useUnmergedTree = true)
+        .assertTextEquals("Shared with 2 friends")
+  }
+
+  @Test
   fun allChipIsSelectedByDefaultAndChipsReportTheChosenFilter() {
     val filters = mutableListOf<Boolean>()
     setScreen(
@@ -636,6 +726,8 @@ class CollectionScreenTest {
       onFavoriteErrorShown: () -> Unit = {},
       onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
       onSearchQueryChange: (String) -> Unit = {},
+      friends: List<CollectionFriend> = emptyList(),
+      onSetSharedWithFriends: (String, List<String>) -> Unit = { _, _ -> },
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -649,6 +741,8 @@ class CollectionScreenTest {
             onFavoriteErrorShown = onFavoriteErrorShown,
             onShowFavoritesOnlyChange = onShowFavoritesOnlyChange,
             onSearchQueryChange = onSearchQueryChange,
+            friends = friends,
+            onSetSharedWithFriends = onSetSharedWithFriends,
         )
       }
     }

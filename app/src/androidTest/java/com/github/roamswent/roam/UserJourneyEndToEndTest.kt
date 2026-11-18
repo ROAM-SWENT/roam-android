@@ -1078,6 +1078,14 @@ private class InMemorySavedGuideRepository : SavedGuideRepository {
     }
   }
 
+  override suspend fun setSharedWithFriends(guideId: String, friendUids: List<String>) {
+    _guides.update { guides ->
+      guides.map { guide ->
+        if (guide.id == guideId) guide.copy(sharedWithFriendUids = friendUids.distinct()) else guide
+      }
+    }
+  }
+
   override suspend fun setLocation(guideId: String, location: Coordinates?) {
     _guides.update { guides ->
       guides.map { guide -> if (guide.id == guideId) guide.copy(location = location) else guide }
@@ -1090,6 +1098,9 @@ private class InMemorySavedGuideRepository : SavedGuideRepository {
 
   override suspend fun getGuide(guideId: String): Guide? =
       _guides.value.firstOrNull { it.id == guideId }
+
+  override suspend fun getGuidesSharedBy(friendUid: String): List<Guide> =
+      _guides.value.filter { friendUid in it.sharedWithFriendUids }
 }
 
 /** Empty in-memory collection for the journey that only smoke-tests collection navigation. */
@@ -1100,6 +1111,8 @@ private class FakeSavedGuideRepository : SavedGuideRepository {
 
   override suspend fun setFavorite(guideId: String, isFavorite: Boolean) = Unit
 
+  override suspend fun setSharedWithFriends(guideId: String, friendUids: List<String>) = Unit
+
   override suspend fun setLocation(guideId: String, location: Coordinates?) = Unit
 
   override suspend fun getSavedGuides(): List<Guide> = emptyList()
@@ -1107,4 +1120,6 @@ private class FakeSavedGuideRepository : SavedGuideRepository {
   override fun observeSavedGuides() = MutableStateFlow<List<Guide>>(emptyList())
 
   override suspend fun getGuide(guideId: String): Guide? = null
+
+  override suspend fun getGuidesSharedBy(friendUid: String): List<Guide> = emptyList()
 }

@@ -6,9 +6,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.github.roamswent.roam.model.friend.FirestoreFriendRepository
+import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 
 /**
@@ -20,9 +25,21 @@ fun CollectionRoute(
     repository: SavedGuideRepository,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
+    friendRepository: FriendRepository? = null,
+    publicProfileRepository: PublicProfileRepository? = null,
 ) {
+  val resolvedFriendRepository =
+      remember(friendRepository) { friendRepository ?: FirestoreFriendRepository() }
+  val resolvedProfileRepository =
+      remember(publicProfileRepository) {
+        publicProfileRepository ?: FirestorePublicProfileRepository()
+      }
   val viewModel: SavedGuidesViewModel = viewModel { SavedGuidesViewModel(repository) }
+  val sharingViewModel: CollectionSharingViewModel = viewModel {
+    CollectionSharingViewModel(resolvedFriendRepository, resolvedProfileRepository)
+  }
   val state by viewModel.uiState.collectAsState()
+  val sharingState by sharingViewModel.uiState.collectAsState()
 
   LaunchedEffect(viewModel) { viewModel.loadSavedGuides() }
 
@@ -37,5 +54,12 @@ fun CollectionRoute(
       onFavoriteErrorShown = viewModel::clearFavoriteError,
       onShowFavoritesOnlyChange = viewModel::setShowFavoritesOnly,
       onSearchQueryChange = viewModel::onSearchQueryChange,
+      onOpenSharing = sharingViewModel::loadFriends,
+      friends = sharingState.friends,
+      isLoadingFriends = sharingState.isLoadingFriends,
+      friendsError = sharingState.friendsError,
+      onRetryLoadingFriends = sharingViewModel::retryLoadingFriends,
+      onSetSharedWithFriends = viewModel::setSharedWithFriends,
+      onSharingErrorShown = viewModel::clearSharingError,
   )
 }

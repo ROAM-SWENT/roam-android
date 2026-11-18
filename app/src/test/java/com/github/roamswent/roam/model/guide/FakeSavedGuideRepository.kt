@@ -19,6 +19,7 @@ class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : Saved
   var addError: Exception? = null
   /** When non-null, [setFavorite] fails with it and leaves [guides] unchanged. */
   var favoriteError: Exception? = null
+  var sharingError: Exception? = null
   /** When non-null, [setLocation] fails with it and leaves [guides] unchanged. */
   var locationError: Exception? = null
   /** Every [setLocation] call, in order, as (guide id, location). */
@@ -39,6 +40,16 @@ class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : Saved
     favoriteError?.let { throw it }
     guides.update { current ->
       current.map { if (it.id == guideId) it.copy(isFavorite = isFavorite) else it }
+    }
+  }
+
+  override suspend fun setSharedWithFriends(guideId: String, friendUids: List<String>) {
+    sharingError?.let { throw it }
+    check(guides.value.any { it.id == guideId }) { "No saved guide $guideId" }
+    guides.update { current ->
+      current.map {
+        if (it.id == guideId) it.copy(sharedWithFriendUids = friendUids.distinct()) else it
+      }
     }
   }
 
@@ -64,4 +75,7 @@ class FakeSavedGuideRepository(initialGuides: List<Guide> = emptyList()) : Saved
     loadError?.let { throw it }
     return guides.value.firstOrNull { it.id == guideId }
   }
+
+  override suspend fun getGuidesSharedBy(friendUid: String): List<Guide> =
+      guides.value.filter { friendUid in it.sharedWithFriendUids }
 }
