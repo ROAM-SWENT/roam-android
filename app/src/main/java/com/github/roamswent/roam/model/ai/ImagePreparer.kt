@@ -5,6 +5,9 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
+import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import kotlin.math.max
@@ -37,7 +40,7 @@ class ImagePreparer(
     }
     if (isAnimated(raw)) throw RejectedImageException(RejectionReason.Animated)
 
-    val bitmap = decodeScaled(raw, width, height)
+    val bitmap = applyExifOrientation(raw, decodeScaled(raw, width, height))
     return ImagePayload(encodeJpeg(bitmap), "image/jpeg")
   }
 
@@ -99,6 +102,36 @@ class ImagePreparer(
         )
     decoded.recycle()
     return scaled
+  }
+
+  /** Applies camera orientation before re-encoding, since the output intentionally drops EXIF. */
+  private fun applyExifOrientation(raw: ByteArray, bitmap: Bitmap): Bitmap {
+    val orientation =
+        ExifInterface(ByteArrayInputStream(raw))
+            .getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL,
+            )
+    val matrix = Matrix()
+    when (orientation) {
+      ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+      ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+      ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+      ExifInterface.ORIENTATION_TRANSPOSE -> {
+        matrix.setRotate(90f)
+        matrix.postScale(-1f, 1f)
+      }
+      ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+      ExifInterface.ORIENTATION_TRANSVERSE -> {
+        matrix.setRotate(-90f)
+        matrix.postScale(-1f, 1f)
+      }
+      ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+      else -> return bitmap
+    }
+    val oriented = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    if (oriented !== bitmap) bitmap.recycle()
+    return oriented
   }
 
   /** JPEG has no alpha channel, so the image is flattened onto white first. */

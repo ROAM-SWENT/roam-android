@@ -100,6 +100,13 @@ class ImagePreparerTest {
   }
 
   @Test
+  fun appliesExifOrientationBeforeStrippingMetadata() {
+    val payload = preparer.prepare(fixture("eiffel_exif_960x1434.jpg"))
+
+    assertEquals(686 to 1024, dimensionsOf(payload.bytes))
+  }
+
+  @Test
   fun rejectsTinyFixtureBelowMinimumSide() {
     assertRejected(RejectionReason.DimensionsOutOfRange) {
       preparer.prepare(fixture("eiffel_tiny_32px.jpg"))
