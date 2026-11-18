@@ -176,9 +176,12 @@
     <string name="monument_detail_fact_bullet">• %1$s</string>
     <string name="monument_detail_show_in_explore">Afficher dans Explorer</string>
     <string name="monument_detail_show_in_explore_supporting">Épinglez ce monument sur la carte à l\'endroit où vous l\'avez scanné.</string>
+    <string name="monument_detail_show_in_explore_supporting_photo">Épinglez ce monument sur la carte à l\'endroit où la photo a été prise.</string>
     <string name="monument_detail_show_in_explore_error">Impossible de mettre à jour Explorer. Veuillez réessayer.</string>
     <string name="monument_detail_explore_unavailable_no_location">Votre position n\'était pas disponible pendant le scan, ce monument ne peut donc pas être ajouté à Explorer.</string>
     <string name="monument_detail_explore_unavailable_no_monument_location">Nous n\'avons pas pu confirmer l\'emplacement de ce monument, il ne peut donc pas être ajouté à Explorer.</string>
+    <string name="monument_detail_explore_unavailable_no_photo_location">Cette photo ne contient pas de données de localisation, ce monument ne peut donc pas être ajouté à Explorer.</string>
+    <string name="monument_detail_explore_unavailable_photo_too_far">Cette photo ne semble pas avoir été prise à proximité de ce monument, il ne peut donc pas être ajouté à Explorer.</string>
     <string name="monument_detail_explore_unavailable_too_far">Vous ne semblez pas être à proximité de ce monument, il ne peut donc pas être ajouté à Explorer.</string>
     <string name="explore_monument_photo_description">Photo de %1$s</string>
     <string name="explore_close_monument_description">Fermer les informations sur le monument</string>
