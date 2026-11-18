@@ -2,6 +2,7 @@
 
 package com.github.roamswent.roam.model.friend
 
+import android.util.Log
 import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
@@ -214,6 +215,7 @@ class FirestoreFriendRepository(
       } catch (exception: FriendRepositoryException) {
         throw exception
       } catch (exception: Exception) {
+        Log.e(TAG, "Firestore friend operation failed.", exception)
         throw FriendRepositoryException.FirestoreFailure(exception)
       }
 
@@ -274,6 +276,7 @@ class FirestoreFriendRepository(
     const val STATUS_PENDING = "PENDING"
     const val STATUS_ACCEPTED = "ACCEPTED"
     const val PAIR_SEPARATOR = "~"
+    const val TAG = "FirestoreFriendRepository"
     val UID_PATTERN = Regex("[A-Za-z0-9_-]{1,128}")
   }
 }

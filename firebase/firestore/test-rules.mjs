@@ -1,3 +1,4 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Firestore rules smoke test. Requires Node.js 18+ and the Firebase CLI; no npm packages.
 // Run from the repository root:
 // firebase emulators:exec --project demo-roam-rules --only auth,firestore "node firebase/firestore/test-rules.mjs"
@@ -64,6 +65,25 @@ function friendshipWrite(requesterUid, recipientUid, status = "PENDING") {
   };
 }
 
+function notificationInstallationWrite(uid, fid) {
+  return {
+    update: {
+      name: documentName(`notificationInstallations/${uid}/installations/${fid}`),
+      fields: fields({ fid }),
+    },
+    updateTransforms: [{ fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }],
+  };
+}
+
+function savedGuideWrite(uid, guideId, data = { monumentName: "Test guide" }) {
+  return {
+    update: {
+      name: documentName(`users/${uid}/savedGuides/${guideId}`),
+      fields: fields(data),
+    },
+  };
+}
+
 async function createUser() {
   const response = await fetch(authSignUpUrl, {
     method: "POST",
@@ -116,6 +136,21 @@ async function queryFriendships(token, uid) {
   });
 }
 
+async function querySavedGuides(token, uid) {
+  return fetch(`${firestoreBase}/users/${uid}:runQuery`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "savedGuides" }],
+      },
+    }),
+  });
+}
+
 async function expectAllowed(label, response) {
   const bodyText = await response.text();
   if (!response.ok) throw new Error(`${label} failed (${response.status}): ${bodyText}`);
@@ -133,6 +168,14 @@ async function expectDenied(label, response) {
     throw new Error(
       `${label} expected PERMISSION_DENIED, got ${response.status}: ${JSON.stringify(body)}`,
     );
+  }
+  console.log(`PASS ${label}`);
+}
+
+async function expectNotFound(label, response) {
+  const body = await response.json();
+  if (response.status !== 404 || body.error?.status !== "NOT_FOUND") {
+    throw new Error(`${label} expected NOT_FOUND, got ${response.status}: ${JSON.stringify(body)}`);
   }
   console.log(`PASS ${label}`);
 }
@@ -160,6 +203,46 @@ const stranger = await createUser();
 await expectAllowed(
   "authenticated registration",
   await commit(owner.token, [profileWrite(owner.uid, "Roamer"), claimWrite(owner.uid, "Roamer")]),
+);
+
+await expectAllowed(
+  "user can query their empty saved guides",
+  await querySavedGuides(owner.token, owner.uid),
+);
+const savedGuidePath = `users/${owner.uid}/savedGuides/test-guide`;
+await expectAllowed(
+  "user can create a saved guide",
+  await commit(owner.token, [savedGuideWrite(owner.uid, "test-guide")]),
+);
+await expectAllowed(
+  "user can delete their saved guide",
+  await firestoreRequest(savedGuidePath, owner.token, { method: "DELETE" }),
+);
+await expectDenied(
+  "user cannot create another user's saved guide",
+  await commit(otherUser.token, [savedGuideWrite(owner.uid, "other-guide")]),
+);
+
+await expectAllowed(
+  "user can register their notification installation",
+  await commit(
+    owner.token,
+    [notificationInstallationWrite(owner.uid, "owner-device-fid")],
+  ),
+);
+await expectDenied(
+  "user cannot register another user's notification installation",
+  await commit(
+    otherUser.token,
+    [notificationInstallationWrite(owner.uid, "other-device-fid")],
+  ),
+);
+await expectDenied(
+  "notification installations cannot be read by clients",
+  await firestoreRequest(
+    `notificationInstallations/${owner.uid}/installations/owner-device-fid`,
+    owner.token,
+  ),
 );
 
 await expectDenied(
@@ -250,6 +333,20 @@ console.log("PASS nonparticipant query returns no friendship documents");
 
 const friendshipPath =
   `friendships/${[owner.uid, otherUser.uid].sort()[0]}~${[owner.uid, otherUser.uid].sort()[1]}`;
+await expectNotFound(
+  "participant can check an absent friendship pair",
+  await firestoreRequest(
+    `friendships/${[owner.uid, stranger.uid].sort()[0]}~${[owner.uid, stranger.uid].sort()[1]}`,
+    owner.token,
+  ),
+);
+await expectDenied(
+  "nonparticipant cannot check an absent friendship pair",
+  await firestoreRequest(
+    `friendships/${[otherUser.uid, stranger.uid].sort()[0]}~${[otherUser.uid, stranger.uid].sort()[1]}`,
+    owner.token,
+  ),
+);
 await expectDenied(
   "nonparticipant cannot read a known friendship document",
   await firestoreRequest(friendshipPath, stranger.token),
@@ -287,7 +384,15 @@ await expectAllowed(
   await firestoreRequest(friendshipPath, otherUser.token, { method: "DELETE" }),
 );
 await expectAllowed(
-  "requester can send a new request after rejection",
+  "original requester can send a new request after rejection",
+  await commit(owner.token, [friendshipWrite(owner.uid, otherUser.uid)]),
+);
+await expectAllowed(
+  "recipient can reject the resent request",
+  await firestoreRequest(friendshipPath, otherUser.token, { method: "DELETE" }),
+);
+await expectAllowed(
+  "former recipient can send a new request after rejection",
   await commit(otherUser.token, [friendshipWrite(otherUser.uid, owner.uid)]),
 );
 await expectAllowed(
@@ -296,15 +401,6 @@ await expectAllowed(
 );
 
 // --- users/{ownerUid}/savedGuides/{guideId} rules tests ---
-
-function savedGuideWrite(ownerUid, guideId, data) {
-  return {
-    update: {
-      name: documentName(`users/${ownerUid}/savedGuides/${guideId}`),
-      fields: fields(data),
-    },
-  };
-}
 
 const guideOwner = await createUser();
 const friend = await createUser();
