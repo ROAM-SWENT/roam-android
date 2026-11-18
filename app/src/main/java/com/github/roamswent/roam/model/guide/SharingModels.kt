@@ -27,7 +27,7 @@ data class MonumentShareSettings(
   ): Set<String> =
       when (audience) {
         ShareAudience.NONE -> emptySet()
-        ShareAudience.SELECTED_FRIENDS -> sharedWithUids - dismissedByUids
+        ShareAudience.SELECTED_FRIENDS -> (sharedWithUids intersect friendUids) - dismissedByUids
         ShareAudience.ALL_FRIENDS -> friendUids - dismissedByUids
         ShareAudience.ALL_FOLLOWERS -> (friendUids + followerUids) - dismissedByUids
       }
