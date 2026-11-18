@@ -63,6 +63,14 @@ val CameraOverlayContent = Color.White
 val MaterialTheme.screenBackground: Color
   @Composable get() = if (isDark) colorScheme.background else ScreenBackground
 
+/** Body of a monument marker below its photo thumbnail. */
+val MaterialTheme.monumentMarkerBody: Color
+  @Composable get() = if (isDark) colorScheme.surfaceVariant else Color(0xFFE5E9E7)
+
+/** Border around a monument marker's circular photo thumbnail. */
+val MaterialTheme.monumentMarkerBorder: Color
+  @Composable get() = if (isDark) colorScheme.outline else Color.White
+
 /** Container of a card floating over a screen or a map. */
 val MaterialTheme.cardContainer: Color
   @Composable get() = if (isDark) colorScheme.surfaceVariant else Color.White

@@ -195,6 +195,7 @@ fun ExploreScreen(
                   userLocationTitle = stringResource(R.string.explore_user_location),
                   monuments = monuments,
               )
+          val monumentsByMarkerKey = monuments.associateBy { "monument_${it.guideId}" }
           var selectedMonumentId by remember { mutableStateOf<String?>(null) }
           LaunchedEffect(monuments, selectedMonumentId) {
             selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
@@ -212,13 +213,25 @@ fun ExploreScreen(
                 key(marker.key) {
                   val position = marker.coordinates.toLatLng()
                   val markerState = remember(position) { MarkerState(position = position) }
-                  Marker(
-                      state = markerState,
-                      title = marker.title,
-                      onClick = {
-                        handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
-                      },
-                  )
+                  val monument = monumentsByMarkerKey[marker.key]
+                  if (monument == null) {
+                    Marker(
+                        state = markerState,
+                        title = marker.title,
+                        onClick = {
+                          handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
+                        },
+                    )
+                  } else {
+                    ExploreMonumentMarker(
+                        monument = monument,
+                        state = markerState,
+                        isSelected = selectedMonumentId == monument.guideId,
+                        onClick = {
+                          handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
+                        },
+                    )
+                  }
                 }
               }
             }
