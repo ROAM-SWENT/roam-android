@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
@@ -8,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
 import androidx.compose.material.icons.Icons
@@ -31,7 +33,9 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.graphics.withClip
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Scale
@@ -64,7 +68,7 @@ internal fun ExploreMonumentMarker(
         "${monument.guideId}:${monument.photoBytes.size}:${monument.photoBytes.contentHashCode()}"
       }
   val request =
-      remember(photoKey, thumbnailSize) {
+      remember(context, photoKey, thumbnailSize) {
         ImageRequest.Builder(context)
             .data(monument.photoBytes)
             .memoryCacheKey("$photoKey:$thumbnailSize")
@@ -73,9 +77,9 @@ internal fun ExploreMonumentMarker(
             .allowHardware(false)
             .build()
       }
-  var photoBitmap by remember(photoKey) { mutableStateOf<Bitmap?>(null) }
+  var photoBitmap by remember(request) { mutableStateOf<Bitmap?>(null) }
 
-  LaunchedEffect(photoKey) {
+  LaunchedEffect(request) {
     photoBitmap =
         if (monument.photoBytes.isEmpty()) {
           null
@@ -159,7 +163,7 @@ internal fun createMonumentMarkerBitmap(
   val scale = density.density
   val width = (64 * scale).toInt()
   val height = (70 * scale).toInt()
-  val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+  val bitmap = createBitmap(width, height)
   val canvas = Canvas(bitmap)
   val centerX = width / 2f
   val circleRadius = 24 * scale
@@ -188,41 +192,29 @@ internal fun createMonumentMarkerBitmap(
   val pinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pinColor }
   canvas.drawPath(pinPath, pinPaint)
 
-  canvas.save()
-  canvas.clipPath(
-      Path().apply {
-        addCircle(centerX, circleCenterY, circleRadius - 3 * scale, Path.Direction.CW)
-      }
-  )
+  val thumbnailRadius = circleRadius - 3 * scale
   if (thumbnail != null) {
     val sourceSize = minOf(thumbnail.width, thumbnail.height)
     val sourceLeft = (thumbnail.width - sourceSize) / 2
     val sourceTop = (thumbnail.height - sourceSize) / 2
     val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-    canvas.drawBitmap(
-        thumbnail,
-        android.graphics.Rect(
-            sourceLeft,
-            sourceTop,
-            sourceLeft + sourceSize,
-            sourceTop + sourceSize,
-        ),
-        RectF(
-            centerX - circleRadius + 3 * scale,
-            circleCenterY - circleRadius + 3 * scale,
-            centerX + circleRadius - 3 * scale,
-            circleCenterY + circleRadius - 3 * scale,
-        ),
-        bitmapPaint,
-    )
+    val thumbnailPath =
+        Path().apply { addCircle(centerX, circleCenterY, thumbnailRadius, Path.Direction.CW) }
+    canvas.withClip(thumbnailPath) {
+      drawBitmap(
+          thumbnail,
+          Rect(sourceLeft, sourceTop, sourceLeft + sourceSize, sourceTop + sourceSize),
+          RectF(
+              centerX - thumbnailRadius,
+              circleCenterY - thumbnailRadius,
+              centerX + thumbnailRadius,
+              circleCenterY + thumbnailRadius,
+          ),
+          bitmapPaint,
+      )
+    }
   } else {
-    val placeholderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = borderColor }
-    canvas.drawCircle(
-        centerX,
-        circleCenterY,
-        circleRadius - 3 * scale,
-        placeholderPaint,
-    )
+    canvas.drawCircle(centerX, circleCenterY, thumbnailRadius, pinPaint)
     drawPainter(
         canvas = canvas,
         painter = placeholderPainter,
@@ -232,8 +224,6 @@ internal fun createMonumentMarkerBitmap(
         tint = placeholderColor,
     )
   }
-  canvas.restore()
-
   val borderPaint =
       Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
