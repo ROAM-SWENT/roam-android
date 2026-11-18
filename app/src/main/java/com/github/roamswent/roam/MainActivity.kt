@@ -45,6 +45,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
@@ -64,6 +65,7 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.collection.CollectionRoute
+import com.github.roamswent.roam.ui.collection.FriendCollectionRoute
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
 import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
 import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
@@ -74,6 +76,7 @@ import com.github.roamswent.roam.ui.home.HomeScreen
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.home.rememberInternetConnectivity
 import com.github.roamswent.roam.ui.monumentDetail.SavedMonumentDetailRoute
+import com.github.roamswent.roam.ui.monumentDetail.SharedMonumentDetailRoute
 import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
@@ -194,6 +197,7 @@ internal fun RoamApp(
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
   // Configure the shared Firestore instance before profile lookups can start it.
+  val monumentSharingRepository = remember { DefaultMonumentSharingProvider().repository() }
   val publicProfileRepository = remember {
     testOverrides?.publicProfileRepository ?: FirestorePublicProfileRepository()
   }
@@ -568,8 +572,61 @@ internal fun RoamApp(
                   ),
               profileName = userName,
               onProfileClicked = onProfileClicked,
+              onFriendCollectionClicked = { friend ->
+                navController.navigate(Routes.friendCollection(friend.id, friend.username))
+              },
               friendRepository = testOverrides?.friendRepository,
               publicProfileRepository = publicProfileRepository,
+          )
+        }
+      }
+
+      composable(
+          Routes.FriendCollectionPattern,
+          arguments =
+              listOf(
+                  navArgument(Routes.FriendUidArg) { type = NavType.StringType },
+                  navArgument(Routes.FriendNameArg) { type = NavType.StringType },
+              ),
+      ) { backStackEntry ->
+        val friendUid = backStackEntry.arguments?.getString(Routes.FriendUidArg)
+        val friendName = backStackEntry.arguments?.getString(Routes.FriendNameArg).orEmpty()
+        if (friendUid != null) {
+          val dockClearance = dockContentClearance()
+          DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
+            FriendCollectionRoute(
+                ownerUid = friendUid,
+                ownerName = friendName,
+                repository = monumentSharingRepository,
+                onBackClick = { navController.popBackStack() },
+                modifier =
+                    Modifier.padding(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = dockClearance,
+                    ),
+                onGuideClick = { guideId ->
+                  navController.navigate(Routes.sharedMonumentDetail(friendUid, guideId))
+                },
+            )
+          }
+        }
+      }
+      composable(
+          Routes.SharedMonumentDetailPattern,
+          arguments =
+              listOf(
+                  navArgument(Routes.FriendUidArg) { type = NavType.StringType },
+                  navArgument(Routes.MonumentDetailGuideIdArg) { type = NavType.StringType },
+              ),
+      ) { backStackEntry ->
+        val friendUid = backStackEntry.arguments?.getString(Routes.FriendUidArg)
+        val guideId = backStackEntry.arguments?.getString(Routes.MonumentDetailGuideIdArg)
+        if (friendUid != null && guideId != null) {
+          SharedMonumentDetailRoute(
+              ownerUid = friendUid,
+              guideId = guideId,
+              repository = monumentSharingRepository,
+              onBackClick = { navController.popBackStack() },
           )
         }
       }

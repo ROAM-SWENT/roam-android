@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -110,6 +111,9 @@ fun CollectionScreen(
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
+    title: String? = null,
+    readOnly: Boolean = false,
+    onBackClick: (() -> Unit)? = null,
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
@@ -157,18 +161,36 @@ fun CollectionScreen(
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
   ) { contentPadding ->
     Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
-      Text(
-          text = stringResource(R.string.collection_title),
-          style = MaterialTheme.typography.headlineMedium,
-          fontWeight = FontWeight.Bold,
-          color =
-              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
-              else LoadingTextPrimary,
-          modifier =
-              Modifier.padding(horizontal = 20.dp, vertical = 16.dp).semantics {
-                testTag = C.Tag.collection_title
-              },
-      )
+      Row(
+          modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        if (onBackClick != null) {
+          IconButton(
+              onClick = onBackClick,
+              modifier = Modifier.semantics { testTag = C.Tag.collection_back_button },
+          ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.collection_back_description),
+                tint =
+                    if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
+                    else LoadingTextPrimary,
+            )
+          }
+        }
+        Text(
+            text = title ?: stringResource(R.string.collection_title),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color =
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
+                else LoadingTextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.semantics { testTag = C.Tag.collection_title },
+        )
+      }
       when {
         state.guides.isNotEmpty() -> {
           CollectionSearchBar(
@@ -176,7 +198,7 @@ fun CollectionScreen(
               onQueryChange = onSearchQueryChange,
               modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
           )
-          CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
+          if (!readOnly) CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
           val guides = visibleGuides(state.guides, state.showFavoritesOnly, state.searchQuery)
           when {
             guides.isEmpty() && state.searchQuery.isNotBlank() -> {
@@ -186,13 +208,20 @@ fun CollectionScreen(
               CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
             }
             else -> {
-              GuideGrid(guides, onGuideClick, onDeleteGuide, state.deletingGuideIds, toggleFavorite)
+              GuideGrid(
+                  guides,
+                  onGuideClick,
+                  onDeleteGuide,
+                  state.deletingGuideIds,
+                  toggleFavorite,
+                  readOnly,
+              )
             }
           }
         }
         state.isLoadingGuides -> CollectionLoading()
         state.guidesError != null -> CollectionMessage(C.Tag.collection_error) { CollectionError() }
-        else -> CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty() }
+        else -> CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty(readOnly) }
       }
     }
   }
@@ -345,6 +374,7 @@ private fun GuideGrid(
     onDeleteGuide: (String) -> Unit,
     deletingGuideIds: Set<String>,
     onToggleFavorite: (Guide) -> Unit,
+    readOnly: Boolean,
 ) {
   LazyVerticalGrid(
       columns = GridCells.Fixed(2),
@@ -360,6 +390,7 @@ private fun GuideGrid(
           onDelete = { onDeleteGuide(guide.id) },
           isDeleting = guide.id in deletingGuideIds,
           onToggleFavorite = { onToggleFavorite(guide) },
+          readOnly = readOnly,
       )
     }
   }
@@ -372,6 +403,7 @@ private fun GuideCard(
     onDelete: () -> Unit,
     isDeleting: Boolean,
     onToggleFavorite: () -> Unit,
+    readOnly: Boolean,
 ) {
   Card(
       onClick = onClick,
@@ -381,16 +413,18 @@ private fun GuideCard(
   ) {
     Box {
       GuidePhoto(guide)
-      DeleteButton(
-          onClick = onDelete,
-          enabled = !isDeleting,
-          modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
-      )
-      FavoriteButton(
-          isFavorite = guide.isFavorite,
-          onClick = onToggleFavorite,
-          modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-      )
+      if (!readOnly) {
+        DeleteButton(
+            onClick = onDelete,
+            enabled = !isDeleting,
+            modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
+        )
+        FavoriteButton(
+            isFavorite = guide.isFavorite,
+            onClick = onToggleFavorite,
+            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+        )
+      }
     }
     Column(modifier = Modifier.padding(12.dp)) {
       Text(
@@ -565,7 +599,7 @@ private fun CollectionMessage(tag: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun CollectionEmpty() {
+private fun CollectionEmpty(readOnly: Boolean = false) {
   Icon(
       imageVector = Icons.Filled.AccountBalance,
       contentDescription = null,
@@ -575,7 +609,11 @@ private fun CollectionEmpty() {
       modifier = Modifier.size(56.dp),
   )
   Text(
-      text = stringResource(R.string.collection_empty_title),
+      text =
+          stringResource(
+              if (readOnly) R.string.friend_collection_empty_title
+              else R.string.collection_empty_title
+          ),
       style = MaterialTheme.typography.titleSmall,
       fontWeight = FontWeight.Bold,
       color =
@@ -583,7 +621,11 @@ private fun CollectionEmpty() {
       modifier = Modifier.padding(top = 16.dp),
   )
   Text(
-      text = stringResource(R.string.collection_empty_subtitle),
+      text =
+          stringResource(
+              if (readOnly) R.string.friend_collection_empty_subtitle
+              else R.string.collection_empty_subtitle
+          ),
       style = MaterialTheme.typography.bodySmall,
       color =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant

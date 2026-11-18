@@ -48,6 +48,11 @@
     <string name="friends_remove_confirmation_message">Voulez-vous vraiment supprimer %1$s ?</string>
     <string name="friends_cancel_action">Annuler</string>
     <string name="friends_dismiss_action">Fermer</string>
+    <string name="friends_view_collection_description">Voir les monuments partagés par %1$s</string>
+    <string name="friend_collection_title">Monuments de %1$s</string>
+    <string name="friend_collection_empty_title">Aucun monument partagé</string>
+    <string name="friend_collection_empty_subtitle">Cet ami ne vous a partagé aucun monument.</string>
+    <string name="collection_back_description">Retour</string>
     <string name="home_tab_explore">Explorer</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">Aucun appareil photo détecté sur cet appareil</string>

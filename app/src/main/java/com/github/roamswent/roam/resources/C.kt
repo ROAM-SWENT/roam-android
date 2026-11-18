@@ -154,5 +154,7 @@ object C {
     const val friends_add_dismiss = "friends_add_dismiss"
     const val friends_remove_friend = "friends_remove_friend"
     const val friends_cancel_request = "friends_cancel_request"
+    const val friends_view_collection = "friends_view_collection"
+    const val collection_back_button = "collection_back_button"
   }
 }

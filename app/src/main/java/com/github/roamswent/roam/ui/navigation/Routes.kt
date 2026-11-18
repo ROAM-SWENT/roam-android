@@ -21,4 +21,21 @@ object Routes {
 
   /** Route that opens the saved guide identified by [guideId] in the detail screen. */
   fun monumentDetail(guideId: String): String = "$MonumentDetail/${Uri.encode(guideId)}"
+
+  const val FriendCollection = "friend_collection"
+  const val FriendUidArg = "friendUid"
+  const val FriendNameArg = "friendName"
+  const val FriendCollectionPattern = "$FriendCollection/{$FriendUidArg}/{$FriendNameArg}"
+
+  /** Route that opens the monuments [friendUid] shares, titled with [friendName]. */
+  fun friendCollection(friendUid: String, friendName: String): String =
+      "$FriendCollection/${Uri.encode(friendUid)}/${Uri.encode(friendName)}"
+
+  const val SharedMonumentDetail = "shared_monument_detail"
+  const val SharedMonumentDetailPattern =
+      "$SharedMonumentDetail/{$FriendUidArg}/{$MonumentDetailGuideIdArg}"
+
+  /** Route that opens the monument [guideId] shared by [friendUid]. */
+  fun sharedMonumentDetail(friendUid: String, guideId: String): String =
+      "$SharedMonumentDetail/${Uri.encode(friendUid)}/${Uri.encode(guideId)}"
 }
