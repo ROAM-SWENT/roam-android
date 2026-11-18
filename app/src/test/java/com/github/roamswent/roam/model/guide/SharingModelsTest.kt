@@ -48,8 +48,28 @@ class SharingModelsTest {
     val settings =
         MonumentShareSettings(
             audience = ShareAudience.SELECTED_FRIENDS,
-            sharedWithUids = setOf("user-1", "user-2", "user-3"),
+            sharedWithUids = setOf("user-1", "user-2", "user-3", "former-friend"),
             dismissedByUids = setOf("user-2"),
+        )
+
+    val recipients =
+        settings.effectiveRecipientUids(
+            friendUids = setOf("user-1", "user-2", "user-3", "other-friend"),
+            followerUids = setOf("follower-1"),
+        )
+
+    assertEquals(setOf("user-1", "user-3"), recipients)
+    assertFalse(recipients.contains("former-friend"))
+    assertFalse(recipients.contains("other-friend"))
+  }
+
+  @Test
+  fun effectiveRecipientUidsForSelectedFriendsExcludesNonFriends() {
+    val settings =
+        MonumentShareSettings(
+            audience = ShareAudience.SELECTED_FRIENDS,
+            sharedWithUids = setOf("friend-1", "former-friend"),
+            dismissedByUids = emptySet(),
         )
 
     val recipients =
@@ -58,7 +78,8 @@ class SharingModelsTest {
             followerUids = setOf("follower-1"),
         )
 
-    assertEquals(setOf("user-1", "user-3"), recipients)
+    assertEquals(setOf("friend-1"), recipients)
+    assertFalse(recipients.contains("former-friend"))
   }
 
   @Test
