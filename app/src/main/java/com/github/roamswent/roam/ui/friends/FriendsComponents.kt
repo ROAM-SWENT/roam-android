@@ -142,12 +142,14 @@ internal fun FriendsContent(
             onQueryChanged = onFriendsQueryChanged,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (isLoading && friends.isEmpty() && friendRequests.isEmpty()) {
+        if (isLoading && !hasLoaded && friends.isEmpty() && friendRequests.isEmpty()) {
           Box(
               modifier = Modifier.fillMaxWidth().weight(1f),
               contentAlignment = Alignment.Center,
           ) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(
+                modifier = Modifier.semantics { testTag = C.Tag.friends_initial_loading }
+            )
           }
         } else {
           LazyColumn(

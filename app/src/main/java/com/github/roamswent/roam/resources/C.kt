@@ -140,6 +140,7 @@ object C {
     const val collection_search_no_matches = "collection_search_no_matches"
     const val friends_screen_container = "friends_screen_container"
     const val friends_title = "friends_title"
+    const val friends_initial_loading = "friends_initial_loading"
     const val friends_refresh_indicator = "friends_refresh_indicator"
     const val friends_list = "friends_list"
     const val friends_add_button = "friends_add_button"

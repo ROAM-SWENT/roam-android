@@ -107,6 +107,18 @@ class FriendsScreenTest {
     }
 
     composeTestRule.onNodeWithTag(C.Tag.friends_refresh_indicator).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_initial_loading).assertCountEquals(0)
+    composeTestRule.onNodeWithTag(C.Tag.friends_list).assertIsDisplayed()
+  }
+
+  @Test
+  fun showsCenteredSpinnerOnInitialEmptyLoad() {
+    composeTestRule.setContent {
+      SampleAppTheme { FriendsScreen(isLoading = true, hasLoaded = false) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_initial_loading).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_list).assertCountEquals(0)
   }
 
   @Test
