@@ -124,6 +124,24 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun profileBubbleShowsInitialAndInvokesCallback() {
+    var clicked = false
+    setScreen(
+        SavedGuidesUiState(),
+        profileName = "Ada Lovelace",
+        onProfileClicked = { clicked = true },
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("A")
+        .performClick()
+
+    assertTrue(clicked)
+  }
+
+  @Test
   fun clickingDeleteButtonReportsItsGuideIdWithoutOpeningTheCard() {
     val deleted = mutableListOf<String>()
     val clicked = mutableListOf<String>()
@@ -937,6 +955,8 @@ class CollectionScreenTest {
   private fun setScreen(
       state: SavedGuidesUiState,
       onGuideClick: (String) -> Unit = {},
+      profileName: String = "Traveler",
+      onProfileClicked: () -> Unit = {},
       onDeleteGuide: (String) -> Unit = {},
       onDeleteErrorShown: () -> Unit = {},
       onToggleFavorite: (String) -> Unit = {},
@@ -956,6 +976,8 @@ class CollectionScreenTest {
       SampleAppTheme {
         CollectionScreen(
             state = state,
+            profileName = profileName,
+            onProfileClicked = onProfileClicked,
             onGuideClick = onGuideClick,
             onDeleteGuide = onDeleteGuide,
             onDeleteErrorShown = onDeleteErrorShown,

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
@@ -117,6 +118,33 @@ class ExploreScreenTest {
 
     verify(exploreViewModel).loadOfflineBaseMap()
     composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+  }
+
+  @Test
+  fun profileBubbleShowsInitialAndInvokesCallback() {
+    var clicked = false
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onBackClick = {},
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = permissionController(granted = true),
+            profileName = "Ada Lovelace",
+            onProfileClicked = { clicked = true },
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("A")
+        .performClick()
+
+    assertTrue(clicked)
   }
 
   @Test
@@ -506,7 +534,8 @@ class ExploreScreenTest {
     composeTestRule
         .onNodeWithText("Turn on location permission to see where you are on the map.")
         .assertIsDisplayed()
-    composeTestRule.onAllNodes(hasClickAction()).assertCountEquals(1)
+    // The profile bubble is the only additional action in the top app bar.
+    composeTestRule.onAllNodes(hasClickAction()).assertCountEquals(2)
   }
 
   /** Verifies that the unavailable-location message and retry action are shown. */
