@@ -169,6 +169,7 @@ class FriendRequestActionReceiverTest {
           .acceptFriendRequest("request")
     }
     verify { FriendRequestNotifications.showActionFailure(context, "request") }
+    verify { pendingResult.finish() }
   }
 
   @Test
@@ -197,6 +198,7 @@ class FriendRequestActionReceiverTest {
           .rejectFriendRequest("request")
     }
     verify { FriendRequestNotifications.showActionFailure(context, "request") }
+    verify { pendingResult.finish() }
   }
 
   private fun validIntent(action: String) =

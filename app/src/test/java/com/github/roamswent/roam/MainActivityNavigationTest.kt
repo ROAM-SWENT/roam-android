@@ -8,6 +8,7 @@ package com.github.roamswent.roam
 
 import android.Manifest
 import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -51,6 +52,8 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
+import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -1035,6 +1038,13 @@ class MainActivityNavigationTest {
   @Test
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val notificationManager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(notificationManager).setNotificationsEnabled(true)
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("sign-out-request", "alice", "Alice", "user"),
+    )
     val authState = MutableStateFlow(AuthUIState(user = mock()))
     val settingsViewModel = mock<SettingsViewModel>()
     whenever(settingsViewModel.uiState)
@@ -1069,6 +1079,7 @@ class MainActivityNavigationTest {
 
     assertEquals(AuthUIState(signOutCompleted = true), authState.value)
     assertEquals(0, signInClickCount)
+    assertTrue(shadowOf(notificationManager).allNotifications.isEmpty())
     composeTestRule.runOnIdle { assertFalse(navController.clearBackStack(Routes.Collection)) }
   }
 
