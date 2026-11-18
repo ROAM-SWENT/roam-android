@@ -248,6 +248,7 @@ class MonumentDetailScreenTest {
   private fun setExploreContent(
       optIn: ExploreOptInUiState?,
       unavailableReason: ExploreUnavailableReason? = null,
+      isGalleryImage: Boolean = false,
       onShowInExploreChange: (Boolean) -> Unit = {},
   ) {
     composeTestRule.setContent {
@@ -259,6 +260,7 @@ class MonumentDetailScreenTest {
             exploreOptIn = optIn,
             onShowInExploreChange = onShowInExploreChange,
             exploreUnavailableReason = unavailableReason,
+            isGalleryImage = isGalleryImage,
         )
       }
     }
@@ -274,8 +276,12 @@ class MonumentDetailScreenTest {
         .assertCountEquals(0)
   }
 
-  private fun assertUnavailableMessage(reason: ExploreUnavailableReason, expected: String) {
-    setExploreContent(optIn = null, unavailableReason = reason)
+  private fun assertUnavailableMessage(
+      reason: ExploreUnavailableReason,
+      expected: String,
+      isGalleryImage: Boolean = false,
+  ) {
+    setExploreContent(optIn = null, unavailableReason = reason, isGalleryImage = isGalleryImage)
 
     composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_show_in_explore).assertCountEquals(0)
     composeTestRule
@@ -307,6 +313,59 @@ class MonumentDetailScreenTest {
         ExploreUnavailableReason.TOO_FAR,
         "You don't seem to be near this monument, so it can't be added to Explore.",
     )
+  }
+
+  @Test
+  fun galleryPhotoWithoutLocationIsExplainedAsMissingPhotoData() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+        "This photo has no location data, so this monument can't be added to Explore.",
+        isGalleryImage = true,
+    )
+  }
+
+  @Test
+  fun galleryPhotoTooFarIsExplainedForThePhoto() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.TOO_FAR,
+        "This photo doesn't seem to have been taken near this monument, so it can't be added " +
+            "to Explore.",
+        isGalleryImage = true,
+    )
+  }
+
+  @Test
+  fun galleryPhotoWithoutMonumentLocationUsesTheSharedMessage() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_MONUMENT_LOCATION,
+        "We couldn't confirm where this monument is, so it can't be added to Explore.",
+        isGalleryImage = true,
+    )
+  }
+
+  @Test
+  fun scanSwitchSaysThePinIsWhereItWasScanned() {
+    setExploreContent(ExploreOptInUiState(scanLocation = scanLocation))
+
+    composeTestRule
+        .onNodeWithText(
+            "Pin this monument on the map where you scanned it.",
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun gallerySwitchSaysThePinIsWhereThePhotoWasTaken() {
+    setExploreContent(ExploreOptInUiState(scanLocation = scanLocation), isGalleryImage = true)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(
+            "Pin this monument on the map where the photo was taken.",
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
   }
 
   @Test
