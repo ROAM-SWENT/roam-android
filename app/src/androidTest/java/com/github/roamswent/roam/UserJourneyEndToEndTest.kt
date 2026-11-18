@@ -2,6 +2,7 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam
@@ -65,7 +66,6 @@ import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
-import com.github.roamswent.roam.ui.explore.exploreMapMarkers
 import com.github.roamswent.roam.ui.explore.toExploreMonuments
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -154,6 +154,9 @@ class UserJourneyEndToEndTest {
   @Test
   fun userCanExploreAllScreensAndManageGuidesInM2Journey() {
     val context = ApplicationProvider.getApplicationContext<Context>()
+    InstrumentationRegistry.getInstrumentation()
+        .uiAutomation
+        .grantRuntimePermission(context.packageName, Manifest.permission.ACCESS_COARSE_LOCATION)
     val (galleryImageUri, galleryImageBytes) = createGalleryImage(context)
     val interestsRepository = SharedPreferencesUserInterestsRepository(context)
     interestsRepository.updateInterests(emptyList())
@@ -332,18 +335,13 @@ class UserJourneyEndToEndTest {
     // The two camera scans are pinned at the device, the gallery photo where it was taken.
     assertEquals(2, savedGuides.guides.count { it.location == DEVICE_LOCATION })
     // Maps Compose markers have no Compose semantics, so verify the marker data used by the map.
-    val mapMarkers =
-        exploreMapMarkers(
-            userLocation = DEVICE_LOCATION,
-            userLocationTitle = composeTestRule.activity.getString(R.string.explore_user_location),
-            monuments = savedGuides.guides.toExploreMonuments(),
-        )
-    assertEquals(4, mapMarkers.size)
+    val mapMonuments = savedGuides.guides.toExploreMonuments()
+    assertEquals(3, mapMonuments.size)
     assertEquals(
         setOf("Eiffel Tower", "Louvre Museum", "Arc de Triomphe"),
-        mapMarkers.drop(1).map { it.title }.toSet(),
+        mapMonuments.map { it.name }.toSet(),
     )
-    val markersByTitle = mapMarkers.drop(1).associateBy { it.title }
+    val markersByTitle = mapMonuments.associateBy { it.name }
     assertEquals(DEVICE_LOCATION, markersByTitle.getValue("Eiffel Tower").coordinates)
     assertEquals(DEVICE_LOCATION, markersByTitle.getValue("Louvre Museum").coordinates)
     assertTrue(

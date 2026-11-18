@@ -2,6 +2,7 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam
@@ -575,6 +576,8 @@ internal fun RoamApp(
       }
 
       composable(Routes.Explore) {
+        val homeViewModel: HomeViewModel = viewModel()
+        val userName by homeViewModel.userName.collectAsState()
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
@@ -600,7 +603,8 @@ internal fun RoamApp(
                   )
           ) {
             ExploreScreen(
-                onBackClick = { navController.popBackStack() },
+                onProfileClicked = onProfileClicked,
+                profileName = userName,
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,
             )
