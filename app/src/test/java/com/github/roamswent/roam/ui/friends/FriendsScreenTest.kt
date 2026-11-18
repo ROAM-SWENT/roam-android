@@ -276,4 +276,21 @@ class FriendsScreenTest {
 
     assertEquals(listOf(friend), removedFriends)
   }
+
+  @Test
+  fun viewCollectionButtonReportsTheFriend() {
+    var clicked: FriendUser? = null
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsScreen(
+            friends = listOf(FriendUser(id = "1", username = "Ada")),
+            onFriendCollectionClicked = { clicked = it },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_view_collection).performClick()
+
+    assertEquals("1", clicked?.id)
+  }
 }

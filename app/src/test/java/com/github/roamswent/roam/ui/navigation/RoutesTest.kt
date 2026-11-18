@@ -18,4 +18,14 @@ class RoutesTest {
   fun monumentDetailEncodesCharactersThatWouldBreakThePath() {
     assertEquals("monument_detail/a%2Fb%3Fc", Routes.monumentDetail("a/b?c"))
   }
+
+  @Test
+  fun friendCollectionPutsEncodedUidAndNameInThePath() {
+    assertEquals("friend_collection/uid1/Alice%20B", Routes.friendCollection("uid1", "Alice B"))
+  }
+
+  @Test
+  fun sharedMonumentDetailPutsEncodedUidAndGuideIdInThePath() {
+    assertEquals("shared_monument_detail/uid1/a%2Fb", Routes.sharedMonumentDetail("uid1", "a/b"))
+  }
 }

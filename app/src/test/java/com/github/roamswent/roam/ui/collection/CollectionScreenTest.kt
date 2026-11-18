@@ -236,6 +236,35 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun readOnlyScreenHidesOwnerActionsAndFilters() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            title = "Alice's monuments",
+            readOnly = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_delete).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_back_button).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Search their collection").assertIsDisplayed()
+  }
+
+  @Test
+  fun readOnlyEmptyStateExplainsNothingIsShared() {
+    composeTestRule.setContent {
+      SampleAppTheme { CollectionScreen(state = SavedGuidesUiState(), readOnly = true) }
+    }
+
+    composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
+  }
+
+  @Test
   fun emptyCollectionPreviewRendersEmptyState() {
     composeTestRule.setContent { PreviewCollectionScreenEmpty() }
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()

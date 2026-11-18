@@ -47,6 +47,7 @@ import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.location.LocationProvider
@@ -179,6 +180,7 @@ internal data class RoamAppTestOverrides(
     val savedGuideRepository: SavedGuideRepository? = null,
     val publicProfileRepository: PublicProfileRepository? = null,
     val friendRepository: FriendRepository? = null,
+    val monumentSharingRepository: MonumentSharingRepository? = null,
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
@@ -197,7 +199,9 @@ internal fun RoamApp(
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
   // Configure the shared Firestore instance before profile lookups can start it.
-  val monumentSharingRepository = remember { DefaultMonumentSharingProvider().repository() }
+  val monumentSharingRepository = remember {
+    testOverrides?.monumentSharingRepository ?: DefaultMonumentSharingProvider().repository()
+  }
   val publicProfileRepository = remember {
     testOverrides?.publicProfileRepository ?: FirestorePublicProfileRepository()
   }

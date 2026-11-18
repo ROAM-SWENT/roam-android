@@ -75,4 +75,25 @@ class FriendCollectionViewModelTest {
 
     assertEquals("lou", viewModel.uiState.value.searchQuery)
   }
+
+  @Test
+  fun load_whileAlreadyLoading_subscribesOnlyOnce() =
+      runTest(dispatcher) {
+        var subscriptions = 0
+        every { repository.observeSharedGuidesFrom("friend") } answers
+            {
+              subscriptions++
+              flow {
+                emit(listOf(guide))
+                kotlinx.coroutines.awaitCancellation()
+              }
+            }
+        val viewModel = FriendCollectionViewModel(repository, "friend")
+
+        viewModel.load()
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(1, subscriptions)
+      }
 }
