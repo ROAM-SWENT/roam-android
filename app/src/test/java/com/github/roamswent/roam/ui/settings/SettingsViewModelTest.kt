@@ -14,6 +14,7 @@ import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.UserProfile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -204,6 +205,24 @@ class SettingsViewModelTest {
         assertTrue(viewModel.uiState.value.signedOut)
         verify(notificationInstallationRepository).removeCurrentInstallation()
         verify(repository).signOut()
+      }
+
+  @Test
+  fun signOut_notificationCleanupCancellation_isRethrown() =
+      runTest(dispatcher) {
+        runBlocking {
+          whenever(notificationInstallationRepository.removeCurrentInstallation())
+              .thenThrow(CancellationException("cancelled"))
+        }
+        val viewModel = newViewModel()
+
+        viewModel.signOut(credentialManager)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.signedOut)
+        verify(notificationInstallationRepository).removeCurrentInstallation()
+        verifyNoInteractions(repository)
+        verifyNoInteractions(credentialManager)
       }
 
   /** Verifies that failed sign-out exposes the error without clearing the credential state. */

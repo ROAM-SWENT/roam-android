@@ -10,11 +10,16 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.installations.FirebaseInstallations
+import com.google.firebase.messaging.FirebaseMessaging
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -36,6 +41,29 @@ class NotificationInstallationRepositoryTest {
     every { userDocument.collection("installations") } returns userInstallations
     every { userInstallations.document("fid-a") } returns installationDocument
     every { user.uid } returns "user-a"
+  }
+
+  @After
+  fun tearDown() {
+    unmockkAll()
+  }
+
+  @Test
+  fun synchronizeCurrentInstallation_usesFirebaseMessagingDefault() = runTest {
+    val messaging = mockk<FirebaseMessaging>()
+    mockkStatic(FirebaseMessaging::class)
+    every { FirebaseMessaging.getInstance() } returns messaging
+    every { messaging.register() } returns Tasks.forResult(null)
+    val repository =
+        FirestoreNotificationInstallationRepository(
+            firestore,
+            auth,
+            getInstallationId = { "fid-a" },
+        )
+
+    repository.synchronizeCurrentInstallation()
+
+    verify { messaging.register() }
   }
 
   @Test
@@ -122,6 +150,27 @@ class NotificationInstallationRepositoryTest {
 
     repository.removeCurrentInstallation()
 
+    verify { installationDocument.delete() }
+  }
+
+  @Test
+  fun removeCurrentInstallation_usesFirebaseInstallationsDefault() = runTest {
+    every { auth.currentUser } returns user
+    every { installationDocument.delete() } returns Tasks.forResult(null)
+    val installations = mockk<FirebaseInstallations>()
+    mockkStatic(FirebaseInstallations::class)
+    every { FirebaseInstallations.getInstance() } returns installations
+    every { installations.id } returns Tasks.forResult("fid-a")
+    val repository =
+        FirestoreNotificationInstallationRepository(
+            firestore,
+            auth,
+            registerWithFcm = {},
+        )
+
+    repository.removeCurrentInstallation()
+
+    verify { installations.id }
     verify { installationDocument.delete() }
   }
 
