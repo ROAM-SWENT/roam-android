@@ -5,7 +5,10 @@ package com.github.roamswent.roam.ui.guide
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -52,7 +55,10 @@ data class SavedGuidesUiState(
 )
 
 /** Saves and retrieves the current user's guides and exposes operation status through [uiState]. */
-class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewModel() {
+class SavedGuidesViewModel(
+    private val repository: SavedGuideRepository,
+    private val sharingRepository: MonumentSharingRepository? = null,
+) : ViewModel() {
   private val _uiState = MutableStateFlow(SavedGuidesUiState())
   val uiState: StateFlow<SavedGuidesUiState> = _uiState.asStateFlow()
   private var loadSavedGuidesJob: Job? = null
@@ -76,8 +82,8 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
   private var lastFavoriteRequest = 0L
   /** Optimistic sharing permissions that override snapshots until their write settles. */
   private val pendingSharing = mutableMapOf<String, PendingSharing>()
-  /** Final sharing permissions of writes that settled while their guide was being deleted. */
-  private val sharingSettledWhileDeleting = mutableMapOf<String, List<String>>()
+  /** Final share settings of writes that settled while their guide was being deleted. */
+  private val sharingSettledWhileDeleting = mutableMapOf<String, MonumentShareSettings>()
   /** Increases with every sharing request so only the latest one settles its entry. */
   private var lastSharingRequest = 0L
 
@@ -92,9 +98,9 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
   )
 
   private data class PendingSharing(
-      val friendUids: List<String>,
+      val settings: MonumentShareSettings,
       val request: Long,
-      val rollbackTo: List<String>,
+      val rollbackTo: MonumentShareSettings,
   )
 
   /**
@@ -267,8 +273,7 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
                       val restoredGuide =
                           previousGuide.copy(
                               isFavorite = settledFavorite ?: previousGuide.isFavorite,
-                              sharedWithFriendUids =
-                                  settledSharing ?: previousGuide.sharedWithFriendUids,
+                              shareSettings = settledSharing ?: previousGuide.shareSettings,
                           )
                       state.guides + restoredGuide.withPendingChanges()
                     } else {
@@ -361,27 +366,36 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
     setFavorite(guideId, !current.isFavorite)
   }
 
-  /** Updates the friends allowed to view [guideId], immediately in the UI. */
-  fun setSharedWithFriends(guideId: String, friendUids: List<String>) {
+  /**
+   * Updates who can view [guideId], immediately in the UI. [friendUids] only applies to
+   * [ShareAudience.SELECTED_FRIENDS].
+   */
+  fun setShareAudience(
+      guideId: String,
+      audience: ShareAudience,
+      friendUids: Set<String> = emptySet(),
+  ) {
+    val sharing = sharingRepository ?: return
     val current = displayedGuide(guideId) ?: return
-    val normalizedUids = friendUids.distinct()
-    if (current.sharedWithFriendUids == normalizedUids) return
+    val recipients = if (audience == ShareAudience.SELECTED_FRIENDS) friendUids else emptySet()
+    val requested = current.shareSettings.copy(audience = audience, sharedWithUids = recipients)
+    if (current.shareSettings == requested) return
     val request = ++lastSharingRequest
-    val rollbackTo = pendingSharing[guideId]?.rollbackTo ?: current.sharedWithFriendUids
-    pendingSharing[guideId] = PendingSharing(normalizedUids, request, rollbackTo)
-    _uiState.update { it.withSharedWithFriends(guideId, normalizedUids).copy(sharingError = null) }
+    val rollbackTo = pendingSharing[guideId]?.rollbackTo ?: current.shareSettings
+    pendingSharing[guideId] = PendingSharing(requested, request, rollbackTo)
+    _uiState.update { it.withShareSettings(guideId, requested).copy(sharingError = null) }
 
     viewModelScope.launch {
       try {
-        repository.setSharedWithFriends(guideId, normalizedUids)
+        sharing.setShareAudience(guideId, audience, recipients)
         val pending = pendingSharing[guideId]
         if (pending?.request == request) {
           pendingSharing.remove(guideId)
           if (guideId in pendingGuideDeletes) {
-            sharingSettledWhileDeleting[guideId] = normalizedUids
+            sharingSettledWhileDeleting[guideId] = requested
           }
         } else if (pending != null) {
-          pendingSharing[guideId] = pending.copy(rollbackTo = normalizedUids)
+          pendingSharing[guideId] = pending.copy(rollbackTo = requested)
         }
       } catch (exception: CancellationException) {
         throw exception
@@ -397,7 +411,7 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
           else -> {
             pendingSharing.remove(guideId)
             _uiState.update {
-              it.withSharedWithFriends(guideId, pending.rollbackTo).copy(sharingError = exception)
+              it.withShareSettings(guideId, pending.rollbackTo).copy(sharingError = exception)
             }
           }
         }
@@ -441,25 +455,19 @@ class SavedGuidesViewModel(private val repository: SavedGuideRepository) : ViewM
           guide = guide?.let { if (it.id == guideId) it.copy(isFavorite = isFavorite) else it },
       )
 
-  private fun SavedGuidesUiState.withSharedWithFriends(
+  private fun SavedGuidesUiState.withShareSettings(
       guideId: String,
-      friendUids: List<String>,
+      settings: MonumentShareSettings,
   ): SavedGuidesUiState =
       copy(
-          guides =
-              guides.map {
-                if (it.id == guideId) it.copy(sharedWithFriendUids = friendUids) else it
-              },
-          guide =
-              guide?.let {
-                if (it.id == guideId) it.copy(sharedWithFriendUids = friendUids) else it
-              },
+          guides = guides.map { if (it.id == guideId) it.copy(shareSettings = settings) else it },
+          guide = guide?.let { if (it.id == guideId) it.copy(shareSettings = settings) else it },
       )
 
   private fun Guide.withPendingChanges(): Guide =
       copy(
           isFavorite = pendingFavorites[id]?.isFavorite ?: isFavorite,
-          sharedWithFriendUids = pendingSharing[id]?.friendUids ?: sharedWithFriendUids,
+          shareSettings = pendingSharing[id]?.settings ?: shareSettings,
       )
 
   // Pending favourite and sharing updates are applied to snapshots until their writes settle.

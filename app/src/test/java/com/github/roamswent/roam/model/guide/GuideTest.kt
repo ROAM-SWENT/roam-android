@@ -47,7 +47,7 @@ class GuideTest {
     assertNotEquals(guide, guide.copy(isFavorite = true))
     assertNotEquals(
         guide,
-        guide.copy(shareSettings = MonumentShareSettings(audience = ShareAudience.NONE)),
+        guide.copy(shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS)),
     )
     assertNotEquals(
         guide,
@@ -68,7 +68,7 @@ class GuideTest {
     assertEquals(MonumentShareSettings(), guide.shareSettings)
 
     val changedAudience =
-        guide.copy(shareSettings = guide.shareSettings.copy(audience = ShareAudience.NONE))
+        guide.copy(shareSettings = guide.shareSettings.copy(audience = ShareAudience.ALL_FRIENDS))
     assertNotEquals(guide, changedAudience)
     assertNotEquals(guide.hashCode(), changedAudience.hashCode())
 

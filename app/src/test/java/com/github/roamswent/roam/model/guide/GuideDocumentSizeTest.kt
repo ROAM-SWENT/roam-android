@@ -69,18 +69,6 @@ class GuideDocumentSizeTest {
   }
 
   @Test
-  fun estimatesSharedFriendUidStrings() {
-    val privateGuide = guide(photoBytes = byteArrayOf(1, 2, 3))
-    val sharedGuide = privateGuide.copy(sharedWithFriendUids = listOf("friend-a", "é"))
-
-    assertEquals(
-        12L,
-        GuideDocumentSize.estimatedBytes(sharedGuide, documentPath) -
-            GuideDocumentSize.estimatedBytes(privateGuide, documentPath),
-    )
-  }
-
-  @Test
   fun accountsForBlobEncodingAndStructuredValueOverhead() {
     val threeBytes = guide(photoBytes = ByteArray(3))
     val fourBytes = threeBytes.copy(photoBytes = ByteArray(4))

@@ -15,7 +15,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
-import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QueryDocumentSnapshot
 import com.google.firebase.firestore.QuerySnapshot
 import io.mockk.Runs
@@ -147,60 +146,6 @@ class FirestoreSavedGuideRepositoryTest {
     val error = captureFailure { repository.setFavorite("guide-id", false) }
 
     assertTrue(error === failure)
-  }
-
-  @Test
-  fun setSharedWithFriendsUpdatesOnlyTheSharingFieldAndRemovesDuplicates() = runTest {
-    val document = mockk<DocumentReference>()
-    every { savedGuidesCollection.document("guide-id") } returns document
-    every {
-      document.update(GuideFirestoreMapper.SHARED_WITH_FRIEND_UIDS_FIELD, listOf("friend-a"))
-    } returns Tasks.forResult(null)
-
-    repository.setSharedWithFriends("guide-id", listOf("friend-a", "friend-a"))
-
-    verify(exactly = 1) {
-      document.update(GuideFirestoreMapper.SHARED_WITH_FRIEND_UIDS_FIELD, listOf("friend-a"))
-    }
-    verify(exactly = 0) { document.set(any()) }
-  }
-
-  @Test
-  fun getGuidesSharedByQueriesTheFriendCollectionForTheCurrentUid() = runTest {
-    val friendDocument = mockk<DocumentReference>()
-    val friendCollection = mockk<CollectionReference>()
-    val query = mockk<Query>()
-    val snapshot = mockk<QuerySnapshot>()
-    val guideDocument = mockk<QueryDocumentSnapshot>()
-    every { firestore.collection("users").document("friend-id") } returns friendDocument
-    every { friendDocument.collection("savedGuides") } returns friendCollection
-    every {
-      friendCollection.whereArrayContains(
-          GuideFirestoreMapper.SHARED_WITH_FRIEND_UIDS_FIELD,
-          "user-id",
-      )
-    } returns query
-    every { query.get() } returns Tasks.forResult(snapshot)
-    every { snapshot.documents } returns listOf(guideDocument)
-    every { guideDocument.id } returns guide.id
-    every { guideDocument.data } returns GuideFirestoreMapper.toFields(guide)
-
-    assertEquals(listOf(guide), repository.getGuidesSharedBy("friend-id"))
-  }
-
-  @Test
-  fun getGuidesSharedByRequiresAnAuthenticatedUserAndFriendUid() = runTest {
-    every { auth.currentUser } returns null
-    val unauthenticatedError = captureFailure { repository.getGuidesSharedBy("friend-id") }
-    every { auth.currentUser } returns user
-    val blankUidError = captureFailure { repository.getGuidesSharedBy(" ") }
-
-    assertTrue(unauthenticatedError is IllegalStateException)
-    assertEquals(
-        "A signed-in user is required to access shared guides",
-        unauthenticatedError.message,
-    )
-    assertTrue(blankUidError is IllegalArgumentException)
   }
 
   @Test

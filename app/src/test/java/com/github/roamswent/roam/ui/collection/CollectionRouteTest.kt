@@ -13,8 +13,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.resources.C
@@ -154,44 +156,52 @@ class CollectionRouteTest {
   }
 
   @Test
-  fun sharingThroughRoutePersistsAndRestoresSelection() {
+  fun sharingThroughRoutePersistsTheAudience() {
     val repository = FakeSavedGuideRepository(listOf(colosseum))
+    val sharing = FakeMonumentSharingRepository()
     val friends = mockk<FriendRepository>()
     val profiles = mockk<PublicProfileRepository>()
     coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "friend"))
     coEvery { profiles.getProfile("friend") } returns PublicProfile("friend", "Alice")
-    setSharingRoute(repository, friends, profiles)
+    setSharingRoute(repository, sharing, friends, profiles)
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithText("Alice").performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
-    composeTestRule.waitUntil {
-      repository.guides.value.single().sharedWithFriendUids == listOf("friend")
-    }
+    composeTestRule.waitUntil { sharing.shareSettings.value[colosseum.id] != null }
+
+    val settings = sharing.shareSettings.value.getValue(colosseum.id)
+    assertEquals(ShareAudience.SELECTED_FRIENDS, settings.audience)
+    assertEquals(setOf("friend"), settings.sharedWithUids)
     composeTestRule
         .onNodeWithTag(C.Tag.collection_share_status, true)
         .assertTextEquals("Shared with 1 friends")
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
-    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_none).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
-    composeTestRule.waitUntil { repository.guides.value.single().sharedWithFriendUids.isEmpty() }
+    composeTestRule.waitUntil {
+      sharing.shareSettings.value.getValue(colosseum.id).audience == ShareAudience.NONE
+    }
     coVerify(exactly = 1) { friends.getFriends() }
   }
 
   @Test
   fun sharingRouteRetriesFailedFriendLoadAndReportsFailedWrite() {
     val repository = FakeSavedGuideRepository(listOf(colosseum))
-    repository.sharingError = IllegalStateException("offline")
+    val sharing = FakeMonumentSharingRepository()
+    sharing.updateError = IllegalStateException("offline")
     val friends = mockk<FriendRepository>()
     val profiles = mockk<PublicProfileRepository>()
     coEvery { friends.getFriends() } throws
         IllegalStateException("offline") andThen
         listOf(Friendship("friendship", "friend"))
     coEvery { profiles.getProfile("friend") } returns PublicProfile("friend", "Alice")
-    setSharingRoute(repository, friends, profiles)
+    setSharingRoute(repository, sharing, friends, profiles)
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithText("Retry").performClick()
     composeTestRule.onNodeWithText("Alice").performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
@@ -200,12 +210,13 @@ class CollectionRouteTest {
     composeTestRule
         .onNodeWithTag(C.Tag.collection_share_status, true)
         .assertTextEquals("Not shared")
-    assertTrue(repository.guides.value.single().sharedWithFriendUids.isEmpty())
+    assertTrue(sharing.shareSettings.value.isEmpty())
     coVerify(exactly = 2) { friends.getFriends() }
   }
 
   private fun setSharingRoute(
       repository: FakeSavedGuideRepository,
+      sharing: FakeMonumentSharingRepository,
       friends: FriendRepository,
       profiles: PublicProfileRepository,
   ) {
@@ -215,13 +226,21 @@ class CollectionRouteTest {
             repository = repository,
             friendRepository = friends,
             publicProfileRepository = profiles,
+            monumentSharingProvider = { sharing },
         )
       }
     }
   }
 
   private fun setRoute(repository: FakeSavedGuideRepository) {
-    composeTestRule.setContent { SampleAppTheme { CollectionRoute(repository = repository) } }
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionRoute(
+            repository = repository,
+            monumentSharingProvider = { FakeMonumentSharingRepository() },
+        )
+      }
+    }
   }
 
   private fun guide(id: String, name: String, discoveryDate: Long) =

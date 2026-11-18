@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.model.friend.FirestoreFriendRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
@@ -27,6 +29,7 @@ fun CollectionRoute(
     onGuideClick: (String) -> Unit = {},
     friendRepository: FriendRepository? = null,
     publicProfileRepository: PublicProfileRepository? = null,
+    monumentSharingProvider: MonumentSharingProvider? = null,
 ) {
   val resolvedFriendRepository =
       remember(friendRepository) { friendRepository ?: FirestoreFriendRepository() }
@@ -34,7 +37,13 @@ fun CollectionRoute(
       remember(publicProfileRepository) {
         publicProfileRepository ?: FirestorePublicProfileRepository()
       }
-  val viewModel: SavedGuidesViewModel = viewModel { SavedGuidesViewModel(repository) }
+  val sharingRepository =
+      remember(monumentSharingProvider) {
+        (monumentSharingProvider ?: DefaultMonumentSharingProvider()).repository()
+      }
+  val viewModel: SavedGuidesViewModel = viewModel {
+    SavedGuidesViewModel(repository, sharingRepository)
+  }
   val sharingViewModel: CollectionSharingViewModel = viewModel {
     CollectionSharingViewModel(resolvedFriendRepository, resolvedProfileRepository)
   }
@@ -59,7 +68,7 @@ fun CollectionRoute(
       isLoadingFriends = sharingState.isLoadingFriends,
       friendsError = sharingState.friendsError,
       onRetryLoadingFriends = sharingViewModel::retryLoadingFriends,
-      onSetSharedWithFriends = viewModel::setSharedWithFriends,
+      onSetShareAudience = viewModel::setShareAudience,
       onSharingErrorShown = viewModel::clearSharingError,
   )
 }

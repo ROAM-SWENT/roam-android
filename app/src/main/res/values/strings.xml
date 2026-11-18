@@ -101,8 +101,12 @@
     <string name="collection_share_private">Not shared</string>
     <string name="collection_share_status">Shared with %1$d friends</string>
     <string name="collection_share_title">Share %1$s</string>
-    <string name="collection_share_message">Choose which friends can view this guide.</string>
-    <string name="collection_share_select_all">Select all friends</string>
+    <string name="collection_share_message">Choose who can view this guide.</string>
+    <string name="collection_share_all_friends">Shared with all friends</string>
+    <string name="collection_share_all_followers">Shared with followers</string>
+    <string name="collection_share_audience_none">Not shared</string>
+    <string name="collection_share_audience_all_friends">All friends</string>
+    <string name="collection_share_audience_selected">Selected friends</string>
     <string name="collection_share_no_friends">Add friends before sharing a guide.</string>
     <string name="collection_share_friends_error">Couldn’t load your friends. Please try again.</string>
     <string name="collection_share_retry">Retry</string>
