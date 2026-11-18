@@ -153,6 +153,28 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun notificationLaunchWaitsForSignInBeforeOpeningFriends() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authState = MutableStateFlow(AuthUIState())
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        authState,
+        onNavControllerReady = { navController[0] = it },
+        openFriendsOnLaunch = true,
+    )
+
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    assertNotEquals(Routes.Friends, navController[0]?.currentDestination?.route)
+
+    authState.value = AuthUIState(user = mock())
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.Friends
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+  }
+
+  @Test
   fun notificationTapFromAnotherScreenNavigatesToFriends() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val navController = arrayOfNulls<NavHostController>(1)
@@ -214,6 +236,40 @@ class MainActivityNavigationTest {
       installationRepository.synchronizeCalls > 0
     }
     assertEquals(0, installationRepository.removeCalls)
+  }
+
+  @Test
+  fun notificationInstallationSynchronizationFailureDoesNotCrashApp() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.GRANTED)
+    val installationRepository =
+        FakeNotificationInstallationRepository(synchronizeFailure = IllegalStateException())
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(1, installationRepository.synchronizeCalls)
+  }
+
+  @Test
+  fun notificationInstallationRemovalFailureDoesNotCrashApp() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.DENIED)
+    val installationRepository =
+        FakeNotificationInstallationRepository(removeFailure = IllegalStateException())
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(1, installationRepository.removeCalls)
   }
 
   @Test
@@ -1646,18 +1702,23 @@ class MainActivityNavigationTest {
     }
   }
 
-  private class FakeNotificationInstallationRepository : NotificationInstallationRepository {
+  private class FakeNotificationInstallationRepository(
+      private val synchronizeFailure: Exception? = null,
+      private val removeFailure: Exception? = null,
+  ) : NotificationInstallationRepository {
     var synchronizeCalls = 0
     var removeCalls = 0
 
     override suspend fun synchronizeCurrentInstallation() {
       synchronizeCalls++
+      synchronizeFailure?.let { throw it }
     }
 
     override suspend fun saveInstallationId(installationId: String) = Unit
 
     override suspend fun removeCurrentInstallation() {
       removeCalls++
+      removeFailure?.let { throw it }
     }
   }
 

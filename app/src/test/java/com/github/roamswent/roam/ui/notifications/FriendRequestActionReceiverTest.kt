@@ -73,6 +73,19 @@ class FriendRequestActionReceiverTest {
   }
 
   @Test
+  fun onReceive_cancelsNotificationWhenSignedOut() {
+    mockkStatic(FirebaseAuth::class)
+    every { FirebaseAuth.getInstance() } returns auth
+    every { auth.currentUser } returns null
+    mockkObject(FriendRequestNotifications)
+    every { FriendRequestNotifications.cancel(any(), any()) } just Runs
+
+    FriendRequestActionReceiver().onReceive(context, validIntent("accept"))
+
+    verify { FriendRequestNotifications.cancel(context, "request") }
+  }
+
+  @Test
   fun onReceive_acceptsRequestAndCancelsNotification() {
     mockkStatic(FirebaseAuth::class)
     every { FirebaseAuth.getInstance() } returns auth
@@ -128,6 +141,62 @@ class FriendRequestActionReceiverTest {
           .rejectFriendRequest("request")
     }
     verify { FriendRequestNotifications.cancel(context, "request") }
+  }
+
+  @Test
+  fun onReceive_showsFailureWhenAcceptThrows() {
+    mockkStatic(FirebaseAuth::class)
+    every { FirebaseAuth.getInstance() } returns auth
+    every { auth.currentUser } returns user
+    every { user.uid } returns "user-b"
+    mockkObject(RoamFirestore)
+    every { RoamFirestore.instance } returns firestore
+    mockkConstructor(com.github.roamswent.roam.model.friend.FirestoreFriendRepository::class)
+    coEvery {
+      anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
+          .acceptFriendRequest("request")
+    } throws IllegalStateException("failure")
+    mockkObject(FriendRequestNotifications)
+    every { FriendRequestNotifications.showActionFailure(any(), any()) } just Runs
+
+    val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
+    val receiver = spyk(FriendRequestActionReceiver())
+    every { receiver.goAsync() } returns pendingResult
+    receiver.onReceive(context, validIntent("accept"))
+
+    coVerify(timeout = 2_000) {
+      anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
+          .acceptFriendRequest("request")
+    }
+    verify { FriendRequestNotifications.showActionFailure(context, "request") }
+  }
+
+  @Test
+  fun onReceive_showsFailureWhenDeclineThrows() {
+    mockkStatic(FirebaseAuth::class)
+    every { FirebaseAuth.getInstance() } returns auth
+    every { auth.currentUser } returns user
+    every { user.uid } returns "user-b"
+    mockkObject(RoamFirestore)
+    every { RoamFirestore.instance } returns firestore
+    mockkConstructor(com.github.roamswent.roam.model.friend.FirestoreFriendRepository::class)
+    coEvery {
+      anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
+          .rejectFriendRequest("request")
+    } throws IllegalStateException("failure")
+    mockkObject(FriendRequestNotifications)
+    every { FriendRequestNotifications.showActionFailure(any(), any()) } just Runs
+
+    val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
+    val receiver = spyk(FriendRequestActionReceiver())
+    every { receiver.goAsync() } returns pendingResult
+    receiver.onReceive(context, validIntent("decline"))
+
+    coVerify(timeout = 2_000) {
+      anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
+          .rejectFriendRequest("request")
+    }
+    verify { FriendRequestNotifications.showActionFailure(context, "request") }
   }
 
   private fun validIntent(action: String) =

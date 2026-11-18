@@ -6,15 +6,19 @@ package com.github.roamswent.roam.ui.notifications
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.graphics.Typeface
 import android.text.Spanned
 import android.text.style.StyleSpan
 import androidx.test.core.app.ApplicationProvider
+import com.github.roamswent.roam.MainActivity
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.ui.components.ProfilePictureBitmap
 import com.github.roamswent.roam.ui.components.profilePictureInitial
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -59,6 +63,48 @@ class FriendRequestNotificationTest {
     assertEquals(
         context.getString(R.string.notification_friend_request_decline),
         notification.actions[1].title.toString(),
+    )
+  }
+
+  @Test
+  fun actionAndTapPendingIntentsTargetExpectedComponentsWithDistinctRequestCodes() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(true)
+
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("request-intents", "alice", "Alice", "bob"),
+    )
+
+    val notification = shadowOf(manager).allNotifications.single()
+    val acceptIntent = savedIntent(notification.actions[0].actionIntent)
+    val declineIntent = savedIntent(notification.actions[1].actionIntent)
+    val tapIntent = savedIntent(notification.contentIntent)
+
+    assertEquals(
+        FriendRequestActionReceiver::class.java.name,
+        acceptIntent.component?.className,
+    )
+    assertEquals(
+        FriendRequestActionReceiver::class.java.name,
+        declineIntent.component?.className,
+    )
+    assertEquals(MainActivity::class.java.name, tapIntent.component?.className)
+    assertEquals("accept", acceptIntent.getStringExtra(FriendRequestNotifications.EXTRA_ACTION))
+    assertEquals("decline", declineIntent.getStringExtra(FriendRequestNotifications.EXTRA_ACTION))
+    assertEquals(FriendRequestNotifications.ACTION_OPEN_FRIENDS, tapIntent.action)
+    assertNotEquals(
+        shadowOf(notification.actions[0].actionIntent).requestCode,
+        shadowOf(notification.actions[1].actionIntent).requestCode,
+    )
+    assertNotEquals(
+        shadowOf(notification.actions[0].actionIntent).requestCode,
+        shadowOf(notification.contentIntent).requestCode,
+    )
+    assertNotEquals(
+        shadowOf(notification.actions[1].actionIntent).requestCode,
+        shadowOf(notification.contentIntent).requestCode,
     )
   }
 
@@ -111,6 +157,30 @@ class FriendRequestNotificationTest {
   }
 
   @Test
+  fun cancelAllFriendRequests_onlyRemovesFriendRequestChannelNotifications() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(true)
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("request-channel", "alice", "Alice", "bob"),
+    )
+    manager.notify(
+        "other",
+        42,
+        androidx.core.app.NotificationCompat.Builder(context, "other_channel")
+            .setSmallIcon(R.drawable.ic_notification_friend)
+            .setContentTitle("Other")
+            .build(),
+    )
+
+    FriendRequestNotifications.cancelAllFriendRequests(context)
+
+    assertEquals(1, shadowOf(manager).allNotifications.size)
+    assertEquals("other_channel", shadowOf(manager).allNotifications.single().channelId)
+  }
+
+  @Test
   fun actionFailure_createsFriendsShortcutNotification() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val manager = context.getSystemService(NotificationManager::class.java)
@@ -125,4 +195,7 @@ class FriendRequestNotificationTest {
     )
     assertNotNull(notification.contentIntent)
   }
+
+  private fun savedIntent(pendingIntent: PendingIntent): Intent =
+      shadowOf(pendingIntent).savedIntent
 }
