@@ -141,6 +141,7 @@ fun MonumentDetailScreen(
                     .weight(1f)
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 24.dp)
+                    .navigationBarsPadding()
                     .verticalScroll(rememberScrollState())
                     .semantics { testTag = C.Tag.monument_detail_text }
         ) {
