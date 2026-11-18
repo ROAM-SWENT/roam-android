@@ -552,6 +552,34 @@ class ScanReviewScreenTest {
     waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    // The check used the phone position, not where the photo was taken, so it is not explained.
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_explore_unavailable).assertDoesNotExist()
+    assertEquals(null, savedGuides.guides.value.single().location)
+    assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
+  }
+
+  @Test
+  fun reviewRouteExplainsWhyAScanFarFromTheMonumentIsNotOnExplore() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(
+                  guide.copy(
+                      // Scanned at the Louvre, about 3 km from the Eiffel Tower.
+                      location = Coordinates(48.8606, 2.3376),
+                      monumentLocation = Coordinates(48.8584, 2.2945),
+                      photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
+                  )
+              )
+        }
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    // The guide is still saved to the collection, just not put on Explore.
     assertEquals(null, savedGuides.guides.value.single().location)
     assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
   }
@@ -565,6 +593,8 @@ class ScanReviewScreenTest {
               Result.success(
                   guide.copy(
                       location = scanLocation,
+                      // The tower's own position per the AI, a few metres from the scan.
+                      monumentLocation = Coordinates(48.8583, 2.2944),
                       photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
                   )
               )

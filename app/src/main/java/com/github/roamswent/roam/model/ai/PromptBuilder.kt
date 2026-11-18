@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.model.ai
@@ -40,6 +41,18 @@ object PromptBuilder {
     appendLine("- facts: a list of short, interesting facts")
     appendLine("- culture: its cultural significance")
     appendLine("- language: the language of your answer")
+    appendLine(
+        "- monumentLatitude: the monument's own latitude in decimal degrees (WGS84), or null if " +
+            "you are not sure"
+    )
+    appendLine(
+        "- monumentLongitude: the monument's own longitude in decimal degrees (WGS84), or null " +
+            "if you are not sure"
+    )
+    appendLine(
+        "Give the monument's coordinates from your knowledge of the monument itself, never the " +
+            "place where the photo was taken."
+    )
     appendLine("Write the text fields in ${sanitizeLanguage(preferences.language)}.")
     val interests = sanitizeInterests(preferences.interests)
     if (interests.isNotEmpty()) {
@@ -54,7 +67,8 @@ object PromptBuilder {
       val coarse = location.coarsened()
       appendLine(
           "The photo was taken near latitude ${coarse.latitude.format()}, longitude " +
-              "${coarse.longitude.format()}. Use this only to tell similar monuments apart."
+              "${coarse.longitude.format()}. Use this only to tell similar monuments apart, never as " +
+              "the monument's coordinates."
       )
     }
   }

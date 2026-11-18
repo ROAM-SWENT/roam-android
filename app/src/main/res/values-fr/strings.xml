@@ -55,6 +55,12 @@
     <string name="home_scan_description">Scanner un monument</string>
     <string name="settings_title">Profil</string>
     <string name="settings_notification_permission">Autorisation des notifications</string>
+    <string name="notification_friend_requests_channel">Demandes d’amis</string>
+    <string name="notification_friend_request_title">Nouvelle demande d’ami</string>
+    <string name="notification_friend_request_body">%1$s souhaite devenir votre ami.</string>
+    <string name="notification_friend_request_accept">Accepter</string>
+    <string name="notification_friend_request_decline">Refuser</string>
+    <string name="notification_friend_request_action_failed">Impossible de traiter la demande. Ouvrez Roam pour réessayer.</string>
     <string name="home_greeting_format">Bonjour %s,</string>
     <string name="home_greeting_no_name">Bonjour,</string>
     <string name="home_greeting_title">Prêt à explorer ?</string>
@@ -171,6 +177,9 @@
     <string name="monument_detail_show_in_explore">Afficher dans Explorer</string>
     <string name="monument_detail_show_in_explore_supporting">Épinglez ce monument sur la carte à l\'endroit où vous l\'avez scanné.</string>
     <string name="monument_detail_show_in_explore_error">Impossible de mettre à jour Explorer. Veuillez réessayer.</string>
+    <string name="monument_detail_explore_unavailable_no_location">Votre position n\'était pas disponible pendant le scan, ce monument ne peut donc pas être ajouté à Explorer.</string>
+    <string name="monument_detail_explore_unavailable_no_monument_location">Nous n\'avons pas pu confirmer l\'emplacement de ce monument, il ne peut donc pas être ajouté à Explorer.</string>
+    <string name="monument_detail_explore_unavailable_too_far">Vous ne semblez pas être à proximité de ce monument, il ne peut donc pas être ajouté à Explorer.</string>
     <string name="explore_monument_photo_description">Photo de %1$s</string>
     <string name="explore_close_monument_description">Fermer les informations sur le monument</string>
     <string name="explore_minimize_monument_description">Réduire les informations sur le monument</string>

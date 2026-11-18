@@ -61,7 +61,59 @@ class GuideRepositoryImplTest {
     val gemini = FakeGeminiClient(reply(validGuide))
     repository(FakeImageScreen(verdict()), gemini).guideFor(request())
 
-    assertFalse(gemini.prompts.single().contains("latitude"))
+    assertFalse(gemini.prompts.single().contains("The photo was taken near"))
+  }
+
+  @Test
+  fun returnedGuideKeepsMonumentLocationSeparateFromObservedLocation() = runBlocking {
+    val observed = Coordinates(46.5191, 6.5668)
+    val withMonument =
+        validGuide.replace(
+            "\"language\":\"fr\"}",
+            "\"language\":\"fr\",\"monumentLatitude\":48.8584,\"monumentLongitude\":2.2945}",
+        )
+    val guide =
+        repository(FakeImageScreen(verdict()), FakeGeminiClient(reply(withMonument)))
+            .guideFor(request(observed))
+
+    assertEquals(observed, guide.location)
+    assertEquals(Coordinates(48.8584, 2.2945), guide.monumentLocation)
+  }
+
+  @Test
+  fun returnedGuideHasNoMonumentLocationWhenAiGivesNone() = runBlocking {
+    val guide =
+        repository(FakeImageScreen(verdict()), FakeGeminiClient(reply(validGuide)))
+            .guideFor(request(Coordinates(46.5191, 6.5668)))
+
+    assertNull(guide.monumentLocation)
+  }
+
+  @Test
+  fun neverAsksTheDeviceWhenDeviceLocationIsDisabled() = runBlocking {
+    val gemini = FakeGeminiClient(reply(validGuide))
+    val provider = FakeLocationProvider(Coordinates(48.85837, 2.29448))
+    val guide =
+        repository(FakeImageScreen(verdict()), gemini, provider)
+            .guideFor(request(useDeviceLocation = false))
+
+    assertEquals(0, provider.calls)
+    assertNull(guide.location)
+    assertFalse(gemini.prompts.single().contains("The photo was taken near"))
+  }
+
+  @Test
+  fun usesTheGivenLocationWhenDeviceLocationIsDisabled() = runBlocking {
+    val gemini = FakeGeminiClient(reply(validGuide))
+    val photoLocation = Coordinates(48.85837, 2.29448)
+    val provider = FakeLocationProvider(Coordinates(1.0, 2.0))
+    val guide =
+        repository(FakeImageScreen(verdict()), gemini, provider)
+            .guideFor(request(photoLocation, useDeviceLocation = false))
+
+    assertEquals(0, provider.calls)
+    assertEquals(photoLocation, guide.location)
+    assertTrue(gemini.prompts.single().contains("latitude 48.858, longitude 2.294"))
   }
 
   @Test
@@ -235,8 +287,8 @@ class GuideRepositoryImplTest {
 
   private val prefs = UserPreferences("fr")
 
-  private fun request(location: Coordinates? = null) =
-      DiscoveryRequest(ImagePayload(fixture(), "image/jpeg"), location, prefs)
+  private fun request(location: Coordinates? = null, useDeviceLocation: Boolean = true) =
+      DiscoveryRequest(ImagePayload(fixture(), "image/jpeg"), location, prefs, useDeviceLocation)
 
   private fun repository(
       screen: ImageScreen,
