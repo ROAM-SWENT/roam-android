@@ -3,6 +3,7 @@
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.location.Coordinates
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -55,6 +56,22 @@ class GuideDocumentSizeTest {
             baseGuide.copy(facts = baseGuide.facts + "é"),
             documentPath,
         ) - GuideDocumentSize.estimatedBytes(baseGuide, documentPath),
+    )
+  }
+
+  @Test
+  fun estimatesGuideSectionStringsAndMapOverhead() {
+    val withoutSections = guide(photoBytes = byteArrayOf(1, 2, 3))
+    val withOneSection =
+        withoutSections.copy(
+            sections = listOf(GuideSection("Architecture", "Detailed context.")),
+        )
+
+    // "Architecture" = 13 bytes, "Detailed context." = 18 bytes, plus 32 bytes for the map.
+    assertEquals(
+        63L,
+        GuideDocumentSize.estimatedBytes(withOneSection, documentPath) -
+            GuideDocumentSize.estimatedBytes(withoutSections, documentPath),
     )
   }
 
