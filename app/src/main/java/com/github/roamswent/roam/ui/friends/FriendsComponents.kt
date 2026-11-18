@@ -125,7 +125,7 @@ internal fun FriendsContent(
         },
     ) {
       Column(
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier.matchParentSize(),
           verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
         friendRequests.forEach { request ->
