@@ -33,7 +33,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
@@ -44,6 +48,8 @@ import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.accentIcon
+import com.github.roamswent.roam.ui.theme.guideCalloutContainer
+import com.github.roamswent.roam.ui.theme.guideEyebrow
 import com.github.roamswent.roam.ui.theme.isDark
 import com.github.roamswent.roam.ui.theme.photoButtonContainer
 import kotlin.math.roundToInt
@@ -139,6 +145,13 @@ fun MonumentDetailScreen(
                     .semantics { testTag = C.Tag.monument_detail_text }
         ) {
           Text(
+              text = stringResource(R.string.monument_detail_ai_guide_label),
+              style = MaterialTheme.typography.labelSmall,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.guideEyebrow,
+              modifier = Modifier.padding(bottom = 6.dp),
+          )
+          Text(
               text = guide.monumentName,
               style = MaterialTheme.typography.titleLarge,
               fontWeight = FontWeight.Bold,
@@ -173,34 +186,59 @@ fun MonumentDetailScreen(
             )
           }
           Text(
-              text = guide.history,
-              style = MaterialTheme.typography.bodyLarge,
+              text = markdownText(guide.history),
+              style = guideBodyStyle(),
               color = textColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
                     testTag = C.Tag.monument_detail_history
                   },
           )
-          guide.facts.forEach { fact ->
+          if (guide.sections.isNotEmpty()) {
+            val funFactsTitle = stringResource(R.string.interest_fun_facts)
+            val funFactTitle = stringResource(R.string.monument_detail_facts_title)
+            val legendsTitle = stringResource(R.string.interest_legends_myths)
+            val isCalloutTitle: (String) -> Boolean = { title ->
+              title.trim().equals(funFactsTitle, ignoreCase = true) ||
+                  title.trim().equals(funFactTitle, ignoreCase = true) ||
+                  title.trim().equals(legendsTitle, ignoreCase = true)
+            }
+            val regularSections = guide.sections.filterNot { isCalloutTitle(it.title) }
+            val calloutSections = guide.sections.filter { isCalloutTitle(it.title) }
+            (regularSections + calloutSections).forEach { section ->
+              GuideSectionCard(
+                  title = section.title,
+                  content = section.content,
+                  bodyStyle = guideBodyStyle(),
+                  isCallout = isCalloutTitle(section.title),
+              )
+            }
+          } else {
+            guide.facts.forEach { fact ->
+              GuideCallout(
+                  title = stringResource(R.string.monument_detail_facts_title),
+                  content = fact,
+                  bodyStyle = guideBodyStyle(),
+                  modifier =
+                      Modifier.padding(bottom = 8.dp).semantics {
+                        testTag = C.Tag.monument_detail_fact_item
+                      },
+              )
+            }
+            GuideSectionHeading(
+                title = stringResource(R.string.monument_detail_culture_title),
+                modifier = Modifier.padding(top = 8.dp),
+            )
             Text(
-                text = stringResource(R.string.monument_detail_fact_bullet, fact),
-                style = MaterialTheme.typography.bodyLarge,
+                text = markdownText(guide.culture),
+                style = guideBodyStyle(),
                 color = textColor,
                 modifier =
-                    Modifier.padding(bottom = 4.dp).semantics {
-                      testTag = C.Tag.monument_detail_fact_item
+                    Modifier.padding(bottom = 8.dp).semantics {
+                      testTag = C.Tag.monument_detail_culture
                     },
             )
           }
-          Text(
-              text = guide.culture,
-              style = MaterialTheme.typography.bodyLarge,
-              color = textColor,
-              modifier =
-                  Modifier.padding(top = 12.dp).semantics {
-                    testTag = C.Tag.monument_detail_culture
-                  },
-          )
         }
       }
     }
@@ -231,6 +269,104 @@ fun MonumentDetailScreen(
         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
     )
   }
+}
+
+@Composable private fun guideBodyStyle() = MaterialTheme.typography.bodyLarge
+
+@Composable
+private fun GuideSectionCard(
+    title: String,
+    content: String,
+    bodyStyle: androidx.compose.ui.text.TextStyle,
+    isCallout: Boolean,
+) {
+  if (isCallout) {
+    GuideCallout(
+        title = title,
+        content = content,
+        bodyStyle = bodyStyle,
+        modifier = Modifier.padding(bottom = 12.dp),
+    )
+  } else {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+      GuideSectionHeading(title = title)
+      Text(
+          text = markdownText(content),
+          style = bodyStyle,
+          color = MaterialTheme.colorScheme.onSurface,
+      )
+    }
+  }
+}
+
+@Composable
+private fun GuideCallout(
+    title: String,
+    content: String,
+    bodyStyle: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+) {
+  Column(
+      modifier =
+          modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(16.dp))
+              .background(MaterialTheme.guideCalloutContainer)
+              .padding(12.dp)
+  ) {
+    GuideCalloutHeading(title = title)
+    Text(
+        text = markdownText(content),
+        style = bodyStyle,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+  }
+}
+
+@Composable
+private fun GuideSectionHeading(title: String, modifier: Modifier = Modifier) {
+  Text(
+      text = title,
+      style = MaterialTheme.typography.titleSmall,
+      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.accentIcon,
+      modifier = modifier.padding(bottom = 6.dp),
+  )
+}
+
+@Composable
+private fun GuideCalloutHeading(title: String) {
+  Text(
+      text = title,
+      style = MaterialTheme.typography.labelLarge,
+      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.accentIcon,
+      modifier = Modifier.padding(bottom = 4.dp),
+  )
+}
+
+private fun markdownText(markdown: String): AnnotatedString = buildAnnotatedString {
+  markdown.lines().forEachIndexed { index, line ->
+    if (index > 0) append("\n")
+    val trimmed = line.trim()
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      append("• ")
+      appendMarkdownInline(trimmed.drop(2))
+    } else {
+      appendMarkdownInline(trimmed)
+    }
+  }
+}
+
+private fun AnnotatedString.Builder.appendMarkdownInline(text: String) {
+  val boldPattern = Regex("\\*\\*(.+?)\\*\\*")
+  var cursor = 0
+  boldPattern.findAll(text).forEach { match ->
+    append(text.substring(cursor, match.range.first))
+    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(match.groupValues[1]) }
+    cursor = match.range.last + 1
+  }
+  append(text.substring(cursor))
 }
 
 /** Heart over the photo, styled like the one on collection cards: filled when [isFavorite]. */

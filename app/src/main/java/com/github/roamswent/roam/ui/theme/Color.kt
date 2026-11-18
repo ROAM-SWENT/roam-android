@@ -75,6 +75,14 @@ val MaterialTheme.monumentMarkerBorder: Color
 val MaterialTheme.cardContainer: Color
   @Composable get() = if (isDark) colorScheme.surfaceVariant else Color.White
 
+/** Soft container for short guide callouts, readable in both themes. */
+val MaterialTheme.guideCalloutContainer: Color
+  @Composable get() = if (isDark) colorScheme.primaryContainer else Color(0xFFDDEBDD)
+
+/** Lighter green for the guide eyebrow label. */
+val MaterialTheme.guideEyebrow: Color
+  @Composable get() = if (isDark) colorScheme.primary else Color(0xFF3B8068)
+
 /** Translucent circle behind an icon button drawn over a photo. */
 val MaterialTheme.photoButtonContainer: Color
   @Composable
