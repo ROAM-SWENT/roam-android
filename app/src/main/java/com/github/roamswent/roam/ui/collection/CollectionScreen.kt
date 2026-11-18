@@ -196,6 +196,7 @@ fun CollectionScreen(
           CollectionSearchBar(
               query = state.searchQuery,
               onQueryChange = onSearchQueryChange,
+              readOnly = readOnly,
               modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
           )
           if (!readOnly) CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
@@ -231,6 +232,7 @@ fun CollectionScreen(
 private fun CollectionSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    readOnly: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
   val isDark = MaterialTheme.isDark
@@ -246,7 +248,11 @@ private fun CollectionSearchBar(
       textStyle = MaterialTheme.typography.bodyMedium,
       placeholder = {
         Text(
-            text = stringResource(R.string.collection_search_hint),
+            text =
+                stringResource(
+                    if (readOnly) R.string.friend_collection_search_hint
+                    else R.string.collection_search_hint
+                ),
             style = MaterialTheme.typography.bodyMedium,
         )
       },

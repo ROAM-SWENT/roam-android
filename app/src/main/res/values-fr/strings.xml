@@ -192,6 +192,7 @@
     <string name="explore_close_monument_description">Fermer les informations sur le monument</string>
     <string name="explore_minimize_monument_description">Réduire les informations sur le monument</string>
     <string name="collection_search_hint">Rechercher dans votre collection</string>
+    <string name="friend_collection_search_hint">Rechercher dans sa collection</string>
     <string name="collection_search_no_matches_title">Aucun résultat</string>
     <string name="collection_search_no_matches_subtitle">Aucun monument ne correspond à votre recherche.</string>
     <string name="collection_search_clear_description">Effacer la recherche</string>

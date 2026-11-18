@@ -105,6 +105,7 @@
     <string name="collection_delete">Delete guide</string>
     <string name="collection_delete_error">Couldn’t delete this guide. Please try again.</string>
     <string name="collection_search_hint">Search your collection</string>
+    <string name="friend_collection_search_hint">Search their collection</string>
     <string name="collection_search_no_matches_title">No matches</string>
     <string name="collection_search_no_matches_subtitle">No monument matches your search.</string>
     <string name="collection_search_clear_description">Clear search</string>
