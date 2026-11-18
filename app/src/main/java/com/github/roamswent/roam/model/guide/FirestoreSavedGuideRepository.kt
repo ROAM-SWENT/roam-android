@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.firestore.RoamFirestore
@@ -121,6 +122,9 @@ class FirestoreSavedGuideRepository(
 internal object GuideFirestoreMapper {
   const val FAVORITE_FIELD = "isFavorite"
   const val LOCATION_FIELD = "location"
+  const val SHARE_AUDIENCE_FIELD = "shareAudience"
+  const val SHARED_WITH_UIDS_FIELD = "sharedWithUids"
+  const val DISMISSED_BY_UIDS_FIELD = "dismissedByUids"
 
   fun locationFields(location: Coordinates): Map<String, Double> =
       mapOf("latitude" to location.latitude, "longitude" to location.longitude)
@@ -135,22 +139,47 @@ internal object GuideFirestoreMapper {
     guide.location?.let { put(LOCATION_FIELD, locationFields(it)) }
     guide.discoveryDate?.let { put("discoveryDate", it) }
     put(FAVORITE_FIELD, guide.isFavorite)
+    put(SHARE_AUDIENCE_FIELD, guide.shareSettings.audience.name)
+    if (guide.shareSettings.sharedWithUids.isNotEmpty()) {
+      put(SHARED_WITH_UIDS_FIELD, guide.shareSettings.sharedWithUids.sorted())
+    }
+    if (guide.shareSettings.dismissedByUids.isNotEmpty()) {
+      put(DISMISSED_BY_UIDS_FIELD, guide.shareSettings.dismissedByUids.sorted())
+    }
   }
 
-  fun fromFields(id: String, fields: Map<String, Any>): Guide =
-      Guide(
-          id = id,
-          photoBytes = required<Blob>(fields, "photo").toBytes(),
-          monumentName = required(fields, "monumentName"),
-          confidence = required(fields, "confidence"),
-          history = required(fields, "history"),
-          facts = requiredStringList(fields, "facts"),
-          culture = required(fields, "culture"),
-          location = optionalCoordinates(fields[LOCATION_FIELD]),
-          discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
-          // Guides saved before favourites existed have no flag, so they are not favourites.
-          isFavorite = fields[FAVORITE_FIELD] as? Boolean ?: false,
-      )
+  fun fromFields(id: String, fields: Map<String, Any>): Guide {
+    val rawAudience = fields[SHARE_AUDIENCE_FIELD]
+    val audience =
+        when (rawAudience) {
+          null -> ShareAudience.ALL_FRIENDS
+          is String ->
+              ShareAudience.entries.firstOrNull { it.name == rawAudience } ?: ShareAudience.NONE
+          else -> ShareAudience.NONE
+        }
+    return Guide(
+        id = id,
+        photoBytes = required<Blob>(fields, "photo").toBytes(),
+        monumentName = required(fields, "monumentName"),
+        confidence = required(fields, "confidence"),
+        history = required(fields, "history"),
+        facts = requiredStringList(fields, "facts"),
+        culture = required(fields, "culture"),
+        location = optionalCoordinates(fields[LOCATION_FIELD]),
+        discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
+        // Guides saved before favourites existed have no flag, so they are not favourites.
+        isFavorite = fields[FAVORITE_FIELD] as? Boolean ?: false,
+        shareSettings =
+            MonumentShareSettings(
+                audience = audience,
+                sharedWithUids = optionalStringSet(fields, SHARED_WITH_UIDS_FIELD),
+                dismissedByUids = optionalStringSet(fields, DISMISSED_BY_UIDS_FIELD),
+            ),
+    )
+  }
+
+  private fun optionalStringSet(fields: Map<String, Any>, key: String): Set<String> =
+      (fields[key] as? List<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet()
 
   private fun optionalCoordinates(value: Any?): Coordinates? {
     if (value == null) return null

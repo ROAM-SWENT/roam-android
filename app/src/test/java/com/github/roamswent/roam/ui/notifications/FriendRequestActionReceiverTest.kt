@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.notifications
@@ -111,11 +112,12 @@ class FriendRequestActionReceiverTest {
       anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
           .acceptFriendRequest("request")
     }
+    verify(timeout = 2_000) { pendingResult.finish() }
     verify { FriendRequestNotifications.cancel(context, "request") }
   }
 
   @Test
-  fun onReceive_rejectsRequestAndCancelsNotification() {
+  fun onReceive_declinesRequestAndCancelsNotification() {
     mockkStatic(FirebaseAuth::class)
     every { FirebaseAuth.getInstance() } returns auth
     every { auth.currentUser } returns user
@@ -140,6 +142,7 @@ class FriendRequestActionReceiverTest {
       anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
           .rejectFriendRequest("request")
     }
+    verify(timeout = 2_000) { pendingResult.finish() }
     verify { FriendRequestNotifications.cancel(context, "request") }
   }
 
@@ -168,8 +171,8 @@ class FriendRequestActionReceiverTest {
       anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
           .acceptFriendRequest("request")
     }
+    verify(timeout = 2_000) { pendingResult.finish() }
     verify { FriendRequestNotifications.showActionFailure(context, "request") }
-    verify { pendingResult.finish() }
   }
 
   @Test
@@ -197,8 +200,8 @@ class FriendRequestActionReceiverTest {
       anyConstructed<com.github.roamswent.roam.model.friend.FirestoreFriendRepository>()
           .rejectFriendRequest("request")
     }
+    verify(timeout = 2_000) { pendingResult.finish() }
     verify { FriendRequestNotifications.showActionFailure(context, "request") }
-    verify { pendingResult.finish() }
   }
 
   private fun validIntent(action: String) =
