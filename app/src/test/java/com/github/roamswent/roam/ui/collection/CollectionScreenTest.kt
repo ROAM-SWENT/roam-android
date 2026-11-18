@@ -10,13 +10,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -385,6 +390,26 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun sharingPickerUsesTheGuideWhoseCardWasOpened() {
+    val updates = mutableListOf<Pair<String, List<String>>>()
+    var openedSharing = 0
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide, newerGuide)),
+        friends = listOf(CollectionFriend("friend-a", "Alice")),
+        onOpenSharing = { openedSharing++ },
+        onSetSharedWithFriends = { guideId, uids -> updates += guideId to uids },
+    )
+
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_card_share)[0].performClick()
+    composeTestRule.onNodeWithText("Share Eiffel Tower").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    assertEquals(1, openedSharing)
+    assertEquals(listOf("newer" to listOf("friend-a")), updates)
+  }
+
+  @Test
   fun sharingPickerSelectsAllFriendsAtOnce() {
     val selectedUids = mutableListOf<List<String>>()
     setScreen(
@@ -441,6 +466,125 @@ class CollectionScreenTest {
 
     assertTrue(saved.isEmpty())
     composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertDoesNotExist()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).assertIsOff()
+  }
+
+  @Test
+  fun loadingFriendsShowsProgressAndDisablesSaving() {
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        isLoadingFriends = true,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+    composeTestRule
+        .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+  }
+
+  @Test
+  fun friendsLoadErrorCanBeRetriedWithoutClosingTheDialog() {
+    var retries = 0
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friendsError = IllegalStateException("offline"),
+        onRetryLoadingFriends = { retries++ },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule
+        .onNodeWithText("Couldn’t load your friends. Please try again.")
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithText("Retry").performClick()
+
+    assertEquals(1, retries)
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+  }
+
+  @Test
+  fun noFriendsExplainsEmptyStateAndOmitsSelectionControls() {
+    setScreen(SavedGuidesUiState(guides = listOf(olderGuide)))
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+
+    composeTestRule.onNodeWithText("Add friends before sharing a guide.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_select_all).assertDoesNotExist()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend).assertCountEquals(0)
+  }
+
+  @Test
+  fun removingOnePreviouslySharedFriendKeepsOnlyTheRemainingAvailableSelection() {
+    val selectedUids = mutableListOf<List<String>>()
+    setScreen(
+        SavedGuidesUiState(
+            guides =
+                listOf(olderGuide.copy(sharedWithFriendUids = listOf("friend-a", "removed-friend")))
+        ),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
+        onSetSharedWithFriends = { _, uids -> selectedUids += uids },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].assertIsOn()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[1].assertIsOff()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].performClick()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[1].performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    assertEquals(listOf(listOf("friend-b")), selectedUids)
+  }
+
+  @Test
+  fun savingSharingShowsProgressAndDisablesDialogActions() {
+    val saved = mutableListOf<List<String>>()
+    var state by mutableStateOf(SavedGuidesUiState(guides = listOf(olderGuide)))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = state,
+            friends = listOf(CollectionFriend("friend-a", "Alice")),
+            onSetSharedWithFriends = { _, uids -> saved += uids },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.runOnIdle { state = state.copy(sharingGuideIds = setOf(olderGuide.id)) }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_cancel).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertIsNotEnabled()
+    composeTestRule
+        .onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
+        .assertCountEquals(1)
+    assertTrue(saved.isEmpty())
+  }
+
+  @Test
+  fun sharingWriteErrorIsShownAndReported() {
+    var reported = 0
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide),
+            sharingError = IllegalStateException("offline"),
+        ),
+        onSharingErrorShown = { reported++ },
+    )
+
+    composeTestRule.onNodeWithText("Couldn’t update sharing. Please try again.").assertIsDisplayed()
+    assertEquals(1, reported)
   }
 
   @Test
@@ -726,8 +870,13 @@ class CollectionScreenTest {
       onFavoriteErrorShown: () -> Unit = {},
       onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
       onSearchQueryChange: (String) -> Unit = {},
+      onOpenSharing: () -> Unit = {},
       friends: List<CollectionFriend> = emptyList(),
+      isLoadingFriends: Boolean = false,
+      friendsError: Exception? = null,
+      onRetryLoadingFriends: () -> Unit = {},
       onSetSharedWithFriends: (String, List<String>) -> Unit = { _, _ -> },
+      onSharingErrorShown: () -> Unit = {},
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -741,8 +890,13 @@ class CollectionScreenTest {
             onFavoriteErrorShown = onFavoriteErrorShown,
             onShowFavoritesOnlyChange = onShowFavoritesOnlyChange,
             onSearchQueryChange = onSearchQueryChange,
+            onOpenSharing = onOpenSharing,
             friends = friends,
+            isLoadingFriends = isLoadingFriends,
+            friendsError = friendsError,
+            onRetryLoadingFriends = onRetryLoadingFriends,
             onSetSharedWithFriends = onSetSharedWithFriends,
+            onSharingErrorShown = onSharingErrorShown,
         )
       }
     }

@@ -11,10 +11,17 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.Friendship
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -144,6 +151,73 @@ class CollectionRouteTest {
 
     composeTestRule.waitUntil { repository.guides.value.single().isFavorite }
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+  }
+
+  @Test
+  fun sharingThroughRoutePersistsAndRestoresSelection() {
+    val repository = FakeSavedGuideRepository(listOf(colosseum))
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "friend"))
+    coEvery { profiles.getProfile("friend") } returns PublicProfile("friend", "Alice")
+    setSharingRoute(repository, friends, profiles)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+    composeTestRule.waitUntil {
+      repository.guides.value.single().sharedWithFriendUids == listOf("friend")
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_share_status, true)
+        .assertTextEquals("Shared with 1 friends")
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+    composeTestRule.waitUntil { repository.guides.value.single().sharedWithFriendUids.isEmpty() }
+    coVerify(exactly = 1) { friends.getFriends() }
+  }
+
+  @Test
+  fun sharingRouteRetriesFailedFriendLoadAndReportsFailedWrite() {
+    val repository = FakeSavedGuideRepository(listOf(colosseum))
+    repository.sharingError = IllegalStateException("offline")
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } throws
+        IllegalStateException("offline") andThen
+        listOf(Friendship("friendship", "friend"))
+    coEvery { profiles.getProfile("friend") } returns PublicProfile("friend", "Alice")
+    setSharingRoute(repository, friends, profiles)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithText("Retry").performClick()
+    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    composeTestRule.onNodeWithText("Couldn’t update sharing. Please try again.").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_share_status, true)
+        .assertTextEquals("Not shared")
+    assertTrue(repository.guides.value.single().sharedWithFriendUids.isEmpty())
+    coVerify(exactly = 2) { friends.getFriends() }
+  }
+
+  private fun setSharingRoute(
+      repository: FakeSavedGuideRepository,
+      friends: FriendRepository,
+      profiles: PublicProfileRepository,
+  ) {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionRoute(
+            repository = repository,
+            friendRepository = friends,
+            publicProfileRepository = profiles,
+        )
+      }
+    }
   }
 
   private fun setRoute(repository: FakeSavedGuideRepository) {

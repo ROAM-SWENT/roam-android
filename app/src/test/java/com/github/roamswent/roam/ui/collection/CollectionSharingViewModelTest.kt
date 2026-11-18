@@ -6,6 +6,7 @@ import com.github.roamswent.roam.model.friend.Friendship
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -77,6 +78,49 @@ class CollectionSharingViewModelTest {
         viewModel.retryLoadingFriends()
         advanceUntilIdle()
 
-        io.mockk.coVerify(exactly = 2) { friendRepository.getFriends() }
+        coVerify(exactly = 2) { friendRepository.getFriends() }
+      }
+
+  @Test
+  fun repeatedLoadsAreIgnoredWhileLoadingAndAfterSuccessButRetryReloads() =
+      runTest(dispatcher) {
+        coEvery { friendRepository.getFriends() } returns emptyList()
+        val viewModel = CollectionSharingViewModel(friendRepository, profileRepository)
+
+        viewModel.loadFriends()
+        viewModel.loadFriends()
+        advanceUntilIdle()
+        viewModel.loadFriends()
+        coVerify(exactly = 1) { friendRepository.getFriends() }
+
+        viewModel.retryLoadingFriends()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { friendRepository.getFriends() }
+        assertTrue(viewModel.uiState.value.friends.isEmpty())
+        assertFalse(viewModel.uiState.value.isLoadingFriends)
+      }
+
+  @Test
+  fun profileFailureIsReportedAndSuccessfulRetryClearsError() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("profile unavailable")
+        coEvery { friendRepository.getFriends() } returns listOf(Friendship("id", "friend"))
+        coEvery { profileRepository.getProfile("friend") } throws failure
+        val viewModel = CollectionSharingViewModel(friendRepository, profileRepository)
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.friendsError is IllegalStateException)
+        assertEquals(failure.message, viewModel.uiState.value.friendsError?.message)
+        assertTrue(viewModel.uiState.value.friends.isEmpty())
+
+        coEvery { profileRepository.getProfile("friend") } returns PublicProfile("friend", "Alice")
+        viewModel.retryLoadingFriends()
+        assertEquals(null, viewModel.uiState.value.friendsError)
+        advanceUntilIdle()
+
+        assertEquals(listOf(CollectionFriend("friend", "Alice")), viewModel.uiState.value.friends)
+        assertEquals(null, viewModel.uiState.value.friendsError)
       }
 }
