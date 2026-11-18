@@ -6,10 +6,14 @@ import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
@@ -155,11 +159,17 @@ class FirestoreMonumentSharingRepository(
           if (currentUid == ownerUid) {
             getGuidesFromQuery(savedGuidesCollection(ownerUid))
           } else {
-            val broadcastQuery =
+            val allFriendsQuery =
                 savedGuidesCollection(ownerUid)
-                    .whereIn(
+                    .whereEqualTo(
                         GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
-                        listOf(ShareAudience.ALL_FRIENDS.name, ShareAudience.ALL_FOLLOWERS.name),
+                        ShareAudience.ALL_FRIENDS.name,
+                    )
+            val allFollowersQuery =
+                savedGuidesCollection(ownerUid)
+                    .whereEqualTo(
+                        GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+                        ShareAudience.ALL_FOLLOWERS.name,
                     )
             val selectedQuery =
                 savedGuidesCollection(ownerUid)
@@ -169,15 +179,18 @@ class FirestoreMonumentSharingRepository(
                     )
                     .whereArrayContains(GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD, currentUid)
 
-            val broadcastGuides = getGuidesFromQuery(broadcastQuery)
-            val selectedGuides = getGuidesFromQuery(selectedQuery)
-            (broadcastGuides + selectedGuides).distinctBy { it.id }
+            coroutineScope {
+              val allFriendsDeferred = async { getGuidesAllowingPermissionDenied(allFriendsQuery) }
+              val allFollowersDeferred = async {
+                getGuidesAllowingPermissionDenied(allFollowersQuery)
+              }
+              val selectedDeferred = async { getGuidesAllowingPermissionDenied(selectedQuery) }
+
+              allFriendsDeferred.await() + allFollowersDeferred.await() + selectedDeferred.await()
+            }
           }
 
-      guides.filter { guide ->
-        currentUid !in guide.shareSettings.dismissedByUids &&
-            guide.shareSettings.audience != ShareAudience.NONE
-      }
+      filterEligibleGuides(guides, currentUid)
     }
   }
 
@@ -187,17 +200,20 @@ class FirestoreMonumentSharingRepository(
 
     return if (currentUid == ownerUid) {
       observeQuery(savedGuidesCollection(ownerUid)).map { guides ->
-        guides.filter { guide ->
-          currentUid !in guide.shareSettings.dismissedByUids &&
-              guide.shareSettings.audience != ShareAudience.NONE
-        }
+        filterEligibleGuides(guides, currentUid)
       }
     } else {
-      val broadcastQuery =
+      val allFriendsQuery =
           savedGuidesCollection(ownerUid)
-              .whereIn(
+              .whereEqualTo(
                   GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
-                  listOf(ShareAudience.ALL_FRIENDS.name, ShareAudience.ALL_FOLLOWERS.name),
+                  ShareAudience.ALL_FRIENDS.name,
+              )
+      val allFollowersQuery =
+          savedGuidesCollection(ownerUid)
+              .whereEqualTo(
+                  GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+                  ShareAudience.ALL_FOLLOWERS.name,
               )
       val selectedQuery =
           savedGuidesCollection(ownerUid)
@@ -207,46 +223,79 @@ class FirestoreMonumentSharingRepository(
               )
               .whereArrayContains(GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD, currentUid)
 
-      observeQuery(broadcastQuery).combine(observeQuery(selectedQuery)) {
-          broadcastGuides,
-          selectedGuides ->
-        (broadcastGuides + selectedGuides)
-            .distinctBy { it.id }
-            .filter { guide ->
-              currentUid !in guide.shareSettings.dismissedByUids &&
-                  guide.shareSettings.audience != ShareAudience.NONE
-            }
+      combine(
+          observeQuery(allFriendsQuery, allowPermissionDenied = true),
+          observeQuery(allFollowersQuery, allowPermissionDenied = true),
+          observeQuery(selectedQuery, allowPermissionDenied = true),
+      ) { allFriendsGuides, allFollowersGuides, selectedGuides ->
+        filterEligibleGuides(
+            allFriendsGuides + allFollowersGuides + selectedGuides,
+            currentUid,
+        )
       }
     }
   }
 
   private suspend fun getGuidesFromQuery(query: Query): List<Guide> =
-      query.get().await().documents.map { document ->
+      parseGuidesFromSnapshot(query.get().await())
+
+  private suspend fun getGuidesAllowingPermissionDenied(query: Query): List<Guide> =
+      try {
+        getGuidesFromQuery(query)
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        if (
+            (exception as? FirebaseFirestoreException)?.code ==
+                FirebaseFirestoreException.Code.PERMISSION_DENIED ||
+                (exception.cause as? FirebaseFirestoreException)?.code ==
+                    FirebaseFirestoreException.Code.PERMISSION_DENIED
+        ) {
+          emptyList()
+        } else if (exception is MonumentSharingException) {
+          throw exception
+        } else {
+          throw MonumentSharingException.FirestoreFailure(exception)
+        }
+      }
+
+  private fun parseGuidesFromSnapshot(snapshot: QuerySnapshot): List<Guide> =
+      snapshot.documents.map { document ->
         GuideFirestoreMapper.fromFields(
             id = document.id,
             fields = checkNotNull(document.data) { "Saved guide ${document.id} has no data" },
         )
       }
 
-  private fun observeQuery(query: Query): Flow<List<Guide>> = callbackFlow {
+  private fun filterEligibleGuides(guides: List<Guide>, currentUid: String): List<Guide> =
+      guides
+          .distinctBy { it.id }
+          .filter { guide ->
+            currentUid !in guide.shareSettings.dismissedByUids &&
+                guide.shareSettings.audience != ShareAudience.NONE
+          }
+
+  private fun observeQuery(
+      query: Query,
+      allowPermissionDenied: Boolean = false,
+  ): Flow<List<Guide>> = callbackFlow {
     val registration =
         query.addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
           if (error != null) {
-            close(MonumentSharingException.FirestoreFailure(error))
+            if (
+                allowPermissionDenied &&
+                    error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+            ) {
+              trySend(emptyList())
+            } else {
+              close(MonumentSharingException.FirestoreFailure(error))
+            }
           } else {
             try {
               val guides =
-                  checkNotNull(snapshot) { "Saved guides snapshot is missing" }
-                      .documents
-                      .map { document ->
-                        GuideFirestoreMapper.fromFields(
-                            id = document.id,
-                            fields =
-                                checkNotNull(document.data) {
-                                  "Saved guide ${document.id} has no data"
-                                },
-                        )
-                      }
+                  parseGuidesFromSnapshot(
+                      checkNotNull(snapshot) { "Saved guides snapshot is missing" },
+                  )
               trySend(guides)
             } catch (exception: Exception) {
               close(
