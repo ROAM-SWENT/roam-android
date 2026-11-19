@@ -346,7 +346,7 @@ class SettingsViewModelTest {
 
   @Test
   fun renameUsername_withoutPublicProfileRepositorySetsUpdateError() {
-    val viewModel = SettingsViewModel(repository, profileRepository, userInterestsRepository, null)
+    val viewModel = SettingsViewModel(repository, profileRepository, userInterestsRepository, null, notificationInstallationRepository)
 
     viewModel.renameUsername("new_name")
 
@@ -368,6 +368,7 @@ class SettingsViewModelTest {
                 profileRepository,
                 userInterestsRepository,
                 blockingRepository,
+                notificationInstallationRepository,
             )
 
         viewModel.renameUsername("first_name")
@@ -469,6 +470,7 @@ class SettingsViewModelTest {
                 profileRepository,
                 userInterestsRepository,
                 blockingRepository,
+                notificationInstallationRepository,
             )
 
         viewModel.loadProfile()
