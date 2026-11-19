@@ -409,6 +409,94 @@ class SettingsViewModelTest {
       }
 
   @Test
+  fun uploadAvatar_successUpdatesPublicProfileAndStopsLoading() =
+      runTest(dispatcher) {
+        val updated = PublicProfile("uid", "traveler", byteArrayOf(1, 2, 3))
+        whenever(publicProfileRepository.uploadAvatar(byteArrayOf(1, 2, 3))).thenReturn(updated)
+        val viewModel = newViewModel()
+
+        viewModel.uploadAvatar(byteArrayOf(1, 2, 3))
+        advanceUntilIdle()
+
+        assertEquals(updated, viewModel.uiState.value.publicProfile)
+        assertFalse(viewModel.uiState.value.isAvatarSaving)
+        assertNull(viewModel.uiState.value.avatarErrorMsg)
+      }
+
+  @Test
+  fun uploadAvatar_failureSetsAvatarUpdateError() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.uploadAvatar(byteArrayOf(1))).thenAnswer {
+          throw IllegalStateException("Upload failed")
+        }
+        val viewModel = newViewModel()
+
+        viewModel.uploadAvatar(byteArrayOf(1))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isAvatarSaving)
+        assertEquals(R.string.settings_avatar_error_update, viewModel.uiState.value.avatarErrorMsg)
+      }
+
+  @Test
+  fun removeAvatar_successClearsAvatarAndStopsLoading() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.removeAvatar())
+            .thenReturn(PublicProfile("uid", "traveler"))
+        val viewModel = newViewModel()
+
+        viewModel.removeAvatar()
+        advanceUntilIdle()
+
+        assertEquals(PublicProfile("uid", "traveler"), viewModel.uiState.value.publicProfile)
+        assertFalse(viewModel.uiState.value.isAvatarSaving)
+        assertNull(viewModel.uiState.value.avatarErrorMsg)
+      }
+
+  @Test
+  fun removeAvatar_failureSetsAvatarRemoveError() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.removeAvatar()).thenAnswer {
+          throw IllegalStateException("Remove failed")
+        }
+        val viewModel = newViewModel()
+
+        viewModel.removeAvatar()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isAvatarSaving)
+        assertEquals(R.string.settings_avatar_error_remove, viewModel.uiState.value.avatarErrorMsg)
+      }
+
+  @Test
+  fun uploadAvatar_ignoresSecondModificationWhileSaving() =
+      runTest(dispatcher) {
+        val result = CompletableDeferred<PublicProfile>()
+        val blockingRepository =
+            object : PublicProfileRepository by publicProfileRepository {
+              override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+                  result.await()
+            }
+        val viewModel =
+            SettingsViewModel(
+                repository,
+                profileRepository,
+                userInterestsRepository,
+                blockingRepository,
+                notificationInstallationRepository,
+            )
+
+        viewModel.uploadAvatar(byteArrayOf(1))
+        runCurrent()
+        viewModel.uploadAvatar(byteArrayOf(2))
+
+        assertTrue(viewModel.uiState.value.isAvatarSaving)
+        result.complete(PublicProfile("uid", "traveler", byteArrayOf(1)))
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isAvatarSaving)
+      }
+
+  @Test
   fun renameUsername_unexpectedFailureSetsGenericUpdateError() =
       runTest(dispatcher) {
         whenever(publicProfileRepository.renameUsername("failure_name")).thenAnswer {
@@ -559,6 +647,11 @@ class SettingsViewModelTest {
       renameCalls++
       return renameResult.await()
     }
+
+    override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+        error("Not used in this test")
+
+    override suspend fun removeAvatar(): PublicProfile = error("Not used in this test")
 
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
   }

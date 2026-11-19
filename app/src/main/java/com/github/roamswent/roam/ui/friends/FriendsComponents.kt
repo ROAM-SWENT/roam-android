@@ -78,6 +78,7 @@ internal fun FriendsContent(
     friendsQuery: String,
     onFriendsQueryChanged: (String) -> Unit,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
     onFriendClicked: (FriendUser) -> Unit,
@@ -100,6 +101,7 @@ internal fun FriendsContent(
         title = stringResource(R.string.friends_title),
         pendingRequestCount = pendingRequestCount,
         profileName = profileName,
+        profileAvatarBytes = profileAvatarBytes,
         onAddFriendsClicked = onAddFriendsClicked,
         onProfileClicked = onProfileClicked,
     )
@@ -176,6 +178,7 @@ private fun FriendsHeader(
     title: String,
     pendingRequestCount: Int,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
 ) {
@@ -199,6 +202,7 @@ private fun FriendsHeader(
     )
     ProfileBubble(
         name = profileName.orEmpty(),
+        avatarBytes = profileAvatarBytes,
         onClick = onProfileClicked,
         testTag = C.Tag.home_profile_button,
     )
@@ -255,6 +259,26 @@ private fun AddFriendsButton(pendingRequestCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
+private fun ProfileButton(
+    name: String?,
+    avatarBytes: ByteArray?,
+    onClick: () -> Unit,
+) {
+  val description = stringResource(R.string.home_profile_button_description)
+  ProfilePicture(
+      name = name.orEmpty(),
+      avatarBytes = avatarBytes,
+      onClick = onClick,
+      modifier =
+          Modifier.size(48.dp).semantics {
+            contentDescription = description
+            testTag = C.Tag.home_profile_button
+          },
+      textStyle = MaterialTheme.typography.titleSmall,
+  )
+}
+
+@Composable
 internal fun FriendRequestCard(
     request: FriendRequest,
     onAccept: () -> Unit,
@@ -277,7 +301,7 @@ internal fun FriendRequestCard(
     ) {
       ProfilePicture(
           name = request.user.username,
-          avatarUrl = request.user.avatarUrl,
+          avatarBytes = request.user.avatarBytes,
           modifier = Modifier.size(48.dp),
       )
       Text(
@@ -368,7 +392,7 @@ private fun FriendRow(
       ) {
         ProfilePicture(
             name = friend.username,
-            avatarUrl = friend.avatarUrl,
+            avatarBytes = friend.avatarBytes,
             modifier = Modifier.size(52.dp),
         )
         Text(

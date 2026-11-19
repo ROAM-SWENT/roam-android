@@ -29,10 +29,13 @@ service cloud.firestore {
 
     function validProfileWrite(uid) {
       return request.resource.data.keys().hasAll(['uid', 'username', 'usernameLower'])
-        && request.resource.data.keys().hasOnly(['uid', 'username', 'usernameLower'])
+        && request.resource.data.keys().hasOnly(['uid', 'username', 'usernameLower', 'avatar'])
         && request.resource.data.uid == uid
         && validUsername(request.resource.data.username)
         && request.resource.data.usernameLower == request.resource.data.username.lower()
+        && (!('avatar' in request.resource.data)
+          || (request.resource.data.avatar is bytes
+            && request.resource.data.avatar.size() <= 204800))
         && existsAfter(
           /databases/$(database)/documents/usernameClaims/$(request.resource.data.usernameLower)
         )

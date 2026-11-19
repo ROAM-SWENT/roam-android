@@ -453,6 +453,7 @@ internal fun RoamApp(
           HomeViewModel(publicProfileRepository = publicProfileRepository)
         }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
         val lifecycleOwner = LocalLifecycleOwner.current
         DisposableEffect(lifecycleOwner, homeViewModel) {
           val observer = LifecycleEventObserver { _, event ->
@@ -472,6 +473,7 @@ internal fun RoamApp(
               onScanClicked = onScanClick,
               cameraAvailable = cameraAvailable,
               userName = userName,
+              avatarBytes = avatarBytes,
               onDockDestinationSelected = onDockDestinationSelected,
               onProfileClicked = onProfileClicked,
               isConnectedToInternet = isOnline,
@@ -542,8 +544,11 @@ internal fun RoamApp(
       }
 
       composable(Routes.Collection) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
         val dockClearance = dockContentClearance()
         val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
           uri?.let {
@@ -566,6 +571,7 @@ internal fun RoamApp(
               publicProfileRepository = publicProfileRepository,
               monumentSharingProvider = testOverrides?.monumentSharingProvider,
               profileName = userName,
+              profileAvatarBytes = avatarBytes,
               onProfileClicked = onProfileClicked,
               onPickFromGallery = pickFromGallery,
           )
@@ -587,8 +593,11 @@ internal fun RoamApp(
       }
 
       composable(Routes.Friends) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           FriendsRoute(
@@ -598,6 +607,7 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               profileName = userName,
+              profileAvatarBytes = avatarBytes,
               onProfileClicked = onProfileClicked,
               friendRepository = testOverrides?.friendRepository,
               publicProfileRepository = publicProfileRepository,
@@ -606,8 +616,11 @@ internal fun RoamApp(
       }
 
       composable(Routes.Explore) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
@@ -636,6 +649,7 @@ internal fun RoamApp(
             ExploreScreen(
                 onProfileClicked = onProfileClicked,
                 profileName = userName,
+                profileAvatarBytes = avatarBytes,
                 isOnline = isOnline,
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,

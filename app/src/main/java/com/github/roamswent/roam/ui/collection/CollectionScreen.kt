@@ -123,6 +123,7 @@ fun CollectionScreen(
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
     profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    profileAvatarBytes: ByteArray? = null,
     onProfileClicked: () -> Unit = {},
     onDeleteGuide: (String) -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
@@ -214,6 +215,7 @@ fun CollectionScreen(
         )
         ProfileBubble(
             name = profileName,
+            avatarBytes = profileAvatarBytes,
             onClick = onProfileClicked,
             testTag = C.Tag.collection_profile_button,
         )
