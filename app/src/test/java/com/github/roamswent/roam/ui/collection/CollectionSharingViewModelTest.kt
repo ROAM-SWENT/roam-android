@@ -8,6 +8,7 @@ import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -82,22 +83,46 @@ class CollectionSharingViewModelTest {
       }
 
   @Test
-  fun repeatedLoadsAreIgnoredWhileLoadingAndAfterSuccessButRetryReloads() =
+  fun subsequentLoadsRefreshFriendsAfterSuccess() =
       runTest(dispatcher) {
-        coEvery { friendRepository.getFriends() } returns emptyList()
+        coEvery { friendRepository.getFriends() } returns
+            emptyList() andThen
+            listOf(Friendship("id", "friend"))
+        coEvery { profileRepository.getProfile("friend") } returns PublicProfile("friend", "Alice")
         val viewModel = CollectionSharingViewModel(friendRepository, profileRepository)
 
         viewModel.loadFriends()
-        viewModel.loadFriends()
         advanceUntilIdle()
-        viewModel.loadFriends()
-        coVerify(exactly = 1) { friendRepository.getFriends() }
+        assertTrue(viewModel.uiState.value.friends.isEmpty())
 
-        viewModel.retryLoadingFriends()
+        viewModel.loadFriends()
+        assertTrue(viewModel.uiState.value.isLoadingFriends)
         advanceUntilIdle()
 
         coVerify(exactly = 2) { friendRepository.getFriends() }
-        assertTrue(viewModel.uiState.value.friends.isEmpty())
+        assertEquals(listOf(CollectionFriend("friend", "Alice")), viewModel.uiState.value.friends)
+        assertFalse(viewModel.uiState.value.isLoadingFriends)
+      }
+
+  @Test
+  fun newLoadCancelsAnInProgressLoad() =
+      runTest(dispatcher) {
+        val firstLoad = CompletableDeferred<List<Friendship>>()
+        coEvery { friendRepository.getFriends() } coAnswers
+            {
+              firstLoad.await()
+            } andThen
+            listOf(Friendship("id", "friend"))
+        coEvery { profileRepository.getProfile("friend") } returns PublicProfile("friend", "Alice")
+        val viewModel = CollectionSharingViewModel(friendRepository, profileRepository)
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { friendRepository.getFriends() }
+        assertEquals(listOf(CollectionFriend("friend", "Alice")), viewModel.uiState.value.friends)
         assertFalse(viewModel.uiState.value.isLoadingFriends)
       }
 

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,12 +30,12 @@ class CollectionSharingViewModel(
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(CollectionSharingUiState())
   val uiState: StateFlow<CollectionSharingUiState> = _uiState.asStateFlow()
-  private var hasLoadedFriends = false
+  private var loadJob: Job? = null
 
   fun loadFriends() {
-    if (_uiState.value.isLoadingFriends || hasLoadedFriends) return
+    loadJob?.cancel()
     _uiState.update { it.copy(isLoadingFriends = true, friendsError = null) }
-    viewModelScope.launch {
+    loadJob = viewModelScope.launch {
       try {
         val friends = friendRepository.getFriends()
         val profiles = coroutineScope {
@@ -51,7 +52,6 @@ class CollectionSharingViewModel(
               .map { it.await() }
         }
         _uiState.update { it.copy(friends = profiles, isLoadingFriends = false) }
-        hasLoadedFriends = true
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
@@ -61,7 +61,6 @@ class CollectionSharingViewModel(
   }
 
   fun retryLoadingFriends() {
-    hasLoadedFriends = false
     loadFriends()
   }
 }

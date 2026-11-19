@@ -184,7 +184,33 @@ class CollectionRouteTest {
     composeTestRule.waitUntil {
       sharing.shareSettings.value.getValue(colosseum.id).audience == ShareAudience.NONE
     }
-    coVerify(exactly = 1) { friends.getFriends() }
+    coVerify(exactly = 2) { friends.getFriends() }
+  }
+
+  @Test
+  fun reopeningSharingShowsNewlyAcceptedFriends() {
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns
+        emptyList() andThen
+        listOf(Friendship("friendship", "friend"))
+    coEvery { profiles.getProfile("friend") } returns PublicProfile("friend", "Alice")
+    setSharingRoute(
+        FakeSavedGuideRepository(listOf(colosseum)),
+        FakeMonumentSharingRepository(),
+        friends,
+        profiles,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
+    composeTestRule.onNodeWithText("Add friends before sharing a guide.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_cancel).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
+    composeTestRule.onNodeWithText("Alice").assertIsDisplayed()
+    coVerify(exactly = 2) { friends.getFriends() }
   }
 
   @Test
