@@ -136,6 +136,8 @@ internal object GuideFirestoreMapper {
     put("history", guide.history)
     put("facts", guide.facts)
     put("culture", guide.culture)
+    put("sections", guide.sections.map { mapOf("title" to it.title, "content" to it.content) })
+    put("interestCount", guide.interestCount)
     guide.location?.let { put(LOCATION_FIELD, locationFields(it)) }
     guide.discoveryDate?.let { put("discoveryDate", it) }
     put(FAVORITE_FIELD, guide.isFavorite)
@@ -165,6 +167,8 @@ internal object GuideFirestoreMapper {
         history = required(fields, "history"),
         facts = requiredStringList(fields, "facts"),
         culture = required(fields, "culture"),
+        sections = optionalSections(fields["sections"]),
+        interestCount = (fields["interestCount"] as? Number)?.toInt() ?: 0,
         location = optionalCoordinates(fields[LOCATION_FIELD]),
         discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
         // Guides saved before favourites existed have no flag, so they are not favourites.
@@ -180,6 +184,14 @@ internal object GuideFirestoreMapper {
 
   private fun optionalStringSet(fields: Map<String, Any>, key: String): Set<String> =
       (fields[key] as? List<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet()
+
+  private fun optionalSections(value: Any?): List<com.github.roamswent.roam.model.ai.GuideSection> =
+      (value as? List<*>)?.mapNotNull { item ->
+        val section = item as? Map<*, *> ?: return@mapNotNull null
+        val title = section["title"] as? String ?: return@mapNotNull null
+        val content = section["content"] as? String ?: return@mapNotNull null
+        com.github.roamswent.roam.model.ai.GuideSection(title, content)
+      } ?: emptyList()
 
   private fun optionalCoordinates(value: Any?): Coordinates? {
     if (value == null) return null

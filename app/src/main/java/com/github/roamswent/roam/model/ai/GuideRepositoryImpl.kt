@@ -51,7 +51,11 @@ class GuideRepositoryImpl(
     val prompt = PromptBuilder.guidePrompt(request.preferences, location)
     val guide = withRetries { ResponseParser.parseGuide(geminiClient.generate(prompt, photo)) }
     // Reuse the position and photo prepared here so callers can store them without redoing it.
-    return guide.copy(location = location, photo = photo)
+    return guide.copy(
+        interestCount = PromptBuilder.sanitizedInterestCount(request.preferences.interests),
+        location = location,
+        photo = photo,
+    )
   }
 
   /**
