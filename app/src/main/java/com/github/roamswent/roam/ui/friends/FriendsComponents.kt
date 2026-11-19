@@ -77,6 +77,7 @@ internal fun FriendsContent(
     friendsQuery: String,
     onFriendsQueryChanged: (String) -> Unit,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
     onFriendClicked: (FriendUser) -> Unit,
@@ -99,6 +100,7 @@ internal fun FriendsContent(
         title = stringResource(R.string.friends_title),
         pendingRequestCount = pendingRequestCount,
         profileName = profileName,
+        profileAvatarBytes = profileAvatarBytes,
         onAddFriendsClicked = onAddFriendsClicked,
         onProfileClicked = onProfileClicked,
     )
@@ -175,6 +177,7 @@ private fun FriendsHeader(
     title: String,
     pendingRequestCount: Int,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
 ) {
@@ -196,7 +199,11 @@ private fun FriendsHeader(
         fontWeight = FontWeight.Bold,
         modifier = Modifier.semantics { testTag = C.Tag.friends_title },
     )
-    ProfileButton(name = profileName, onClick = onProfileClicked)
+    ProfileButton(
+        name = profileName,
+        avatarBytes = profileAvatarBytes,
+        onClick = onProfileClicked,
+    )
   }
 }
 
@@ -250,27 +257,23 @@ private fun AddFriendsButton(pendingRequestCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ProfileButton(name: String?, onClick: () -> Unit) {
+private fun ProfileButton(
+    name: String?,
+    avatarBytes: ByteArray?,
+    onClick: () -> Unit,
+) {
   val description = stringResource(R.string.home_profile_button_description)
-  Surface(
+  ProfilePicture(
+      name = name.orEmpty(),
+      avatarBytes = avatarBytes,
       onClick = onClick,
       modifier =
           Modifier.size(48.dp).semantics {
             contentDescription = description
             testTag = C.Tag.home_profile_button
           },
-      shape = CircleShape,
-      color = HomeAccentGreen,
-  ) {
-    Box(contentAlignment = Alignment.Center) {
-      Text(
-          text = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-          color = OnBrand,
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Bold,
-      )
-    }
-  }
+      textStyle = MaterialTheme.typography.titleSmall,
+  )
 }
 
 @Composable
@@ -296,7 +299,7 @@ internal fun FriendRequestCard(
     ) {
       ProfilePicture(
           name = request.user.username,
-          avatarUrl = request.user.avatarUrl,
+          avatarBytes = request.user.avatarBytes,
           modifier = Modifier.size(48.dp),
       )
       Text(
@@ -387,7 +390,7 @@ private fun FriendRow(
       ) {
         ProfilePicture(
             name = friend.username,
-            avatarUrl = friend.avatarUrl,
+            avatarBytes = friend.avatarBytes,
             modifier = Modifier.size(52.dp),
         )
         Text(

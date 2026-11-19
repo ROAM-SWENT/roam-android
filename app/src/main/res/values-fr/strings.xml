@@ -220,4 +220,8 @@
     <string name="settings_username_error_taken">Ce nom d\'utilisateur est d&#233;j&#224; utilis&#233;.</string>
     <string name="settings_username_error_update">Impossible de modifier votre nom d\'utilisateur. R&#233;essayez.</string>
     <string name="settings_username_error_load">Impossible de charger votre nom d\'utilisateur. R&#233;essayez.</string>
+    <string name="settings_avatar_upload">Modifier la photo de profil</string>
+    <string name="settings_avatar_remove">Supprimer la photo de profil</string>
+    <string name="settings_avatar_error_update">Impossible de modifier votre photo de profil. R&#233;essayez.</string>
+    <string name="settings_avatar_error_remove">Impossible de supprimer votre photo de profil. R&#233;essayez.</string>
 </resources>

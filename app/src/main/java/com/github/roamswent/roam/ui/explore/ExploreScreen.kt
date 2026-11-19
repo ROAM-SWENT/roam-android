@@ -245,6 +245,7 @@ internal fun exploreMapProperties(isOnline: Boolean, isMyLocationEnabled: Boolea
 fun ExploreScreen(
     onProfileClicked: () -> Unit,
     profileName: String,
+    profileAvatarBytes: ByteArray? = null,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,
@@ -282,6 +283,7 @@ fun ExploreScreen(
               val description = stringResource(R.string.home_profile_button_description)
               ProfilePicture(
                   name = profileName,
+                  avatarBytes = profileAvatarBytes,
                   onClick = onProfileClicked,
                   modifier =
                       Modifier.padding(end = 16.dp).size(48.dp).semantics {

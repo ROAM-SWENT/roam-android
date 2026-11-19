@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,6 +59,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +76,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
@@ -83,10 +86,12 @@ import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.ProfilePicture
+import com.github.roamswent.roam.ui.loading.ContentResolverImageReader
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.NotificationPermissionController
 import com.github.roamswent.roam.ui.permission.rememberNotificationPermissionController
+import com.github.roamswent.roam.ui.scan.rememberGalleryImagePicker
 import com.github.roamswent.roam.ui.theme.GoogleBrandBlue
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.ScreenBackground
@@ -95,6 +100,9 @@ import com.github.roamswent.roam.ui.theme.destructiveContainer
 import com.github.roamswent.roam.ui.theme.destructiveContent
 import com.github.roamswent.roam.ui.theme.isDark
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class ProfileDisplayData(
     val initial: String,
@@ -104,6 +112,8 @@ private data class ProfileDisplayData(
     val usernameError: String?,
     val isPublicProfileLoading: Boolean,
     val isUsernameSaving: Boolean,
+    val avatarBytes: ByteArray?,
+    val isAvatarSaving: Boolean,
 )
 
 @Composable
@@ -146,6 +156,28 @@ fun SettingsScreen(
   val logoutSuccessfulMessage = stringResource(R.string.settings_logout_successful)
   val errorMessage = uiState.errorMsg?.let { stringResource(it) }
   val usernameError = uiState.usernameErrorMsg?.let { stringResource(it) }
+  val avatarError = uiState.avatarErrorMsg?.let { stringResource(it) }
+  val avatarScope = rememberCoroutineScope()
+  val pickAvatar = rememberGalleryImagePicker { uri ->
+    uri?.let { selectedUri ->
+      avatarScope.launch {
+        try {
+          val image = ContentResolverImageReader(context.contentResolver).read(selectedUri)
+          val processed =
+              withContext(Dispatchers.Default) {
+                ImagePreparer().prepareProfilePicture(image.bytes)
+              }
+          resolvedSettingsViewModel.uploadAvatar(processed)
+        } catch (exception: Exception) {
+          resolvedSettingsViewModel.setAvatarError(exception)
+        }
+      }
+    }
+  }
+
+  LaunchedEffect(uiState.avatarErrorMsg) {
+    avatarError?.let { message -> Toast.makeText(context, message, Toast.LENGTH_LONG).show() }
+  }
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
@@ -214,10 +246,14 @@ fun SettingsScreen(
                 usernameError = usernameError,
                 isPublicProfileLoading = uiState.isPublicProfileLoading,
                 isUsernameSaving = uiState.isUsernameSaving,
+                avatarBytes = uiState.publicProfile?.avatarBytes,
+                isAvatarSaving = uiState.isAvatarSaving,
             ),
         onManagePermissionsClick = onManagePermissionsClick,
         onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
         onRenameUsername = resolvedSettingsViewModel::renameUsername,
+        onAvatarSelected = pickAvatar,
+        onRemoveAvatar = resolvedSettingsViewModel::removeAvatar,
         themeMode = themeMode,
         onThemeModeSelected = onThemeModeSelected,
         interests = uiState.interests,
@@ -236,6 +272,8 @@ private fun SettingsContent(
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
     onRenameUsername: (String) -> Unit,
+    onAvatarSelected: () -> Unit,
+    onRemoveAvatar: () -> Unit,
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
     interests: List<String>,
@@ -272,6 +310,8 @@ private fun SettingsContent(
           profile = profile,
           onSignOutClick = onSignOutClick,
           onRenameUsername = onRenameUsername,
+          onAvatarSelected = onAvatarSelected,
+          onRemoveAvatar = onRemoveAvatar,
       )
       PermissionsCard(
           cameraPermissionGranted = cameraPermissionGranted,
@@ -459,6 +499,8 @@ private fun ProfileCard(
     profile: ProfileDisplayData,
     onSignOutClick: () -> Unit,
     onRenameUsername: (String) -> Unit,
+    onAvatarSelected: () -> Unit,
+    onRemoveAvatar: () -> Unit,
 ) {
   var username by remember(profile.username) { mutableStateOf(profile.username) }
   Card(
@@ -475,11 +517,28 @@ private fun ProfileCard(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        ProfilePicture(
-            name = profile.initial,
-            modifier = Modifier.size(56.dp),
-            textStyle = MaterialTheme.typography.headlineSmall,
-        )
+        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+          ProfilePicture(
+              name = profile.initial,
+              avatarBytes = profile.avatarBytes,
+              modifier = Modifier.fillMaxSize(),
+              textStyle = MaterialTheme.typography.headlineSmall,
+              onClick = onAvatarSelected,
+          )
+          if (profile.isAvatarSaving) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+          } else if (profile.avatarBytes != null) {
+            IconButton(
+                onClick = onRemoveAvatar,
+                modifier = Modifier.align(Alignment.BottomEnd).size(24.dp),
+            ) {
+              Icon(
+                  imageVector = Icons.Default.Delete,
+                  contentDescription = stringResource(R.string.settings_avatar_remove),
+              )
+            }
+          }
+        }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
           OutlinedTextField(
               value = username,

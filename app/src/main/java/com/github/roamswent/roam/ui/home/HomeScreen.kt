@@ -42,6 +42,7 @@ fun HomeScreen(
     onScanClicked: () -> Unit,
     cameraAvailable: Boolean = true,
     userName: String = HomeViewModel.DEFAULT_USER_NAME,
+    avatarBytes: ByteArray? = null,
     onDockDestinationSelected: (DockDestination) -> Unit = {},
     onProfileClicked: () -> Unit = {},
     isConnectedToInternet: Boolean? = null,
@@ -72,6 +73,7 @@ fun HomeScreen(
         )
         ProfileBubble(
             name = userName,
+            avatarBytes = avatarBytes,
             onClick = onProfileClicked,
             modifier = Modifier.padding(top = 16.dp),
         )
@@ -96,12 +98,14 @@ fun HomeScreen(
 @Composable
 private fun ProfileBubble(
     name: String,
+    avatarBytes: ByteArray? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
   val description = stringResource(R.string.home_profile_button_description)
   ProfilePicture(
       name = name,
+      avatarBytes = avatarBytes,
       modifier =
           modifier.size(48.dp).semantics {
             contentDescription = description
