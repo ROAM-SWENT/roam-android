@@ -94,6 +94,7 @@ import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
 import com.github.roamswent.roam.ui.theme.onAccentContainer
 import com.github.roamswent.roam.ui.theme.photoButtonContainer
+import com.github.roamswent.roam.ui.theme.secondaryText
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
@@ -491,9 +492,7 @@ private fun GuideCard(
       Text(
           text = shareStatusText(guide.shareSettings),
           style = MaterialTheme.typography.labelSmall,
-          color =
-              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
-              else LoadingTextSecondary,
+          color = MaterialTheme.secondaryText,
           modifier =
               Modifier.padding(top = 4.dp).semantics { testTag = C.Tag.collection_share_status },
       )
@@ -567,6 +566,12 @@ private fun GuideSharingDialog(
         mutableStateSetOf<String>().apply { addAll(guide.shareSettings.sharedWithUids) }
       }
   val needsFriends = audience == ShareAudience.SELECTED_FRIENDS
+  val recipients =
+      if (needsFriends) {
+        selectedFriendUids.filter { selectedUid -> friends.any { it.uid == selectedUid } }.toSet()
+      } else {
+        emptySet()
+      }
   AlertDialog(
       modifier = Modifier.semantics { testTag = C.Tag.collection_share_dialog },
       onDismissRequest = onDismiss,
@@ -655,18 +660,11 @@ private fun GuideSharingDialog(
       },
       confirmButton = {
         TextButton(
-            onClick = {
-              val recipients =
-                  if (needsFriends) {
-                    selectedFriendUids
-                        .filter { selectedUid -> friends.any { it.uid == selectedUid } }
-                        .toSet()
-                  } else {
-                    emptySet()
-                  }
-              onConfirm(audience, recipients)
-            },
-            enabled = !isSaving && (!needsFriends || (!isLoadingFriends && friendsError == null)),
+            onClick = { onConfirm(audience, recipients) },
+            enabled =
+                !isSaving &&
+                    (!needsFriends ||
+                        (!isLoadingFriends && friendsError == null && recipients.isNotEmpty())),
             modifier = Modifier.semantics { testTag = C.Tag.collection_share_confirm },
         ) {
           Text(stringResource(R.string.collection_share_confirm))

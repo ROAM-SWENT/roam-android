@@ -387,6 +387,11 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
 
@@ -494,6 +499,25 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithText("Add friends before sharing a guide.").assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend).assertCountEquals(0)
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_none).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
+  }
+
+  @Test
+  fun unavailablePreviouslySelectedFriendsDoNotEnableConfirm() {
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide.copy(shareSettings = selectedFriends("removed-friend")))
+        ),
+        friends = listOf(CollectionFriend("friend-a", "Alice")),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).assertIsOff()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
   }
 
   @Test
