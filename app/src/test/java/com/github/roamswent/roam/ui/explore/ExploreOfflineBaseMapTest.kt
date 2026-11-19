@@ -1,6 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.explore
 
+import androidx.compose.ui.graphics.Color
 import com.github.roamswent.roam.model.basemap.BaseMapPolygon
 import com.github.roamswent.roam.model.location.Coordinates
 import com.google.android.gms.maps.model.LatLng
@@ -67,5 +68,54 @@ class ExploreOfflineBaseMapTest {
   @Test
   fun seaBandsStopAtTheMercatorLimit() {
     offlineSeaBands().flatten().forEach { assertEquals(85.0, abs(it.latitude), 0.0) }
+  }
+
+  private val colors = OfflineMapColors(sea = Color.Blue, land = Color.Green, border = Color.Gray)
+  private val country =
+      BaseMapPolygon(
+          outline = listOf(Coordinates(0.0, 10.0), Coordinates(0.0, 20.0), Coordinates(5.0, 20.0)),
+          holes =
+              listOf(
+                  listOf(Coordinates(1.0, 12.0), Coordinates(1.0, 13.0), Coordinates(2.0, 13.0))
+              ),
+      )
+
+  @Test
+  fun basePolygonsDrawTheSeaFirstThenTheLand() {
+    val polygons = offlineBaseMapPolygons(listOf(country), colors)
+    val seaCount = offlineSeaBands().size
+
+    assertEquals(seaCount + 1, polygons.size)
+    assertEquals(offlineSeaShapes(), polygons.take(seaCount).map { it.points })
+    assertEquals(offlineLandShapes(listOf(country))[0].outline, polygons.last().points)
+    assertEquals(offlineLandShapes(listOf(country))[0].holes, polygons.last().holes)
+  }
+
+  @Test
+  fun seaPolygonsHaveNoVisibleBorderAndSitUnderTheLand() {
+    val sea = offlineBaseMapPolygons(listOf(country), colors).dropLast(1)
+
+    sea.forEach {
+      assertEquals(Color.Blue, it.fillColor)
+      assertEquals(Color.Blue, it.strokeColor)
+      assertEquals(0f, it.strokeWidth, 0f)
+      assertEquals(0f, it.zIndex, 0f)
+      assertTrue(it.holes.isEmpty())
+    }
+  }
+
+  @Test
+  fun landPolygonsUseTheLandFillWithThinBordersAboveTheSea() {
+    val land = offlineBaseMapPolygons(listOf(country), colors).last()
+
+    assertEquals(Color.Green, land.fillColor)
+    assertEquals(Color.Gray, land.strokeColor)
+    assertEquals(OFFLINE_BORDER_WIDTH_PX, land.strokeWidth, 0f)
+    assertTrue(land.zIndex > 0f)
+  }
+
+  @Test
+  fun withoutCountriesOnlyTheSeaIsDrawn() {
+    assertEquals(offlineSeaBands().size, offlineBaseMapPolygons(emptyList(), colors).size)
   }
 }

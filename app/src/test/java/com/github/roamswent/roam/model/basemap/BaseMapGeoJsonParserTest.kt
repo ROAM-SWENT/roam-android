@@ -97,4 +97,47 @@ class BaseMapGeoJsonParserTest {
         collection("""{"type":"Polygon","coordinates":[[[0,0],[200,0],[1,1],[0,0]]]}""")
     )
   }
+
+  @Test
+  fun featuresThatAreNotAnArrayGiveNoPolygons() {
+    assertTrue(
+        BaseMapGeoJsonParser.parse("""{"type":"FeatureCollection","features":{}}""").isEmpty()
+    )
+  }
+
+  @Test
+  fun featuresThatAreNotObjectsAreIgnored() {
+    val geoJson =
+        """{"type":"FeatureCollection","features":[1,"x",
+          {"type":"Feature","geometry":{"type":"Polygon","coordinates":[$square]}}]}"""
+
+    assertEquals(1, BaseMapGeoJsonParser.parse(geoJson).size)
+  }
+
+  @Test
+  fun geometriesWithoutCoordinatesOrAStringTypeAreIgnored() {
+    val polygons =
+        BaseMapGeoJsonParser.parse(
+            collection(
+                """{"type":"Polygon"}""",
+                """{"type":1,"coordinates":[$square]}""",
+                """{"type":{"name":"Polygon"},"coordinates":[$square]}""",
+                """{"coordinates":[$square]}""",
+            )
+        )
+
+    assertTrue(polygons.isEmpty())
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun aTypeThatIsNotAStringIsNotAFeatureCollection() {
+    BaseMapGeoJsonParser.parse("""{"type":["FeatureCollection"],"features":[]}""")
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun aPositionWithOnlyOneNumberIsRejected() {
+    BaseMapGeoJsonParser.parse(
+        collection("""{"type":"Polygon","coordinates":[[[0],[10,0],[10,5],[0,0]]]}""")
+    )
+  }
 }

@@ -53,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -176,6 +177,64 @@ internal fun offlineLandShapes(countries: List<BaseMapPolygon>): List<OfflineLan
           holes = country.holes.map { hole -> hole.map { it.toLatLng() } },
       )
     }
+
+/** The theme colors of the offline base map. */
+internal data class OfflineMapColors(val sea: Color, val land: Color, val border: Color)
+
+/** Reads the offline base map colors of the current theme. */
+@Composable
+internal fun offlineMapColors(): OfflineMapColors =
+    OfflineMapColors(
+        sea = MaterialTheme.offlineMapWater,
+        land = MaterialTheme.offlineMapLand,
+        border = MaterialTheme.offlineMapBorder,
+    )
+
+/** A polygon of the offline base map and how it is drawn. */
+internal data class OfflineMapPolygon(
+    val points: List<LatLng>,
+    val holes: List<List<LatLng>>,
+    val fillColor: Color,
+    val strokeColor: Color,
+    val strokeWidth: Float,
+    val zIndex: Float,
+)
+
+/** Border width in pixels, as Google Maps expects; thin enough for small countries. */
+internal const val OFFLINE_BORDER_WIDTH_PX = 2f
+
+/**
+ * The polygons of the offline base map, sea first then land. The sea has no visible border; the
+ * land is drawn above it with thin country borders.
+ */
+internal fun offlineBaseMapPolygons(
+    countries: List<BaseMapPolygon>,
+    colors: OfflineMapColors,
+): List<OfflineMapPolygon> {
+  val sea =
+      offlineSeaShapes().map { band ->
+        OfflineMapPolygon(
+            points = band,
+            holes = emptyList(),
+            fillColor = colors.sea,
+            strokeColor = colors.sea,
+            strokeWidth = 0f,
+            zIndex = 0f,
+        )
+      }
+  val land =
+      offlineLandShapes(countries).map { shape ->
+        OfflineMapPolygon(
+            points = shape.outline,
+            holes = shape.holes,
+            fillColor = colors.land,
+            strokeColor = colors.border,
+            strokeWidth = OFFLINE_BORDER_WIDTH_PX,
+            zIndex = 1f,
+        )
+      }
+  return sea + land
+}
 
 /**
  * Map properties for the connection state: offline, the Google tiles are switched off so the
@@ -317,28 +376,19 @@ fun ExploreScreen(
 @Composable
 @GoogleMapComposable
 private fun OfflineBaseMap(countries: List<BaseMapPolygon>) {
-  val sea = remember { offlineSeaShapes() }
-  val land = remember(countries) { offlineLandShapes(countries) }
-  val seaColor = MaterialTheme.offlineMapWater
-  val landColor = MaterialTheme.offlineMapLand
-  val borderColor = MaterialTheme.offlineMapBorder
-  sea.forEach { band ->
-    Polygon(points = band, fillColor = seaColor, strokeColor = seaColor, strokeWidth = 0f)
-  }
-  land.forEach { shape ->
+  val colors = offlineMapColors()
+  val polygons = remember(countries, colors) { offlineBaseMapPolygons(countries, colors) }
+  polygons.forEach {
     Polygon(
-        points = shape.outline,
-        holes = shape.holes,
-        fillColor = landColor,
-        strokeColor = borderColor,
-        strokeWidth = OFFLINE_BORDER_WIDTH_PX,
-        zIndex = 1f,
+        points = it.points,
+        holes = it.holes,
+        fillColor = it.fillColor,
+        strokeColor = it.strokeColor,
+        strokeWidth = it.strokeWidth,
+        zIndex = it.zIndex,
     )
   }
 }
-
-/** Border width in pixels, as Google Maps expects; thin enough for small countries. */
-private const val OFFLINE_BORDER_WIDTH_PX = 2f
 
 private fun ExploreCameraTarget.toCameraPosition(): CameraPosition =
     CameraPosition.fromLatLngZoom(center.toLatLng(), zoom)
