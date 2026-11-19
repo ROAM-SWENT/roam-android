@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -73,6 +74,51 @@ class FriendsScreenTest {
     }
 
     assertEquals(friends[1], clickedFriend)
+  }
+
+  @Test
+  fun pullingDownAtTopRefreshesAndKeepsFriendsScreenVisible() {
+    var refreshCount = 0
+    var isLoading by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsScreen(
+            friends = listOf(FriendUser("friend", "Ada")),
+            isLoading = isLoading,
+            hasLoaded = true,
+            onRefresh = { refreshCount++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_list).performTouchInput { swipeDown() }
+
+    assertEquals(1, refreshCount)
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.friends_friend_row).assertIsDisplayed()
+    composeTestRule.runOnIdle { isLoading = true }
+    composeTestRule.onNodeWithTag(C.Tag.friends_refresh_indicator).assertIsDisplayed()
+  }
+
+  @Test
+  fun showsRefreshIndicatorForAnEmptyFriendsListAfterInitialLoad() {
+    composeTestRule.setContent {
+      SampleAppTheme { FriendsScreen(isLoading = true, hasLoaded = true) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_refresh_indicator).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_initial_loading).assertCountEquals(0)
+    composeTestRule.onNodeWithTag(C.Tag.friends_list).assertIsDisplayed()
+  }
+
+  @Test
+  fun showsCenteredSpinnerOnInitialEmptyLoad() {
+    composeTestRule.setContent {
+      SampleAppTheme { FriendsScreen(isLoading = true, hasLoaded = false) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_initial_loading).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_list).assertCountEquals(0)
   }
 
   @Test

@@ -1,10 +1,14 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -23,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -48,24 +51,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.basemap.BaseMapPolygon
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
@@ -73,74 +82,179 @@ import com.github.roamswent.roam.ui.theme.OnBrand
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.offlineMapBorder
+import com.github.roamswent.roam.ui.theme.offlineMapLand
+import com.github.roamswent.roam.ui.theme.offlineMapWater
 import com.github.roamswent.roam.ui.theme.screenBackground
 import com.github.roamswent.roam.ui.theme.secondaryText
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.ComposeMapColorScheme
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.GoogleMapComposable
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapType
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.rememberCameraPositionState
 
 private fun Coordinates.toLatLng() = LatLng(latitude, longitude)
 
+private fun hasLocationPermission(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
 internal fun exploreMapColorScheme(isDark: Boolean): ComposeMapColorScheme =
     if (isDark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT
 
-/** A standard marker drawn on the Explore map, identified by a [key] unique within the map. */
-internal data class ExploreMapMarker(
-    val key: String,
-    val coordinates: Coordinates,
-    val title: String,
-)
-
-/** Key of the user's location marker; monument keys are prefixed so they can never collide. */
-internal const val USER_LOCATION_MARKER_KEY = "user_location"
+/** The user's coordinates when [state] has them, so the map can draw without a location. */
+internal fun exploreUserLocation(state: ExploreUiState): Coordinates? =
+    (state as? ExploreUiState.LocationAvailable)?.coordinates
 
 /**
- * Lists the markers of the Explore map: the user's location first, then one marker per saved
- * monument, titled with the monument name.
+ * The map is drawn once the camera has something to frame: the user's location, or the saved
+ * monuments (loaded, even if there are none).
  */
-internal fun exploreMapMarkers(
-    userLocation: Coordinates,
-    userLocationTitle: String,
-    monuments: List<ExploreMonument>,
-): List<ExploreMapMarker> =
-    listOf(ExploreMapMarker(USER_LOCATION_MARKER_KEY, userLocation, userLocationTitle)) +
-        monuments.map { ExploreMapMarker("monument_${it.guideId}", it.coordinates, it.name) }
+internal fun shouldShowExploreMap(userLocation: Coordinates?, monumentsLoaded: Boolean): Boolean =
+    userLocation != null || monumentsLoaded
 
 internal fun selectedMonumentForId(
     monuments: List<ExploreMonument>,
     selectedMonumentId: String?,
 ): ExploreMonument? = monuments.firstOrNull { it.guideId == selectedMonumentId }
 
-internal fun selectedMonumentIdForMarkerKey(markerKey: String): String? =
-    markerKey.takeUnless { it == USER_LOCATION_MARKER_KEY }?.removePrefix("monument_")
-
 internal fun updateSelectedMonumentId(
     monuments: List<ExploreMonument>,
     selectedMonumentId: String?,
 ): String? = selectedMonumentId?.takeIf { selectedId -> monuments.any { it.guideId == selectedId } }
 
-internal fun handleExploreMarkerClick(
-    markerKey: String,
-    onMonumentSelected: (String) -> Unit,
-): Boolean =
-    selectedMonumentIdForMarkerKey(markerKey)?.let {
-      onMonumentSelected(it)
-      true
-    } ?: false
+/** Mercator maps stop around 85 degrees, so the sea is drawn up to there. */
+private const val OFFLINE_SEA_MAX_LATITUDE = 85.0
+
+/** Longitude width of each sea band; under 180 degrees so no band is drawn the short way round. */
+private const val OFFLINE_SEA_BAND_WIDTH = 90.0
+
+/**
+ * The sea of the offline base map, as rectangles that cover the world together. A single rectangle
+ * cannot be used: Google Maps joins two points by the shorter way round the globe.
+ */
+internal fun offlineSeaBands(): List<List<Coordinates>> =
+    generateSequence(-180.0) { it + OFFLINE_SEA_BAND_WIDTH }
+        .takeWhile { it < 180.0 }
+        .map { west ->
+          val east = west + OFFLINE_SEA_BAND_WIDTH
+          listOf(
+              Coordinates(-OFFLINE_SEA_MAX_LATITUDE, west),
+              Coordinates(-OFFLINE_SEA_MAX_LATITUDE, east),
+              Coordinates(OFFLINE_SEA_MAX_LATITUDE, east),
+              Coordinates(OFFLINE_SEA_MAX_LATITUDE, west),
+          )
+        }
+        .toList()
+
+/** The sea bands as Google Maps points. */
+internal fun offlineSeaShapes(): List<List<LatLng>> =
+    offlineSeaBands().map { band -> band.map { it.toLatLng() } }
+
+/** A land polygon as Google Maps points: its outline and the holes cut out of it. */
+internal data class OfflineLandShape(val outline: List<LatLng>, val holes: List<List<LatLng>>)
+
+/** Converts the bundled countries to the shapes drawn on the map. */
+internal fun offlineLandShapes(countries: List<BaseMapPolygon>): List<OfflineLandShape> =
+    countries.map { country ->
+      OfflineLandShape(
+          outline = country.outline.map { it.toLatLng() },
+          holes = country.holes.map { hole -> hole.map { it.toLatLng() } },
+      )
+    }
+
+/** The theme colors of the offline base map. */
+internal data class OfflineMapColors(val sea: Color, val land: Color, val border: Color)
+
+/** Reads the offline base map colors of the current theme. */
+@Composable
+internal fun offlineMapColors(): OfflineMapColors =
+    OfflineMapColors(
+        sea = MaterialTheme.offlineMapWater,
+        land = MaterialTheme.offlineMapLand,
+        border = MaterialTheme.offlineMapBorder,
+    )
+
+/** A polygon of the offline base map and how it is drawn. */
+internal data class OfflineMapPolygon(
+    val points: List<LatLng>,
+    val holes: List<List<LatLng>>,
+    val fillColor: Color,
+    val strokeColor: Color,
+    val strokeWidth: Float,
+    val zIndex: Float,
+)
+
+/** Border width in pixels, as Google Maps expects; thin enough for small countries. */
+internal const val OFFLINE_BORDER_WIDTH_PX = 2f
+
+/**
+ * The polygons of the offline base map, sea first then land. The sea has no visible border; the
+ * land is drawn above it with thin country borders.
+ */
+internal fun offlineBaseMapPolygons(
+    countries: List<BaseMapPolygon>,
+    colors: OfflineMapColors,
+): List<OfflineMapPolygon> {
+  val sea =
+      offlineSeaShapes().map { band ->
+        OfflineMapPolygon(
+            points = band,
+            holes = emptyList(),
+            fillColor = colors.sea,
+            strokeColor = colors.sea,
+            strokeWidth = 0f,
+            zIndex = 0f,
+        )
+      }
+  val land =
+      offlineLandShapes(countries).map { shape ->
+        OfflineMapPolygon(
+            points = shape.outline,
+            holes = shape.holes,
+            fillColor = colors.land,
+            strokeColor = colors.border,
+            strokeWidth = OFFLINE_BORDER_WIDTH_PX,
+            zIndex = 1f,
+        )
+      }
+  return sea + land
+}
+
+/**
+ * Map properties for the connection state: offline, the Google tiles are switched off so the
+ * bundled base map is the only background, rather than a patchwork of whatever tiles were cached.
+ * The blue location dot is shown whenever the location permission is granted.
+ */
+internal fun exploreMapProperties(isOnline: Boolean, isMyLocationEnabled: Boolean): MapProperties =
+    MapProperties(
+        isMyLocationEnabled = isMyLocationEnabled,
+        mapType = if (isOnline) MapType.NORMAL else MapType.NONE,
+    )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
-    onBackClick: () -> Unit,
+    onProfileClicked: () -> Unit,
+    profileName: String,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
+    isOnline: Boolean = true,
 ) {
   val uiState by exploreViewModel.uiState.collectAsState()
+  val offlineBaseMap by exploreViewModel.offlineBaseMap.collectAsState()
+
+  LaunchedEffect(isOnline) { if (!isOnline) exploreViewModel.loadOfflineBaseMap() }
   val permissionState by locationPermissionController.state.collectAsState()
+  val context = LocalContext.current
 
   LaunchedEffect(permissionState) {
     exploreViewModel.onPermissionStateChanged(
@@ -164,13 +278,18 @@ fun ExploreScreen(
                   fontWeight = FontWeight.Bold,
               )
             },
-            navigationIcon = {
-              IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.explore_back_description),
-                )
-              }
+            actions = {
+              val description = stringResource(R.string.home_profile_button_description)
+              ProfilePicture(
+                  name = profileName,
+                  onClick = onProfileClicked,
+                  modifier =
+                      Modifier.padding(end = 16.dp).size(48.dp).semantics {
+                        contentDescription = description
+                        testTag = C.Tag.home_profile_button
+                      },
+                  textStyle = MaterialTheme.typography.titleSmall,
+              )
             },
         )
       },
@@ -181,85 +300,133 @@ fun ExploreScreen(
               testTag = C.Tag.explore_screen_container
             }
     ) {
-      when (val state = uiState) {
-        is ExploreUiState.LocationAvailable -> {
-          val monuments by exploreViewModel.monuments.collectAsState()
-          val coordinates = state.coordinates
-          val userLocation = coordinates.toLatLng()
-          val cameraPositionState = rememberCameraPositionState {
-            position = CameraPosition.fromLatLngZoom(userLocation, 14f)
-          }
-          val markers =
-              exploreMapMarkers(
-                  userLocation = coordinates,
-                  userLocationTitle = stringResource(R.string.explore_user_location),
-                  monuments = monuments,
-              )
-          val monumentsByMarkerKey = monuments.associateBy { "monument_${it.guideId}" }
-          var selectedMonumentId by remember { mutableStateOf<String?>(null) }
-          LaunchedEffect(monuments, selectedMonumentId) {
-            selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
-          }
-          val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
-          var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
+      val monuments by exploreViewModel.monuments.collectAsState()
+      val monumentsLoaded by exploreViewModel.monumentsLoaded.collectAsState()
+      val userLocation = exploreUserLocation(uiState)
+      val cameraFocus = exploreCameraFocus(userLocation, monuments)
+      val cameraPositionState = rememberCameraPositionState {
+        position = exploreCameraTarget(userLocation, monuments).toCameraPosition()
+      }
+      // Reframe only when the focus changes (the location arrives, the first monuments load), so
+      // the user's panning is kept when monuments are added and across configuration changes.
+      var framedFocus by rememberSaveable { mutableStateOf(cameraFocus) }
+      LaunchedEffect(cameraFocus) {
+        if (framedFocus != cameraFocus) {
+          cameraPositionState.position =
+              exploreCameraTarget(userLocation, monuments).toCameraPosition()
+          framedFocus = cameraFocus
+        }
+      }
+      var selectedMonumentId by remember { mutableStateOf<String?>(null) }
+      LaunchedEffect(monuments, selectedMonumentId) {
+        selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
+      }
+      val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
+      var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
 
-          Box(Modifier.fillMaxSize()) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
-                cameraPositionState = cameraPositionState,
-                mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
-            ) {
-              markers.forEach { marker ->
-                key(marker.key) {
-                  val position = marker.coordinates.toLatLng()
-                  val markerState = remember(position) { MarkerState(position = position) }
-                  val monument = monumentsByMarkerKey[marker.key]
-                  if (monument == null) {
-                    Marker(
-                        state = markerState,
-                        title = marker.title,
-                        onClick = {
-                          handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
-                        },
-                    )
-                  } else {
-                    ExploreMonumentMarker(
-                        monument = monument,
-                        state = markerState,
-                        isSelected = selectedMonumentId == monument.guideId,
-                        onClick = {
-                          handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
-                        },
-                    )
-                  }
-                }
-              }
-            }
-            selectedMonument?.let { monument ->
-              ExploreMonumentCard(
+      // Wait for the saved monuments (a few frames at most) so the first frame is already framed
+      // on them rather than on the world view.
+      if (shouldShowExploreMap(userLocation, monumentsLoaded)) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
+            cameraPositionState = cameraPositionState,
+            properties =
+                exploreMapProperties(
+                    isOnline = isOnline,
+                    isMyLocationEnabled =
+                        permissionState.isGranted && hasLocationPermission(context),
+                ),
+            uiSettings = MapUiSettings(myLocationButtonEnabled = false),
+            mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
+        ) {
+          if (!isOnline) OfflineBaseMap(offlineBaseMap)
+          monuments.forEach { monument ->
+            key(monument.guideId) {
+              val position = monument.coordinates.toLatLng()
+              ExploreMonumentMarker(
                   monument = monument,
-                  onDismiss = { selectedMonumentId = null },
-                  isExpanded = isMonumentExpanded,
-                  onExpand = { isMonumentExpanded = true },
-                  onMinimize = { isMonumentExpanded = false },
-                  modifier = Modifier.align(Alignment.BottomCenter),
+                  state = remember(position) { MarkerState(position = position) },
+                  isSelected = selectedMonumentId == monument.guideId,
+                  onClick = {
+                    selectedMonumentId = monument.guideId
+                    true
+                  },
               )
             }
           }
         }
-        ExploreUiState.Loading ->
-            ExploreStateCard(message = stringResource(R.string.explore_loading_location))
-        is ExploreUiState.PermissionRequired ->
-            ExploreStateCard(message = stringResource(R.string.explore_permission_required))
-        ExploreUiState.LocationUnavailable ->
-            ExploreStateCard(
-                message = stringResource(R.string.explore_location_unavailable),
-                actionLabel = stringResource(R.string.explore_retry),
-                onAction = exploreViewModel::retryLocation,
-                showActionIcon = true,
-            )
+      }
+      ExploreLocationStatus(
+          state = uiState,
+          onRetry = exploreViewModel::retryLocation,
+          modifier = Modifier.align(Alignment.TopCenter),
+      )
+      selectedMonument?.let { monument ->
+        ExploreMonumentCard(
+            monument = monument,
+            onDismiss = { selectedMonumentId = null },
+            isExpanded = isMonumentExpanded,
+            onExpand = { isMonumentExpanded = true },
+            onMinimize = { isMonumentExpanded = false },
+            // The Scan halo rises 36 dp above the dock body reserved by the route.
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
+        )
       }
     }
+  }
+}
+
+/** Draws the bundled world map, sea then land, with theme colors. Markers stay on top of it. */
+@Composable
+@GoogleMapComposable
+private fun OfflineBaseMap(countries: List<BaseMapPolygon>) {
+  val colors = offlineMapColors()
+  val polygons = remember(countries, colors) { offlineBaseMapPolygons(countries, colors) }
+  polygons.forEach {
+    Polygon(
+        points = it.points,
+        holes = it.holes,
+        fillColor = it.fillColor,
+        strokeColor = it.strokeColor,
+        strokeWidth = it.strokeWidth,
+        zIndex = it.zIndex,
+    )
+  }
+}
+
+private fun ExploreCameraTarget.toCameraPosition(): CameraPosition =
+    CameraPosition.fromLatLngZoom(center.toLatLng(), zoom)
+
+/**
+ * Explains, over the map, why the user's location is not shown; draws nothing once it is. The map
+ * and the saved monuments stay usable in every state.
+ */
+@Composable
+private fun ExploreLocationStatus(
+    state: ExploreUiState,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  when (state) {
+    is ExploreUiState.LocationAvailable -> Unit
+    ExploreUiState.Loading ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_loading_location),
+            modifier = modifier,
+        )
+    is ExploreUiState.PermissionRequired ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_permission_required),
+            modifier = modifier,
+        )
+    ExploreUiState.LocationUnavailable ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_location_unavailable),
+            actionLabel = stringResource(R.string.explore_retry),
+            onAction = onRetry,
+            showActionIcon = true,
+            modifier = modifier,
+        )
   }
 }
 
@@ -424,12 +591,16 @@ private fun ExplorePhotoPlaceholder(modifier: Modifier, tag: String) {
 @Composable
 private fun ExploreStateCard(
     message: String,
+    modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     showActionIcon: Boolean = false,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth().padding(20.dp),
+      modifier =
+          modifier.fillMaxWidth().padding(20.dp).semantics {
+            testTag = C.Tag.explore_location_status
+          },
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {

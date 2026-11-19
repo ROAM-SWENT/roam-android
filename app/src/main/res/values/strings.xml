@@ -31,6 +31,7 @@
     <string name="home_tab_scan">Scan</string>
     <string name="home_tab_friends">Friends</string>
     <string name="friends_title">Friends</string>
+    <string name="friends_refreshing">Refreshing friends</string>
     <string name="friends_no_users_found">No users found</string>
     <string name="friends_add_title">Add friends</string>
     <string name="friends_search_users_hint">Search users</string>
@@ -81,7 +82,7 @@
     <string name="explore_back_description">Back</string>
     <string name="explore_user_location">Your location</string>
     <string name="explore_loading_location">Loading your location…</string>
-    <string name="explore_permission_required">Please activate location permission to explore nearby places.</string>
+    <string name="explore_permission_required">Turn on location permission to see where you are on the map.</string>
     <string name="explore_location_unavailable">We could not determine your location.</string>
     <string name="explore_retry">Retry</string>
     <string name="explore_monument_photo_description">Photo of %1$s</string>

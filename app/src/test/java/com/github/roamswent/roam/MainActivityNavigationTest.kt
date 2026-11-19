@@ -2,6 +2,7 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam
@@ -24,7 +25,6 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -876,21 +876,24 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun exploreBackArrowReturnsToSingleHomeEntry() {
+  fun exploreHomeTabReturnsToSingleHomeEntry() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
     waitAndAssertDisplayed(C.Tag.explore_screen_container)
-    composeTestRule.onNodeWithContentDescription("Back").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     assertEquals(listOf(Routes.Home), backStackRoutes(navController))
   }
 
-  /** Collection remains accessible offline, while Explore and Friends require internet. */
+  /**
+   * Collection and Explore remain accessible offline, since both read saved guides from the local
+   * cache, while Friends requires internet.
+   */
   @Test
-  fun offlineExploreAndFriendsAreBlockedButCollectionRemainsAccessible() {
+  fun offlineFriendsIsBlockedButCollectionAndExploreRemainAccessible() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(
         onNavControllerReady = { navController = it },
@@ -909,10 +912,14 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
-    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
-    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
-    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
-    waitForGone(C.Tag.offline_action_dialog)
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Explore, navController.currentDestination?.route)
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
     waitAndAssertDisplayed(C.Tag.offline_action_dialog)
@@ -1024,20 +1031,27 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun profileButtonFromFriendsOpensSettings() {
+  fun profileButtonsFromFriendsAndExploreOpenSettings() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(
         onNavControllerReady = { navController = it },
         savedGuideRepository = FakeSavedGuideRepository(),
     )
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
-    waitAndAssertDisplayed(C.Tag.friends_screen_container)
-    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+    val tabs =
+        listOf(
+            C.Tag.dock_tab_friends to C.Tag.friends_screen_container,
+            C.Tag.dock_tab_explore to C.Tag.explore_screen_container,
+        )
+    for ((tab, screen) in tabs) {
+      composeTestRule.onNodeWithTag(tab).performClick()
+      waitAndAssertDisplayed(screen)
+      composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
 
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    composeTestRule.runOnIdle {
-      assertEquals(Routes.Settings, navController.currentDestination?.route)
+      waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+      composeTestRule.runOnIdle {
+        assertEquals(Routes.Settings, navController.currentDestination?.route)
+      }
     }
   }
 

@@ -2,6 +2,7 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam
@@ -44,6 +45,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.github.roamswent.roam.model.basemap.AssetOfflineBaseMapRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
@@ -639,10 +641,13 @@ internal fun RoamApp(
       }
 
       composable(Routes.Explore) {
+        val homeViewModel: HomeViewModel = viewModel()
+        val userName by homeViewModel.userName.collectAsState()
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
               savedGuideRepository.value,
+              AssetOfflineBaseMapRepository(context),
           )
         }
         val explorePermissionController =
@@ -664,7 +669,9 @@ internal fun RoamApp(
                   )
           ) {
             ExploreScreen(
-                onBackClick = { navController.popBackStack() },
+                onProfileClicked = onProfileClicked,
+                profileName = userName,
+                isOnline = isOnline,
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,
             )

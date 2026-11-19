@@ -1,18 +1,30 @@
 // Co-authored-by: Codex <codex@openai.com>
 package com.github.roamswent.roam.ui.explore
 
+import android.Manifest
+import android.app.Application
 import android.graphics.Bitmap
 import android.os.Bundle
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
@@ -24,6 +36,10 @@ import coil.request.ImageRequest
 import coil.size.Size
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
+import com.github.roamswent.roam.ui.components.bottomdock.DockDestination
+import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -45,7 +61,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -58,8 +73,11 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.Implementation
@@ -82,6 +100,8 @@ class ExploreMapIntegrationTest {
 
   private val coordinates = Coordinates(48.85837, 2.29448)
   private val monument = ExploreMonument("eiffel", "Eiffel Tower", coordinates)
+  private val grantedLocationPermission =
+      LocationPermissionState(true, LocationPermissionDecision.GRANTED)
   private val markers = mutableListOf<RenderedMarker>()
   private lateinit var clickListener: GoogleMap.OnMarkerClickListener
   private val darkTheme = mutableStateOf(false)
@@ -130,24 +150,62 @@ class ExploreMapIntegrationTest {
   @After fun resetImageLoader() = Coil.reset()
 
   @Test
-  fun clickingMonumentShowsDetailsAndDismissRestoresItsCustomIcon() {
+  @Config(qualifiers = "w320dp-h480dp")
+  fun mapUsesBlueDotAndShowsMonumentDetailsAboveScan() {
+    shadowOf(ApplicationProvider.getApplicationContext<Application>())
+        .grantPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
     showExplore(monument)
 
     composeTestRule.runOnIdle {
-      val location = markers.first()
-      assertEquals(LatLng(coordinates.latitude, coordinates.longitude), location.position)
-      assertNull(location.icon)
-      assertFalse(clickListener.onMarkerClick(location.marker))
+      verify(ExploreMapViewShadow.map).isMyLocationEnabled = true
+      assertEquals(listOf(monument.name), markers.map { it.title })
+      assertEquals(LatLng(coordinates.latitude, coordinates.longitude), monumentMarker().position)
       assertNotNull(monumentMarker().icon)
       assertTrue(clickListener.onMarkerClick(monumentMarker().marker))
     }
     composeTestRule.onNodeWithText(monument.name).assertIsDisplayed()
+    val card = composeTestRule.onNode(hasText(monument.name) and hasClickAction())
+    val scan = composeTestRule.onNodeWithTag(C.Tag.dock_scan_button)
+    assertTrue(card.getUnclippedBoundsInRoot().bottom <= scan.getUnclippedBoundsInRoot().top)
     composeTestRule.runOnIdle { assertNull(monumentMarker().icon) }
 
+    card.performClick()
+    val expandedCard = composeTestRule.onNode(hasScrollAction())
+    assertTrue(
+        expandedCard.getUnclippedBoundsInRoot().bottom <= scan.getUnclippedBoundsInRoot().top
+    )
+    composeTestRule.onNodeWithContentDescription("Minimize monument information").performClick()
     composeTestRule.onNodeWithContentDescription("Close monument information").performClick()
 
     composeTestRule.onNodeWithText(monument.name).assertDoesNotExist()
     composeTestRule.runOnIdle { assertNotNull(monumentMarker().icon) }
+  }
+
+  @Test
+  fun blueDotStaysDisabledWithoutAndroidLocationPermission() {
+    showExplore(monument)
+
+    composeTestRule.runOnIdle {
+      val map = ExploreMapViewShadow.map
+      verify(map).isMyLocationEnabled = false
+      verify(map, never()).isMyLocationEnabled = true
+      assertEquals(listOf(monument.name), markers.map { it.title })
+    }
+  }
+
+  @Test
+  fun blueDotTurnsOffWhenExploreReceivesAPermissionDenial() {
+    shadowOf(ApplicationProvider.getApplicationContext<Application>())
+        .grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+    val permissionState = MutableStateFlow(grantedLocationPermission)
+    showExplore(monument, permissionState)
+
+    composeTestRule.runOnIdle {
+      verify(ExploreMapViewShadow.map).isMyLocationEnabled = true
+      permissionState.value = LocationPermissionState(false, LocationPermissionDecision.DENIED)
+    }
+
+    composeTestRule.runOnIdle { verify(ExploreMapViewShadow.map).isMyLocationEnabled = false }
   }
 
   @Test
@@ -222,20 +280,38 @@ class ExploreMapIntegrationTest {
     composeTestRule.onNodeWithText(monument.name).assertIsDisplayed()
   }
 
-  private fun showExplore(monument: ExploreMonument) {
+  private fun showExplore(
+      monument: ExploreMonument,
+      permissionState: MutableStateFlow<LocationPermissionState> =
+          MutableStateFlow(grantedLocationPermission),
+  ) {
     val viewModel = mock<ExploreViewModel>()
     whenever(viewModel.uiState)
         .thenReturn(MutableStateFlow(ExploreUiState.LocationAvailable(coordinates)))
     whenever(viewModel.monuments).thenReturn(MutableStateFlow(listOf(monument)))
+    whenever(viewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
+    whenever(viewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     val permission = mock<LocationPermissionController>()
-    whenever(permission.state)
-        .thenReturn(
-            MutableStateFlow(LocationPermissionState(true, LocationPermissionDecision.GRANTED))
-        )
+    whenever(permission.state).thenReturn(permissionState)
     composeTestRule.setContent {
       SampleAppTheme(darkTheme = darkTheme.value, dynamicColor = false) {
         CompositionLocalProvider(LocalDensity provides Density(density.value)) {
-          ExploreScreen({}, viewModel, permission)
+          Box(Modifier.fillMaxSize()) {
+            Box(Modifier.padding(bottom = dockContentClearance())) {
+              ExploreScreen(
+                  onProfileClicked = {},
+                  profileName = "Alex",
+                  exploreViewModel = viewModel,
+                  locationPermissionController = permission,
+              )
+            }
+            AppBottomDock(
+                selected = DockDestination.EXPLORE,
+                onDestinationSelected = {},
+                onScanClick = {},
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+          }
         }
       }
     }
