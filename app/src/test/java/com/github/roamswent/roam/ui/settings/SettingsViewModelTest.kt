@@ -346,7 +346,14 @@ class SettingsViewModelTest {
 
   @Test
   fun renameUsername_withoutPublicProfileRepositorySetsUpdateError() {
-    val viewModel = SettingsViewModel(repository, profileRepository, userInterestsRepository, null, notificationInstallationRepository)
+    val viewModel =
+        SettingsViewModel(
+            repository,
+            profileRepository,
+            userInterestsRepository,
+            null,
+            notificationInstallationRepository,
+        )
 
     viewModel.renameUsername("new_name")
 
