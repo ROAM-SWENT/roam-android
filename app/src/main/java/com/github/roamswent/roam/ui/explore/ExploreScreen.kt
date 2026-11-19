@@ -51,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,6 +101,17 @@ private fun hasLocationPermission(context: Context): Boolean =
 
 internal fun exploreMapColorScheme(isDark: Boolean): ComposeMapColorScheme =
     if (isDark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT
+
+/** The user's coordinates when [state] has them, so the map can draw without a location. */
+internal fun exploreUserLocation(state: ExploreUiState): Coordinates? =
+    (state as? ExploreUiState.LocationAvailable)?.coordinates
+
+/**
+ * The map is drawn once the camera has something to frame: the user's location, or the saved
+ * monuments (loaded, even if there are none).
+ */
+internal fun shouldShowExploreMap(userLocation: Coordinates?, monumentsLoaded: Boolean): Boolean =
+    userLocation != null || monumentsLoaded
 
 internal fun selectedMonumentForId(
     monuments: List<ExploreMonument>,
@@ -167,74 +179,113 @@ fun ExploreScreen(
               testTag = C.Tag.explore_screen_container
             }
     ) {
-      when (val state = uiState) {
-        is ExploreUiState.LocationAvailable -> {
-          val monuments by exploreViewModel.monuments.collectAsState()
-          val coordinates = state.coordinates
-          val userLocation = coordinates.toLatLng()
-          val cameraPositionState = rememberCameraPositionState {
-            position = CameraPosition.fromLatLngZoom(userLocation, 14f)
-          }
-          var selectedMonumentId by remember { mutableStateOf<String?>(null) }
-          LaunchedEffect(monuments, selectedMonumentId) {
-            selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
-          }
-          val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
-          var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
+      val monuments by exploreViewModel.monuments.collectAsState()
+      val monumentsLoaded by exploreViewModel.monumentsLoaded.collectAsState()
+      val userLocation = exploreUserLocation(uiState)
+      val cameraFocus = exploreCameraFocus(userLocation, monuments)
+      val cameraPositionState = rememberCameraPositionState {
+        position = exploreCameraTarget(userLocation, monuments).toCameraPosition()
+      }
+      // Reframe only when the focus changes (the location arrives, the first monuments load), so
+      // the user's panning is kept when monuments are added and across configuration changes.
+      var framedFocus by rememberSaveable { mutableStateOf(cameraFocus) }
+      LaunchedEffect(cameraFocus) {
+        if (framedFocus != cameraFocus) {
+          cameraPositionState.position =
+              exploreCameraTarget(userLocation, monuments).toCameraPosition()
+          framedFocus = cameraFocus
+        }
+      }
+      var selectedMonumentId by remember { mutableStateOf<String?>(null) }
+      LaunchedEffect(monuments, selectedMonumentId) {
+        selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
+      }
+      val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
+      var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
 
-          Box(Modifier.fillMaxSize()) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
-                cameraPositionState = cameraPositionState,
-                properties =
-                    MapProperties(
-                        isMyLocationEnabled =
-                            permissionState.isGranted && hasLocationPermission(context)
-                    ),
-                uiSettings = MapUiSettings(myLocationButtonEnabled = false),
-                mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
-            ) {
-              monuments.forEach { monument ->
-                key(monument.guideId) {
-                  val position = monument.coordinates.toLatLng()
-                  ExploreMonumentMarker(
-                      monument = monument,
-                      state = remember(position) { MarkerState(position = position) },
-                      isSelected = selectedMonumentId == monument.guideId,
-                      onClick = {
-                        selectedMonumentId = monument.guideId
-                        true
-                      },
-                  )
-                }
-              }
-            }
-            selectedMonument?.let { monument ->
-              ExploreMonumentCard(
+      // Wait for the saved monuments (a few frames at most) so the first frame is already framed
+      // on them rather than on the world view.
+      if (shouldShowExploreMap(userLocation, monumentsLoaded)) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
+            cameraPositionState = cameraPositionState,
+            properties =
+                MapProperties(
+                    isMyLocationEnabled =
+                        permissionState.isGranted && hasLocationPermission(context)
+                ),
+            uiSettings = MapUiSettings(myLocationButtonEnabled = false),
+            mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
+        ) {
+          monuments.forEach { monument ->
+            key(monument.guideId) {
+              val position = monument.coordinates.toLatLng()
+              ExploreMonumentMarker(
                   monument = monument,
-                  onDismiss = { selectedMonumentId = null },
-                  isExpanded = isMonumentExpanded,
-                  onExpand = { isMonumentExpanded = true },
-                  onMinimize = { isMonumentExpanded = false },
-                  // The Scan halo rises 36 dp above the dock body reserved by the route.
-                  modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
+                  state = remember(position) { MarkerState(position = position) },
+                  isSelected = selectedMonumentId == monument.guideId,
+                  onClick = {
+                    selectedMonumentId = monument.guideId
+                    true
+                  },
               )
             }
           }
         }
-        ExploreUiState.Loading ->
-            ExploreStateCard(message = stringResource(R.string.explore_loading_location))
-        is ExploreUiState.PermissionRequired ->
-            ExploreStateCard(message = stringResource(R.string.explore_permission_required))
-        ExploreUiState.LocationUnavailable ->
-            ExploreStateCard(
-                message = stringResource(R.string.explore_location_unavailable),
-                actionLabel = stringResource(R.string.explore_retry),
-                onAction = exploreViewModel::retryLocation,
-                showActionIcon = true,
-            )
+      }
+      ExploreLocationStatus(
+          state = uiState,
+          onRetry = exploreViewModel::retryLocation,
+          modifier = Modifier.align(Alignment.TopCenter),
+      )
+      selectedMonument?.let { monument ->
+        ExploreMonumentCard(
+            monument = monument,
+            onDismiss = { selectedMonumentId = null },
+            isExpanded = isMonumentExpanded,
+            onExpand = { isMonumentExpanded = true },
+            onMinimize = { isMonumentExpanded = false },
+            // The Scan halo rises 36 dp above the dock body reserved by the route.
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
+        )
       }
     }
+  }
+}
+
+private fun ExploreCameraTarget.toCameraPosition(): CameraPosition =
+    CameraPosition.fromLatLngZoom(center.toLatLng(), zoom)
+
+/**
+ * Explains, over the map, why the user's location is not shown; draws nothing once it is. The map
+ * and the saved monuments stay usable in every state.
+ */
+@Composable
+private fun ExploreLocationStatus(
+    state: ExploreUiState,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  when (state) {
+    is ExploreUiState.LocationAvailable -> Unit
+    ExploreUiState.Loading ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_loading_location),
+            modifier = modifier,
+        )
+    is ExploreUiState.PermissionRequired ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_permission_required),
+            modifier = modifier,
+        )
+    ExploreUiState.LocationUnavailable ->
+        ExploreStateCard(
+            message = stringResource(R.string.explore_location_unavailable),
+            actionLabel = stringResource(R.string.explore_retry),
+            onAction = onRetry,
+            showActionIcon = true,
+            modifier = modifier,
+        )
   }
 }
 
@@ -399,12 +450,16 @@ private fun ExplorePhotoPlaceholder(modifier: Modifier, tag: String) {
 @Composable
 private fun ExploreStateCard(
     message: String,
+    modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     showActionIcon: Boolean = false,
 ) {
   Card(
-      modifier = Modifier.fillMaxWidth().padding(20.dp),
+      modifier =
+          modifier.fillMaxWidth().padding(20.dp).semantics {
+            testTag = C.Tag.explore_location_status
+          },
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
   ) {

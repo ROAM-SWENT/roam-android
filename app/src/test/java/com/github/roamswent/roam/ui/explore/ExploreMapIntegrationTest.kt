@@ -289,6 +289,7 @@ class ExploreMapIntegrationTest {
     whenever(viewModel.uiState)
         .thenReturn(MutableStateFlow(ExploreUiState.LocationAvailable(coordinates)))
     whenever(viewModel.monuments).thenReturn(MutableStateFlow(listOf(monument)))
+    whenever(viewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     val permission = mock<LocationPermissionController>()
     whenever(permission.state).thenReturn(permissionState)
     composeTestRule.setContent {
