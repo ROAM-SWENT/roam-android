@@ -552,27 +552,101 @@ class ScanReviewScreenTest {
     assertEquals(1, favouriteClicks)
   }
 
+  /** A gallery photo whose guide carries [photoLocation] and [monumentLocation]. */
+  private fun galleryGuideSender(
+      photoLocation: Coordinates?,
+      monumentLocation: Coordinates?,
+  ): CaptureSender =
+      object : CaptureSender {
+        override suspend fun send(uri: Uri): Result<MonumentGuide> =
+            Result.success(
+                guide.copy(
+                    location = photoLocation,
+                    monumentLocation = monumentLocation,
+                    photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
+                )
+            )
+      }
+
   @Test
-  fun reviewRouteHidesShowInExploreForGalleryImage() {
-    val sender =
-        object : CaptureSender {
-          override suspend fun send(uri: Uri): Result<MonumentGuide> =
-              Result.success(
-                  guide.copy(
-                      location = Coordinates(48.8584, 2.2945),
-                      photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
-                  )
-              )
-        }
+  fun reviewRouteShowInExplorePinsTheGalleryPhotoLocation() {
+    // Where the photo was taken per its EXIF metadata, a few metres from the tower.
+    val photoLocation = Coordinates(48.8583, 2.2944)
     val savedGuides = FakeSavedGuideRepository()
-    showReviewRoute(sender, isGalleryImage = true, savedGuideRepository = savedGuides)
+    showReviewRoute(
+        galleryGuideSender(photoLocation, monumentLocation = Coordinates(48.8584, 2.2945)),
+        isGalleryImage = true,
+        savedGuideRepository = savedGuides,
+    )
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    waitAndAssertDisplayed(C.Tag.monument_detail_show_in_explore)
+    composeTestRule
+        .onNodeWithText(
+            context.getString(R.string.monument_detail_show_in_explore_supporting_photo),
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+    val savedId = savedGuides.guides.value.single().id
+    assertEquals(null, savedGuides.guides.value.single().location)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_show_in_explore)
+        .assertIsOff()
+        .performClick()
+    composeTestRule.waitUntil(5_000) { savedGuides.guides.value.single().location != null }
+
+    assertEquals(listOf(savedId to photoLocation), savedGuides.locationUpdates)
+    assertEquals(photoLocation, savedGuides.guides.value.single().location)
+  }
+
+  @Test
+  fun reviewRouteExplainsThatAGalleryPhotoWithoutLocationIsNotOnExplore() {
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(
+        galleryGuideSender(photoLocation = null, monumentLocation = Coordinates(48.8584, 2.2945)),
+        isGalleryImage = true,
+        savedGuideRepository = savedGuides,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
-    // The check used the phone position, not where the photo was taken, so it is not explained.
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_explore_unavailable).assertDoesNotExist()
+    composeTestRule
+        .onNodeWithText(
+            context.getString(R.string.monument_detail_explore_unavailable_no_photo_location),
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+    // The guide is still saved to the collection, just not put on Explore.
+    assertEquals(null, savedGuides.guides.value.single().location)
+    assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
+  }
+
+  @Test
+  fun reviewRouteExplainsThatAGalleryPhotoTakenFarAwayIsNotOnExplore() {
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(
+        // Taken at the Louvre, about 3 km from the Eiffel Tower.
+        galleryGuideSender(
+            photoLocation = Coordinates(48.8606, 2.3376),
+            monumentLocation = Coordinates(48.8584, 2.2945),
+        ),
+        isGalleryImage = true,
+        savedGuideRepository = savedGuides,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    composeTestRule
+        .onNodeWithText(
+            context.getString(R.string.monument_detail_explore_unavailable_photo_too_far),
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
     assertEquals(null, savedGuides.guides.value.single().location)
     assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
   }

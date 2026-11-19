@@ -2,7 +2,9 @@
 package com.github.roamswent.roam.ui.guide
 
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -34,6 +36,7 @@ import org.junit.Test
 class SavedGuidesViewModelFavoriteTest {
   private val dispatcher = StandardTestDispatcher()
   private val repository = mockk<SavedGuideRepository>()
+  private val sharing = mockk<MonumentSharingRepository>()
   private val guide =
       Guide(
           id = "guide-1",
@@ -49,6 +52,9 @@ class SavedGuidesViewModelFavoriteTest {
 
   /** Favourite writes in call order, completed by each test to simulate the server ack. */
   private val favoriteWrites = mutableListOf<CompletableDeferred<Unit>>()
+
+  /** Sharing writes in call order, completed by each test to simulate the server ack. */
+  private val sharingWrites = mutableListOf<CompletableDeferred<Unit>>()
 
   @Before
   fun setUp() {
@@ -105,6 +111,398 @@ class SavedGuidesViewModelFavoriteTest {
       }
 
   @Test
+  fun setShareAudienceUpdatesAndPersistsAllowedFriendUids() =
+      runTest(dispatcher) {
+        coEvery { sharing.setShareAudience(any(), any(), any()) } just Runs
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertEquals(setOf(guide.id), viewModel.uiState.value.sharingGuideIds)
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertTrue(viewModel.uiState.value.sharingGuideIds.isEmpty())
+        assertNull(viewModel.uiState.value.sharingError)
+        coVerify(exactly = 1) {
+          sharing.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        }
+      }
+
+  @Test
+  fun failedSharingChangeIsRolledBackAndReported() =
+      runTest(dispatcher) {
+        val error = IllegalStateException("sharing failed")
+        coEvery { sharing.setShareAudience(any(), any(), any()) } throws error
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.guides.single().shareSettings.sharedWithUids.isEmpty())
+        assertEquals(error, viewModel.uiState.value.sharingError)
+      }
+
+  @Test
+  fun sharingChangeUpdatesCollectionAndDetailWithoutChangingOtherGuides() =
+      runTest(dispatcher) {
+        snapshots.value = listOf(guide, otherGuide)
+        coEvery { repository.getGuide(guide.id) } returns guide
+        coEvery { sharing.setShareAudience(any(), any(), any()) } just Runs
+        val viewModel = loadedViewModel()
+        viewModel.loadGuide(guide.id)
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guides.first { it.id == guide.id }.shareSettings.sharedWithUids,
+        )
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guide!!.shareSettings.sharedWithUids,
+        )
+        assertTrue(
+            viewModel.uiState.value.guides
+                .first { it.id == otherGuide.id }
+                .shareSettings
+                .sharedWithUids
+                .isEmpty()
+        )
+        advanceUntilIdle()
+        coVerify(exactly = 1) {
+          sharing.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        }
+      }
+
+  @Test
+  fun sharingCanBeChangedForDetailGuideWithoutLoadedCollection() =
+      runTest(dispatcher) {
+        coEvery { repository.getGuide(guide.id) } returns guide
+        coEvery { sharing.setShareAudience(any(), any(), any()) } just Runs
+        val viewModel = SavedGuidesViewModel(repository, sharing)
+        viewModel.loadGuide(guide.id)
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guide!!.shareSettings.sharedWithUids,
+        )
+        coVerify(exactly = 1) {
+          sharing.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        }
+      }
+
+  @Test
+  fun sharingChangeDeduplicatesUidsAndSkipsUnchangedOrUnknownGuides() =
+      runTest(dispatcher) {
+        recordSharingWrites()
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.NONE)
+        viewModel.setShareAudience("missing-id", ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.setShareAudience(
+            guide.id,
+            ShareAudience.SELECTED_FRIENDS,
+            setOf("friend-a", "friend-a", "friend-b"),
+        )
+        viewModel.setShareAudience(
+            guide.id,
+            ShareAudience.SELECTED_FRIENDS,
+            setOf("friend-a", "friend-b"),
+        )
+        runCurrent()
+
+        assertEquals(
+            setOf("friend-a", "friend-b"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertEquals(1, sharingWrites.size)
+        coVerify(exactly = 1) {
+          sharing.setShareAudience(
+              guide.id,
+              ShareAudience.SELECTED_FRIENDS,
+              setOf("friend-a", "friend-b"),
+          )
+        }
+
+        sharingWrites.single().complete(Unit)
+        advanceUntilIdle()
+      }
+
+  @Test
+  fun pendingSharingOverridesRepositorySnapshotsAndGuideLoads() =
+      runTest(dispatcher) {
+        recordSharingWrites()
+        coEvery { repository.getGuide(guide.id) } returns guide
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        runCurrent()
+        snapshots.value = listOf(guide, otherGuide)
+        runCurrent()
+        viewModel.loadGuide(guide.id)
+        runCurrent()
+
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guides.first { it.id == guide.id }.shareSettings.sharedWithUids,
+        )
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guide!!.shareSettings.sharedWithUids,
+        )
+
+        sharingWrites.single().complete(Unit)
+        advanceUntilIdle()
+      }
+
+  @Test
+  fun latestSharingRequestWinsAndFailureRestoresLatestConfirmedPermissions() =
+      runTest(dispatcher) {
+        recordSharingWrites()
+        val latestError = IllegalStateException("latest sharing write failed")
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-b"))
+        runCurrent()
+        assertEquals(
+            setOf("friend-b"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertEquals(setOf(guide.id), viewModel.uiState.value.sharingGuideIds)
+
+        sharingWrites[0].complete(Unit)
+        runCurrent()
+        assertEquals(
+            setOf("friend-b"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertEquals(setOf(guide.id), viewModel.uiState.value.sharingGuideIds)
+
+        sharingWrites[1].completeExceptionally(latestError)
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertTrue(viewModel.uiState.value.sharingGuideIds.isEmpty())
+        assertTrue(viewModel.uiState.value.sharingError is IllegalStateException)
+        assertEquals(latestError.message, viewModel.uiState.value.sharingError?.message)
+      }
+
+  @Test
+  fun failureOfAnOlderSharingWriteDoesNotRollbackOrReportOverNewerRequest() =
+      runTest(dispatcher) {
+        recordSharingWrites()
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-b"))
+        runCurrent()
+        sharingWrites[0].completeExceptionally(IllegalStateException("older write failed"))
+        runCurrent()
+
+        assertEquals(
+            setOf("friend-b"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertNull(viewModel.uiState.value.sharingError)
+        assertEquals(setOf(guide.id), viewModel.uiState.value.sharingGuideIds)
+
+        sharingWrites[1].complete(Unit)
+        advanceUntilIdle()
+        assertEquals(
+            setOf("friend-b"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertNull(viewModel.uiState.value.sharingError)
+        assertTrue(viewModel.uiState.value.sharingGuideIds.isEmpty())
+      }
+
+  @Test
+  fun sharingWritesForDifferentGuidesKeepIndependentPendingState() =
+      runTest(dispatcher) {
+        snapshots.value = listOf(guide, otherGuide)
+        recordSharingWrites()
+        val error = IllegalStateException("first guide sharing failed")
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.setShareAudience(otherGuide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-b"))
+        runCurrent()
+        assertEquals(setOf(guide.id, otherGuide.id), viewModel.uiState.value.sharingGuideIds)
+
+        sharingWrites[0].completeExceptionally(error)
+        runCurrent()
+
+        assertEquals(
+            emptySet<String>(),
+            viewModel.uiState.value.guides.first { it.id == guide.id }.shareSettings.sharedWithUids,
+        )
+        assertEquals(
+            setOf("friend-b"),
+            viewModel.uiState.value.guides
+                .first { it.id == otherGuide.id }
+                .shareSettings
+                .sharedWithUids,
+        )
+        assertEquals(setOf(otherGuide.id), viewModel.uiState.value.sharingGuideIds)
+        assertTrue(viewModel.uiState.value.sharingError is IllegalStateException)
+        assertEquals(error.message, viewModel.uiState.value.sharingError?.message)
+
+        sharingWrites[1].complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.sharingGuideIds.isEmpty())
+        assertEquals(
+            setOf("friend-b"),
+            viewModel.uiState.value.guides.last().shareSettings.sharedWithUids,
+        )
+      }
+
+  @Test
+  fun sharingWriteCanBeRetriedAfterFailure() =
+      runTest(dispatcher) {
+        var attempts = 0
+        coEvery { sharing.setShareAudience(any(), any(), any()) } coAnswers
+            {
+              attempts++
+              if (attempts == 1) throw IllegalStateException("offline") else Unit
+            }
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.guides.single().shareSettings.sharedWithUids.isEmpty())
+        assertEquals("offline", viewModel.uiState.value.sharingError?.message)
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertNull(viewModel.uiState.value.sharingError)
+        coVerify(exactly = 2) {
+          sharing.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        }
+      }
+
+  @Test
+  fun failedSharingWriteDuringFailedDeleteRestoresConfirmedPermissions() =
+      runTest(dispatcher) {
+        recordSharingWrites()
+        val delete = recordDelete()
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        sharingWrites.single().completeExceptionally(IllegalStateException("sharing failed"))
+        runCurrent()
+
+        assertNull(viewModel.uiState.value.sharingError)
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+        delete.completeExceptionally(IllegalStateException("delete failed"))
+        advanceUntilIdle()
+
+        assertEquals(
+            emptySet<String>(),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertNull(viewModel.uiState.value.sharingError)
+      }
+
+  @Test
+  fun confirmedSharingDuringFailedDeleteIsRestoredWithTheGuide() =
+      runTest(dispatcher) {
+        recordSharingWrites()
+        val delete = recordDelete()
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        sharingWrites.single().complete(Unit)
+        runCurrent()
+        delete.completeExceptionally(IllegalStateException("delete failed"))
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf("friend-a"),
+            viewModel.uiState.value.guides.single().shareSettings.sharedWithUids,
+        )
+        assertNull(viewModel.uiState.value.sharingError)
+      }
+
+  @Test
+  fun sharingFailureAfterSuccessfulDeletionIsNotReported() =
+      runTest(dispatcher) {
+        recordSharingWrites()
+        coEvery { repository.removeGuide(guide.id) } just Runs
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.deleteGuide(guide.id)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+
+        sharingWrites.single().completeExceptionally(IllegalStateException("guide deleted"))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.guides.isEmpty())
+        assertTrue(viewModel.uiState.value.sharingGuideIds.isEmpty())
+        assertNull(viewModel.uiState.value.sharingError)
+      }
+
+  @Test
+  fun clearSharingErrorPreservesOtherOperationErrors() =
+      runTest(dispatcher) {
+        val deleteError = IllegalStateException("delete failed")
+        coEvery { sharing.setShareAudience(any(), any(), any()) } throws
+            IllegalStateException("sharing failed")
+        coEvery { repository.removeGuide(otherGuide.id) } throws deleteError
+        snapshots.value = listOf(guide, otherGuide)
+        val viewModel = loadedViewModel()
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        viewModel.deleteGuide(otherGuide.id)
+        advanceUntilIdle()
+
+        viewModel.clearSharingError()
+
+        assertNull(viewModel.uiState.value.sharingError)
+        assertEquals(deleteError, viewModel.uiState.value.deleteError)
+      }
+
+  @Test
+  fun cancellationIsNotShownAsASharingError() =
+      runTest(dispatcher) {
+        coEvery { sharing.setShareAudience(any(), any(), any()) } throws
+            CancellationException("cancelled")
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.sharingError)
+      }
+
+  @Test
   fun settingTheCurrentValueOrAnUnknownGuideDoesNothing() =
       runTest(dispatcher) {
         val viewModel = loadedViewModel()
@@ -143,7 +541,7 @@ class SavedGuidesViewModelFavoriteTest {
       runTest(dispatcher) {
         coEvery { repository.getGuide(guide.id) } returns guide
         coEvery { repository.setFavorite(any(), any()) } just Runs
-        val viewModel = SavedGuidesViewModel(repository)
+        val viewModel = SavedGuidesViewModel(repository, sharing)
         viewModel.loadGuide(guide.id)
         advanceUntilIdle()
 
@@ -458,7 +856,7 @@ class SavedGuidesViewModelFavoriteTest {
       }
 
   private fun TestScope.loadedViewModel(): SavedGuidesViewModel {
-    val viewModel = SavedGuidesViewModel(repository)
+    val viewModel = SavedGuidesViewModel(repository, sharing)
     viewModel.loadSavedGuides()
     runCurrent()
     return viewModel
@@ -468,6 +866,13 @@ class SavedGuidesViewModelFavoriteTest {
     coEvery { repository.setFavorite(any(), any()) } coAnswers
         {
           CompletableDeferred<Unit>().also { favoriteWrites += it }.await()
+        }
+  }
+
+  private fun recordSharingWrites() {
+    coEvery { sharing.setShareAudience(any(), any(), any()) } coAnswers
+        {
+          CompletableDeferred<Unit>().also { sharingWrites += it }.await()
         }
   }
 

@@ -105,6 +105,7 @@ fun ScanReviewScreen(
         exploreOptIn = exploreOptIn,
         onShowInExploreChange = onShowInExploreChange,
         exploreUnavailableReason = exploreUnavailableReason,
+        isGalleryImage = isGalleryImage,
     )
     return
   }

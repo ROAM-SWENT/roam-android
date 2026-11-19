@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
 /** Conservative size check for the Firestore 1 MiB document limit. */
@@ -56,6 +57,25 @@ internal object GuideDocumentSize {
     }
 
     fieldsSize += fieldSize(GuideFirestoreMapper.FAVORITE_FIELD, BOOLEAN_SIZE_BYTES)
+    fieldsSize +=
+        fieldSize(
+            GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
+            guide.shareSettings.audience.name.firestoreStringSize(),
+        )
+    if (guide.shareSettings.sharedWithUids.isNotEmpty()) {
+      fieldsSize +=
+          fieldSize(
+              GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD,
+              guide.shareSettings.sharedWithUids.sumOf { it.firestoreStringSize() },
+          )
+    }
+    if (guide.shareSettings.dismissedByUids.isNotEmpty()) {
+      fieldsSize +=
+          fieldSize(
+              GuideFirestoreMapper.DISMISSED_BY_UIDS_FIELD,
+              guide.shareSettings.dismissedByUids.sumOf { it.firestoreStringSize() },
+          )
+    }
 
     return documentNameSize + fieldsSize + DOCUMENT_OVERHEAD_BYTES
   }

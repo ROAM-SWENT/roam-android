@@ -1,3 +1,4 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  */
@@ -77,7 +78,25 @@ class OfflineActionGateTest {
   }
 
   @Test
-  fun exploreAndFriendsActionsAreBlockedOffline() {
+  fun friendsActionIsBlockedOffline() {
+    val proceedCount = mutableIntStateOf(0)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        val runAction = rememberOfflineActionGate(isOnline = false)
+        Button(onClick = { runAction(OfflineAction.OPEN_FRIENDS) { proceedCount.intValue++ } }) {
+          Text("Friends")
+        }
+      }
+    }
+
+    composeTestRule.onNodeWithText("Friends").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog).assertIsDisplayed()
+    assertEquals(0, proceedCount.intValue)
+  }
+
+  /** Explore shows the saved monuments from the local cache, so it stays available offline. */
+  @Test
+  fun exploreRemainsAvailableOffline() {
     val proceedCount = mutableIntStateOf(0)
     composeTestRule.setContent {
       SampleAppTheme {
@@ -85,20 +104,13 @@ class OfflineActionGateTest {
         Button(onClick = { runAction(OfflineAction.OPEN_EXPLORE) { proceedCount.intValue++ } }) {
           Text("Explore")
         }
-        Button(onClick = { runAction(OfflineAction.OPEN_FRIENDS) { proceedCount.intValue++ } }) {
-          Text("Friends")
-        }
       }
     }
 
     composeTestRule.onNodeWithText("Explore").performClick()
-    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog).assertIsDisplayed()
-    assertEquals(0, proceedCount.intValue)
 
-    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
-    composeTestRule.onNodeWithText("Friends").performClick()
-    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog).assertIsDisplayed()
-    assertEquals(0, proceedCount.intValue)
+    assertEquals(1, proceedCount.intValue)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
   }
 
   @Test

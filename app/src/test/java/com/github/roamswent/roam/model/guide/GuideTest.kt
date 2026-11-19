@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.location.Coordinates
@@ -44,6 +45,42 @@ class GuideTest {
     assertNotEquals(guide, guide.copy(location = null))
     assertNotEquals(guide, guide.copy(discoveryDate = null))
     assertNotEquals(guide, guide.copy(isFavorite = true))
+    assertNotEquals(
+        guide,
+        guide.copy(shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS)),
+    )
+    assertNotEquals(
+        guide,
+        guide.copy(
+            shareSettings = guide.shareSettings.copy(sharedWithUids = setOf("user-1")),
+        ),
+    )
+    assertNotEquals(
+        guide,
+        guide.copy(
+            shareSettings = guide.shareSettings.copy(dismissedByUids = setOf("user-2")),
+        ),
+    )
+  }
+
+  @Test
+  fun newGuidesDefaultShareSettingsAndShareSettingsAffectsEqualityAndHashCode() {
+    assertEquals(MonumentShareSettings(), guide.shareSettings)
+
+    val changedAudience =
+        guide.copy(shareSettings = guide.shareSettings.copy(audience = ShareAudience.ALL_FRIENDS))
+    assertNotEquals(guide, changedAudience)
+    assertNotEquals(guide.hashCode(), changedAudience.hashCode())
+
+    val changedSharedWith =
+        guide.copy(shareSettings = guide.shareSettings.copy(sharedWithUids = setOf("uid-1")))
+    assertNotEquals(guide, changedSharedWith)
+    assertNotEquals(guide.hashCode(), changedSharedWith.hashCode())
+
+    val changedDismissedBy =
+        guide.copy(shareSettings = guide.shareSettings.copy(dismissedByUids = setOf("uid-2")))
+    assertNotEquals(guide, changedDismissedBy)
+    assertNotEquals(guide.hashCode(), changedDismissedBy.hashCode())
   }
 
   @Test

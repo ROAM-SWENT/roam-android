@@ -65,7 +65,10 @@ data class ExploreOptInUiState(
 
 /** Why the saved guide cannot be put on Explore, explained in place of the Explore switch. */
 enum class ExploreUnavailableReason {
-  /** No observed position: location permission denied, GPS off, or no fix in time. */
+  /**
+   * No observed position: for a camera scan, location permission denied, GPS off, or no fix in
+   * time; for a gallery photo, no usable GPS in its metadata.
+   */
   NO_OBSERVED_LOCATION,
 
   /** The AI gave no trustworthy position for the monument. */

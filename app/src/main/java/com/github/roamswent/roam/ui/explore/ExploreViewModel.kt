@@ -8,6 +8,8 @@ package com.github.roamswent.roam.ui.explore
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.roamswent.roam.model.basemap.BaseMapPolygon
+import com.github.roamswent.roam.model.basemap.OfflineBaseMapRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
@@ -21,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,17 +40,28 @@ sealed interface ExploreUiState {
 
 /**
  * Loads the user's current coordinates and exposes permission and retrieval state to the UI through
- * [uiState], and the saved monuments to pin on the map through [monuments].
+ * [uiState], the saved monuments to pin on the map through [monuments], and the world map drawn
+ * under them while offline through [offlineBaseMap].
  */
 class ExploreViewModel(
     private val locationProvider: LocationProvider,
     savedGuideRepository: SavedGuideRepository,
+    private val offlineBaseMapRepository: OfflineBaseMapRepository,
 ) : ViewModel() {
   private val _uiState =
       MutableStateFlow<ExploreUiState>(
           ExploreUiState.PermissionRequired(LocationPermissionDecision.NOT_ASKED)
       )
   val uiState: StateFlow<ExploreUiState> = _uiState.asStateFlow()
+
+  private val _monumentsLoaded = MutableStateFlow(false)
+
+  /**
+   * True once the saved monuments have been read (from the local cache when offline), or once
+   * reading ended or failed. Lets the UI wait for them before framing the map, instead of showing
+   * the world view for a moment and then jumping to the monuments.
+   */
+  val monumentsLoaded: StateFlow<Boolean> = _monumentsLoaded.asStateFlow()
 
   /**
    * Saved guides that have a location, kept up to date with the repository while observed. Starts
@@ -58,11 +73,43 @@ class ExploreViewModel(
           .observeSavedGuides()
           .map { guides -> guides.toExploreMonuments() }
           .distinctUntilChanged()
+          // Runs just before the value reaches the StateFlow below, with no suspension in between,
+          // so the UI never sees "loaded" with the previous (empty) list.
+          .onEach { _monumentsLoaded.value = true }
           .catch { exception ->
             if (exception is CancellationException) throw exception
             Log.e(TAG, "Failed to observe saved monuments", exception)
           }
+          .onCompletion { _monumentsLoaded.value = true }
           .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+  private val _offlineBaseMap = MutableStateFlow<List<BaseMapPolygon>>(emptyList())
+
+  /**
+   * Country outlines drawn instead of the map tiles while offline. Empty until [loadOfflineBaseMap]
+   * has been called and has finished, or if the bundled map cannot be read.
+   */
+  val offlineBaseMap: StateFlow<List<BaseMapPolygon>> = _offlineBaseMap.asStateFlow()
+
+  private var offlineBaseMapRequest: Job? = null
+
+  /**
+   * Loads the offline base map once; later calls do nothing unless the previous load failed. Called
+   * when Explore goes offline, so users who stay online never parse it.
+   */
+  fun loadOfflineBaseMap() {
+    if (offlineBaseMapRequest?.isActive == true || _offlineBaseMap.value.isNotEmpty()) return
+    offlineBaseMapRequest = viewModelScope.launch {
+      try {
+        _offlineBaseMap.value = offlineBaseMapRepository.countries()
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        // The pins stay usable on an empty map, so the failure is only logged.
+        Log.e(TAG, "Failed to load the offline base map", exception)
+      }
+    }
+  }
 
   private var permissionGranted = false
   private var locationRequest: Job? = null

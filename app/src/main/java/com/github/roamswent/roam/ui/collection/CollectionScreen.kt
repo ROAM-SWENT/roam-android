@@ -12,40 +12,51 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -55,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +79,8 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
@@ -82,6 +96,7 @@ import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
 import com.github.roamswent.roam.ui.theme.onAccentContainer
 import com.github.roamswent.roam.ui.theme.photoButtonContainer
+import com.github.roamswent.roam.ui.theme.secondaryText
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
@@ -112,6 +127,13 @@ fun CollectionScreen(
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
+    onOpenSharing: () -> Unit = {},
+    friends: List<CollectionFriend> = emptyList(),
+    isLoadingFriends: Boolean = false,
+    friendsError: Exception? = null,
+    onRetryLoadingFriends: () -> Unit = {},
+    onSetShareAudience: (String, ShareAudience, Set<String>) -> Unit = { _, _, _ -> },
+    onSharingErrorShown: () -> Unit = {},
     onPickFromGallery: () -> Unit = {},
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
@@ -120,6 +142,7 @@ fun CollectionScreen(
   val undoLabel = stringResource(R.string.collection_favorite_undo)
   val errorMessage = stringResource(R.string.collection_favorite_error)
   val deleteErrorMessage = stringResource(R.string.collection_delete_error)
+  val sharingErrorMessage = stringResource(R.string.collection_share_error)
 
   // Showing a message replaces the current one, so taps never queue up stale snackbars.
   fun showMessage(message: String, actionLabel: String? = null, onAction: () -> Unit = {}) {
@@ -142,6 +165,13 @@ fun CollectionScreen(
     if (state.deleteError != null) {
       showMessage(deleteErrorMessage)
       onDeleteErrorShown()
+    }
+  }
+
+  LaunchedEffect(state.sharingError) {
+    if (state.sharingError != null) {
+      showMessage(sharingErrorMessage)
+      onSharingErrorShown()
     }
   }
 
@@ -198,7 +228,20 @@ fun CollectionScreen(
               CollectionMessage(C.Tag.collection_favorites_empty) { FavoritesEmpty() }
             }
             else -> {
-              GuideGrid(guides, onGuideClick, onDeleteGuide, state.deletingGuideIds, toggleFavorite)
+              GuideGrid(
+                  guides = guides,
+                  onGuideClick = onGuideClick,
+                  onDeleteGuide = onDeleteGuide,
+                  deletingGuideIds = state.deletingGuideIds,
+                  onToggleFavorite = toggleFavorite,
+                  sharingGuideIds = state.sharingGuideIds,
+                  friends = friends,
+                  isLoadingFriends = isLoadingFriends,
+                  friendsError = friendsError,
+                  onRetryLoadingFriends = onRetryLoadingFriends,
+                  onOpenSharing = onOpenSharing,
+                  onSetShareAudience = onSetShareAudience,
+              )
             }
           }
         }
@@ -383,6 +426,13 @@ private fun GuideGrid(
     onDeleteGuide: (String) -> Unit,
     deletingGuideIds: Set<String>,
     onToggleFavorite: (Guide) -> Unit,
+    sharingGuideIds: Set<String>,
+    friends: List<CollectionFriend>,
+    isLoadingFriends: Boolean,
+    friendsError: Exception?,
+    onRetryLoadingFriends: () -> Unit,
+    onOpenSharing: () -> Unit,
+    onSetShareAudience: (String, ShareAudience, Set<String>) -> Unit,
 ) {
   LazyVerticalGrid(
       columns = GridCells.Fixed(2),
@@ -398,6 +448,15 @@ private fun GuideGrid(
           onDelete = { onDeleteGuide(guide.id) },
           isDeleting = guide.id in deletingGuideIds,
           onToggleFavorite = { onToggleFavorite(guide) },
+          isSharing = guide.id in sharingGuideIds,
+          friends = friends,
+          isLoadingFriends = isLoadingFriends,
+          friendsError = friendsError,
+          onRetryLoadingFriends = onRetryLoadingFriends,
+          onOpenSharing = onOpenSharing,
+          onSetShareAudience = { audience, friendUids ->
+            onSetShareAudience(guide.id, audience, friendUids)
+          },
       )
     }
   }
@@ -410,7 +469,15 @@ private fun GuideCard(
     onDelete: () -> Unit,
     isDeleting: Boolean,
     onToggleFavorite: () -> Unit,
+    isSharing: Boolean,
+    friends: List<CollectionFriend>,
+    isLoadingFriends: Boolean,
+    friendsError: Exception?,
+    onRetryLoadingFriends: () -> Unit,
+    onOpenSharing: () -> Unit,
+    onSetShareAudience: (ShareAudience, Set<String>) -> Unit,
 ) {
+  var isShareDialogOpen by remember(guide.id) { mutableStateOf(false) }
   Card(
       onClick = onClick,
       shape = RoundedCornerShape(16.dp),
@@ -428,6 +495,14 @@ private fun GuideCard(
           isFavorite = guide.isFavorite,
           onClick = onToggleFavorite,
           modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+      )
+      ShareButton(
+          isSharing = isSharing,
+          onClick = {
+            isShareDialogOpen = true
+            onOpenSharing()
+          },
+          modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
       )
     }
     Column(modifier = Modifier.padding(12.dp)) {
@@ -452,7 +527,219 @@ private fun GuideCard(
                 Modifier.padding(top = 4.dp).semantics { testTag = C.Tag.collection_card_date },
         )
       }
+      Text(
+          text = shareStatusText(guide.shareSettings),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.secondaryText,
+          modifier =
+              Modifier.padding(top = 4.dp).semantics { testTag = C.Tag.collection_share_status },
+      )
     }
+  }
+  if (isShareDialogOpen) {
+    GuideSharingDialog(
+        guide = guide,
+        friends = friends,
+        isLoadingFriends = isLoadingFriends,
+        friendsError = friendsError,
+        isSaving = isSharing,
+        onRetryLoadingFriends = onRetryLoadingFriends,
+        onDismiss = { isShareDialogOpen = false },
+        onConfirm = { audience, friendUids ->
+          onSetShareAudience(audience, friendUids)
+          isShareDialogOpen = false
+        },
+    )
+  }
+}
+
+@Composable
+private fun shareStatusText(settings: MonumentShareSettings): String =
+    when (settings.audience) {
+      ShareAudience.NONE -> stringResource(R.string.collection_share_private)
+      ShareAudience.ALL_FRIENDS -> stringResource(R.string.collection_share_all_friends)
+      ShareAudience.ALL_FOLLOWERS -> stringResource(R.string.collection_share_all_followers)
+      ShareAudience.SELECTED_FRIENDS ->
+          stringResource(R.string.collection_share_status, settings.sharedWithUids.size)
+    }
+
+@Composable
+private fun ShareButton(isSharing: Boolean, onClick: () -> Unit, modifier: Modifier) {
+  IconButton(
+      onClick = onClick,
+      enabled = !isSharing,
+      modifier =
+          modifier
+              .size(36.dp)
+              .background(MaterialTheme.photoButtonContainer, CircleShape)
+              .semantics { testTag = C.Tag.collection_card_share },
+  ) {
+    if (isSharing) {
+      CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+    } else {
+      Icon(
+          imageVector = Icons.Filled.Share,
+          contentDescription = stringResource(R.string.collection_share_button),
+          tint = MaterialTheme.accentIcon,
+          modifier = Modifier.size(20.dp),
+      )
+    }
+  }
+}
+
+@Composable
+private fun GuideSharingDialog(
+    guide: Guide,
+    friends: List<CollectionFriend>,
+    isLoadingFriends: Boolean,
+    friendsError: Exception?,
+    isSaving: Boolean,
+    onRetryLoadingFriends: () -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (ShareAudience, Set<String>) -> Unit,
+) {
+  var audience by remember(guide.id) { mutableStateOf(guide.shareSettings.audience) }
+  val selectedFriendUids =
+      remember(guide.id) {
+        mutableStateSetOf<String>().apply { addAll(guide.shareSettings.sharedWithUids) }
+      }
+  val needsFriends = audience == ShareAudience.SELECTED_FRIENDS
+  val recipients =
+      if (needsFriends) {
+        selectedFriendUids.filter { selectedUid -> friends.any { it.uid == selectedUid } }.toSet()
+      } else {
+        emptySet()
+      }
+  AlertDialog(
+      modifier = Modifier.semantics { testTag = C.Tag.collection_share_dialog },
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.collection_share_title, guide.monumentName)) },
+      text = {
+        Column {
+          Text(
+              text = stringResource(R.string.collection_share_message),
+              style = MaterialTheme.typography.bodyMedium,
+          )
+          ShareAudienceOption(
+              label = stringResource(R.string.collection_share_audience_none),
+              selected = audience == ShareAudience.NONE,
+              tag = C.Tag.collection_share_audience_none,
+              onSelect = { audience = ShareAudience.NONE },
+          )
+          ShareAudienceOption(
+              label = stringResource(R.string.collection_share_audience_all_friends),
+              selected = audience == ShareAudience.ALL_FRIENDS,
+              tag = C.Tag.collection_share_audience_all_friends,
+              onSelect = { audience = ShareAudience.ALL_FRIENDS },
+          )
+          ShareAudienceOption(
+              label = stringResource(R.string.collection_share_audience_selected),
+              selected = needsFriends,
+              tag = C.Tag.collection_share_audience_selected,
+              onSelect = { audience = ShareAudience.SELECTED_FRIENDS },
+          )
+          when {
+            !needsFriends -> Unit
+            isLoadingFriends -> {
+              CircularProgressIndicator(
+                  modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp)
+              )
+            }
+            friendsError != null -> {
+              Column {
+                Text(stringResource(R.string.collection_share_friends_error))
+                TextButton(onClick = onRetryLoadingFriends) {
+                  Text(stringResource(R.string.collection_share_retry))
+                }
+              }
+            }
+            friends.isEmpty() -> {
+              Text(
+                  text = stringResource(R.string.collection_share_no_friends),
+                  modifier = Modifier.padding(top = 12.dp),
+              )
+            }
+            else -> {
+              Column(
+                  modifier =
+                      Modifier.padding(top = 8.dp)
+                          .heightIn(max = 280.dp)
+                          .verticalScroll(rememberScrollState()),
+              ) {
+                friends.forEach { friend ->
+                  Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      modifier =
+                          Modifier.fillMaxWidth()
+                              .toggleable(
+                                  value = friend.uid in selectedFriendUids,
+                                  role = Role.Checkbox,
+                                  onValueChange = { checked ->
+                                    if (checked) selectedFriendUids.add(friend.uid)
+                                    else selectedFriendUids.remove(friend.uid)
+                                  },
+                              )
+                              .semantics { testTag = C.Tag.collection_share_friend },
+                  ) {
+                    Checkbox(
+                        checked = friend.uid in selectedFriendUids,
+                        onCheckedChange = null,
+                    )
+                    Text(
+                        text = friend.username,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(
+            onClick = { onConfirm(audience, recipients) },
+            enabled =
+                !isSaving &&
+                    (!needsFriends ||
+                        (!isLoadingFriends && friendsError == null && recipients.isNotEmpty())),
+            modifier = Modifier.semantics { testTag = C.Tag.collection_share_confirm },
+        ) {
+          Text(stringResource(R.string.collection_share_confirm))
+        }
+      },
+      dismissButton = {
+        TextButton(
+            onClick = onDismiss,
+            enabled = !isSaving,
+            modifier = Modifier.semantics { testTag = C.Tag.collection_share_cancel },
+        ) {
+          Text(stringResource(R.string.collection_share_cancel))
+        }
+      },
+  )
+}
+
+@Composable
+private fun ShareAudienceOption(
+    label: String,
+    selected: Boolean,
+    tag: String,
+    onSelect: () -> Unit,
+) {
+  Row(
+      verticalAlignment = Alignment.CenterVertically,
+      modifier =
+          Modifier.fillMaxWidth()
+              .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+              .semantics { testTag = tag },
+  ) {
+    RadioButton(selected = selected, onClick = null)
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(start = 8.dp),
+    )
   }
 }
 
@@ -772,6 +1059,16 @@ private val previewGuides: List<Guide> =
 private const val PREVIEW_LATEST_DISCOVERY = 1_791_806_400_000L
 private const val DAY_MILLIS = 24L * 60 * 60 * 1000
 
+private val previewSelectedSharing =
+    MonumentShareSettings(audience = ShareAudience.SELECTED_FRIENDS)
+
+private val previewSharingFriends =
+    listOf(
+        CollectionFriend("preview-alice", "Alice"),
+        CollectionFriend("preview-bob", "Bob"),
+        CollectionFriend("preview-charlie", "Charlie"),
+    )
+
 @Preview(showBackground = true)
 @Composable
 fun PreviewCollectionScreen() {
@@ -797,5 +1094,106 @@ fun PreviewCollectionScreenDark() {
 fun PreviewCollectionScreenEmptyDark() {
   SampleAppTheme(darkTheme = true, dynamicColor = false) {
     CollectionScreen(state = SavedGuidesUiState())
+  }
+}
+
+@Preview(name = "Sharing - Select friends", showBackground = true)
+@Composable
+fun PreviewCollectionSharingSelection() {
+  SampleAppTheme {
+    GuideSharingDialog(
+        guide =
+            previewGuides
+                .first()
+                .copy(
+                    shareSettings =
+                        MonumentShareSettings(
+                            audience = ShareAudience.SELECTED_FRIENDS,
+                            sharedWithUids = setOf("preview-alice"),
+                        )
+                ),
+        friends = previewSharingFriends,
+        isLoadingFriends = false,
+        friendsError = null,
+        isSaving = false,
+        onRetryLoadingFriends = {},
+        onDismiss = {},
+        onConfirm = { _, _ -> },
+    )
+  }
+}
+
+@Preview(name = "Sharing - Loading friends", showBackground = true)
+@Composable
+fun PreviewCollectionSharingLoading() {
+  SampleAppTheme {
+    GuideSharingDialog(
+        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        friends = emptyList(),
+        isLoadingFriends = true,
+        friendsError = null,
+        isSaving = false,
+        onRetryLoadingFriends = {},
+        onDismiss = {},
+        onConfirm = { _, _ -> },
+    )
+  }
+}
+
+@Preview(name = "Sharing - Friends unavailable", showBackground = true)
+@Composable
+fun PreviewCollectionSharingFriendsError() {
+  SampleAppTheme {
+    GuideSharingDialog(
+        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        friends = emptyList(),
+        isLoadingFriends = false,
+        friendsError = IllegalStateException(),
+        isSaving = false,
+        onRetryLoadingFriends = {},
+        onDismiss = {},
+        onConfirm = { _, _ -> },
+    )
+  }
+}
+
+@Preview(name = "Sharing - No friends", showBackground = true)
+@Composable
+fun PreviewCollectionSharingNoFriends() {
+  SampleAppTheme {
+    GuideSharingDialog(
+        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        friends = emptyList(),
+        isLoadingFriends = false,
+        friendsError = null,
+        isSaving = false,
+        onRetryLoadingFriends = {},
+        onDismiss = {},
+        onConfirm = { _, _ -> },
+    )
+  }
+}
+
+@Preview(name = "Sharing - Saved", showBackground = true)
+@Composable
+fun PreviewCollectionSharingSaved() {
+  SampleAppTheme {
+    CollectionScreen(
+        state =
+            SavedGuidesUiState(
+                guides =
+                    listOf(
+                        previewGuides
+                            .first()
+                            .copy(
+                                shareSettings =
+                                    MonumentShareSettings(
+                                        audience = ShareAudience.SELECTED_FRIENDS,
+                                        sharedWithUids = setOf("preview-alice", "preview-bob"),
+                                    )
+                            )
+                    )
+            )
+    )
   }
 }
