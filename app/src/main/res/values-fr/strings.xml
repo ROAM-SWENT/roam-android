@@ -210,4 +210,10 @@
     <string name="saved_monument_detail_error">Impossible de charger ce monument. Veuillez réessayer.</string>
     <string name="saved_monument_detail_not_found">Ce monument n\'est plus dans votre collection.</string>
     <string name="saved_monument_detail_retry">Réessayer</string>
+    <string name="settings_username_label">Nom d\'utilisateur</string>
+    <string name="settings_username_save">Enregistrer le nom d\'utilisateur</string>
+    <string name="settings_username_error_invalid">Le nom d\'utilisateur doit contenir 3 &#224; 20 caract&#232;res ASCII (lettres, chiffres ou traits de soulignement).</string>
+    <string name="settings_username_error_taken">Ce nom d\'utilisateur est d&#233;j&#224; utilis&#233;.</string>
+    <string name="settings_username_error_update">Impossible de modifier votre nom d\'utilisateur. R&#233;essayez.</string>
+    <string name="settings_username_error_load">Impossible de charger votre nom d\'utilisateur. R&#233;essayez.</string>
 </resources>
