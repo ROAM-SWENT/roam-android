@@ -1,7 +1,7 @@
 <!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
 <resources>
     <string name="app_name">Roam</string>
-    <string name="title_activity_main">MainActivity</string>
+    <string name="title_activity_main">Roam</string>
     <string name="sign_in_title">Roam</string>
     <string name="sign_in_tagline">Photographiez un monument, découvrez son histoire.</string>
     <string name="sign_in_google_button">Continuer avec Google</string>
@@ -198,6 +198,10 @@
     <string name="settings_permissions_section_header">Autorisations de l\'application</string>
     <string name="monument_detail_match_percent">%1$d%% de correspondance</string>
     <string name="monument_detail_fact_bullet">• %1$s</string>
+    <string name="monument_detail_ai_guide_label">VOTRE GUIDE IA</string>
+    <string name="monument_detail_history_title">Histoire</string>
+    <string name="monument_detail_culture_title">Culture locale</string>
+    <string name="monument_detail_facts_title">Le saviez-vous ?</string>
     <string name="monument_detail_show_in_explore">Afficher dans Explorer</string>
     <string name="monument_detail_show_in_explore_supporting">Épinglez ce monument sur la carte à l\'endroit où vous l\'avez scanné.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Épinglez ce monument sur la carte à l\'endroit où la photo a été prise.</string>
@@ -219,4 +223,10 @@
     <string name="saved_monument_detail_not_found">Ce monument n\'est plus dans votre collection.</string>
     <string name="shared_monument_detail_not_found">Ce monument n\'est plus partagé avec vous.</string>
     <string name="saved_monument_detail_retry">Réessayer</string>
+    <string name="settings_username_label">Nom d\'utilisateur</string>
+    <string name="settings_username_save">Enregistrer le nom d\'utilisateur</string>
+    <string name="settings_username_error_invalid">Le nom d\'utilisateur doit contenir 3 &#224; 20 caract&#232;res ASCII (lettres, chiffres ou traits de soulignement).</string>
+    <string name="settings_username_error_taken">Ce nom d\'utilisateur est d&#233;j&#224; utilis&#233;.</string>
+    <string name="settings_username_error_update">Impossible de modifier votre nom d\'utilisateur. R&#233;essayez.</string>
+    <string name="settings_username_error_load">Impossible de charger votre nom d\'utilisateur. R&#233;essayez.</string>
 </resources>

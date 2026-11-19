@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,6 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -97,6 +101,7 @@ import com.github.roamswent.roam.ui.profile.RegisterProfileScreen
 import com.github.roamswent.roam.ui.profile.RegisterProfileViewModel
 import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
+import com.github.roamswent.roam.ui.scan.rememberGalleryImagePicker
 import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -465,8 +470,18 @@ internal fun RoamApp(
         RegisterProfileScreen(registerProfileViewModel, onCancel = cancelProfileRegistration)
       }
       composable(Routes.Home) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner, homeViewModel) {
+          val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) homeViewModel.refreshUserName()
+          }
+          lifecycleOwner.lifecycle.addObserver(observer)
+          onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
         // HomeScreen and the dock apply their own status/nav bar insets, so the
         // scaffold only contributes the ScreenBackground behind the status bar.
         Scaffold(
@@ -488,13 +503,17 @@ internal fun RoamApp(
         ScanRoute(navController, galleryImageUriOverride = testOverrides?.galleryImageUri)
       }
       composable(
-          "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
+          "${Routes.ScanReview}?uri={uri}&gallery={gallery}&fromCollection={fromCollection}",
           arguments =
               listOf(
                   navArgument("gallery") {
                     type = NavType.BoolType
                     defaultValue = false
-                  }
+                  },
+                  navArgument("fromCollection") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                  },
               ),
       ) { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
@@ -508,6 +527,7 @@ internal fun RoamApp(
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
               isGalleryImage = backStackEntry.arguments?.getBoolean("gallery") ?: false,
+              fromCollection = backStackEntry.arguments?.getBoolean("fromCollection") ?: false,
           )
         }
       }
@@ -521,6 +541,7 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               settingsViewModel = testOverrides?.settingsViewModel,
+              publicProfileRepository = publicProfileRepository,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               notificationPermissionController = notificationPermissionController,
@@ -543,6 +564,14 @@ internal fun RoamApp(
 
       composable(Routes.Collection) {
         val dockClearance = dockContentClearance()
+        val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
+          uri?.let {
+            navController.navigate(
+                "${Routes.ScanReview}?uri=${Uri.encode(it.toString())}&gallery=true&fromCollection=true",
+            )
+          }
+        }
+        val pickFromGallery = rememberGalleryImagePicker(onGalleryImagePicked)
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository.value,
@@ -555,6 +584,7 @@ internal fun RoamApp(
               friendRepository = testOverrides?.friendRepository,
               publicProfileRepository = publicProfileRepository,
               monumentSharingProvider = monumentSharingProvider,
+              onPickFromGallery = pickFromGallery,
           )
         }
       }

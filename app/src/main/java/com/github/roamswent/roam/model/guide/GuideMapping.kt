@@ -26,6 +26,8 @@ fun MonumentGuide.toSavedGuide(
         history = history,
         facts = facts,
         culture = culture,
+        sections = sections,
+        interestCount = interestCount,
         location = location,
         discoveryDate = discoveryDate,
     )
@@ -43,5 +45,7 @@ fun Guide.toMonumentGuide(): MonumentGuide =
         facts = facts,
         culture = culture,
         language = "",
+        sections = sections,
+        interestCount = interestCount,
         location = location,
     )

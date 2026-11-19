@@ -1,6 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import org.junit.Assert.assertEquals
@@ -17,6 +18,8 @@ class GuideMappingTest {
           facts = listOf("It grows taller in summer."),
           culture = "A symbol of Paris.",
           language = "fr",
+          sections = listOf(GuideSection("Architecture", "A detailed paragraph.")),
+          interestCount = 1,
           location = Coordinates(48.85837, 2.29448),
       )
 
@@ -41,6 +44,8 @@ class GuideMappingTest {
             history = "Built in 1889.",
             facts = listOf("It grows taller in summer."),
             culture = "A symbol of Paris.",
+            sections = listOf(GuideSection("Architecture", "A detailed paragraph.")),
+            interestCount = 1,
             location = null,
             discoveryDate = 1_700_000_000_000L,
             isFavorite = false,

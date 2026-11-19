@@ -41,6 +41,66 @@ class ResponseParserTest {
   }
 
   @Test
+  fun parseGuideMapsInterestSections() {
+    val json =
+        validGuide.replace(
+            "\"language\":\"fr\"}",
+            "\"language\":\"fr\",\"sections\":[" +
+                "{\"title\":\"Architecture\",\"content\":\"**Three domes** frame the entrance.\"}," +
+                "{\"title\":\"Fun Facts\",\"content\":\"A short fact.\"}]}",
+        )
+
+    assertEquals(
+        listOf(
+            GuideSection("Architecture", "**Three domes** frame the entrance."),
+            GuideSection("Fun Facts", "A short fact."),
+        ),
+        ResponseParser.parseGuide(json).sections,
+    )
+  }
+
+  @Test
+  fun parseGuideRejectsMalformedInterestSections() {
+    val json = validGuide.replace("\"language\":\"fr\"", "\"language\":\"fr\",\"sections\":\"x\"")
+
+    assertThrows(ParseException::class.java) { ResponseParser.parseGuide(json) }
+  }
+
+  @Test
+  fun parseGuideRejectsNonObjectInterestSection() {
+    val json = validGuide.replace("\"language\":\"fr\"", "\"language\":\"fr\",\"sections\":[1]")
+
+    assertThrows(ParseException::class.java) { ResponseParser.parseGuide(json) }
+  }
+
+  @Test
+  fun parseGuideTrimsAndDropsEmptyInterestSections() {
+    val json =
+        validGuide.replace(
+            "\"language\":\"fr\"}",
+            "\"language\":\"fr\",\"sections\":[" +
+                "{\"title\":\"  Architecture  \",\"content\":\"  A detailed paragraph.  \"}," +
+                "{\"title\":\" \",\"content\":\"Ignored.\"}," +
+                "{\"title\":\"Ignored\",\"content\":\" \"}]}",
+        )
+
+    assertEquals(
+        listOf(GuideSection("Architecture", "A detailed paragraph.")),
+        ResponseParser.parseGuide(json).sections,
+    )
+  }
+
+  @Test
+  fun parseGuideCapsInterestSections() {
+    val sections = (1..15).joinToString(",") { """{"title":"Topic $it","content":"Content $it"}""" }
+    val json =
+        validGuide.replace("\"language\":\"fr\"", "\"language\":\"fr\",\"sections\":[$sections]")
+
+    assertEquals(10, ResponseParser.parseGuide(json).sections.size)
+    assertEquals("Topic 10", ResponseParser.parseGuide(json).sections.last().title)
+  }
+
+  @Test
   fun parseGuideThrowsNotIdentifiedWhenNameIsNull() {
     val json = validGuide.replace("\"Eiffel Tower\"", "null")
     assertThrows(MonumentNotIdentifiedException::class.java) { ResponseParser.parseGuide(json) }

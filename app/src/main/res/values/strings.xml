@@ -1,7 +1,7 @@
 <!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
 <resources>
     <string name="app_name">Roam</string>
-    <string name="title_activity_main">MainActivity</string>
+    <string name="title_activity_main">Roam</string>
     <string name="sign_in_title">Roam</string>
     <string name="sign_in_tagline">Snap a monument, discover its story.</string>
     <string name="sign_in_google_button">Continue with Google</string>
@@ -160,6 +160,12 @@
     <string name="sign_in_error_unexpected">Unexpected error: %1$s</string>
     <string name="settings_error_profile_load">Unable to load your profile.</string>
     <string name="settings_error_sign_out">Unable to sign out.</string>
+    <string name="settings_username_label">Username</string>
+    <string name="settings_username_save">Save username</string>
+    <string name="settings_username_error_invalid">Username must contain 3 to 20 ASCII letters, numbers, or underscores.</string>
+    <string name="settings_username_error_taken">That username is already taken.</string>
+    <string name="settings_username_error_update">Unable to update your username. Please try again.</string>
+    <string name="settings_username_error_load">Unable to load your username. Please try again.</string>
     <string name="scan_review_sending_title">Image being treated…</string>
     <string name="scan_review_sending_message">Please wait.</string>
     <string name="scan_close_description">Close</string>
@@ -210,6 +216,10 @@
     <string name="settings_permissions_section_header">App Permissions</string>
     <string name="monument_detail_match_percent">%1$d%% match</string>
     <string name="monument_detail_fact_bullet">• %1$s</string>
+    <string name="monument_detail_ai_guide_label">YOUR AI GUIDE</string>
+    <string name="monument_detail_history_title">History</string>
+    <string name="monument_detail_culture_title">Local Culture</string>
+    <string name="monument_detail_facts_title">Fun Fact</string>
     <string name="monument_detail_show_in_explore">Show in Explore</string>
     <string name="monument_detail_show_in_explore_supporting">Pin this monument on the map where you scanned it.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Pin this monument on the map where the photo was taken.</string>
