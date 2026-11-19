@@ -691,6 +691,23 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun galleryButtonHasAccessibleDescriptionAndInvokesCallback() {
+    var pickCount = 0
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        onPickFromGallery = { pickCount++ },
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_gallery_button)
+        .assertIsDisplayed()
+        .assertContentDescriptionEquals("Choose photo from gallery")
+        .performClick()
+
+    assertEquals(1, pickCount)
+  }
+
+  @Test
   fun favouritesFilterShowsOnlyFavouriteGuides() {
     setScreen(
         SavedGuidesUiState(
@@ -873,6 +890,23 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun galleryButtonRemainsAvailableWhenCollectionIsEmpty() {
+    var pickCount = 0
+
+    setScreen(
+        SavedGuidesUiState(guides = emptyList()),
+        onPickFromGallery = { pickCount++ },
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_gallery_button)
+        .assertIsDisplayed()
+        .performClick()
+
+    assertEquals(1, pickCount)
+  }
+
+  @Test
   fun clearButtonAppearsWhenQueryIsNotEmptyAndResetsQuery() {
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(olderGuide), searchQuery = ""))
     composeTestRule.setContent {
@@ -951,6 +985,7 @@ class CollectionScreenTest {
       onRetryLoadingFriends: () -> Unit = {},
       onSetShareAudience: (String, ShareAudience, Set<String>) -> Unit = { _, _, _ -> },
       onSharingErrorShown: () -> Unit = {},
+      onPickFromGallery: () -> Unit = {},
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -971,6 +1006,7 @@ class CollectionScreenTest {
             onRetryLoadingFriends = onRetryLoadingFriends,
             onSetShareAudience = onSetShareAudience,
             onSharingErrorShown = onSharingErrorShown,
+            onPickFromGallery = onPickFromGallery,
         )
       }
     }
