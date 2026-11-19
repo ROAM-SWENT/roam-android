@@ -19,17 +19,36 @@ class ImagePayload(val bytes: ByteArray, val mimeType: String) {
 /** Traveler settings that shape the guide. */
 data class UserPreferences(val language: String, val interests: List<String> = emptyList())
 
-/** Everything one scan needs. [location] is null when unavailable or denied. */
+/** A paragraph of guide content targeted at one traveler interest. */
+data class GuideSection(val title: String, val content: String)
+
+/**
+ * Everything one scan needs. [location] is the observed position, or null when it is unknown.
+ *
+ * When [location] is null and [useDeviceLocation] is true, the pipeline asks the device for its
+ * current position, as for a camera scan taken on the spot. When [useDeviceLocation] is false, a
+ * null [location] means no location at all and the device is never asked, as for a gallery photo
+ * whose only source is its own metadata.
+ */
 data class DiscoveryRequest(
     val image: ImagePayload,
     val location: Coordinates?,
     val preferences: UserPreferences,
+    val useDeviceLocation: Boolean = true,
 )
 
 /**
- * The structured guide returned only when a monument was identified. [location] is the position the
- * discovery pipeline already resolved for the prompt, or null if it was unavailable. [photo] is the
- * downscaled JPEG the pipeline sent to the AI, so callers can store it without preparing it again.
+ * The structured guide returned only when a monument was identified.
+ *
+ * Two positions are kept apart on purpose:
+ * - [location] is the observed position, where the user was when the pipeline resolved it for the
+ *   prompt, or null if it was unavailable. It is the only position ever pinned on Explore.
+ * - [monumentLocation] is where the monument itself stands, according to the AI, or null when it
+ *   gave no trustworthy position. It is only used to check the observed position is near the
+ *   monument, and is never stored.
+ *
+ * [photo] is the downscaled JPEG the pipeline sent to the AI, so callers can store it without
+ * preparing it again.
  */
 data class MonumentGuide(
     val monumentName: String,
@@ -38,8 +57,11 @@ data class MonumentGuide(
     val facts: List<String>,
     val culture: String,
     val language: String,
+    val sections: List<GuideSection> = emptyList(),
+    val interestCount: Int = 0,
     val location: Coordinates? = null,
     val photo: ImagePayload? = null,
+    val monumentLocation: Coordinates? = null,
 )
 
 /** Result of the cloud pre-screen on the photo. */

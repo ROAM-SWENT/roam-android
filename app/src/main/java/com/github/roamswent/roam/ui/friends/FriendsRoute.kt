@@ -58,6 +58,8 @@ fun FriendsRoute(
       isMutating = state.isMutating,
       isSearching = state.isSearching,
       isLoading = state.isLoading,
+      hasLoaded = state.hasLoaded,
+      onRefresh = viewModel::refresh,
       errorMessage = state.error?.localizedMessage,
       message = state.message,
       onMessageDismiss = viewModel::clearMessage,

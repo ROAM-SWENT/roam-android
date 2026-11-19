@@ -1,5 +1,7 @@
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
+import com.github.roamswent.roam.model.location.Coordinates
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -11,8 +13,9 @@ import kotlinx.serialization.json.doubleOrNull
 /**
  * Turns the raw JSON text returned by Gemini into domain objects.
  *
- * Strict: every field must be present with the expected type. The text is untrusted model output,
- * so it is trimmed and length-capped before it leaves this class.
+ * Strict: every field must be present with the expected type, except the optional monument
+ * coordinates. The text is untrusted model output, so it is trimmed and length-capped before it
+ * leaves this class.
  */
 object ResponseParser {
 
@@ -20,6 +23,8 @@ object ResponseParser {
   private const val MAX_LONG_TEXT = 4000
   private const val MAX_FACT = 500
   private const val MAX_FACTS = 20
+  private const val MAX_SECTIONS = 10
+  private const val MAX_SECTION_TITLE = 80
   private const val MAX_REASON = 200
 
   /**
@@ -36,6 +41,18 @@ object ResponseParser {
     if (confidence !in 0.0..1.0) throw ParseException()
 
     val facts = root.stringList("facts").map { it.trim().take(MAX_FACT) }.filter { it.isNotEmpty() }
+    val sections =
+        root.optionalSections()?.let { rawSections ->
+          rawSections
+              .map { section ->
+                GuideSection(
+                    title = section.title.trim().take(MAX_SECTION_TITLE),
+                    content = section.content.trim().take(MAX_LONG_TEXT),
+                )
+              }
+              .filter { it.title.isNotEmpty() && it.content.isNotEmpty() }
+              .take(MAX_SECTIONS)
+        } ?: emptyList()
     return MonumentGuide(
         monumentName = name,
         confidence = confidence,
@@ -43,7 +60,21 @@ object ResponseParser {
         facts = facts.take(MAX_FACTS),
         culture = root.string("culture").trim().take(MAX_LONG_TEXT),
         language = PromptBuilder.sanitizeLanguage(root.string("language")),
+        sections = sections,
+        monumentLocation = root.optionalCoordinates("monumentLatitude", "monumentLongitude"),
     )
+  }
+
+  private fun JsonObject.optionalSections(): List<GuideSection>? {
+    val value = this["sections"] ?: return null
+    val array = value as? JsonArray ?: throw ParseException()
+    return array.map { element ->
+      val section = element as? JsonObject ?: throw ParseException()
+      GuideSection(
+          title = section.string("title"),
+          content = section.string("content"),
+      )
+    }
   }
 
   /**
@@ -86,6 +117,32 @@ object ResponseParser {
     val value = field(key)
     if (value.isString) throw ParseException()
     return value.doubleOrNull ?: throw ParseException()
+  }
+
+  /**
+   * Reads an optional coordinate pair. Unlike the required fields, any problem gives null instead
+   * of a [ParseException], so a guide without a trustworthy monument position is still returned: a
+   * missing, null or non-numeric value, only one of the two values, a position out of range, or the
+   * (0, 0) placeholder.
+   */
+  private fun JsonObject.optionalCoordinates(
+      latitudeKey: String,
+      longitudeKey: String,
+  ): Coordinates? {
+    val latitude = optionalNumber(latitudeKey) ?: return null
+    val longitude = optionalNumber(longitudeKey) ?: return null
+    if (latitude == 0.0 && longitude == 0.0) return null
+    return try {
+      Coordinates(latitude, longitude)
+    } catch (e: IllegalArgumentException) {
+      null
+    }
+  }
+
+  private fun JsonObject.optionalNumber(key: String): Double? {
+    val value = this[key] as? JsonPrimitive ?: return null
+    if (value is JsonNull || value.isString) return null
+    return value.doubleOrNull
   }
 
   private fun JsonObject.boolean(key: String): Boolean {

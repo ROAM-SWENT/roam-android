@@ -1,8 +1,12 @@
+// Co-authored-by: Gemini 4 Hydrogen <noreply@google.com>
+
 package com.github.roamswent.roam
 
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.w3c.dom.Element
 
 class LocalesConfigTest {
 
@@ -41,5 +45,34 @@ class LocalesConfigTest {
     )
     org.junit.Assert.assertTrue(content.contains("android:name=\"autoStoreLocales\""))
     org.junit.Assert.assertTrue(content.contains("android:value=\"true\""))
+  }
+
+  @Test
+  fun manifest_mainActivityDeclaresLocaleAndLayoutDirectionConfigChanges_regressionPreventsActivityRecreationFlicker() {
+    val userDir = File(System.getProperty("user.dir") ?: ".")
+    val manifestFile =
+        listOf(
+                userDir.resolve("app/src/main/AndroidManifest.xml"),
+                userDir.resolve("src/main/AndroidManifest.xml"),
+            )
+            .firstOrNull(File::isFile)
+    checkNotNull(manifestFile) { "AndroidManifest.xml not found" }
+
+    val document =
+        DocumentBuilderFactory.newInstance()
+            .apply { isNamespaceAware = true }
+            .newDocumentBuilder()
+            .parse(manifestFile)
+    val activities = document.getElementsByTagName("activity")
+    val androidNamespace = "http://schemas.android.com/apk/res/android"
+    var mainActivityConfigChanges: String? = null
+    for (index in 0 until activities.length) {
+      val element = activities.item(index) as Element
+      if (element.getAttributeNS(androidNamespace, "name") == ".MainActivity") {
+        mainActivityConfigChanges = element.getAttributeNS(androidNamespace, "configChanges")
+      }
+    }
+
+    assertEquals("locale|layoutDirection", mainActivityConfigChanges)
   }
 }

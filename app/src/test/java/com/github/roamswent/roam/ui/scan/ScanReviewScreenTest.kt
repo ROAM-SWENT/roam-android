@@ -27,9 +27,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.ImagePayload
@@ -258,6 +260,23 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.scan_retake_button).performClick()
 
     waitAndAssertDisplayed(C.Tag.scan_camera_screen)
+  }
+
+  @Test
+  fun galleryReviewBackReturnsToCollectionWhenOpenedFromCollection() {
+    showReviewRoute(
+        captureSender =
+            object : CaptureSender {
+              override suspend fun send(uri: Uri): Result<MonumentGuide> =
+                  Result.failure(UnsupportedOperationException())
+            },
+        isGalleryImage = true,
+        fromCollection = true,
+    )
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
   }
 
   @Test
@@ -533,25 +552,127 @@ class ScanReviewScreenTest {
     assertEquals(1, favouriteClicks)
   }
 
+  /** A gallery photo whose guide carries [photoLocation] and [monumentLocation]. */
+  private fun galleryGuideSender(
+      photoLocation: Coordinates?,
+      monumentLocation: Coordinates?,
+  ): CaptureSender =
+      object : CaptureSender {
+        override suspend fun send(uri: Uri): Result<MonumentGuide> =
+            Result.success(
+                guide.copy(
+                    location = photoLocation,
+                    monumentLocation = monumentLocation,
+                    photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
+                )
+            )
+      }
+
   @Test
-  fun reviewRouteHidesShowInExploreForGalleryImage() {
+  fun reviewRouteShowInExplorePinsTheGalleryPhotoLocation() {
+    // Where the photo was taken per its EXIF metadata, a few metres from the tower.
+    val photoLocation = Coordinates(48.8583, 2.2944)
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(
+        galleryGuideSender(photoLocation, monumentLocation = Coordinates(48.8584, 2.2945)),
+        isGalleryImage = true,
+        savedGuideRepository = savedGuides,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_show_in_explore)
+    composeTestRule
+        .onNodeWithText(
+            context.getString(R.string.monument_detail_show_in_explore_supporting_photo),
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+    val savedId = savedGuides.guides.value.single().id
+    assertEquals(null, savedGuides.guides.value.single().location)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_show_in_explore)
+        .assertIsOff()
+        .performClick()
+    composeTestRule.waitUntil(5_000) { savedGuides.guides.value.single().location != null }
+
+    assertEquals(listOf(savedId to photoLocation), savedGuides.locationUpdates)
+    assertEquals(photoLocation, savedGuides.guides.value.single().location)
+  }
+
+  @Test
+  fun reviewRouteExplainsThatAGalleryPhotoWithoutLocationIsNotOnExplore() {
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(
+        galleryGuideSender(photoLocation = null, monumentLocation = Coordinates(48.8584, 2.2945)),
+        isGalleryImage = true,
+        savedGuideRepository = savedGuides,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    composeTestRule
+        .onNodeWithText(
+            context.getString(R.string.monument_detail_explore_unavailable_no_photo_location),
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+    // The guide is still saved to the collection, just not put on Explore.
+    assertEquals(null, savedGuides.guides.value.single().location)
+    assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
+  }
+
+  @Test
+  fun reviewRouteExplainsThatAGalleryPhotoTakenFarAwayIsNotOnExplore() {
+    val savedGuides = FakeSavedGuideRepository()
+    showReviewRoute(
+        // Taken at the Louvre, about 3 km from the Eiffel Tower.
+        galleryGuideSender(
+            photoLocation = Coordinates(48.8606, 2.3376),
+            monumentLocation = Coordinates(48.8584, 2.2945),
+        ),
+        isGalleryImage = true,
+        savedGuideRepository = savedGuides,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    composeTestRule
+        .onNodeWithText(
+            context.getString(R.string.monument_detail_explore_unavailable_photo_too_far),
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+    assertEquals(null, savedGuides.guides.value.single().location)
+    assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
+  }
+
+  @Test
+  fun reviewRouteExplainsWhyAScanFarFromTheMonumentIsNotOnExplore() {
     val sender =
         object : CaptureSender {
           override suspend fun send(uri: Uri): Result<MonumentGuide> =
               Result.success(
                   guide.copy(
-                      location = Coordinates(48.8584, 2.2945),
+                      // Scanned at the Louvre, about 3 km from the Eiffel Tower.
+                      location = Coordinates(48.8606, 2.3376),
+                      monumentLocation = Coordinates(48.8584, 2.2945),
                       photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
                   )
               )
         }
     val savedGuides = FakeSavedGuideRepository()
-    showReviewRoute(sender, isGalleryImage = true, savedGuideRepository = savedGuides)
+    showReviewRoute(sender, savedGuideRepository = savedGuides)
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    // The guide is still saved to the collection, just not put on Explore.
     assertEquals(null, savedGuides.guides.value.single().location)
     assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
   }
@@ -565,6 +686,8 @@ class ScanReviewScreenTest {
               Result.success(
                   guide.copy(
                       location = scanLocation,
+                      // The tower's own position per the AI, a few metres from the scan.
+                      monumentLocation = Coordinates(48.8583, 2.2944),
                       photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg"),
                   )
               )
@@ -656,6 +779,7 @@ class ScanReviewScreenTest {
       captureSender: CaptureSender,
       userInterestsRepository: UserInterestsRepository = FakeUserInterestsRepository(),
       isGalleryImage: Boolean = false,
+      fromCollection: Boolean = false,
       savedGuideRepository: SavedGuideRepository = FakeSavedGuideRepository(),
   ) {
     val photo =
@@ -680,14 +804,31 @@ class ScanReviewScreenTest {
             Box(Modifier.fillMaxSize().testTag(C.Tag.home_screen_container))
           }
           composable(Routes.Scan) { Box(Modifier.fillMaxSize().testTag(C.Tag.scan_camera_screen)) }
-          composable("${Routes.ScanReview}?uri={uri}&gallery={gallery}") { entry ->
+          composable(Routes.Collection) {
+            Box(Modifier.fillMaxSize().testTag(C.Tag.collection_screen))
+          }
+          composable(
+              "${Routes.ScanReview}?uri={uri}&gallery={gallery}&fromCollection={fromCollection}",
+              arguments =
+                  listOf(
+                      navArgument("gallery") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                      },
+                      navArgument("fromCollection") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                      },
+                  ),
+          ) { entry ->
             ScanReviewRoute(
                 navController = controller,
                 uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
                 savedGuideRepository = savedGuideRepository,
-                isGalleryImage = isGalleryImage,
+                isGalleryImage = entry.arguments?.getBoolean("gallery") ?: false,
+                fromCollection = entry.arguments?.getBoolean("fromCollection") ?: false,
             )
           }
         }
@@ -695,8 +836,10 @@ class ScanReviewScreenTest {
     }
     composeTestRule.waitForIdle()
     composeTestRule.runOnIdle {
-      navController.navigate(Routes.Scan)
-      navController.navigate("${Routes.ScanReview}?uri=${Uri.encode(photoUri.toString())}")
+      navController.navigate(if (fromCollection) Routes.Collection else Routes.Scan)
+      navController.navigate(
+          "${Routes.ScanReview}?uri=${Uri.encode(photoUri.toString())}&gallery=$isGalleryImage&fromCollection=$fromCollection",
+      )
     }
     waitAndAssertDisplayed(C.Tag.scan_review_screen)
   }
@@ -767,6 +910,50 @@ class ScanReviewScreenTest {
 
     assertEquals(true, retried)
     assertEquals(true, dismissed)
+  }
+
+  @Test
+  fun reviewRouteSystemBackFromGuideReturnsCollectionWhenOpenedFromCollection() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+
+    showReviewRoute(
+        captureSender = sender,
+        isGalleryImage = true,
+        fromCollection = true,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    waitForDestination(Routes.Collection)
+  }
+
+  @Test
+  fun reviewRouteGuideBackButtonReturnsCollectionWhenOpenedFromCollection() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+
+    showReviewRoute(
+        captureSender = sender,
+        isGalleryImage = true,
+        fromCollection = true,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    waitForDestination(Routes.Collection)
   }
 
   private fun setContent(

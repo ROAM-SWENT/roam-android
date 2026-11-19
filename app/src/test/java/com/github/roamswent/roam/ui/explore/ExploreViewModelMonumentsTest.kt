@@ -1,6 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.explore
 
+import com.github.roamswent.roam.model.basemap.FakeOfflineBaseMapRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.location.Coordinates
@@ -51,6 +52,32 @@ class ExploreViewModelMonumentsTest {
             listOf(ExploreMonument("guide-1", "Eiffel Tower", eiffelLocation)),
             viewModel.monuments.value,
         )
+      }
+
+  /** Verifies that monuments are reported as loaded together with the first list, even empty. */
+  @Test
+  fun monumentsAreLoadedOnceTheFirstListArrives() =
+      runTest(dispatcher) {
+        val viewModel = viewModel(FakeSavedGuideRepository(emptyList()))
+        assertEquals(false, viewModel.monumentsLoaded.value)
+
+        observe(viewModel)
+
+        assertEquals(true, viewModel.monumentsLoaded.value)
+      }
+
+  /** Verifies that a failing observation still ends the loading wait, so the map is shown. */
+  @Test
+  fun observationFailureStillMarksMonumentsLoaded() =
+      runTest(dispatcher) {
+        val repository =
+            FakeSavedGuideRepository(listOf(eiffel)).apply {
+              loadError = IllegalStateException("offline")
+            }
+        val viewModel = viewModel(repository)
+        observe(viewModel)
+
+        assertEquals(true, viewModel.monumentsLoaded.value)
       }
 
   /** Verifies that a guide without a location stays off the map. */
@@ -206,6 +233,7 @@ class ExploreViewModelMonumentsTest {
                 override suspend fun currentCoordinates() = userLocation
               },
           savedGuideRepository = repository,
+          offlineBaseMapRepository = FakeOfflineBaseMapRepository(),
       )
 
   /** Subscribes like the map does and returns every emitted monument list. */
