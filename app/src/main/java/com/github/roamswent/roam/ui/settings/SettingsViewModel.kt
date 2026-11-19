@@ -17,6 +17,8 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.PublicProfile
@@ -49,6 +51,8 @@ class SettingsViewModel(
     private val profileRepository: ProfileRepository = ProfileRepositoryFirebase(),
     private val userInterestsRepository: UserInterestsRepository,
     private val publicProfileRepository: PublicProfileRepository? = null,
+    private val notificationInstallationRepository: NotificationInstallationRepository =
+        FirestoreNotificationInstallationRepository(),
 ) : ViewModel() {
 
   private val _uiState =
@@ -179,6 +183,14 @@ class SettingsViewModel(
   /** Initiates sign-out and updates the UI state on success or failure. */
   fun signOut(credentialManager: CredentialManager) {
     viewModelScope.launch {
+      try {
+        notificationInstallationRepository.removeCurrentInstallation()
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.e("SettingsViewModel", "Failed to remove notification installation.", exception)
+      }
+
       authRepository
           .signOut()
           .fold(

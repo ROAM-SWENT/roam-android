@@ -57,6 +57,8 @@ fun FriendsScreen(
     isMutating: Boolean = false,
     isSearching: Boolean = false,
     isLoading: Boolean = false,
+    hasLoaded: Boolean = false,
+    onRefresh: () -> Unit = {},
     errorMessage: String? = null,
     message: String? = null,
     onMessageDismiss: () -> Unit = {},
@@ -98,6 +100,8 @@ fun FriendsScreen(
         onRejectRequest = onRejectRequest,
         isMutating = isMutating,
         isLoading = isLoading,
+        hasLoaded = hasLoaded,
+        onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize().blur(if (isAddFriendsOpen) 8.dp else 0.dp),
     )
 

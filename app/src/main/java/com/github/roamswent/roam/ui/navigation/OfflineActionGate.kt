@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.navigation
@@ -29,10 +30,10 @@ enum class OfflineAction {
 }
 
 // Keep the actions requiring network access in one place so offline behavior is easy to adjust.
+// Explore stays available offline: saved monuments come from the Firestore cache.
 internal fun OfflineAction.requiresInternet(): Boolean =
     this == OfflineAction.OPEN_SCAN ||
         this == OfflineAction.START_DISCOVERY ||
-        this == OfflineAction.OPEN_EXPLORE ||
         this == OfflineAction.OPEN_FRIENDS
 
 @Composable
