@@ -215,10 +215,14 @@ fun MonumentDetailScreen(
               )
             }
           } else {
-            guide.facts.forEach { fact ->
+            if (guide.facts.isNotEmpty()) {
+              val factBulletLines = mutableListOf<String>()
+              for (fact in guide.facts) {
+                factBulletLines += stringResource(R.string.monument_detail_fact_bullet, fact)
+              }
               GuideCallout(
                   title = stringResource(R.string.monument_detail_facts_title),
-                  content = fact,
+                  content = factBulletLines.joinToString("\n"),
                   bodyStyle = guideBodyStyle(),
                   modifier =
                       Modifier.padding(bottom = 8.dp).semantics {

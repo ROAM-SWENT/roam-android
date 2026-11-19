@@ -94,9 +94,10 @@ class MonumentDetailScreenTest {
         .onNodeWithTag(C.Tag.monument_detail_culture)
         .assertIsDisplayed()
         .assertTextEquals(guide.culture)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(1)
     composeTestRule
-        .onAllNodesWithTag(C.Tag.monument_detail_fact_item)
-        .assertCountEquals(guide.facts.size)
+        .onNodeWithText("• 330 meters tall\n• Repainted every seven years")
+        .assertIsDisplayed()
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_drag_handle).performTouchInput {
       swipeUp()
