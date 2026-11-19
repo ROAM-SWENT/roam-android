@@ -43,6 +43,7 @@ fun ScanReviewRoute(
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
     savedGuideRepository: SavedGuideRepository,
     isGalleryImage: Boolean = false,
+    fromCollection: Boolean = false,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
   val context = LocalContext.current
@@ -104,25 +105,31 @@ fun ScanReviewRoute(
   val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
   val exploreUnavailableReason by loadingViewModel.exploreUnavailableReason.collectAsState()
 
+  val returnToGalleryOrigin = {
+    navController.popBackStack(
+        if (fromCollection) Routes.Collection else Routes.Scan,
+        inclusive = false,
+    )
+    Unit
+  }
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
     viewModel.navigationEvents.collect { event ->
       when (event) {
-        ScanReviewNavigationEvent.BackToCapture ->
-            navController.popBackStack(Routes.Scan, inclusive = false)
+        ScanReviewNavigationEvent.BackToCapture -> returnToGalleryOrigin()
       }
     }
   }
 
-  val returnToScan = {
-    navController.popBackStack(Routes.Scan, inclusive = false)
-    Unit
-  }
   BackHandler(enabled = !showLoading && !showInterestsPrompt) {
     if (discoveredGuide != null) {
-      navController.popBackStack(Routes.Home, inclusive = false)
+      if (fromCollection) {
+        returnToGalleryOrigin()
+      } else {
+        navController.popBackStack(Routes.Home, inclusive = false)
+      }
     } else if (isGalleryImage) {
-      returnToScan()
+      returnToGalleryOrigin()
     } else {
       viewModel.onRetake()
     }
@@ -131,7 +138,7 @@ fun ScanReviewRoute(
   if (showLoading) {
     LoadingRoute(
         imageUri = uri,
-        onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
+        onCancel = { returnToGalleryOrigin() },
         onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
         loadingViewModel = loadingViewModel,
     )
@@ -140,7 +147,7 @@ fun ScanReviewRoute(
     currentState?.let {
       ScanReviewScreen(
           state = it,
-          onRetake = if (isGalleryImage) returnToScan else viewModel::onRetake,
+          onRetake = if (isGalleryImage) returnToGalleryOrigin else viewModel::onRetake,
           onRetakeConfirm = viewModel::confirmRetake,
           onRetakeCancel = viewModel::cancelRetake,
           onRetryDelete = viewModel::onRetryDelete,
@@ -148,7 +155,13 @@ fun ScanReviewRoute(
           onSend = { onStartDiscovery(loadingViewModel::beginLoading) },
           onRetrySend = { onStartDiscovery(viewModel::onRetrySend) },
           onDismissSendError = viewModel::onDismissSendError,
-          onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
+          onHomeClick = {
+            if (fromCollection) {
+              returnToGalleryOrigin()
+            } else {
+              navController.popBackStack(Routes.Home, inclusive = false)
+            }
+          },
           showInterestsPrompt = showInterestsPrompt,
           isGalleryImage = isGalleryImage,
           onSaveInterests = loadingViewModel::onSaveInterests,

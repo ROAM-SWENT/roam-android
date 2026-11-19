@@ -93,6 +93,7 @@ import com.github.roamswent.roam.ui.profile.RegisterProfileScreen
 import com.github.roamswent.roam.ui.profile.RegisterProfileViewModel
 import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
+import com.github.roamswent.roam.ui.scan.rememberGalleryImagePicker
 import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -477,13 +478,17 @@ internal fun RoamApp(
         ScanRoute(navController, galleryImageUriOverride = testOverrides?.galleryImageUri)
       }
       composable(
-          "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
+          "${Routes.ScanReview}?uri={uri}&gallery={gallery}&fromCollection={fromCollection}",
           arguments =
               listOf(
                   navArgument("gallery") {
                     type = NavType.BoolType
                     defaultValue = false
-                  }
+                  },
+                  navArgument("fromCollection") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                  },
               ),
       ) { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
@@ -497,6 +502,7 @@ internal fun RoamApp(
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
               isGalleryImage = backStackEntry.arguments?.getBoolean("gallery") ?: false,
+              fromCollection = backStackEntry.arguments?.getBoolean("fromCollection") ?: false,
           )
         }
       }
@@ -532,6 +538,14 @@ internal fun RoamApp(
 
       composable(Routes.Collection) {
         val dockClearance = dockContentClearance()
+        val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
+          uri?.let {
+            navController.navigate(
+                "${Routes.ScanReview}?uri=${Uri.encode(it.toString())}&gallery=true&fromCollection=true",
+            )
+          }
+        }
+        val pickFromGallery = rememberGalleryImagePicker(onGalleryImagePicked)
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository.value,
@@ -544,6 +558,7 @@ internal fun RoamApp(
               friendRepository = testOverrides?.friendRepository,
               publicProfileRepository = publicProfileRepository,
               monumentSharingProvider = testOverrides?.monumentSharingProvider,
+              onPickFromGallery = pickFromGallery,
           )
         }
       }
