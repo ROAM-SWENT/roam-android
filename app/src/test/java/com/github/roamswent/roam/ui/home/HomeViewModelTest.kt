@@ -41,6 +41,7 @@ class HomeViewModelTest {
   fun setUp() {
     Dispatchers.setMain(dispatcher)
     repository = mockk()
+    HomeViewModel.clearProfileCacheForTests()
   }
 
   @After
@@ -55,6 +56,43 @@ class HomeViewModelTest {
     every { user.email } returns email
     return user
   }
+
+  @Test
+  fun publicProfileLoadsAvatarBytes() =
+      runTest(dispatcher) {
+        val user = mockUser(displayName = "Google Name", email = null)
+        every { repository.currentUser() } returns user
+        every { repository.currentUserFlow() } returns emptyFlow()
+        val avatarBytes = byteArrayOf(1, 2, 3)
+        val publicProfileRepository = mockk<PublicProfileRepository>()
+        coEvery { publicProfileRepository.getCurrentProfile() } returns
+            PublicProfile("uid", "app_username", avatarBytes)
+
+        val viewModel = HomeViewModel(repository, publicProfileRepository)
+        advanceUntilIdle()
+
+        assertEquals("app_username", viewModel.userName.value)
+        assertEquals(true, viewModel.avatarBytes.value.contentEquals(avatarBytes))
+      }
+
+  @Test
+  fun recreatedViewModelImmediatelyUsesCachedProfile() =
+      runTest(dispatcher) {
+        val user = mockUser(displayName = "Google Name", email = null)
+        every { repository.currentUser() } returns user
+        every { repository.currentUserFlow() } returns emptyFlow()
+        val publicProfileRepository = mockk<PublicProfileRepository>()
+        val avatarBytes = byteArrayOf(9, 8, 7)
+        coEvery { publicProfileRepository.getCurrentProfile() } returns
+            PublicProfile("uid", "cached_name", avatarBytes)
+
+        val first = HomeViewModel(repository, publicProfileRepository)
+        advanceUntilIdle()
+        val recreated = HomeViewModel(repository, publicProfileRepository)
+
+        assertEquals("cached_name", recreated.userName.value)
+        assertEquals(true, recreated.avatarBytes.value.contentEquals(avatarBytes))
+      }
 
   @Test
   fun seedUsesCurrentUserImmediately() {

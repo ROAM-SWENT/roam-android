@@ -22,6 +22,29 @@ class ImagePreparerTest {
   private val preparer = ImagePreparer()
 
   @Test
+  fun profilePictureIsSquareAt512AndBelow200Kb() {
+    val bytes = preparer.prepareProfilePicture(encode(640, 480, Bitmap.CompressFormat.PNG))
+
+    assertEquals(512 to 512, dimensionsOf(bytes))
+    assertTrue(bytes.size <= 200 * 1024)
+  }
+
+  @Test
+  fun profilePictureAccepts1000By667Image() {
+    val bytes = preparer.prepareProfilePicture(encode(1000, 667, Bitmap.CompressFormat.JPEG))
+
+    assertEquals(512 to 512, dimensionsOf(bytes))
+    assertTrue(bytes.size <= 200 * 1024)
+  }
+
+  @Test
+  fun profilePictureRejectsCorruptImage() {
+    assertRejected(RejectionReason.Undecodable) {
+      preparer.prepareProfilePicture(bytes(0xFF, 0xD8, 0xFF, 0xE0) + ByteArray(64) { 0x13 })
+    }
+  }
+
+  @Test
   fun preparesJpegAsJpegPayload() {
     val payload = preparer.prepare(encode(640, 480, Bitmap.CompressFormat.JPEG), "image/jpeg")
     assertEquals("image/jpeg", payload.mimeType)

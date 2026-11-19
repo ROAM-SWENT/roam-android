@@ -1020,6 +1020,11 @@ private class FakePublicProfileRepository : PublicProfileRepository {
   override suspend fun renameUsername(username: String): PublicProfile =
       currentUser.copy(username = username)
 
+  override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+      currentUser.copy(avatarBytes = imageBytes)
+
+  override suspend fun removeAvatar(): PublicProfile = currentUser
+
   override suspend fun searchProfiles(prefix: String): List<PublicProfile> =
       listOf(searchUser, requestTarget).filter { it.username.startsWith(prefix, ignoreCase = true) }
 }

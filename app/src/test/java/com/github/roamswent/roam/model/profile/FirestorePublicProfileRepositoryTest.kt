@@ -5,9 +5,11 @@ package com.github.roamswent.roam.model.profile
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
@@ -39,6 +41,43 @@ class FirestorePublicProfileRepositoryTest {
     every { firestore.collection("publicProfiles") } returns profiles
     every { firestore.collection("usernameClaims") } returns claims
     every { profiles.document("user-id") } returns profileReference
+  }
+
+  @Test
+  fun uploadAvatar_storesBlobInPublicProfile() = runTest {
+    val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+    val imageBytes = byteArrayOf(1, 2, 3)
+    every { profileReference.update("avatar", any<Blob>()) } returns Tasks.forResult(null)
+
+    val result = repository.uploadAvatar(imageBytes)
+
+    assertTrue(result.avatarBytes.contentEquals(imageBytes))
+    verify { profileReference.update("avatar", any<Blob>()) }
+  }
+
+  @Test
+  fun uploadAvatar_firestoreFailureReturnsAvatarFailure() = runTest {
+    val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+    val firestoreFailure = IllegalStateException("Firestore unavailable")
+    every { profileReference.update("avatar", any<Blob>()) } returns
+        Tasks.forException(firestoreFailure)
+
+    val error = captureFailure { repository.uploadAvatar(byteArrayOf(1)) }
+
+    assertTrue(error is PublicProfileException.AvatarFailure)
+  }
+
+  @Test
+  fun removeAvatar_deletesBlobField() = runTest {
+    val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+    every { profileReference.update("avatar", any<FieldValue>()) } returns Tasks.forResult(null)
+
+    val result = repository.removeAvatar()
+
+    assertNull(result.avatarBytes)
   }
 
   @Test
@@ -458,6 +497,7 @@ class FirestorePublicProfileRepositoryTest {
         every { getString("uid") } returns uid
         every { getString("username") } returns username
         every { getString("usernameLower") } returns usernameLower
+        every { getBlob("avatar") } returns null
       }
 
   private fun runTransactionWith(transaction: Transaction) {

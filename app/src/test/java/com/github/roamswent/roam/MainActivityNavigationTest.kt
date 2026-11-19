@@ -1810,6 +1810,11 @@ class MainActivityNavigationTest {
     override suspend fun renameUsername(username: String): PublicProfile =
         error("Not used in navigation tests")
 
+    override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+        error("Not used in navigation tests")
+
+    override suspend fun removeAvatar(): PublicProfile = error("Not used in navigation tests")
+
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
   }
 
