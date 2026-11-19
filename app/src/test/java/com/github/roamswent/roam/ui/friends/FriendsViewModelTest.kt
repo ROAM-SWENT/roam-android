@@ -192,6 +192,28 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun explicitRefreshReloadsCachedProfiles() =
+      runTest(dispatcher) {
+        var username = "OldName"
+        coEvery { friendsRepository.getFriends() } returns
+            listOf(Friendship("friendship", "friend"))
+        coEvery { profilesRepository.getProfile("friend") } coAnswers
+            {
+              PublicProfile("friend", username)
+            }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+        username = "NewName"
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals("NewName", viewModel.uiState.value.friends.single().username)
+        coVerify(exactly = 2) { profilesRepository.getProfile("friend") }
+      }
+
+  @Test
   fun searchFailureIsShownAndCanBeCleared() =
       runTest(dispatcher) {
         val error = IllegalStateException("profile search failed")
@@ -236,6 +258,43 @@ class FriendsViewModelTest {
 
         coVerify(exactly = 1) { friendsRepository.getFriends() }
         assertFalse(viewModel.uiState.value.isLoading)
+      }
+
+  @Test
+  fun refreshDoesNotStartAnotherLoadWhileLoading() =
+      runTest(dispatcher) {
+        val friendsResult = CompletableDeferred<List<Friendship>>()
+        coEvery { friendsRepository.getFriends() } coAnswers { friendsResult.await() }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        runCurrent()
+        viewModel.refresh()
+        friendsResult.complete(emptyList())
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { friendsRepository.getFriends() }
+        assertFalse(viewModel.uiState.value.isLoading)
+      }
+
+  @Test
+  fun refreshDoesNotStartAnotherLoadWhileMutating() =
+      runTest(dispatcher) {
+        val pendingRequest = CompletableDeferred<RepositoryFriendRequest>()
+        coEvery { friendsRepository.sendFriendRequest("target") } coAnswers
+            {
+              pendingRequest.await()
+            }
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.sendRequest(FriendUser("target", "Target"))
+        runCurrent()
+        viewModel.refresh()
+        pendingRequest.complete(RepositoryFriendRequest("request-id", "self", "target"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { friendsRepository.getFriends() }
+        assertFalse(viewModel.uiState.value.isMutating)
       }
 
   @Test

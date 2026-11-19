@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
@@ -70,7 +71,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -89,8 +91,7 @@ class ExploreScreenTest {
 
   /**
    * Verifies that the shown map reads the saved monuments from the view model. Google Maps markers
-   * expose no Compose semantics, so the markers built from these monuments are checked in
-   * [ExploreMapMarkersTest].
+   * expose no Compose semantics. Their SDK interactions are checked in [ExploreMapIntegrationTest].
    */
   @Test
   fun readsSavedMonumentsWhenMapIsShown() {
@@ -113,7 +114,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = true),
         )
@@ -282,7 +284,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = false),
         )
@@ -306,7 +309,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = true),
         )
@@ -335,7 +339,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = true),
         )
@@ -360,7 +365,8 @@ class ExploreScreenTest {
       SampleAppTheme(darkTheme = true, dynamicColor = false) {
         onSurfaceColor = MaterialTheme.colorScheme.onSurface.toArgb()
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -379,10 +385,10 @@ class ExploreScreenTest {
     assertTrue(foundOnSurfaceColor)
   }
 
-  /** Verifies that clicking the back button invokes the provided callback. */
+  /** Verifies that clicking the profile button invokes the provided callback. */
   @Test
-  fun backButtonInvokesCallback() {
-    var backClicks = 0
+  fun profileButtonInvokesCallback() {
+    var profileClicks = 0
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
@@ -394,17 +400,18 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = { backClicks++ },
+            onProfileClicked = { profileClicks++ },
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
       }
     }
 
-    val backButton = composeTestRule.onNodeWithContentDescription("Back")
-    backButton.assertIsDisplayed().performClick()
+    val profileButton = composeTestRule.onNodeWithContentDescription("Open profile")
+    profileButton.assertIsDisplayed().performClick()
 
-    assertEquals(1, backClicks)
+    assertEquals(1, profileClicks)
   }
 
   /** Verifies that a loading indicator is shown while the location is being loaded. */
@@ -418,7 +425,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -443,7 +451,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -468,7 +477,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -492,7 +502,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -527,7 +538,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )

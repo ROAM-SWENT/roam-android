@@ -44,6 +44,7 @@ data class FriendsUiState(
     val outgoingRequests: List<FriendRequest> = emptyList(),
     val searchResults: List<FriendSearchResult> = emptyList(),
     val isLoading: Boolean = false,
+    val hasLoaded: Boolean = false,
     val isSearching: Boolean = false,
     val isMutating: Boolean = false,
     val error: Exception? = null,
@@ -65,7 +66,17 @@ class FriendsViewModel(
   private val profileCache = mutableMapOf<String, CachedProfile>()
 
   fun loadFriends() {
+    startLoading(forceRefresh = false)
+  }
+
+  fun refresh() {
+    if (_uiState.value.isMutating) return
+    startLoading(forceRefresh = true)
+  }
+
+  private fun startLoading(forceRefresh: Boolean) {
     if (loadJob?.isActive == true || _uiState.value.isLoading) return
+    if (forceRefresh) profileCache.clear()
     _uiState.update { it.copy(isLoading = true, error = null) }
     loadJob = viewModelScope.launch { refreshFriends() }
   }
@@ -215,13 +226,14 @@ class FriendsViewModel(
                   )
                 },
             isLoading = false,
+            hasLoaded = true,
             error = null,
         )
       }
     } catch (exception: CancellationException) {
       throw exception
     } catch (exception: Exception) {
-      _uiState.update { it.copy(isLoading = false, error = exception) }
+      _uiState.update { it.copy(isLoading = false, hasLoaded = true, error = exception) }
     }
   }
 

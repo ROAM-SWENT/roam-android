@@ -11,8 +11,10 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.UserProfile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -44,6 +46,7 @@ class SettingsViewModelTest {
   private lateinit var profileRepository: ProfileRepository
   private lateinit var credentialManager: CredentialManager
   private lateinit var userInterestsRepository: FakeUserInterestsRepository
+  private lateinit var notificationInstallationRepository: NotificationInstallationRepository
 
   @Before
   fun setUp() {
@@ -51,8 +54,10 @@ class SettingsViewModelTest {
     repository = mock()
     profileRepository = mock()
     userInterestsRepository = FakeUserInterestsRepository()
+    notificationInstallationRepository = mock()
     credentialManager = mock()
     runBlocking {
+      whenever(notificationInstallationRepository.removeCurrentInstallation()).thenReturn(Unit)
       doReturn(Unit)
           .whenever(credentialManager)
           .clearCredentialState(any<ClearCredentialStateRequest>())
@@ -69,7 +74,7 @@ class SettingsViewModelTest {
   fun initialState_isEmpty() {
     assertEquals(
         SettingsUIState(),
-        SettingsViewModel(repository, profileRepository, userInterestsRepository).uiState.value,
+        newViewModel().uiState.value,
     )
   }
 
@@ -105,6 +110,25 @@ class SettingsViewModelTest {
 
     assertEquals(listOf("History"), userInterestsRepository.getUserInterests().interests)
     assertEquals(listOf("History"), viewModel.uiState.value.interests)
+  }
+
+  @Test
+  fun addExistingInterest_doesNotPersistOrDuplicate() {
+    userInterestsRepository.updateInterests(listOf("Architecture"))
+    val viewModel = newViewModel()
+
+    viewModel.addInterest("Architecture")
+
+    assertEquals(listOf("Architecture"), viewModel.uiState.value.interests)
+  }
+
+  @Test
+  fun removeMissingInterest_doesNotChangeState() {
+    val viewModel = newViewModel()
+
+    viewModel.removeInterest("Architecture")
+
+    assertTrue(viewModel.uiState.value.interests.isEmpty())
   }
 
   /** Verifies that clearing an error removes it from the observable UI state. */
@@ -159,8 +183,46 @@ class SettingsViewModelTest {
 
         assertTrue(viewModel.uiState.value.signedOut)
         assertNull(viewModel.uiState.value.errorMsg)
+        verify(notificationInstallationRepository).removeCurrentInstallation()
         verify(repository).signOut()
         verify(credentialManager).clearCredentialState(any<ClearCredentialStateRequest>())
+      }
+
+  /** Notification cleanup failure is logged but does not prevent an explicit sign-out. */
+  @Test
+  fun signOut_notificationCleanupFailure_stillSignsOut() =
+      runTest(dispatcher) {
+        runBlocking {
+          whenever(notificationInstallationRepository.removeCurrentInstallation())
+              .thenThrow(IllegalStateException("Unable to remove notification installation"))
+        }
+        whenever(repository.signOut()).thenReturn(Result.success(Unit))
+        val viewModel = newViewModel()
+
+        viewModel.signOut(credentialManager)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.signedOut)
+        verify(notificationInstallationRepository).removeCurrentInstallation()
+        verify(repository).signOut()
+      }
+
+  @Test
+  fun signOut_notificationCleanupCancellation_isRethrown() =
+      runTest(dispatcher) {
+        runBlocking {
+          whenever(notificationInstallationRepository.removeCurrentInstallation())
+              .thenThrow(CancellationException("cancelled"))
+        }
+        val viewModel = newViewModel()
+
+        viewModel.signOut(credentialManager)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.signedOut)
+        verify(notificationInstallationRepository).removeCurrentInstallation()
+        verifyNoInteractions(repository)
+        verifyNoInteractions(credentialManager)
       }
 
   /** Verifies that failed sign-out exposes the error without clearing the credential state. */
@@ -229,7 +291,12 @@ class SettingsViewModelTest {
               }
             }
         val viewModel =
-            SettingsViewModel(repository, blockingProfileRepository, userInterestsRepository)
+            SettingsViewModel(
+                repository,
+                blockingProfileRepository,
+                userInterestsRepository,
+                notificationInstallationRepository,
+            )
 
         viewModel.loadProfile()
         runCurrent()
@@ -241,7 +308,12 @@ class SettingsViewModelTest {
       }
 
   private fun newViewModel() =
-      SettingsViewModel(repository, profileRepository, userInterestsRepository)
+      SettingsViewModel(
+          repository,
+          profileRepository,
+          userInterestsRepository,
+          notificationInstallationRepository,
+      )
 
   private class FakeUserInterestsRepository(
       private var hasBeenAsked: Boolean = false,

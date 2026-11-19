@@ -54,7 +54,8 @@ import kotlin.math.roundToInt
  * reported back with [onFavoriteErrorShown]. The Explore switch is shown only when [exploreOptIn]
  * is not null, and reports changes with [onShowInExploreChange]. Otherwise, when
  * [exploreUnavailableReason] is not null, a message explains why the guide cannot be put on
- * Explore.
+ * Explore. [isGalleryImage] words both for a gallery photo, located by its own metadata, rather
+ * than for a scan located where the user stands.
  */
 @Composable
 fun MonumentDetailScreen(
@@ -69,6 +70,7 @@ fun MonumentDetailScreen(
     exploreOptIn: ExploreOptInUiState? = null,
     onShowInExploreChange: (Boolean) -> Unit = {},
     exploreUnavailableReason: ExploreUnavailableReason? = null,
+    isGalleryImage: Boolean = false,
 ) {
   val textBackgroundColor =
       if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
@@ -160,11 +162,13 @@ fun MonumentDetailScreen(
             ShowInExploreRow(
                 optIn = exploreOptIn,
                 onCheckedChange = onShowInExploreChange,
+                isGalleryImage = isGalleryImage,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
           } else if (exploreUnavailableReason != null) {
             ExploreUnavailableMessage(
                 reason = exploreUnavailableReason,
+                isGalleryImage = isGalleryImage,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
           }
@@ -257,11 +261,15 @@ private fun MonumentDetailFavoriteButton(
   }
 }
 
-/** Switch that puts the saved guide on Explore at the place it was scanned. */
+/**
+ * Switch that puts the saved guide on Explore at the place it was scanned, or for a gallery photo
+ * ([isGalleryImage]) at the place the photo was taken.
+ */
 @Composable
 private fun ShowInExploreRow(
     optIn: ExploreOptInUiState,
     onCheckedChange: (Boolean) -> Unit,
+    isGalleryImage: Boolean,
     modifier: Modifier = Modifier,
 ) {
   Column(modifier = modifier.fillMaxWidth()) {
@@ -284,7 +292,11 @@ private fun ShowInExploreRow(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = stringResource(R.string.monument_detail_show_in_explore_supporting),
+            text =
+                stringResource(
+                    if (isGalleryImage) R.string.monument_detail_show_in_explore_supporting_photo
+                    else R.string.monument_detail_show_in_explore_supporting
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -303,19 +315,26 @@ private fun ShowInExploreRow(
   }
 }
 
-/** Explains why the guide cannot be put on Explore, shown in place of the Explore switch. */
+/**
+ * Explains why the guide cannot be put on Explore, shown in place of the Explore switch. For a
+ * gallery photo ([isGalleryImage]) the observed location is the photo's, not the user's.
+ */
 @Composable
 private fun ExploreUnavailableMessage(
     reason: ExploreUnavailableReason,
+    isGalleryImage: Boolean,
     modifier: Modifier = Modifier,
 ) {
   val message =
       when (reason) {
         ExploreUnavailableReason.NO_OBSERVED_LOCATION ->
-            R.string.monument_detail_explore_unavailable_no_location
+            if (isGalleryImage) R.string.monument_detail_explore_unavailable_no_photo_location
+            else R.string.monument_detail_explore_unavailable_no_location
         ExploreUnavailableReason.NO_MONUMENT_LOCATION ->
             R.string.monument_detail_explore_unavailable_no_monument_location
-        ExploreUnavailableReason.TOO_FAR -> R.string.monument_detail_explore_unavailable_too_far
+        ExploreUnavailableReason.TOO_FAR ->
+            if (isGalleryImage) R.string.monument_detail_explore_unavailable_photo_too_far
+            else R.string.monument_detail_explore_unavailable_too_far
       }
   Text(
       text = stringResource(message),
