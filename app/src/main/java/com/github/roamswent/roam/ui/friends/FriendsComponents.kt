@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,6 +33,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +41,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +68,7 @@ import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.accentIcon
 import com.github.roamswent.roam.ui.theme.isDark
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FriendsContent(
     friends: List<FriendUser>,
@@ -79,8 +85,12 @@ internal fun FriendsContent(
     onRejectRequest: (FriendRequest) -> Unit,
     isMutating: Boolean,
     isLoading: Boolean,
+    hasLoaded: Boolean,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+  val listState = rememberLazyListState()
+  val pullRefreshState = rememberPullToRefreshState()
   Column(
       modifier = modifier.statusBarsPadding().padding(horizontal = 20.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -92,39 +102,68 @@ internal fun FriendsContent(
         onAddFriendsClicked = onAddFriendsClicked,
         onProfileClicked = onProfileClicked,
     )
-    friendRequests.forEach { request ->
-      FriendRequestCard(
-          request = request,
-          onAccept = { onAcceptRequest(request) },
-          onReject = { onRejectRequest(request) },
-          enabled = !isMutating,
-          modifier = Modifier.fillMaxWidth(),
-      )
-    }
-    FriendsSearchField(
-        query = friendsQuery,
-        onQueryChanged = onFriendsQueryChanged,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    if (isLoading && friends.isEmpty() && friendRequests.isEmpty()) {
-      Box(
-          modifier = Modifier.fillMaxWidth().weight(1f),
-          contentAlignment = Alignment.Center,
-      ) {
-        CircularProgressIndicator()
-      }
-    } else {
-      LazyColumn(
-          modifier = Modifier.fillMaxWidth().weight(1f),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        items(friends, key = FriendUser::id) { friend ->
-          FriendRow(
-              friend = friend,
-              onClick = { onFriendClicked(friend) },
-              onRemove = { onRemoveFriend(friend) },
-              enabled = !isMutating,
+    val isRefreshing = isLoading && hasLoaded
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        state = pullRefreshState,
+        indicator = {
+          val refreshDescription = stringResource(R.string.friends_refreshing)
+          PullToRefreshDefaults.Indicator(
+              state = pullRefreshState,
+              isRefreshing = isRefreshing,
+              modifier =
+                  Modifier.align(Alignment.TopCenter).semantics {
+                    contentDescription = refreshDescription
+                    testTag = C.Tag.friends_refresh_indicator
+                  },
           )
+        },
+    ) {
+      Column(
+          modifier = Modifier.matchParentSize(),
+          verticalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        friendRequests.forEach { request ->
+          FriendRequestCard(
+              request = request,
+              onAccept = { onAcceptRequest(request) },
+              onReject = { onRejectRequest(request) },
+              enabled = !isMutating,
+              modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        FriendsSearchField(
+            query = friendsQuery,
+            onQueryChanged = onFriendsQueryChanged,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (isLoading && !hasLoaded && friends.isEmpty() && friendRequests.isEmpty()) {
+          Box(
+              modifier = Modifier.fillMaxWidth().weight(1f),
+              contentAlignment = Alignment.Center,
+          ) {
+            CircularProgressIndicator(
+                modifier = Modifier.semantics { testTag = C.Tag.friends_initial_loading }
+            )
+          }
+        } else {
+          LazyColumn(
+              modifier =
+                  Modifier.fillMaxWidth().weight(1f).semantics { testTag = C.Tag.friends_list },
+              state = listState,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            items(friends, key = FriendUser::id) { friend ->
+              FriendRow(
+                  friend = friend,
+                  onClick = { onFriendClicked(friend) },
+                  onRemove = { onRemoveFriend(friend) },
+                  enabled = !isMutating,
+              )
+            }
+          }
         }
       }
     }
