@@ -42,6 +42,16 @@ internal object GuideDocumentSize {
     fieldsSize += fieldSize("history", guide.history.firestoreStringSize())
     fieldsSize += fieldSize("facts", guide.facts.sumOf { it.firestoreStringSize() })
     fieldsSize += fieldSize("culture", guide.culture.firestoreStringSize())
+    fieldsSize +=
+        fieldSize(
+            "sections",
+            guide.sections.sumOf {
+              it.title.firestoreStringSize() +
+                  it.content.firestoreStringSize() +
+                  DOCUMENT_OVERHEAD_BYTES
+            },
+        )
+    fieldsSize += fieldSize("interestCount", NUMBER_SIZE_BYTES)
 
     guide.location?.let {
       val locationSize =

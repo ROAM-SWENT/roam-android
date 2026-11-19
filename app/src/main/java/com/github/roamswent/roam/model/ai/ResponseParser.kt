@@ -23,6 +23,8 @@ object ResponseParser {
   private const val MAX_LONG_TEXT = 4000
   private const val MAX_FACT = 500
   private const val MAX_FACTS = 20
+  private const val MAX_SECTIONS = 10
+  private const val MAX_SECTION_TITLE = 80
   private const val MAX_REASON = 200
 
   /**
@@ -39,6 +41,18 @@ object ResponseParser {
     if (confidence !in 0.0..1.0) throw ParseException()
 
     val facts = root.stringList("facts").map { it.trim().take(MAX_FACT) }.filter { it.isNotEmpty() }
+    val sections =
+        root.optionalSections()?.let { rawSections ->
+          rawSections
+              .map { section ->
+                GuideSection(
+                    title = section.title.trim().take(MAX_SECTION_TITLE),
+                    content = section.content.trim().take(MAX_LONG_TEXT),
+                )
+              }
+              .filter { it.title.isNotEmpty() && it.content.isNotEmpty() }
+              .take(MAX_SECTIONS)
+        } ?: emptyList()
     return MonumentGuide(
         monumentName = name,
         confidence = confidence,
@@ -46,8 +60,21 @@ object ResponseParser {
         facts = facts.take(MAX_FACTS),
         culture = root.string("culture").trim().take(MAX_LONG_TEXT),
         language = PromptBuilder.sanitizeLanguage(root.string("language")),
+        sections = sections,
         monumentLocation = root.optionalCoordinates("monumentLatitude", "monumentLongitude"),
     )
+  }
+
+  private fun JsonObject.optionalSections(): List<GuideSection>? {
+    val value = this["sections"] ?: return null
+    val array = value as? JsonArray ?: throw ParseException()
+    return array.map { element ->
+      val section = element as? JsonObject ?: throw ParseException()
+      GuideSection(
+          title = section.string("title"),
+          content = section.string("content"),
+      )
+    }
   }
 
   /**

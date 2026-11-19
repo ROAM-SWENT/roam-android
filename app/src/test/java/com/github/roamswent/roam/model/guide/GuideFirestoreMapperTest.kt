@@ -3,6 +3,7 @@
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.location.Coordinates
 import com.google.firebase.firestore.Blob
 import org.junit.Assert.assertEquals
@@ -21,6 +22,8 @@ class GuideFirestoreMapperTest {
           history = "Built in 1889.",
           facts = listOf("330 meters tall"),
           culture = "A symbol of Paris.",
+          sections = listOf(GuideSection("Architecture", "A detailed paragraph.")),
+          interestCount = 1,
           location = Coordinates(48.8584, 2.2945),
           discoveryDate = 1_798_000_000_000,
       )

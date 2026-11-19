@@ -27,6 +27,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
@@ -93,9 +94,10 @@ class MonumentDetailScreenTest {
         .onNodeWithTag(C.Tag.monument_detail_culture)
         .assertIsDisplayed()
         .assertTextEquals(guide.culture)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(1)
     composeTestRule
-        .onAllNodesWithTag(C.Tag.monument_detail_fact_item)
-        .assertCountEquals(guide.facts.size)
+        .onNodeWithText("• 330 meters tall\n• Repainted every seven years")
+        .assertIsDisplayed()
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_drag_handle).performTouchInput {
       swipeUp()
@@ -117,6 +119,39 @@ class MonumentDetailScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
 
     assertTrue(backClicked)
+  }
+
+  @Test
+  fun interestSectionsUseReadableOrderWithCalloutsAtTheBottom() {
+    val sectionGuide =
+        guide.copy(
+            sections =
+                listOf(
+                    GuideSection("Fun Facts", "A fun fact."),
+                    GuideSection("Architecture", "A detailed description."),
+                    GuideSection("Legends & Myths", "A legend."),
+                ),
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = sectionGuide,
+            onBackClick = {},
+        )
+      }
+    }
+
+    val architectureY =
+        composeTestRule.onNodeWithText("Architecture").fetchSemanticsNode().positionInRoot.y
+    val funFactsY =
+        composeTestRule.onNodeWithText("Fun Facts").fetchSemanticsNode().positionInRoot.y
+    val legendsY =
+        composeTestRule.onNodeWithText("Legends & Myths").fetchSemanticsNode().positionInRoot.y
+
+    assertTrue(architectureY < funFactsY)
+    assertTrue(funFactsY < legendsY)
   }
 
   @Test

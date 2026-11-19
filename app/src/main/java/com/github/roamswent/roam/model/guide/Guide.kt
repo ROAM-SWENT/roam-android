@@ -3,6 +3,7 @@
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.location.Coordinates
 
 /** A saved guide, including the photo and all information shown on the detail screen. */
@@ -14,6 +15,8 @@ data class Guide(
     val history: String,
     val facts: List<String>,
     val culture: String,
+    val sections: List<GuideSection> = emptyList(),
+    val interestCount: Int = 0,
     /** Coordinates where the guide was discovered, if location was available. */
     val location: Coordinates? = null,
     /** Discovery time as Unix epoch milliseconds; null if not available. */
@@ -31,6 +34,8 @@ data class Guide(
           history == other.history &&
           facts == other.facts &&
           culture == other.culture &&
+          sections == other.sections &&
+          interestCount == other.interestCount &&
           location == other.location &&
           discoveryDate == other.discoveryDate &&
           isFavorite == other.isFavorite &&
@@ -44,6 +49,8 @@ data class Guide(
     result = 31 * result + history.hashCode()
     result = 31 * result + facts.hashCode()
     result = 31 * result + culture.hashCode()
+    result = 31 * result + sections.hashCode()
+    result = 31 * result + interestCount
     result = 31 * result + (location?.hashCode() ?: 0)
     result = 31 * result + (discoveryDate?.hashCode() ?: 0)
     result = 31 * result + isFavorite.hashCode()

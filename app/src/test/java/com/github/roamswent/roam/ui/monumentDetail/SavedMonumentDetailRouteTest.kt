@@ -43,7 +43,7 @@ class SavedMonumentDetailRouteTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Eiffel Tower")
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_confidence).assertTextEquals("92% match")
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_history).assertTextEquals("Built in 1889.")
-    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(2)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(1)
     composeTestRule
         .onNodeWithTag(C.Tag.monument_detail_culture)
         .assertTextEquals("A symbol of Paris.")

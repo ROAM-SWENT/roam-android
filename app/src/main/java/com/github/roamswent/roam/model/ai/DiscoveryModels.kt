@@ -19,6 +19,9 @@ class ImagePayload(val bytes: ByteArray, val mimeType: String) {
 /** Traveler settings that shape the guide. */
 data class UserPreferences(val language: String, val interests: List<String> = emptyList())
 
+/** A paragraph of guide content targeted at one traveler interest. */
+data class GuideSection(val title: String, val content: String)
+
 /**
  * Everything one scan needs. [location] is the observed position, or null when it is unknown.
  *
@@ -54,6 +57,8 @@ data class MonumentGuide(
     val facts: List<String>,
     val culture: String,
     val language: String,
+    val sections: List<GuideSection> = emptyList(),
+    val interestCount: Int = 0,
     val location: Coordinates? = null,
     val photo: ImagePayload? = null,
     val monumentLocation: Coordinates? = null,

@@ -65,6 +65,28 @@ class PromptBuilderTest {
   }
 
   @Test
+  fun guidePromptRequestsDepthForThreeInterests() {
+    val prompt =
+        PromptBuilder.guidePrompt(
+            UserPreferences("fr", listOf("architecture", "history", "nature")),
+            null,
+        )
+
+    assertTrue(prompt.contains("three or fewer selected topics"))
+  }
+
+  @Test
+  fun guidePromptRequestsConcisenessForSeveralInterests() {
+    val prompt =
+        PromptBuilder.guidePrompt(
+            UserPreferences("fr", listOf("art", "architecture", "history", "nature")),
+            null,
+        )
+
+    assertTrue(prompt.contains("keep each section focused, concise, and easy to scan"))
+  }
+
+  @Test
   fun guidePromptSanitizesInterestsBeforePersonalizing() {
     val longInterest = "a".repeat(41)
     val prompt =
