@@ -38,6 +38,10 @@ val OfflineNoticeBackground = Color(0xFFFFE9E6)
 val OfflineNoticeContent = Color(0xFF7A271A)
 val SignOutContainer = Color(0xFFFFF1F0)
 val SignOutContent = Color(0xFFDB4038)
+/** Light-only colors of the offline Explore base map; use the theme-aware ones below. */
+val OfflineMapWaterLight = Color(0xFFCFE3E6)
+val OfflineMapLandLight = Color(0xFFF7F8F6)
+val OfflineMapBorderLight = Color(0xFFB7C2BE)
 
 /** Content on a brand-color container ([HomeAccentGreen], [ScanTeal]), in both themes. */
 val OnBrand = Color.White
@@ -103,6 +107,18 @@ val MaterialTheme.offlineNoticeContainer: Color
 /** Content of the offline notice card. */
 val MaterialTheme.offlineNoticeContent: Color
   @Composable get() = if (isDark) colorScheme.onSurfaceVariant else OfflineNoticeContent
+
+/** Sea of the offline Explore base map, drawn when the map tiles cannot load. */
+val MaterialTheme.offlineMapWater: Color
+  @Composable get() = if (isDark) colorScheme.background else OfflineMapWaterLight
+
+/** Land of the offline Explore base map. */
+val MaterialTheme.offlineMapLand: Color
+  @Composable get() = if (isDark) colorScheme.surfaceVariant else OfflineMapLandLight
+
+/** Country borders of the offline Explore base map. */
+val MaterialTheme.offlineMapBorder: Color
+  @Composable get() = if (isDark) colorScheme.outline else OfflineMapBorderLight
 
 /** Container of a destructive action button, such as sign out. */
 val MaterialTheme.destructiveContainer: Color
