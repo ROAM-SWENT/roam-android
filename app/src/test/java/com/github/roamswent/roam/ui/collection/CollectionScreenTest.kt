@@ -582,6 +582,23 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun galleryButtonRemainsAvailableWhenCollectionIsEmpty() {
+    var pickCount = 0
+
+    setScreen(
+        SavedGuidesUiState(guides = emptyList()),
+        onPickFromGallery = { pickCount++ },
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_gallery_button)
+        .assertIsDisplayed()
+        .performClick()
+
+    assertEquals(1, pickCount)
+  }
+
+  @Test
   fun clearButtonAppearsWhenQueryIsNotEmptyAndResetsQuery() {
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(olderGuide), searchQuery = ""))
     composeTestRule.setContent {

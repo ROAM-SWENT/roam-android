@@ -179,11 +179,16 @@ fun CollectionScreen(
               onQueryChange = onSearchQueryChange,
               modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
           )
-          CollectionFilterChips(
-              state.showFavoritesOnly,
-              onShowFavoritesOnlyChange,
-              onPickFromGallery,
-          )
+          Row(
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              modifier =
+                  Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+          ) {
+            CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
+            Spacer(Modifier.weight(1f))
+            CollectionGalleryButton(onPickFromGallery)
+          }
           val guides = visibleGuides(state.guides, state.showFavoritesOnly, state.searchQuery)
           when {
             guides.isEmpty() && state.searchQuery.isNotBlank() -> {
@@ -199,7 +204,16 @@ fun CollectionScreen(
         }
         state.isLoadingGuides -> CollectionLoading()
         state.guidesError != null -> CollectionMessage(C.Tag.collection_error) { CollectionError() }
-        else -> CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty() }
+        else -> {
+          Row(
+              modifier =
+                  Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+              horizontalArrangement = Arrangement.End,
+          ) {
+            CollectionGalleryButton(onPickFromGallery)
+          }
+          CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty() }
+        }
       }
     }
   }
@@ -277,12 +291,10 @@ private fun CollectionSearchBar(
 private fun CollectionFilterChips(
     favoritesOnly: Boolean,
     onChange: (Boolean) -> Unit,
-    onPickFromGallery: () -> Unit,
 ) {
   Row(
       horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalAlignment = Alignment.CenterVertically,
-      modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
   ) {
     CollectionFilterChip(
         label = stringResource(R.string.collection_filter_all),
@@ -297,17 +309,20 @@ private fun CollectionFilterChips(
         tag = C.Tag.collection_filter_favorites,
         showHeart = true,
     )
-    Spacer(Modifier.weight(1f))
-    IconButton(
-        onClick = onPickFromGallery,
-        modifier = Modifier.semantics { testTag = C.Tag.collection_gallery_button },
-    ) {
-      Icon(
-          imageVector = Icons.Rounded.AddPhotoAlternate,
-          contentDescription = stringResource(R.string.scan_gallery_description),
-          tint = MaterialTheme.accentIcon,
-      )
-    }
+  }
+}
+
+@Composable
+private fun CollectionGalleryButton(onPickFromGallery: () -> Unit) {
+  IconButton(
+      onClick = onPickFromGallery,
+      modifier = Modifier.semantics { testTag = C.Tag.collection_gallery_button },
+  ) {
+    Icon(
+        imageVector = Icons.Rounded.AddPhotoAlternate,
+        contentDescription = stringResource(R.string.scan_gallery_description),
+        tint = MaterialTheme.accentIcon,
+    )
   }
 }
 
