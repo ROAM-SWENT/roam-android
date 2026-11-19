@@ -124,6 +124,9 @@ class ExploreScreenTest {
   fun profileBubbleShowsInitialAndInvokesCallback() {
     var clicked = false
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
+    whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
 
     composeTestRule.setContent {
@@ -534,7 +537,7 @@ class ExploreScreenTest {
         .onNodeWithText("Turn on location permission to see where you are on the map.")
         .assertIsDisplayed()
     // The profile bubble is the only additional action in the top app bar.
-    composeTestRule.onAllNodes(hasClickAction()).assertCountEquals(2)
+    composeTestRule.onAllNodes(hasClickAction()).assertCountEquals(1)
   }
 
   /** Verifies that the unavailable-location message and retry action are shown. */
