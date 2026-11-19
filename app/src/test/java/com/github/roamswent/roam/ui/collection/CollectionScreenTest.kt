@@ -29,6 +29,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
 import coil.ImageLoader
@@ -831,6 +832,26 @@ class CollectionScreenTest {
     composeTestRule
         .onNodeWithText("Search your collection", useUnmergedTree = true)
         .assertIsDisplayed()
+  }
+
+  @Test
+  fun profileBubbleHasBreathingRoomAboveSearchBarWhenCollectionIsPopulated() {
+    setScreen(SavedGuidesUiState(guides = listOf(olderGuide)))
+
+    val profileBottom =
+        composeTestRule
+            .onNodeWithTag(C.Tag.collection_profile_button)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .bottom
+    val searchTop =
+        composeTestRule
+            .onNodeWithTag(C.Tag.collection_search_bar)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+
+    assertTrue(searchTop - profileBottom >= with(composeTestRule.density) { 12.dp.toPx() })
   }
 
   @Test

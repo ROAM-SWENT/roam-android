@@ -192,7 +192,9 @@ fun CollectionScreen(
   ) { contentPadding ->
     Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
       Row(
-          modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp),
+          modifier =
+              Modifier.fillMaxWidth()
+                  .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
           verticalAlignment = Alignment.CenterVertically,
       ) {
         Text(

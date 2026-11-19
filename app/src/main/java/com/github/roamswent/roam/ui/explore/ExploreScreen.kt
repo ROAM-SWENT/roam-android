@@ -243,8 +243,8 @@ internal fun exploreMapProperties(isOnline: Boolean, isMyLocationEnabled: Boolea
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
-    onProfileClicked: () -> Unit,
-    profileName: String,
+    onProfileClicked: () -> Unit = {},
+    profileName: String = HomeViewModel.DEFAULT_USER_NAME,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,

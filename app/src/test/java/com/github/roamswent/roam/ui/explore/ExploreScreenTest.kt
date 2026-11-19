@@ -129,7 +129,6 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = true),
             profileName = "Ada Lovelace",
