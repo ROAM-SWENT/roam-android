@@ -1,10 +1,14 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -23,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -55,17 +58,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
@@ -79,68 +85,43 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.ComposeMapColorScheme
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 
 private fun Coordinates.toLatLng() = LatLng(latitude, longitude)
 
+private fun hasLocationPermission(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
 internal fun exploreMapColorScheme(isDark: Boolean): ComposeMapColorScheme =
     if (isDark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT
-
-/** A standard marker drawn on the Explore map, identified by a [key] unique within the map. */
-internal data class ExploreMapMarker(
-    val key: String,
-    val coordinates: Coordinates,
-    val title: String,
-)
-
-/** Key of the user's location marker; monument keys are prefixed so they can never collide. */
-internal const val USER_LOCATION_MARKER_KEY = "user_location"
-
-/**
- * Lists the markers of the Explore map: the user's location first, then one marker per saved
- * monument, titled with the monument name.
- */
-internal fun exploreMapMarkers(
-    userLocation: Coordinates,
-    userLocationTitle: String,
-    monuments: List<ExploreMonument>,
-): List<ExploreMapMarker> =
-    listOf(ExploreMapMarker(USER_LOCATION_MARKER_KEY, userLocation, userLocationTitle)) +
-        monuments.map { ExploreMapMarker("monument_${it.guideId}", it.coordinates, it.name) }
 
 internal fun selectedMonumentForId(
     monuments: List<ExploreMonument>,
     selectedMonumentId: String?,
 ): ExploreMonument? = monuments.firstOrNull { it.guideId == selectedMonumentId }
 
-internal fun selectedMonumentIdForMarkerKey(markerKey: String): String? =
-    markerKey.takeUnless { it == USER_LOCATION_MARKER_KEY }?.removePrefix("monument_")
-
 internal fun updateSelectedMonumentId(
     monuments: List<ExploreMonument>,
     selectedMonumentId: String?,
 ): String? = selectedMonumentId?.takeIf { selectedId -> monuments.any { it.guideId == selectedId } }
 
-internal fun handleExploreMarkerClick(
-    markerKey: String,
-    onMonumentSelected: (String) -> Unit,
-): Boolean =
-    selectedMonumentIdForMarkerKey(markerKey)?.let {
-      onMonumentSelected(it)
-      true
-    } ?: false
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
-    onBackClick: () -> Unit,
+    onProfileClicked: () -> Unit,
+    profileName: String,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
 ) {
   val uiState by exploreViewModel.uiState.collectAsState()
   val permissionState by locationPermissionController.state.collectAsState()
+  val context = LocalContext.current
 
   LaunchedEffect(permissionState) {
     exploreViewModel.onPermissionStateChanged(
@@ -164,13 +145,18 @@ fun ExploreScreen(
                   fontWeight = FontWeight.Bold,
               )
             },
-            navigationIcon = {
-              IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.explore_back_description),
-                )
-              }
+            actions = {
+              val description = stringResource(R.string.home_profile_button_description)
+              ProfilePicture(
+                  name = profileName,
+                  onClick = onProfileClicked,
+                  modifier =
+                      Modifier.padding(end = 16.dp).size(48.dp).semantics {
+                        contentDescription = description
+                        testTag = C.Tag.home_profile_button
+                      },
+                  textStyle = MaterialTheme.typography.titleSmall,
+              )
             },
         )
       },
@@ -189,13 +175,6 @@ fun ExploreScreen(
           val cameraPositionState = rememberCameraPositionState {
             position = CameraPosition.fromLatLngZoom(userLocation, 14f)
           }
-          val markers =
-              exploreMapMarkers(
-                  userLocation = coordinates,
-                  userLocationTitle = stringResource(R.string.explore_user_location),
-                  monuments = monuments,
-              )
-          val monumentsByMarkerKey = monuments.associateBy { "monument_${it.guideId}" }
           var selectedMonumentId by remember { mutableStateOf<String?>(null) }
           LaunchedEffect(monuments, selectedMonumentId) {
             selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
@@ -207,31 +186,26 @@ fun ExploreScreen(
             GoogleMap(
                 modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
                 cameraPositionState = cameraPositionState,
+                properties =
+                    MapProperties(
+                        isMyLocationEnabled =
+                            permissionState.isGranted && hasLocationPermission(context)
+                    ),
+                uiSettings = MapUiSettings(myLocationButtonEnabled = false),
                 mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
             ) {
-              markers.forEach { marker ->
-                key(marker.key) {
-                  val position = marker.coordinates.toLatLng()
-                  val markerState = remember(position) { MarkerState(position = position) }
-                  val monument = monumentsByMarkerKey[marker.key]
-                  if (monument == null) {
-                    Marker(
-                        state = markerState,
-                        title = marker.title,
-                        onClick = {
-                          handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
-                        },
-                    )
-                  } else {
-                    ExploreMonumentMarker(
-                        monument = monument,
-                        state = markerState,
-                        isSelected = selectedMonumentId == monument.guideId,
-                        onClick = {
-                          handleExploreMarkerClick(marker.key) { selectedMonumentId = it }
-                        },
-                    )
-                  }
+              monuments.forEach { monument ->
+                key(monument.guideId) {
+                  val position = monument.coordinates.toLatLng()
+                  ExploreMonumentMarker(
+                      monument = monument,
+                      state = remember(position) { MarkerState(position = position) },
+                      isSelected = selectedMonumentId == monument.guideId,
+                      onClick = {
+                        selectedMonumentId = monument.guideId
+                        true
+                      },
+                  )
                 }
               }
             }
@@ -242,7 +216,8 @@ fun ExploreScreen(
                   isExpanded = isMonumentExpanded,
                   onExpand = { isMonumentExpanded = true },
                   onMinimize = { isMonumentExpanded = false },
-                  modifier = Modifier.align(Alignment.BottomCenter),
+                  // The Scan halo rises 36 dp above the dock body reserved by the route.
+                  modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
               )
             }
           }
