@@ -1,6 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.explore
 
+import com.github.roamswent.roam.model.basemap.FakeOfflineBaseMapRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.location.Coordinates
@@ -232,6 +233,7 @@ class ExploreViewModelMonumentsTest {
                 override suspend fun currentCoordinates() = userLocation
               },
           savedGuideRepository = repository,
+          offlineBaseMapRepository = FakeOfflineBaseMapRepository(),
       )
 
   /** Subscribes like the map does and returns every emitted monument list. */
