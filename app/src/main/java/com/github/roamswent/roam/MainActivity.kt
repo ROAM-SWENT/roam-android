@@ -407,16 +407,7 @@ internal fun RoamApp(
         }
     if (offlineAction == null) navigate() else runOfflineAction(offlineAction, navigate)
   }
-  val onProfileClicked = {
-    navController.navigate(Routes.Settings) {
-      popUpTo(Routes.Home) {
-        inclusive = false
-        saveState = true
-      }
-      launchSingleTop = true
-      restoreState = true
-    }
-  }
+  val onProfileClicked = { navController.navigate(Routes.Settings) { launchSingleTop = true } }
   // Screens apply their own status bar inset, so the top inset stays 0 and
   // containerColor covers the status bar strip.
   @Composable
@@ -551,6 +542,8 @@ internal fun RoamApp(
       }
 
       composable(Routes.Collection) {
+        val homeViewModel: HomeViewModel = viewModel()
+        val userName by homeViewModel.userName.collectAsState()
         val dockClearance = dockContentClearance()
         val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
           uri?.let {
@@ -572,6 +565,8 @@ internal fun RoamApp(
               friendRepository = testOverrides?.friendRepository,
               publicProfileRepository = publicProfileRepository,
               monumentSharingProvider = testOverrides?.monumentSharingProvider,
+              profileName = userName,
+              onProfileClicked = onProfileClicked,
               onPickFromGallery = pickFromGallery,
           )
         }

@@ -82,7 +82,9 @@ import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
+import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
@@ -120,6 +122,8 @@ fun CollectionScreen(
     state: SavedGuidesUiState,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
+    profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    onProfileClicked: () -> Unit = {},
     onDeleteGuide: (String) -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
@@ -190,18 +194,30 @@ fun CollectionScreen(
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
   ) { contentPadding ->
     Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
-      Text(
-          text = stringResource(R.string.collection_title),
-          style = MaterialTheme.typography.headlineMedium,
-          fontWeight = FontWeight.Bold,
-          color =
-              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
-              else LoadingTextPrimary,
+      Row(
           modifier =
-              Modifier.padding(horizontal = 20.dp, vertical = 16.dp).semantics {
-                testTag = C.Tag.collection_title
-              },
-      )
+              Modifier.fillMaxWidth()
+                  .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+            text = stringResource(R.string.collection_title),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color =
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
+                else LoadingTextPrimary,
+            modifier =
+                Modifier.weight(1f).padding(vertical = 8.dp).semantics {
+                  testTag = C.Tag.collection_title
+                },
+        )
+        ProfileBubble(
+            name = profileName,
+            onClick = onProfileClicked,
+            testTag = C.Tag.collection_profile_button,
+        )
+      }
       when {
         state.guides.isNotEmpty() -> {
           CollectionSearchBar(
