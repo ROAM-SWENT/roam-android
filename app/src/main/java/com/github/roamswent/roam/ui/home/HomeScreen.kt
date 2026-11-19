@@ -92,13 +92,13 @@ fun HomeScreen(
   }
 }
 
-//@Composable
-//private fun ProfileBubble(
+// @Composable
+// private fun ProfileBubble(
 //    name: String,
 //    avatarBytes: ByteArray? = null,
 //    onClick: () -> Unit,
 //    modifier: Modifier = Modifier,
-//) {
+// ) {
 //  val description = stringResource(R.string.home_profile_button_description)
 //  ProfilePicture(
 //      name = name,
@@ -111,7 +111,7 @@ fun HomeScreen(
 //      textStyle = MaterialTheme.typography.titleSmall,
 //      onClick = onClick,
 //  )
-//}
+// }
 
 @Preview(showBackground = true)
 @Composable

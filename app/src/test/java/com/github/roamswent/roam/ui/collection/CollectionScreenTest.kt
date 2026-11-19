@@ -143,6 +143,22 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun profileBubbleAcceptsAvatarBytes() {
+    val bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    bitmap.recycle()
+
+    setScreen(
+        SavedGuidesUiState(),
+        profileName = "Ada Lovelace",
+        profileAvatarBytes = out.toByteArray(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).assertIsDisplayed()
+  }
+
+  @Test
   fun clickingDeleteButtonReportsItsGuideIdWithoutOpeningTheCard() {
     val deleted = mutableListOf<String>()
     val clicked = mutableListOf<String>()
@@ -1011,6 +1027,7 @@ class CollectionScreenTest {
       state: SavedGuidesUiState,
       onGuideClick: (String) -> Unit = {},
       profileName: String = "Traveler",
+      profileAvatarBytes: ByteArray? = null,
       onProfileClicked: () -> Unit = {},
       onDeleteGuide: (String) -> Unit = {},
       onDeleteErrorShown: () -> Unit = {},
@@ -1033,6 +1050,7 @@ class CollectionScreenTest {
         CollectionScreen(
             state = state,
             profileName = profileName,
+            profileAvatarBytes = profileAvatarBytes,
             onProfileClicked = onProfileClicked,
             onGuideClick = onGuideClick,
             onDeleteGuide = onDeleteGuide,

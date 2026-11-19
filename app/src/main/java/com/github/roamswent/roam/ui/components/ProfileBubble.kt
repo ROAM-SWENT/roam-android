@@ -23,16 +23,16 @@ internal fun ProfileBubble(
     modifier: Modifier = Modifier,
     avatarBytes: ByteArray? = null,
 ) {
-    val description = stringResource(R.string.home_profile_button_description)
-    ProfilePicture(
-        name = name,
-        avatarBytes = avatarBytes,
-        onClick = onClick,
-        modifier =
-            modifier.size(48.dp).semantics {
-                contentDescription = description
-                this.testTag = testTag
-            },
-        textStyle = MaterialTheme.typography.titleSmall,
-    )
+  val description = stringResource(R.string.home_profile_button_description)
+  ProfilePicture(
+      name = name,
+      avatarBytes = avatarBytes,
+      onClick = onClick,
+      modifier =
+          modifier.size(48.dp).semantics {
+            contentDescription = description
+            this.testTag = testTag
+          },
+      textStyle = MaterialTheme.typography.titleSmall,
+  )
 }

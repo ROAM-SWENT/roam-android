@@ -281,13 +281,13 @@ fun ExploreScreen(
               )
             },
             actions = {
-                ProfileBubble(
-                    name = profileName,
-                    avatarBytes = profileAvatarBytes,
-                    onClick = onProfileClicked,
-                    testTag = C.Tag.explore_profile_button,
-                    modifier = Modifier.padding(end = 12.dp),
-                )
+              ProfileBubble(
+                  name = profileName,
+                  avatarBytes = profileAvatarBytes,
+                  onClick = onProfileClicked,
+                  testTag = C.Tag.explore_profile_button,
+                  modifier = Modifier.padding(end = 12.dp),
+              )
             },
         )
       },

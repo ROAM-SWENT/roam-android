@@ -469,6 +469,34 @@ class SettingsViewModelTest {
       }
 
   @Test
+  fun uploadAvatar_ignoresSecondModificationWhileSaving() =
+      runTest(dispatcher) {
+        val result = CompletableDeferred<PublicProfile>()
+        val blockingRepository =
+            object : PublicProfileRepository by publicProfileRepository {
+              override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+                  result.await()
+            }
+        val viewModel =
+            SettingsViewModel(
+                repository,
+                profileRepository,
+                userInterestsRepository,
+                blockingRepository,
+                notificationInstallationRepository,
+            )
+
+        viewModel.uploadAvatar(byteArrayOf(1))
+        runCurrent()
+        viewModel.uploadAvatar(byteArrayOf(2))
+
+        assertTrue(viewModel.uiState.value.isAvatarSaving)
+        result.complete(PublicProfile("uid", "traveler", byteArrayOf(1)))
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isAvatarSaving)
+      }
+
+  @Test
   fun renameUsername_unexpectedFailureSetsGenericUpdateError() =
       runTest(dispatcher) {
         whenever(publicProfileRepository.renameUsername("failure_name")).thenAnswer {

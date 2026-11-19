@@ -544,8 +544,11 @@ internal fun RoamApp(
       }
 
       composable(Routes.Collection) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
         val dockClearance = dockContentClearance()
         val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
           uri?.let {
@@ -568,6 +571,7 @@ internal fun RoamApp(
               publicProfileRepository = publicProfileRepository,
               monumentSharingProvider = testOverrides?.monumentSharingProvider,
               profileName = userName,
+              profileAvatarBytes = avatarBytes,
               onProfileClicked = onProfileClicked,
               onPickFromGallery = pickFromGallery,
           )

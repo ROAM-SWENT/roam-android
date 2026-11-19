@@ -95,6 +95,39 @@ class HomeViewModelTest {
       }
 
   @Test
+  fun changingUsersClearsCachedProfileBeforeNewLookupCompletes() =
+      runTest(dispatcher) {
+        val userA = mockUser(displayName = "User A", email = null)
+        val userB = mockUser(displayName = "User B", email = null)
+        every { userA.uid } returns "uid-a"
+        every { userB.uid } returns "uid-b"
+        every { repository.currentUser() } returns userA
+        every { repository.currentUserFlow() } returns flowOf(userB)
+        val secondLookup = CompletableDeferred<PublicProfile?>()
+        val publicProfileRepository = mockk<PublicProfileRepository>()
+        var lookupCount = 0
+        coEvery { publicProfileRepository.getCurrentProfile() } coAnswers
+            {
+              if (lookupCount++ == 0) {
+                PublicProfile("uid-a", "name-a", byteArrayOf(1))
+              } else {
+                secondLookup.await()
+              }
+            }
+
+        val viewModel = HomeViewModel(repository, publicProfileRepository)
+        runCurrent()
+
+        assertEquals(HomeViewModel.DEFAULT_USER_NAME, viewModel.userName.value)
+        assertEquals(null, viewModel.avatarBytes.value)
+
+        secondLookup.complete(PublicProfile("uid-b", "name-b", byteArrayOf(2)))
+        advanceUntilIdle()
+        assertEquals("name-b", viewModel.userName.value)
+        assertEquals(true, viewModel.avatarBytes.value.contentEquals(byteArrayOf(2)))
+      }
+
+  @Test
   fun seedUsesCurrentUserImmediately() {
     val user = mockUser(displayName = "Ada Lovelace", email = null)
     every { repository.currentUser() } returns user

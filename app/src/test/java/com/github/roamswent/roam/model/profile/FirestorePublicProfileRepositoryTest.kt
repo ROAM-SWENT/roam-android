@@ -81,6 +81,38 @@ class FirestorePublicProfileRepositoryTest {
   }
 
   @Test
+  fun uploadAvatar_withoutAuthenticatedUserReturnsTypedError() = runTest {
+    every { auth.currentUser } returns null
+
+    val error = captureFailure { repository.uploadAvatar(byteArrayOf(1)) }
+
+    assertTrue(error is PublicProfileException.UnauthenticatedUser)
+  }
+
+  @Test
+  fun uploadAvatar_missingProfileReturnsTypedError() = runTest {
+    val snapshot = mockk<DocumentSnapshot>()
+    every { snapshot.exists() } returns false
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+
+    val error = captureFailure { repository.uploadAvatar(byteArrayOf(1)) }
+
+    assertTrue(error is PublicProfileException.ProfileNotRegistered)
+  }
+
+  @Test
+  fun removeAvatar_firestoreFailureReturnsAvatarFailure() = runTest {
+    val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+    every { profileReference.update("avatar", any<FieldValue>()) } returns
+        Tasks.forException(IllegalStateException("Remove failed"))
+
+    val error = captureFailure { repository.removeAvatar() }
+
+    assertTrue(error is PublicProfileException.AvatarFailure)
+  }
+
+  @Test
   fun registerUsername_validatesUsernameBeforeWriting() = runTest {
     val error = captureFailure { repository.registerUsername("ab-é") }
 
