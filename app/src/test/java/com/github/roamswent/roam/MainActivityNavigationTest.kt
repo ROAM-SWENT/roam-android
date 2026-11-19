@@ -8,15 +8,24 @@
 package com.github.roamswent.roam
 
 import android.Manifest
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -30,6 +39,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
@@ -567,6 +577,50 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_grid)
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+  }
+
+  @Test
+  fun selectingGalleryImageFromCollectionNavigatesToGalleryReview() {
+    val registry = RecordingActivityResultRegistry()
+    val registryOwner =
+        object : ActivityResultRegistryOwner {
+          override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+    lateinit var navController: NavHostController
+    val savedGuide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(savedGuide)),
+        activityResultRegistryOwner = registryOwner,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).performClick()
+    assertTrue(registry.launchedContract is ActivityResultContracts.PickVisualMedia)
+
+    registry.dispatchResult(Activity.RESULT_CANCELED, null)
+    composeTestRule.waitForIdle()
+    assertEquals(Routes.Collection, navController.currentDestination?.route)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).performClick()
+    val selectedImageUri = Uri.parse("content://media/external/images/media/120 with space")
+    registry.dispatchResult(Activity.RESULT_OK, Intent().setData(selectedImageUri))
+
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    val arguments = requireNotNull(navController.currentBackStackEntry?.arguments)
+    assertEquals(selectedImageUri.toString(), arguments.getString("uri"))
+    assertTrue(arguments.getBoolean("gallery"))
+    assertTrue(arguments.getBoolean("fromCollection"))
   }
 
   @Test
@@ -1543,6 +1597,7 @@ class MainActivityNavigationTest {
       savedGuideRepository: FakeSavedGuideRepository? = null,
       isOnlineOverride: Boolean? = true,
       captureSender: CaptureSender? = null,
+      activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
   ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(
@@ -1551,6 +1606,7 @@ class MainActivityNavigationTest {
         savedGuideRepository = savedGuideRepository,
         isOnlineOverride = isOnlineOverride,
         captureSender = captureSender,
+        activityResultRegistryOwner = activityResultRegistryOwner,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
@@ -1668,6 +1724,7 @@ class MainActivityNavigationTest {
       openFriendsOnLaunch: Boolean = false,
       notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
       notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+      activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -1690,24 +1747,56 @@ class MainActivityNavigationTest {
     composeTestRule.activity.setContent {
       val navController = rememberNavController()
       SideEffect { onNavControllerReady(navController) }
-      SampleAppTheme {
-        RoamApp(
-            authViewModel,
-            navController = navController,
-            testOverrides =
-                RoamAppTestOverrides(
-                    captureSender = captureSender,
-                    onSignInClick = onSignInClickOverride,
-                    settingsViewModel = settingsViewModel,
-                    savedGuideRepository = savedGuideRepository,
-                    isOnline = isOnlineOverride,
-                    publicProfileRepository = publicProfileRepositoryOverride,
-                    notificationInstallationRepository = notificationInstallationRepositoryOverride,
-                ),
-            openFriendsOnLaunch = openFriendsOnLaunch,
-            notificationNavigationEvents = notificationNavigationEvents,
-        )
+      val appContent: @Composable () -> Unit = {
+        SampleAppTheme {
+          RoamApp(
+              authViewModel,
+              navController = navController,
+              testOverrides =
+                  RoamAppTestOverrides(
+                      captureSender = captureSender,
+                      onSignInClick = onSignInClickOverride,
+                      settingsViewModel = settingsViewModel,
+                      savedGuideRepository = savedGuideRepository,
+                      isOnline = isOnlineOverride,
+                      publicProfileRepository = publicProfileRepositoryOverride,
+                      notificationInstallationRepository =
+                          notificationInstallationRepositoryOverride,
+                  ),
+              openFriendsOnLaunch = openFriendsOnLaunch,
+              notificationNavigationEvents = notificationNavigationEvents,
+          )
+        }
       }
+      if (activityResultRegistryOwner == null) {
+        appContent()
+      } else {
+        CompositionLocalProvider(
+            LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
+        ) {
+          appContent()
+        }
+      }
+    }
+  }
+
+  private class RecordingActivityResultRegistry : ActivityResultRegistry() {
+    private var launchedRequestCode: Int? = null
+    var launchedContract: ActivityResultContract<*, *>? = null
+      private set
+
+    override fun <I, O> onLaunch(
+        requestCode: Int,
+        contract: ActivityResultContract<I, O>,
+        input: I,
+        options: ActivityOptionsCompat?,
+    ) {
+      launchedRequestCode = requestCode
+      launchedContract = contract
+    }
+
+    fun dispatchResult(resultCode: Int, intent: Intent?) {
+      dispatchResult(checkNotNull(launchedRequestCode), resultCode, intent)
     }
   }
 

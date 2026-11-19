@@ -33,6 +33,7 @@ fun CollectionRoute(
     monumentSharingProvider: MonumentSharingProvider? = null,
     profileName: String = HomeViewModel.DEFAULT_USER_NAME,
     onProfileClicked: () -> Unit = {},
+    onPickFromGallery: () -> Unit = {},
 ) {
   val resolvedFriendRepository =
       remember(friendRepository) { friendRepository ?: FirestoreFriendRepository() }
@@ -75,5 +76,6 @@ fun CollectionRoute(
       onSharingErrorShown = viewModel::clearSharingError,
       profileName = profileName,
       onProfileClicked = onProfileClicked,
+      onPickFromGallery = onPickFromGallery,
   )
 }
