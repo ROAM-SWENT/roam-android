@@ -838,6 +838,50 @@ class ScanReviewScreenTest {
     assertEquals(true, dismissed)
   }
 
+  @Test
+  fun reviewRouteSystemBackFromGuideReturnsCollectionWhenOpenedFromCollection() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+
+    showReviewRoute(
+        captureSender = sender,
+        isGalleryImage = true,
+        fromCollection = true,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    waitForDestination(Routes.Collection)
+  }
+
+  @Test
+  fun reviewRouteGuideBackButtonReturnsCollectionWhenOpenedFromCollection() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+
+    showReviewRoute(
+        captureSender = sender,
+        isGalleryImage = true,
+        fromCollection = true,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    waitForDestination(Routes.Collection)
+  }
+
   private fun setContent(
       state: ScanReviewUiState,
       onRetake: () -> Unit = {},
