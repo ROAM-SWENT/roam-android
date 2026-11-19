@@ -19,6 +19,7 @@ class FakeMonumentSharingRepositoryTest {
           history = "",
           facts = emptyList(),
           culture = "",
+          shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
       )
 
   @Test

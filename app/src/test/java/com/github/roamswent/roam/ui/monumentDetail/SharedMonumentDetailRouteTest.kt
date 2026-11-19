@@ -8,7 +8,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -31,6 +33,7 @@ class SharedMonumentDetailRouteTest {
           history = "A museum.",
           facts = emptyList(),
           culture = "French.",
+          shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
       )
 
   @Test

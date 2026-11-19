@@ -14,7 +14,7 @@ enum class RelationshipKind {
   UNIDIRECTIONAL_FOLLOWER,
 }
 
-val DEFAULT_SHARE_AUDIENCE = ShareAudience.ALL_FRIENDS
+val DEFAULT_SHARE_AUDIENCE = ShareAudience.NONE
 
 data class MonumentShareSettings(
     val audience: ShareAudience = DEFAULT_SHARE_AUDIENCE,

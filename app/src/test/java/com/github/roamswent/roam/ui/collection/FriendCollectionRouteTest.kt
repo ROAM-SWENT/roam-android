@@ -10,7 +10,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import io.mockk.every
@@ -36,6 +38,7 @@ class FriendCollectionRouteTest {
           history = "",
           facts = emptyList(),
           culture = "",
+          shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
       )
 
   @Test
@@ -46,6 +49,7 @@ class FriendCollectionRouteTest {
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
     composeTestRule.onNodeWithTag(C.Tag.collection_card_delete).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
   }
 

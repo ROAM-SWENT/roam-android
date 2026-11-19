@@ -42,7 +42,9 @@ import com.github.roamswent.roam.model.friend.Friendship
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
@@ -1537,6 +1539,7 @@ class MainActivityNavigationTest {
             history = "A museum.",
             facts = emptyList(),
             culture = "French.",
+            shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
         )
     val navController = arrayOfNulls<NavHostController>(1)
     renderApp(

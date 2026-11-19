@@ -49,6 +49,7 @@ import com.github.roamswent.roam.model.basemap.AssetOfflineBaseMapRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
@@ -183,6 +184,7 @@ internal data class RoamAppTestOverrides(
     val publicProfileRepository: PublicProfileRepository? = null,
     val friendRepository: FriendRepository? = null,
     val monumentSharingRepository: MonumentSharingRepository? = null,
+    val monumentSharingProvider: MonumentSharingProvider? = null,
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
@@ -202,8 +204,11 @@ internal fun RoamApp(
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
   // Configure the shared Firestore instance before profile lookups can start it.
   val monumentSharingRepository = remember {
-    testOverrides?.monumentSharingRepository ?: DefaultMonumentSharingProvider().repository()
+    testOverrides?.monumentSharingRepository
+        ?: (testOverrides?.monumentSharingProvider ?: DefaultMonumentSharingProvider()).repository()
   }
+  val monumentSharingProvider =
+      remember(monumentSharingRepository) { MonumentSharingProvider { monumentSharingRepository } }
   val publicProfileRepository = remember {
     testOverrides?.publicProfileRepository ?: FirestorePublicProfileRepository()
   }
@@ -547,6 +552,9 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               onGuideClick = { guideId -> navController.navigate(Routes.monumentDetail(guideId)) },
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
+              monumentSharingProvider = monumentSharingProvider,
           )
         }
       }
