@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.github.roamswent.roam.data.FileCapturedImageManager
 import com.github.roamswent.roam.data.GuideCaptureSender
+import com.github.roamswent.roam.data.ScanLocationSource
 import com.github.roamswent.roam.model.ai.DiscoveryRequest
 import com.github.roamswent.roam.model.ai.FirebaseGeminiClient
 import com.github.roamswent.roam.model.ai.GeminiImageScreen
@@ -42,6 +43,7 @@ fun ScanReviewRoute(
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
     savedGuideRepository: SavedGuideRepository,
     isGalleryImage: Boolean = false,
+    fromCollection: Boolean = false,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
   val context = LocalContext.current
@@ -52,7 +54,7 @@ fun ScanReviewRoute(
             ?: SharedPreferencesUserInterestsRepository(context.applicationContext)
       }
   val captureSender: CaptureSender =
-      remember(context, captureSenderOverride) {
+      remember(context, captureSenderOverride, isGalleryImage) {
         captureSenderOverride
             ?: run {
               val geminiClient = FirebaseGeminiClient(context)
@@ -67,6 +69,8 @@ fun ScanReviewRoute(
                   context,
                   guideRepository,
                   userInterestsRepository,
+                  // A gallery photo is located only by its own metadata, never by the device.
+                  locationSource = ScanLocationSource.forScan(isGalleryImage),
               )
             }
       }
@@ -99,26 +103,33 @@ fun ScanReviewRoute(
   val isFavorite by loadingViewModel.isFavorite.collectAsState()
   val favoriteError by loadingViewModel.favoriteError.collectAsState()
   val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
+  val exploreUnavailableReason by loadingViewModel.exploreUnavailableReason.collectAsState()
 
+  val returnToGalleryOrigin = {
+    navController.popBackStack(
+        if (fromCollection) Routes.Collection else Routes.Scan,
+        inclusive = false,
+    )
+    Unit
+  }
   LaunchedEffect(uri) { viewModel.setUri(uri) }
   LaunchedEffect(viewModel) {
     viewModel.navigationEvents.collect { event ->
       when (event) {
-        ScanReviewNavigationEvent.BackToCapture ->
-            navController.popBackStack(Routes.Scan, inclusive = false)
+        ScanReviewNavigationEvent.BackToCapture -> returnToGalleryOrigin()
       }
     }
   }
 
-  val returnToScan = {
-    navController.popBackStack(Routes.Scan, inclusive = false)
-    Unit
-  }
   BackHandler(enabled = !showLoading && !showInterestsPrompt) {
     if (discoveredGuide != null) {
-      navController.popBackStack(Routes.Home, inclusive = false)
+      if (fromCollection) {
+        returnToGalleryOrigin()
+      } else {
+        navController.popBackStack(Routes.Home, inclusive = false)
+      }
     } else if (isGalleryImage) {
-      returnToScan()
+      returnToGalleryOrigin()
     } else {
       viewModel.onRetake()
     }
@@ -127,7 +138,7 @@ fun ScanReviewRoute(
   if (showLoading) {
     LoadingRoute(
         imageUri = uri,
-        onCancel = { navController.popBackStack(Routes.Scan, inclusive = false) },
+        onCancel = { returnToGalleryOrigin() },
         onDiscoverySuccess = { guide, _ -> loadingViewModel.onDiscoverySuccess(guide) },
         loadingViewModel = loadingViewModel,
     )
@@ -136,7 +147,7 @@ fun ScanReviewRoute(
     currentState?.let {
       ScanReviewScreen(
           state = it,
-          onRetake = if (isGalleryImage) returnToScan else viewModel::onRetake,
+          onRetake = if (isGalleryImage) returnToGalleryOrigin else viewModel::onRetake,
           onRetakeConfirm = viewModel::confirmRetake,
           onRetakeCancel = viewModel::cancelRetake,
           onRetryDelete = viewModel::onRetryDelete,
@@ -144,7 +155,13 @@ fun ScanReviewRoute(
           onSend = { onStartDiscovery(loadingViewModel::beginLoading) },
           onRetrySend = { onStartDiscovery(viewModel::onRetrySend) },
           onDismissSendError = viewModel::onDismissSendError,
-          onHomeClick = { navController.popBackStack(Routes.Home, inclusive = false) },
+          onHomeClick = {
+            if (fromCollection) {
+              returnToGalleryOrigin()
+            } else {
+              navController.popBackStack(Routes.Home, inclusive = false)
+            }
+          },
           showInterestsPrompt = showInterestsPrompt,
           isGalleryImage = isGalleryImage,
           onSaveInterests = loadingViewModel::onSaveInterests,
@@ -154,9 +171,9 @@ fun ScanReviewRoute(
           onFavoriteClick = loadingViewModel::toggleFavorite,
           showFavoriteError = favoriteError != null,
           onFavoriteErrorShown = loadingViewModel::clearFavoriteError,
-          // A gallery photo has no scan location: the phone position at send time is not where
-          // the photo was taken, so it is never offered on Explore.
-          exploreOptIn = exploreOptIn.takeIf { !isGalleryImage },
+          // A gallery photo is checked against its own EXIF location, never the device's.
+          exploreOptIn = exploreOptIn,
+          exploreUnavailableReason = exploreUnavailableReason,
           onShowInExploreChange = loadingViewModel::setShownInExplore,
       )
     }

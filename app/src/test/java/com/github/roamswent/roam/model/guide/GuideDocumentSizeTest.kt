@@ -1,7 +1,9 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.location.Coordinates
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -58,6 +60,22 @@ class GuideDocumentSizeTest {
   }
 
   @Test
+  fun estimatesGuideSectionStringsAndMapOverhead() {
+    val withoutSections = guide(photoBytes = byteArrayOf(1, 2, 3))
+    val withOneSection =
+        withoutSections.copy(
+            sections = listOf(GuideSection("Architecture", "Detailed context.")),
+        )
+
+    // "Architecture" = 13 bytes, "Detailed context." = 18 bytes, plus 32 bytes for the map.
+    assertEquals(
+        63L,
+        GuideDocumentSize.estimatedBytes(withOneSection, documentPath) -
+            GuideDocumentSize.estimatedBytes(withoutSections, documentPath),
+    )
+  }
+
+  @Test
   fun favoriteFlagHasTheSameSizeWhateverItsValue() {
     val notFavorite = guide(photoBytes = byteArrayOf(1, 2, 3))
 
@@ -96,6 +114,47 @@ class GuideDocumentSizeTest {
     assertThrows(IllegalArgumentException::class.java) {
       GuideDocumentSize.requireWithinLimit(tooLarge, documentPath)
     }
+  }
+
+  @Test
+  fun estimatesSharingSettingsFieldsAndUidCollections() {
+    val baseGuide =
+        guide(photoBytes = byteArrayOf(1, 2, 3))
+            .copy(shareSettings = MonumentShareSettings(audience = ShareAudience.NONE))
+    val withLongerAudience =
+        baseGuide.copy(
+            shareSettings = baseGuide.shareSettings.copy(audience = ShareAudience.SELECTED_FRIENDS),
+        )
+    // "SELECTED_FRIENDS" (16 chars + 1) vs "NONE" (4 chars + 1) = 17 - 5 = 12 bytes
+    assertEquals(
+        12L,
+        GuideDocumentSize.estimatedBytes(withLongerAudience, documentPath) -
+            GuideDocumentSize.estimatedBytes(baseGuide, documentPath),
+    )
+
+    // Adding sharedWithUids: field name "sharedWithUids" (14 chars + 1 = 15 bytes)
+    // + values: "uid1" (4 + 1 = 5) + "uid2" (4 + 1 = 5) = 10 bytes -> total 25 bytes
+    val withSharedUids =
+        baseGuide.copy(
+            shareSettings = baseGuide.shareSettings.copy(sharedWithUids = setOf("uid1", "uid2")),
+        )
+    assertEquals(
+        25L,
+        GuideDocumentSize.estimatedBytes(withSharedUids, documentPath) -
+            GuideDocumentSize.estimatedBytes(baseGuide, documentPath),
+    )
+
+    // Adding dismissedByUids: field name "dismissedByUids" (15 chars + 1 = 16 bytes)
+    // + values: "uid3" (4 + 1 = 5 bytes) -> total 21 bytes
+    val withDismissedUids =
+        baseGuide.copy(
+            shareSettings = baseGuide.shareSettings.copy(dismissedByUids = setOf("uid3")),
+        )
+    assertEquals(
+        21L,
+        GuideDocumentSize.estimatedBytes(withDismissedUids, documentPath) -
+            GuideDocumentSize.estimatedBytes(baseGuide, documentPath),
+    )
   }
 
   private fun guide(photoBytes: ByteArray) =

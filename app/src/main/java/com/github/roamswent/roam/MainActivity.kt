@@ -2,13 +2,15 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
- * Co-authored-by: Gemini 4 Hydrogen <noreply@google.com>
+ * Co-authored-by: Codex <codex@openai.com>
+ * Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
  */
 
 package com.github.roamswent.roam
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -23,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,6 +38,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -44,11 +50,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.github.roamswent.roam.model.basemap.AssetOfflineBaseMapRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.location.LocationProvider
+import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
@@ -75,6 +85,7 @@ import com.github.roamswent.roam.ui.monumentDetail.SavedMonumentDetailRoute
 import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
+import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -87,12 +98,17 @@ import com.github.roamswent.roam.ui.profile.RegisterProfileScreen
 import com.github.roamswent.roam.ui.profile.RegisterProfileViewModel
 import com.github.roamswent.roam.ui.scan.ScanReviewRoute
 import com.github.roamswent.roam.ui.scan.ScanRoute
+import com.github.roamswent.roam.ui.scan.rememberGalleryImagePicker
 import com.github.roamswent.roam.ui.settings.SettingsScreen
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ThemeViewModel
 import com.github.roamswent.roam.ui.theme.ThemeViewModelFactory
 import com.github.roamswent.roam.ui.theme.screenBackground
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Clears tab and settings back stacks saved during navigation.
@@ -106,7 +122,12 @@ private fun NavHostController.clearSavedUserNavigation() {
   }
 }
 
+private const val TAG = "RoamMainActivity"
+
 class MainActivity : AppCompatActivity() {
+  private val notificationNavigationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+  private val notificationNavigationFlow: Flow<Unit> = notificationNavigationEvents
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     RoamApplication.snapDefaultLocale()
@@ -129,8 +150,24 @@ class MainActivity : AppCompatActivity() {
             authViewModel = authViewModel,
             themeMode = selectedTheme,
             onThemeModeSelected = themeViewModel::setThemeMode,
+            openFriendsOnLaunch = intent?.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS,
+            notificationNavigationEvents = notificationNavigationFlow,
         )
       }
+    }
+  }
+
+  /**
+   * Routes notification taps received by an existing singleTop activity through the app graph.
+   *
+   * The matching ACTION is private to the app's notification PendingIntent; other intents are
+   * ignored so unrelated launches do not affect navigation.
+   */
+  override fun onNewIntent(intent: android.content.Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    if (intent.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS) {
+      notificationNavigationEvents.tryEmit(Unit)
     }
   }
 }
@@ -146,8 +183,10 @@ internal data class RoamAppTestOverrides(
     val savedGuideRepository: SavedGuideRepository? = null,
     val publicProfileRepository: PublicProfileRepository? = null,
     val friendRepository: FriendRepository? = null,
+    val monumentSharingProvider: MonumentSharingProvider? = null,
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
+    val notificationInstallationRepository: NotificationInstallationRepository? = null,
 )
 
 @Composable
@@ -157,6 +196,8 @@ internal fun RoamApp(
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     testOverrides: RoamAppTestOverrides? = null,
+    openFriendsOnLaunch: Boolean = false,
+    notificationNavigationEvents: Flow<Unit> = emptyFlow(),
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
@@ -169,6 +210,10 @@ internal fun RoamApp(
   }
   val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()
   val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
+  var openFriendsAfterAuthentication by remember { mutableStateOf(openFriendsOnLaunch) }
+  LaunchedEffect(notificationNavigationEvents) {
+    notificationNavigationEvents.collect { openFriendsAfterAuthentication = true }
+  }
   LaunchedEffect(authUiState.user) {
     if (authUiState.user == null) registerProfileViewModel.reset()
   }
@@ -195,6 +240,32 @@ internal fun RoamApp(
       rememberNotificationPermissionController(notificationPermissionDecisionRepository) {
         navigateToHome()
       }
+  val notificationPermissionState by notificationPermissionController.state.collectAsState()
+  val notificationInstallationRepository =
+      remember(testOverrides?.notificationInstallationRepository) {
+        testOverrides?.notificationInstallationRepository
+            ?: FirestoreNotificationInstallationRepository()
+      }
+  LaunchedEffect(
+      profileUiState.status,
+      notificationPermissionState.isGranted,
+      authUiState.user?.uid,
+      notificationInstallationRepository,
+  ) {
+    if (profileUiState.status == ProfileRegistrationStatus.REGISTERED) {
+      try {
+        if (notificationPermissionState.isGranted) {
+          notificationInstallationRepository.synchronizeCurrentInstallation()
+        } else {
+          notificationInstallationRepository.removeCurrentInstallation()
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.e(TAG, "Could not register the notification installation.", exception)
+      }
+    }
+  }
   val requestNotificationPermission = {
     if (
         notificationPermissionController.state.value.decision ==
@@ -269,6 +340,28 @@ internal fun RoamApp(
             .show()
       }
       else -> Unit
+    }
+  }
+  LaunchedEffect(
+      profileUiState.status,
+      openFriendsAfterAuthentication,
+      currentBackStackEntry?.destination?.route,
+  ) {
+    val route = currentBackStackEntry?.destination?.route
+    if (
+        profileUiState.status == ProfileRegistrationStatus.REGISTERED &&
+            openFriendsAfterAuthentication &&
+            route != null &&
+            route !in setOf(Routes.SignIn, Routes.RegisterProfile)
+    ) {
+      if (route != Routes.Friends) {
+        navController.navigate(Routes.Friends) {
+          popUpTo(Routes.Home) { inclusive = false }
+          launchSingleTop = true
+          restoreState = true
+        }
+      }
+      openFriendsAfterAuthentication = false
     }
   }
   val currentDestination =
@@ -365,8 +458,18 @@ internal fun RoamApp(
         RegisterProfileScreen(registerProfileViewModel, onCancel = cancelProfileRegistration)
       }
       composable(Routes.Home) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner, homeViewModel) {
+          val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) homeViewModel.refreshUserName()
+          }
+          lifecycleOwner.lifecycle.addObserver(observer)
+          onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
         // HomeScreen and the dock apply their own status/nav bar insets, so the
         // scaffold only contributes the ScreenBackground behind the status bar.
         Scaffold(
@@ -388,13 +491,17 @@ internal fun RoamApp(
         ScanRoute(navController, galleryImageUriOverride = testOverrides?.galleryImageUri)
       }
       composable(
-          "${Routes.ScanReview}?uri={uri}&gallery={gallery}",
+          "${Routes.ScanReview}?uri={uri}&gallery={gallery}&fromCollection={fromCollection}",
           arguments =
               listOf(
                   navArgument("gallery") {
                     type = NavType.BoolType
                     defaultValue = false
-                  }
+                  },
+                  navArgument("fromCollection") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                  },
               ),
       ) { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::parse)
@@ -408,6 +515,7 @@ internal fun RoamApp(
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
               isGalleryImage = backStackEntry.arguments?.getBoolean("gallery") ?: false,
+              fromCollection = backStackEntry.arguments?.getBoolean("fromCollection") ?: false,
           )
         }
       }
@@ -421,13 +529,16 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               settingsViewModel = testOverrides?.settingsViewModel,
+              publicProfileRepository = publicProfileRepository,
               cameraPermissionController = permissionController,
               locationPermissionController = locationPermissionController,
               notificationPermissionController = notificationPermissionController,
+              notificationInstallationRepository = notificationInstallationRepository,
               themeMode = themeMode,
               onThemeModeSelected = onThemeModeSelected,
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
+                FriendRequestNotifications.cancelAllFriendRequests(context)
                 authViewModel.clearSignedInUser()
                 registerProfileViewModel.reset()
                 navController.clearSavedUserNavigation()
@@ -441,6 +552,14 @@ internal fun RoamApp(
 
       composable(Routes.Collection) {
         val dockClearance = dockContentClearance()
+        val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
+          uri?.let {
+            navController.navigate(
+                "${Routes.ScanReview}?uri=${Uri.encode(it.toString())}&gallery=true&fromCollection=true",
+            )
+          }
+        }
+        val pickFromGallery = rememberGalleryImagePicker(onGalleryImagePicked)
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           CollectionRoute(
               repository = savedGuideRepository.value,
@@ -450,6 +569,10 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               onGuideClick = { guideId -> navController.navigate(Routes.monumentDetail(guideId)) },
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
+              monumentSharingProvider = testOverrides?.monumentSharingProvider,
+              onPickFromGallery = pickFromGallery,
           )
         }
       }
@@ -488,10 +611,13 @@ internal fun RoamApp(
       }
 
       composable(Routes.Explore) {
+        val homeViewModel: HomeViewModel = viewModel()
+        val userName by homeViewModel.userName.collectAsState()
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
               savedGuideRepository.value,
+              AssetOfflineBaseMapRepository(context),
           )
         }
         val explorePermissionController =
@@ -513,7 +639,9 @@ internal fun RoamApp(
                   )
           ) {
             ExploreScreen(
-                onBackClick = { navController.popBackStack() },
+                onProfileClicked = onProfileClicked,
+                profileName = userName,
+                isOnline = isOnline,
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,
             )

@@ -24,6 +24,8 @@ import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.toSavedGuide
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.location.Coordinates
+import com.github.roamswent.roam.model.location.ProximityPolicy
+import com.github.roamswent.roam.model.location.ProximityResult
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -47,9 +49,10 @@ sealed interface LoadingUiState {
 }
 
 /**
- * Explore opt-in for the guide saved by the last discovery, offered only when the scan has a
- * [scanLocation]. [savedLocation] is the location requested for the saved guide (`null` keeps it
- * off Explore); it is rolled back to the last confirmed value if the update fails, with [error].
+ * Explore opt-in for the guide saved by the last discovery, offered only when the observed
+ * [scanLocation] is near the monument. [savedLocation] is the location requested for the saved
+ * guide (`null` keeps it off Explore); it is rolled back to the last confirmed value if the update
+ * fails, with [error]. The pin is always the observed position, never the monument's own one.
  */
 data class ExploreOptInUiState(
     val scanLocation: Coordinates,
@@ -58,6 +61,21 @@ data class ExploreOptInUiState(
 ) {
   val isShownInExplore: Boolean
     get() = savedLocation != null
+}
+
+/** Why the saved guide cannot be put on Explore, explained in place of the Explore switch. */
+enum class ExploreUnavailableReason {
+  /**
+   * No observed position: for a camera scan, location permission denied, GPS off, or no fix in
+   * time; for a gallery photo, no usable GPS in its metadata.
+   */
+  NO_OBSERVED_LOCATION,
+
+  /** The AI gave no trustworthy position for the monument. */
+  NO_MONUMENT_LOCATION,
+
+  /** The observed position is farther than [ProximityPolicy.MAX_DISTANCE_METERS] from it. */
+  TOO_FAR,
 }
 
 sealed interface LoadingNavigationEvent {
@@ -107,6 +125,14 @@ class LoadingViewModel(
   private val _exploreOptIn = MutableStateFlow<ExploreOptInUiState?>(null)
   /** Explore opt-in of the saved guide, or `null` when it is not offered. */
   val exploreOptIn: StateFlow<ExploreOptInUiState?> = _exploreOptIn.asStateFlow()
+
+  private val _exploreUnavailableReason = MutableStateFlow<ExploreUnavailableReason?>(null)
+  /**
+   * Why Explore is not offered for the saved guide, or `null`. At most one of this and
+   * [exploreOptIn] is set at any time.
+   */
+  val exploreUnavailableReason: StateFlow<ExploreUnavailableReason?> =
+      _exploreUnavailableReason.asStateFlow()
 
   /** ID of the guide saved from this discovery, or null while there is none to update. */
   private var savedGuideId: String? = null
@@ -237,7 +263,7 @@ class LoadingViewModel(
     // Results of requests made for a previous guide are now stale.
     confirmedLocationRequest = ++lastLocationRequest
     latestLocationRequestFailed = false
-    _exploreOptIn.value = guide.location?.let { ExploreOptInUiState(scanLocation = it) }
+    offerExplore(guide)
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
         _saveError.value = null
@@ -253,9 +279,36 @@ class LoadingViewModel(
           // Without a saved guide there is nothing to favourite or put on Explore.
           savedGuideId = null
           _exploreOptIn.value = null
+          _exploreUnavailableReason.value = null
         }
       }
     }
+  }
+
+  /**
+   * Offers the Explore switch for [guide] only when its observed position is near the monument's
+   * own position, otherwise exposes why not. It does not affect saving to the collection. The state
+   * being replaced is cleared first, so the switch and the reason are never both set.
+   */
+  private fun offerExplore(guide: MonumentGuide) {
+    val observed = guide.location
+    when (val result = ProximityPolicy.check(observed, guide.monumentLocation)) {
+      ProximityResult.Near -> {
+        _exploreUnavailableReason.value = null
+        // Near is only returned for a known observed position.
+        _exploreOptIn.value = ExploreOptInUiState(scanLocation = checkNotNull(observed))
+      }
+      ProximityResult.ObservedLocationMissing ->
+          showExploreUnavailable(ExploreUnavailableReason.NO_OBSERVED_LOCATION)
+      ProximityResult.MonumentLocationMissing ->
+          showExploreUnavailable(ExploreUnavailableReason.NO_MONUMENT_LOCATION)
+      is ProximityResult.TooFar -> showExploreUnavailable(ExploreUnavailableReason.TOO_FAR)
+    }
+  }
+
+  private fun showExploreUnavailable(reason: ExploreUnavailableReason) {
+    _exploreOptIn.value = null
+    _exploreUnavailableReason.value = reason
   }
 
   /**

@@ -145,6 +145,7 @@ fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
 
 dependencies {
   implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.exifinterface)
   implementation(libs.androidx.appcompat)
   implementation(libs.material)
   implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -157,6 +158,8 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.ai)
   implementation(libs.firebase.firestore)
+  implementation(libs.firebase.messaging)
+  implementation(libs.firebase.installations)
   implementation(libs.guava)
   implementation(libs.kotlinx.coroutines.play.services)
   debugImplementation(libs.firebase.appcheck.debug)

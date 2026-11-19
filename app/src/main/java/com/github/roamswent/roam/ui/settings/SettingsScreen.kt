@@ -24,23 +24,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -62,6 +65,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
@@ -72,8 +76,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestCategories
+import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
+import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.permission.CameraPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.NotificationPermissionController
@@ -89,9 +98,12 @@ import java.util.Locale
 
 private data class ProfileDisplayData(
     val initial: String,
-    val name: String,
+    val username: String,
     val email: String,
     val provider: String,
+    val usernameError: String?,
+    val isPublicProfileLoading: Boolean,
+    val isUsernameSaving: Boolean,
 )
 
 @Composable
@@ -102,6 +114,8 @@ fun SettingsScreen(
         rememberNotificationPermissionController(),
     modifier: Modifier = Modifier,
     settingsViewModel: SettingsViewModel? = null,
+    publicProfileRepository: PublicProfileRepository? = null,
+    notificationInstallationRepository: NotificationInstallationRepository? = null,
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onManagePermissionsClick: () -> Unit = {},
     onSignedOut: () -> Unit = {},
@@ -116,12 +130,22 @@ fun SettingsScreen(
       }
   val resolvedSettingsViewModel =
       settingsViewModel
-          ?: viewModel { SettingsViewModel(userInterestsRepository = userInterestsRepository) }
+          ?: viewModel {
+            SettingsViewModel(
+                userInterestsRepository = userInterestsRepository,
+                publicProfileRepository =
+                    publicProfileRepository ?: FirestorePublicProfileRepository(),
+                notificationInstallationRepository =
+                    notificationInstallationRepository
+                        ?: FirestoreNotificationInstallationRepository(),
+            )
+          }
   val uiState by resolvedSettingsViewModel.uiState.collectAsState()
   val notificationPermissionState by notificationPermissionController.state.collectAsState()
   val lifecycleOwner = LocalLifecycleOwner.current
   val logoutSuccessfulMessage = stringResource(R.string.settings_logout_successful)
   val errorMessage = uiState.errorMsg?.let { stringResource(it) }
+  val usernameError = uiState.usernameErrorMsg?.let { stringResource(it) }
 
   LaunchedEffect(Unit) { resolvedSettingsViewModel.loadProfile() }
 
@@ -181,16 +205,19 @@ fun SettingsScreen(
         profile =
             ProfileDisplayData(
                 initial =
-                    uiState.profile?.displayName?.ifBlank { "?" }?.first()?.uppercase() ?: "?",
-                name =
-                    uiState.profile?.displayName.orEmpty().ifBlank {
-                      stringResource(R.string.settings_profile_default_name)
-                    },
+                    uiState.publicProfile?.username?.firstOrNull()?.uppercase()
+                        ?: uiState.profile?.displayName?.firstOrNull()?.uppercase()
+                        ?: "?",
+                username = uiState.publicProfile?.username.orEmpty(),
                 email = uiState.profile?.email.orEmpty(),
                 provider = uiState.profile?.provider.orEmpty(),
+                usernameError = usernameError,
+                isPublicProfileLoading = uiState.isPublicProfileLoading,
+                isUsernameSaving = uiState.isUsernameSaving,
             ),
         onManagePermissionsClick = onManagePermissionsClick,
         onSignOutClick = { resolvedSettingsViewModel.signOut(credentialManager) },
+        onRenameUsername = resolvedSettingsViewModel::renameUsername,
         themeMode = themeMode,
         onThemeModeSelected = onThemeModeSelected,
         interests = uiState.interests,
@@ -208,6 +235,7 @@ private fun SettingsContent(
     profile: ProfileDisplayData,
     onManagePermissionsClick: () -> Unit,
     onSignOutClick: () -> Unit,
+    onRenameUsername: (String) -> Unit,
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
     interests: List<String>,
@@ -243,6 +271,7 @@ private fun SettingsContent(
       ProfileCard(
           profile = profile,
           onSignOutClick = onSignOutClick,
+          onRenameUsername = onRenameUsername,
       )
       PermissionsCard(
           cameraPermissionGranted = cameraPermissionGranted,
@@ -429,7 +458,9 @@ private fun LanguageCard() {
 private fun ProfileCard(
     profile: ProfileDisplayData,
     onSignOutClick: () -> Unit,
+    onRenameUsername: (String) -> Unit,
 ) {
+  var username by remember(profile.username) { mutableStateOf(profile.username) }
   Card(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_profile_card),
       shape = RoundedCornerShape(20.dp),
@@ -444,26 +475,36 @@ private fun ProfileCard(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        Surface(
+        ProfilePicture(
+            name = profile.initial,
             modifier = Modifier.size(56.dp),
-            shape = CircleShape,
-            color =
-                if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground,
-        ) {
-          androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = profile.initial,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = ScanTeal,
-            )
-          }
-        }
+            textStyle = MaterialTheme.typography.headlineSmall,
+        )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-          Text(
-              text = profile.name,
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Bold,
+          OutlinedTextField(
+              value = username,
+              onValueChange = { username = it },
+              modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_username_field),
+              label = { Text(stringResource(R.string.settings_username_label)) },
+              singleLine = true,
+              enabled = !profile.isPublicProfileLoading && !profile.isUsernameSaving,
+              keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
+              trailingIcon = {
+                if (profile.isPublicProfileLoading || profile.isUsernameSaving) {
+                  CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                } else {
+                  IconButton(
+                      onClick = { onRenameUsername(username) },
+                      enabled = username != profile.username,
+                      modifier = Modifier.testTag(C.Tag.settings_username_save),
+                  ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = stringResource(R.string.settings_username_save),
+                    )
+                  }
+                }
+              },
           )
           Text(
               text = profile.email,
@@ -489,6 +530,13 @@ private fun ProfileCard(
             }
           }
         }
+      }
+      profile.usernameError?.let { message ->
+        Text(
+            text = message,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
       }
       Button(
           onClick = onSignOutClick,

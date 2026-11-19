@@ -33,16 +33,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
+import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.accentIcon
+import com.github.roamswent.roam.ui.theme.guideCalloutContainer
+import com.github.roamswent.roam.ui.theme.guideEyebrow
 import com.github.roamswent.roam.ui.theme.isDark
 import com.github.roamswent.roam.ui.theme.photoButtonContainer
 import kotlin.math.roundToInt
@@ -51,7 +58,10 @@ import kotlin.math.roundToInt
  * Shows [guide] over its [image]. The favourite heart is shown only when [isFavorite] is not null,
  * that is once the guide is in the collection, and [showFavoriteError] shows a snackbar that is
  * reported back with [onFavoriteErrorShown]. The Explore switch is shown only when [exploreOptIn]
- * is not null, and reports changes with [onShowInExploreChange].
+ * is not null, and reports changes with [onShowInExploreChange]. Otherwise, when
+ * [exploreUnavailableReason] is not null, a message explains why the guide cannot be put on
+ * Explore. [isGalleryImage] words both for a gallery photo, located by its own metadata, rather
+ * than for a scan located where the user stands.
  */
 @Composable
 fun MonumentDetailScreen(
@@ -65,6 +75,8 @@ fun MonumentDetailScreen(
     onFavoriteErrorShown: () -> Unit = {},
     exploreOptIn: ExploreOptInUiState? = null,
     onShowInExploreChange: (Boolean) -> Unit = {},
+    exploreUnavailableReason: ExploreUnavailableReason? = null,
+    isGalleryImage: Boolean = false,
 ) {
   val textBackgroundColor =
       if (MaterialTheme.isDark) MaterialTheme.colorScheme.surface else ScreenBackground
@@ -129,9 +141,17 @@ fun MonumentDetailScreen(
                     .weight(1f)
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 24.dp)
+                    .navigationBarsPadding()
                     .verticalScroll(rememberScrollState())
                     .semantics { testTag = C.Tag.monument_detail_text }
         ) {
+          Text(
+              text = stringResource(R.string.monument_detail_ai_guide_label),
+              style = MaterialTheme.typography.labelSmall,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.guideEyebrow,
+              modifier = Modifier.padding(bottom = 6.dp),
+          )
           Text(
               text = guide.monumentName,
               style = MaterialTheme.typography.titleLarge,
@@ -152,42 +172,78 @@ fun MonumentDetailScreen(
                     testTag = C.Tag.monument_detail_confidence
                   },
           )
-          exploreOptIn?.let {
+          if (exploreOptIn != null) {
             ShowInExploreRow(
-                optIn = it,
+                optIn = exploreOptIn,
                 onCheckedChange = onShowInExploreChange,
+                isGalleryImage = isGalleryImage,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+          } else if (exploreUnavailableReason != null) {
+            ExploreUnavailableMessage(
+                reason = exploreUnavailableReason,
+                isGalleryImage = isGalleryImage,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
           }
           Text(
-              text = guide.history,
-              style = MaterialTheme.typography.bodyLarge,
+              text = markdownText(guide.history),
+              style = guideBodyStyle(),
               color = textColor,
               modifier =
                   Modifier.padding(bottom = 16.dp).semantics {
                     testTag = C.Tag.monument_detail_history
                   },
           )
-          guide.facts.forEach { fact ->
+          if (guide.sections.isNotEmpty()) {
+            val funFactsTitle = stringResource(R.string.interest_fun_facts)
+            val funFactTitle = stringResource(R.string.monument_detail_facts_title)
+            val legendsTitle = stringResource(R.string.interest_legends_myths)
+            val isCalloutTitle: (String) -> Boolean = { title ->
+              title.trim().equals(funFactsTitle, ignoreCase = true) ||
+                  title.trim().equals(funFactTitle, ignoreCase = true) ||
+                  title.trim().equals(legendsTitle, ignoreCase = true)
+            }
+            val regularSections = guide.sections.filterNot { isCalloutTitle(it.title) }
+            val calloutSections = guide.sections.filter { isCalloutTitle(it.title) }
+            (regularSections + calloutSections).forEach { section ->
+              GuideSectionCard(
+                  title = section.title,
+                  content = section.content,
+                  bodyStyle = guideBodyStyle(),
+                  isCallout = isCalloutTitle(section.title),
+              )
+            }
+          } else {
+            if (guide.facts.isNotEmpty()) {
+              val factBulletLines = mutableListOf<String>()
+              for (fact in guide.facts) {
+                factBulletLines += stringResource(R.string.monument_detail_fact_bullet, fact)
+              }
+              GuideCallout(
+                  title = stringResource(R.string.monument_detail_facts_title),
+                  content = factBulletLines.joinToString("\n"),
+                  bodyStyle = guideBodyStyle(),
+                  modifier =
+                      Modifier.padding(bottom = 8.dp).semantics {
+                        testTag = C.Tag.monument_detail_fact_item
+                      },
+              )
+            }
+            GuideSectionHeading(
+                title = stringResource(R.string.monument_detail_culture_title),
+                modifier = Modifier.padding(top = 8.dp),
+            )
             Text(
-                text = stringResource(R.string.monument_detail_fact_bullet, fact),
-                style = MaterialTheme.typography.bodyLarge,
+                text = markdownText(guide.culture),
+                style = guideBodyStyle(),
                 color = textColor,
                 modifier =
-                    Modifier.padding(bottom = 4.dp).semantics {
-                      testTag = C.Tag.monument_detail_fact_item
+                    Modifier.padding(bottom = 8.dp).semantics {
+                      testTag = C.Tag.monument_detail_culture
                     },
             )
           }
-          Text(
-              text = guide.culture,
-              style = MaterialTheme.typography.bodyLarge,
-              color = textColor,
-              modifier =
-                  Modifier.padding(top = 12.dp).semantics {
-                    testTag = C.Tag.monument_detail_culture
-                  },
-          )
         }
       }
     }
@@ -220,6 +276,104 @@ fun MonumentDetailScreen(
   }
 }
 
+@Composable private fun guideBodyStyle() = MaterialTheme.typography.bodyLarge
+
+@Composable
+private fun GuideSectionCard(
+    title: String,
+    content: String,
+    bodyStyle: androidx.compose.ui.text.TextStyle,
+    isCallout: Boolean,
+) {
+  if (isCallout) {
+    GuideCallout(
+        title = title,
+        content = content,
+        bodyStyle = bodyStyle,
+        modifier = Modifier.padding(bottom = 12.dp),
+    )
+  } else {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+      GuideSectionHeading(title = title)
+      Text(
+          text = markdownText(content),
+          style = bodyStyle,
+          color = MaterialTheme.colorScheme.onSurface,
+      )
+    }
+  }
+}
+
+@Composable
+private fun GuideCallout(
+    title: String,
+    content: String,
+    bodyStyle: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+) {
+  Column(
+      modifier =
+          modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(16.dp))
+              .background(MaterialTheme.guideCalloutContainer)
+              .padding(12.dp)
+  ) {
+    GuideCalloutHeading(title = title)
+    Text(
+        text = markdownText(content),
+        style = bodyStyle,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+  }
+}
+
+@Composable
+private fun GuideSectionHeading(title: String, modifier: Modifier = Modifier) {
+  Text(
+      text = title,
+      style = MaterialTheme.typography.titleSmall,
+      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.accentIcon,
+      modifier = modifier.padding(bottom = 6.dp),
+  )
+}
+
+@Composable
+private fun GuideCalloutHeading(title: String) {
+  Text(
+      text = title,
+      style = MaterialTheme.typography.labelLarge,
+      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.accentIcon,
+      modifier = Modifier.padding(bottom = 4.dp),
+  )
+}
+
+private fun markdownText(markdown: String): AnnotatedString = buildAnnotatedString {
+  markdown.lines().forEachIndexed { index, line ->
+    if (index > 0) append("\n")
+    val trimmed = line.trim()
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      append("• ")
+      appendMarkdownInline(trimmed.drop(2))
+    } else {
+      appendMarkdownInline(trimmed)
+    }
+  }
+}
+
+private fun AnnotatedString.Builder.appendMarkdownInline(text: String) {
+  val boldPattern = Regex("\\*\\*(.+?)\\*\\*")
+  var cursor = 0
+  boldPattern.findAll(text).forEach { match ->
+    append(text.substring(cursor, match.range.first))
+    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(match.groupValues[1]) }
+    cursor = match.range.last + 1
+  }
+  append(text.substring(cursor))
+}
+
 /** Heart over the photo, styled like the one on collection cards: filled when [isFavorite]. */
 @Composable
 private fun MonumentDetailFavoriteButton(
@@ -248,11 +402,15 @@ private fun MonumentDetailFavoriteButton(
   }
 }
 
-/** Switch that puts the saved guide on Explore at the place it was scanned. */
+/**
+ * Switch that puts the saved guide on Explore at the place it was scanned, or for a gallery photo
+ * ([isGalleryImage]) at the place the photo was taken.
+ */
 @Composable
 private fun ShowInExploreRow(
     optIn: ExploreOptInUiState,
     onCheckedChange: (Boolean) -> Unit,
+    isGalleryImage: Boolean,
     modifier: Modifier = Modifier,
 ) {
   Column(modifier = modifier.fillMaxWidth()) {
@@ -275,7 +433,11 @@ private fun ShowInExploreRow(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = stringResource(R.string.monument_detail_show_in_explore_supporting),
+            text =
+                stringResource(
+                    if (isGalleryImage) R.string.monument_detail_show_in_explore_supporting_photo
+                    else R.string.monument_detail_show_in_explore_supporting
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -292,6 +454,36 @@ private fun ShowInExploreRow(
       )
     }
   }
+}
+
+/**
+ * Explains why the guide cannot be put on Explore, shown in place of the Explore switch. For a
+ * gallery photo ([isGalleryImage]) the observed location is the photo's, not the user's.
+ */
+@Composable
+private fun ExploreUnavailableMessage(
+    reason: ExploreUnavailableReason,
+    isGalleryImage: Boolean,
+    modifier: Modifier = Modifier,
+) {
+  val message =
+      when (reason) {
+        ExploreUnavailableReason.NO_OBSERVED_LOCATION ->
+            if (isGalleryImage) R.string.monument_detail_explore_unavailable_no_photo_location
+            else R.string.monument_detail_explore_unavailable_no_location
+        ExploreUnavailableReason.NO_MONUMENT_LOCATION ->
+            R.string.monument_detail_explore_unavailable_no_monument_location
+        ExploreUnavailableReason.TOO_FAR ->
+            if (isGalleryImage) R.string.monument_detail_explore_unavailable_photo_too_far
+            else R.string.monument_detail_explore_unavailable_too_far
+      }
+  Text(
+      text = stringResource(message),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier =
+          modifier.fillMaxWidth().semantics { testTag = C.Tag.monument_detail_explore_unavailable },
+  )
 }
 
 @Composable

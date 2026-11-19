@@ -2,21 +2,32 @@
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
- * Co-authored-by: Gemini 4 Hydrogen <noreply@google.com>
+ * Co-authored-by: Codex <codex@openai.com>
+ * Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
  */
 
 package com.github.roamswent.roam
 
 import android.Manifest
+import android.app.Activity
 import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -25,12 +36,12 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityOptionsCompat
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -42,6 +53,7 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
@@ -53,11 +65,16 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
+import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
+import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import java.io.File
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -127,6 +144,148 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
     waitForGone(C.Tag.home_screen_container)
     waitForGone(C.Tag.scan_camera_screen)
+  }
+
+  /** Notification deep links wait for authentication, then open the Friends tab. */
+  @Test
+  fun notificationLaunchOpensFriendsAfterAuthentication() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        openFriendsOnLaunch = true,
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.Friends
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+    assertEquals(Routes.Friends, navController[0]?.currentDestination?.route)
+    assertEquals(
+        listOf(Routes.Home, Routes.Friends),
+        backStackRoutes(checkNotNull(navController[0])),
+    )
+  }
+
+  @Test
+  fun notificationLaunchWaitsForSignInBeforeOpeningFriends() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val authState = MutableStateFlow(AuthUIState())
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        authState,
+        onNavControllerReady = { navController[0] = it },
+        openFriendsOnLaunch = true,
+    )
+
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    assertNotEquals(Routes.Friends, navController[0]?.currentDestination?.route)
+
+    authState.value = AuthUIState(user = mock())
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.Friends
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun notificationTapFromAnotherScreenNavigatesToFriends() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val notificationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationEvents = notificationEvents,
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    navigateToSettings(checkNotNull(navController[0]))
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+    composeTestRule.runOnIdle { assertTrue(notificationEvents.tryEmit(Unit)) }
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.Friends
+    }
+    composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
+    assertEquals(
+        listOf(Routes.Home, Routes.Friends),
+        backStackRoutes(checkNotNull(navController[0])),
+    )
+  }
+
+  /** Existing server tokens are removed when notification permission is not granted. */
+  @Test
+  fun notificationPermissionDenialUnregistersTheDeviceToken() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.DENIED)
+    val installationRepository = FakeNotificationInstallationRepository()
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) { installationRepository.removeCalls > 0 }
+    assertEquals(0, installationRepository.synchronizeCalls)
+  }
+
+  /** Granted Android 13+ access enables synchronization of this installation's FCM token. */
+  @Test
+  fun notificationPermissionGrantRegistersTheDeviceToken() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.GRANTED)
+    val installationRepository = FakeNotificationInstallationRepository()
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      installationRepository.synchronizeCalls > 0
+    }
+    assertEquals(0, installationRepository.removeCalls)
+  }
+
+  @Test
+  fun notificationInstallationSynchronizationFailureDoesNotCrashApp() {
+    val application: Application = ApplicationProvider.getApplicationContext()
+    shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.GRANTED)
+    val installationRepository =
+        FakeNotificationInstallationRepository(synchronizeFailure = IllegalStateException())
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(1, installationRepository.synchronizeCalls)
+  }
+
+  @Test
+  fun notificationInstallationRemovalFailureDoesNotCrashApp() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    notificationDecisionRepository.saveDecision(NotificationPermissionDecision.DENIED)
+    val installationRepository =
+        FakeNotificationInstallationRepository(removeFailure = IllegalStateException())
+
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        notificationInstallationRepositoryOverride = installationRepository,
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(1, installationRepository.removeCalls)
   }
 
   @Test
@@ -421,6 +580,50 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_grid)
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(1)
+  }
+
+  @Test
+  fun selectingGalleryImageFromCollectionNavigatesToGalleryReview() {
+    val registry = RecordingActivityResultRegistry()
+    val registryOwner =
+        object : ActivityResultRegistryOwner {
+          override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+    lateinit var navController: NavHostController
+    val savedGuide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(savedGuide)),
+        activityResultRegistryOwner = registryOwner,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).performClick()
+    assertTrue(registry.launchedContract is ActivityResultContracts.PickVisualMedia)
+
+    registry.dispatchResult(Activity.RESULT_CANCELED, null)
+    composeTestRule.waitForIdle()
+    assertEquals(Routes.Collection, navController.currentDestination?.route)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).performClick()
+    val selectedImageUri = Uri.parse("content://media/external/images/media/120 with space")
+    registry.dispatchResult(Activity.RESULT_OK, Intent().setData(selectedImageUri))
+
+    waitAndAssertDisplayed(C.Tag.scan_review_screen)
+    val arguments = requireNotNull(navController.currentBackStackEntry?.arguments)
+    assertEquals(selectedImageUri.toString(), arguments.getString("uri"))
+    assertTrue(arguments.getBoolean("gallery"))
+    assertTrue(arguments.getBoolean("fromCollection"))
   }
 
   @Test
@@ -724,21 +927,24 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun exploreBackArrowReturnsToSingleHomeEntry() {
+  fun exploreHomeTabReturnsToSingleHomeEntry() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(onNavControllerReady = { navController = it })
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
     waitAndAssertDisplayed(C.Tag.explore_screen_container)
-    composeTestRule.onNodeWithContentDescription("Back").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     assertEquals(listOf(Routes.Home), backStackRoutes(navController))
   }
 
-  /** Collection remains accessible offline, while Explore and Friends require internet. */
+  /**
+   * Collection and Explore remain accessible offline, since both read saved guides from the local
+   * cache, while Friends requires internet.
+   */
   @Test
-  fun offlineExploreAndFriendsAreBlockedButCollectionRemainsAccessible() {
+  fun offlineFriendsIsBlockedButCollectionAndExploreRemainAccessible() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(
         onNavControllerReady = { navController = it },
@@ -757,10 +963,14 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
-    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
-    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
-    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
-    waitForGone(C.Tag.offline_action_dialog)
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Explore, navController.currentDestination?.route)
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
     waitAndAssertDisplayed(C.Tag.offline_action_dialog)
@@ -872,26 +1082,40 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun profileButtonFromFriendsOpensSettings() {
+  fun profileButtonsFromFriendsAndExploreOpenSettings() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(
         onNavControllerReady = { navController = it },
         savedGuideRepository = FakeSavedGuideRepository(),
     )
 
-    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
-    waitAndAssertDisplayed(C.Tag.friends_screen_container)
-    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+    val tabs =
+        listOf(
+            C.Tag.dock_tab_friends to C.Tag.friends_screen_container,
+            C.Tag.dock_tab_explore to C.Tag.explore_screen_container,
+        )
+    for ((tab, screen) in tabs) {
+      composeTestRule.onNodeWithTag(tab).performClick()
+      waitAndAssertDisplayed(screen)
+      composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
 
-    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    composeTestRule.runOnIdle {
-      assertEquals(Routes.Settings, navController.currentDestination?.route)
+      waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+      composeTestRule.runOnIdle {
+        assertEquals(Routes.Settings, navController.currentDestination?.route)
+      }
     }
   }
 
   @Test
   fun signedOutStateReturnsToSignInWithoutAutomaticallySigningInAgain() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val notificationManager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(notificationManager).setNotificationsEnabled(true)
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("sign-out-request", "alice", "Alice", "user"),
+    )
     val authState = MutableStateFlow(AuthUIState(user = mock()))
     val settingsViewModel = mock<SettingsViewModel>()
     whenever(settingsViewModel.uiState)
@@ -926,6 +1150,7 @@ class MainActivityNavigationTest {
 
     assertEquals(AuthUIState(signOutCompleted = true), authState.value)
     assertEquals(0, signInClickCount)
+    assertTrue(shadowOf(notificationManager).allNotifications.isEmpty())
     composeTestRule.runOnIdle { assertFalse(navController.clearBackStack(Routes.Collection)) }
   }
 
@@ -1357,6 +1582,7 @@ class MainActivityNavigationTest {
       savedGuideRepository: FakeSavedGuideRepository? = null,
       isOnlineOverride: Boolean? = true,
       captureSender: CaptureSender? = null,
+      activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
   ) {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     renderApp(
@@ -1365,6 +1591,7 @@ class MainActivityNavigationTest {
         savedGuideRepository = savedGuideRepository,
         isOnlineOverride = isOnlineOverride,
         captureSender = captureSender,
+        activityResultRegistryOwner = activityResultRegistryOwner,
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
@@ -1479,6 +1706,10 @@ class MainActivityNavigationTest {
       publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
       signOutFailure: Throwable? = null,
+      openFriendsOnLaunch: Boolean = false,
+      notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
+      notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+      activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
@@ -1501,21 +1732,56 @@ class MainActivityNavigationTest {
     composeTestRule.activity.setContent {
       val navController = rememberNavController()
       SideEffect { onNavControllerReady(navController) }
-      SampleAppTheme {
-        RoamApp(
-            authViewModel,
-            navController = navController,
-            testOverrides =
-                RoamAppTestOverrides(
-                    captureSender = captureSender,
-                    onSignInClick = onSignInClickOverride,
-                    settingsViewModel = settingsViewModel,
-                    savedGuideRepository = savedGuideRepository,
-                    isOnline = isOnlineOverride,
-                    publicProfileRepository = publicProfileRepositoryOverride,
-                ),
-        )
+      val appContent: @Composable () -> Unit = {
+        SampleAppTheme {
+          RoamApp(
+              authViewModel,
+              navController = navController,
+              testOverrides =
+                  RoamAppTestOverrides(
+                      captureSender = captureSender,
+                      onSignInClick = onSignInClickOverride,
+                      settingsViewModel = settingsViewModel,
+                      savedGuideRepository = savedGuideRepository,
+                      isOnline = isOnlineOverride,
+                      publicProfileRepository = publicProfileRepositoryOverride,
+                      notificationInstallationRepository =
+                          notificationInstallationRepositoryOverride,
+                  ),
+              openFriendsOnLaunch = openFriendsOnLaunch,
+              notificationNavigationEvents = notificationNavigationEvents,
+          )
+        }
       }
+      if (activityResultRegistryOwner == null) {
+        appContent()
+      } else {
+        CompositionLocalProvider(
+            LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
+        ) {
+          appContent()
+        }
+      }
+    }
+  }
+
+  private class RecordingActivityResultRegistry : ActivityResultRegistry() {
+    private var launchedRequestCode: Int? = null
+    var launchedContract: ActivityResultContract<*, *>? = null
+      private set
+
+    override fun <I, O> onLaunch(
+        requestCode: Int,
+        contract: ActivityResultContract<I, O>,
+        input: I,
+        options: ActivityOptionsCompat?,
+    ) {
+      launchedRequestCode = requestCode
+      launchedContract = contract
+    }
+
+    fun dispatchResult(resultCode: Int, intent: Intent?) {
+      dispatchResult(checkNotNull(launchedRequestCode), resultCode, intent)
     }
   }
 
@@ -1568,6 +1834,26 @@ class MainActivityNavigationTest {
   private fun waitFor(tag: String) {
     composeTestRule.waitUntil {
       composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    }
+  }
+
+  private class FakeNotificationInstallationRepository(
+      private val synchronizeFailure: Exception? = null,
+      private val removeFailure: Exception? = null,
+  ) : NotificationInstallationRepository {
+    var synchronizeCalls = 0
+    var removeCalls = 0
+
+    override suspend fun synchronizeCurrentInstallation() {
+      synchronizeCalls++
+      synchronizeFailure?.let { throw it }
+    }
+
+    override suspend fun saveInstallationId(installationId: String) = Unit
+
+    override suspend fun removeCurrentInstallation() {
+      removeCalls++
+      removeFailure?.let { throw it }
     }
   }
 

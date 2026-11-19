@@ -17,9 +17,15 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
+import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileException
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.profile.UserProfile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +39,10 @@ data class SettingsUIState(
     val locationPermissionGranted: Boolean = false,
     val profileLoading: Boolean = false,
     val profile: UserProfile? = null,
+    val publicProfile: PublicProfile? = null,
+    val isPublicProfileLoading: Boolean = false,
+    val isUsernameSaving: Boolean = false,
+    @param:StringRes val usernameErrorMsg: Int? = null,
     val interests: List<String> = emptyList(),
 )
 
@@ -40,6 +50,9 @@ class SettingsViewModel(
     private val authRepository: AuthRepository = AuthRepositoryFirebase(),
     private val profileRepository: ProfileRepository = ProfileRepositoryFirebase(),
     private val userInterestsRepository: UserInterestsRepository,
+    private val publicProfileRepository: PublicProfileRepository? = null,
+    private val notificationInstallationRepository: NotificationInstallationRepository =
+        FirestoreNotificationInstallationRepository(),
 ) : ViewModel() {
 
   private val _uiState =
@@ -84,6 +97,7 @@ class SettingsViewModel(
   /** Loads the authenticated user's profile and preferences from the backend. */
   fun loadProfile() {
     if (_uiState.value.profileLoading) return
+    loadPublicProfile()
     viewModelScope.launch {
       _uiState.update { it.copy(profileLoading = true, errorMsg = null) }
       profileRepository
@@ -109,9 +123,74 @@ class SettingsViewModel(
     }
   }
 
+  private fun loadPublicProfile() {
+    val repository = publicProfileRepository ?: return
+    if (_uiState.value.isPublicProfileLoading || _uiState.value.isUsernameSaving) return
+    _uiState.update { it.copy(isPublicProfileLoading = true, usernameErrorMsg = null) }
+    viewModelScope.launch {
+      try {
+        val publicProfile = repository.getCurrentProfile()
+        _uiState.update { it.copy(publicProfile = publicProfile, isPublicProfileLoading = false) }
+      } catch (exception: CancellationException) {
+        _uiState.update { it.copy(isPublicProfileLoading = false) }
+        throw exception
+      } catch (_: Exception) {
+        _uiState.update {
+          it.copy(
+              isPublicProfileLoading = false,
+              usernameErrorMsg = R.string.settings_username_error_load,
+          )
+        }
+      }
+    }
+  }
+
+  /**
+   * Changes the public username using the repository's existing validation and uniqueness checks.
+   */
+  fun renameUsername(username: String) {
+    val repository =
+        publicProfileRepository
+            ?: run {
+              _uiState.update {
+                it.copy(usernameErrorMsg = R.string.settings_username_error_update)
+              }
+              return
+            }
+    if (_uiState.value.isPublicProfileLoading || _uiState.value.isUsernameSaving) return
+
+    _uiState.update { it.copy(isUsernameSaving = true, usernameErrorMsg = null) }
+    viewModelScope.launch {
+      try {
+        val updatedProfile = repository.renameUsername(username.trim())
+        _uiState.update {
+          it.copy(publicProfile = updatedProfile, isUsernameSaving = false, usernameErrorMsg = null)
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        val errorMessage =
+            when (exception) {
+              is PublicProfileException.InvalidUsername -> R.string.settings_username_error_invalid
+              is PublicProfileException.UsernameTaken -> R.string.settings_username_error_taken
+              else -> R.string.settings_username_error_update
+            }
+        _uiState.update { it.copy(isUsernameSaving = false, usernameErrorMsg = errorMessage) }
+      }
+    }
+  }
+
   /** Initiates sign-out and updates the UI state on success or failure. */
   fun signOut(credentialManager: CredentialManager) {
     viewModelScope.launch {
+      try {
+        notificationInstallationRepository.removeCurrentInstallation()
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.e("SettingsViewModel", "Failed to remove notification installation.", exception)
+      }
+
       authRepository
           .signOut()
           .fold(

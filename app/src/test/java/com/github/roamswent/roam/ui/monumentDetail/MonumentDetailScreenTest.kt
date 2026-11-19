@@ -27,10 +27,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
+import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
 import org.junit.Assert.assertEquals
@@ -92,9 +94,10 @@ class MonumentDetailScreenTest {
         .onNodeWithTag(C.Tag.monument_detail_culture)
         .assertIsDisplayed()
         .assertTextEquals(guide.culture)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(1)
     composeTestRule
-        .onAllNodesWithTag(C.Tag.monument_detail_fact_item)
-        .assertCountEquals(guide.facts.size)
+        .onNodeWithText("• 330 meters tall\n• Repainted every seven years")
+        .assertIsDisplayed()
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_drag_handle).performTouchInput {
       swipeUp()
@@ -116,6 +119,39 @@ class MonumentDetailScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
 
     assertTrue(backClicked)
+  }
+
+  @Test
+  fun interestSectionsUseReadableOrderWithCalloutsAtTheBottom() {
+    val sectionGuide =
+        guide.copy(
+            sections =
+                listOf(
+                    GuideSection("Fun Facts", "A fun fact."),
+                    GuideSection("Architecture", "A detailed description."),
+                    GuideSection("Legends & Myths", "A legend."),
+                ),
+        )
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = sectionGuide,
+            onBackClick = {},
+        )
+      }
+    }
+
+    val architectureY =
+        composeTestRule.onNodeWithText("Architecture").fetchSemanticsNode().positionInRoot.y
+    val funFactsY =
+        composeTestRule.onNodeWithText("Fun Facts").fetchSemanticsNode().positionInRoot.y
+    val legendsY =
+        composeTestRule.onNodeWithText("Legends & Myths").fetchSemanticsNode().positionInRoot.y
+
+    assertTrue(architectureY < funFactsY)
+    assertTrue(funFactsY < legendsY)
   }
 
   @Test
@@ -246,6 +282,8 @@ class MonumentDetailScreenTest {
 
   private fun setExploreContent(
       optIn: ExploreOptInUiState?,
+      unavailableReason: ExploreUnavailableReason? = null,
+      isGalleryImage: Boolean = false,
       onShowInExploreChange: (Boolean) -> Unit = {},
   ) {
     composeTestRule.setContent {
@@ -256,6 +294,8 @@ class MonumentDetailScreenTest {
             onBackClick = {},
             exploreOptIn = optIn,
             onShowInExploreChange = onShowInExploreChange,
+            exploreUnavailableReason = unavailableReason,
+            isGalleryImage = isGalleryImage,
         )
       }
     }
@@ -266,6 +306,114 @@ class MonumentDetailScreenTest {
     setExploreContent(optIn = null)
 
     composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_show_in_explore).assertCountEquals(0)
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
+  }
+
+  private fun assertUnavailableMessage(
+      reason: ExploreUnavailableReason,
+      expected: String,
+      isGalleryImage: Boolean = false,
+  ) {
+    setExploreContent(optIn = null, unavailableReason = reason, isGalleryImage = isGalleryImage)
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_show_in_explore).assertCountEquals(0)
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_explore_unavailable, useUnmergedTree = true)
+        .assertIsDisplayed()
+        .assertTextEquals(expected)
+  }
+
+  @Test
+  fun missingObservedLocationIsExplainedInsteadOfTheSwitch() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+        "Your location wasn't available during the scan, so this monument can't be added to " +
+            "Explore.",
+    )
+  }
+
+  @Test
+  fun missingMonumentLocationIsExplainedInsteadOfTheSwitch() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_MONUMENT_LOCATION,
+        "We couldn't confirm where this monument is, so it can't be added to Explore.",
+    )
+  }
+
+  @Test
+  fun scanTooFarIsExplainedInsteadOfTheSwitch() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.TOO_FAR,
+        "You don't seem to be near this monument, so it can't be added to Explore.",
+    )
+  }
+
+  @Test
+  fun galleryPhotoWithoutLocationIsExplainedAsMissingPhotoData() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+        "This photo has no location data, so this monument can't be added to Explore.",
+        isGalleryImage = true,
+    )
+  }
+
+  @Test
+  fun galleryPhotoTooFarIsExplainedForThePhoto() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.TOO_FAR,
+        "This photo doesn't seem to have been taken near this monument, so it can't be added " +
+            "to Explore.",
+        isGalleryImage = true,
+    )
+  }
+
+  @Test
+  fun galleryPhotoWithoutMonumentLocationUsesTheSharedMessage() {
+    assertUnavailableMessage(
+        ExploreUnavailableReason.NO_MONUMENT_LOCATION,
+        "We couldn't confirm where this monument is, so it can't be added to Explore.",
+        isGalleryImage = true,
+    )
+  }
+
+  @Test
+  fun scanSwitchSaysThePinIsWhereItWasScanned() {
+    setExploreContent(ExploreOptInUiState(scanLocation = scanLocation))
+
+    composeTestRule
+        .onNodeWithText(
+            "Pin this monument on the map where you scanned it.",
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun gallerySwitchSaysThePinIsWhereThePhotoWasTaken() {
+    setExploreContent(ExploreOptInUiState(scanLocation = scanLocation), isGalleryImage = true)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(
+            "Pin this monument on the map where the photo was taken.",
+            useUnmergedTree = true,
+        )
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun switchTakesPrecedenceOverAnUnavailableReason() {
+    setExploreContent(
+        optIn = ExploreOptInUiState(scanLocation = scanLocation),
+        unavailableReason = ExploreUnavailableReason.TOO_FAR,
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertIsDisplayed()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
   }
 
   @Test

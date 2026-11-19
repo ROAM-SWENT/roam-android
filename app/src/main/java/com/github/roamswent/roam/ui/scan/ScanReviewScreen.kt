@@ -60,6 +60,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
+import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.CameraOverlayContent
@@ -90,6 +91,7 @@ fun ScanReviewScreen(
     onFavoriteErrorShown: () -> Unit = {},
     exploreOptIn: ExploreOptInUiState? = null,
     onShowInExploreChange: (Boolean) -> Unit = {},
+    exploreUnavailableReason: ExploreUnavailableReason? = null,
 ) {
   if (state is ScanReviewUiState.Sent) {
     MonumentDetailScreen(
@@ -102,6 +104,8 @@ fun ScanReviewScreen(
         onFavoriteErrorShown = onFavoriteErrorShown,
         exploreOptIn = exploreOptIn,
         onShowInExploreChange = onShowInExploreChange,
+        exploreUnavailableReason = exploreUnavailableReason,
+        isGalleryImage = isGalleryImage,
     )
     return
   }

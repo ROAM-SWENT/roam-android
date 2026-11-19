@@ -1,3 +1,4 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Firestore rules smoke test. Requires Node.js 18+ and the Firebase CLI; no npm packages.
 // Run from the repository root:
 // firebase emulators:exec --project demo-roam-rules --only auth,firestore "node firebase/firestore/test-rules.mjs"
@@ -19,8 +20,20 @@ function fields(values) {
 }
 
 function toFirestoreValue(value) {
+  if (value === null) return { nullValue: null };
   if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "boolean") return { booleanValue: value };
+  if (typeof value === "number") {
+    if (Number.isInteger(value)) return { integerValue: value.toString() };
+    return { doubleValue: value };
+  }
+  if (value instanceof Uint8Array || Buffer.isBuffer(value)) {
+    return { bytesValue: Buffer.from(value).toString("base64") };
+  }
   if (Array.isArray(value)) return { arrayValue: { values: value.map(toFirestoreValue) } };
+  if (typeof value === "object") {
+    return { mapValue: { fields: fields(value) } };
+  }
   throw new Error(`Unsupported Firestore test value: ${value}`);
 }
 
@@ -48,6 +61,25 @@ function friendshipWrite(requesterUid, recipientUid, status = "PENDING") {
     update: {
       name: documentName(`friendships/${participantUids[0]}~${participantUids[1]}`),
       fields: fields({ participantUids, requesterUid, recipientUid, status }),
+    },
+  };
+}
+
+function notificationInstallationWrite(uid, fid) {
+  return {
+    update: {
+      name: documentName(`notificationInstallations/${uid}/installations/${fid}`),
+      fields: fields({ fid }),
+    },
+    updateTransforms: [{ fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }],
+  };
+}
+
+function savedGuideWrite(uid, guideId, data = { monumentName: "Test guide" }) {
+  return {
+    update: {
+      name: documentName(`users/${uid}/savedGuides/${guideId}`),
+      fields: fields(data),
     },
   };
 }
@@ -104,10 +136,30 @@ async function queryFriendships(token, uid) {
   });
 }
 
+async function querySavedGuides(token, uid) {
+  return fetch(`${firestoreBase}/users/${uid}:runQuery`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "savedGuides" }],
+      },
+    }),
+  });
+}
+
 async function expectAllowed(label, response) {
-  const body = await response.text();
-  if (!response.ok) throw new Error(`${label} failed (${response.status}): ${body}`);
+  const bodyText = await response.text();
+  if (!response.ok) throw new Error(`${label} failed (${response.status}): ${bodyText}`);
   console.log(`PASS ${label}`);
+  try {
+    return JSON.parse(bodyText);
+  } catch {
+    return bodyText;
+  }
 }
 
 async function expectDenied(label, response) {
@@ -116,6 +168,14 @@ async function expectDenied(label, response) {
     throw new Error(
       `${label} expected PERMISSION_DENIED, got ${response.status}: ${JSON.stringify(body)}`,
     );
+  }
+  console.log(`PASS ${label}`);
+}
+
+async function expectNotFound(label, response) {
+  const body = await response.json();
+  if (response.status !== 404 || body.error?.status !== "NOT_FOUND") {
+    throw new Error(`${label} expected NOT_FOUND, got ${response.status}: ${JSON.stringify(body)}`);
   }
   console.log(`PASS ${label}`);
 }
@@ -143,6 +203,46 @@ const stranger = await createUser();
 await expectAllowed(
   "authenticated registration",
   await commit(owner.token, [profileWrite(owner.uid, "Roamer"), claimWrite(owner.uid, "Roamer")]),
+);
+
+await expectAllowed(
+  "user can query their empty saved guides",
+  await querySavedGuides(owner.token, owner.uid),
+);
+const savedGuidePath = `users/${owner.uid}/savedGuides/test-guide`;
+await expectAllowed(
+  "user can create a saved guide",
+  await commit(owner.token, [savedGuideWrite(owner.uid, "test-guide")]),
+);
+await expectAllowed(
+  "user can delete their saved guide",
+  await firestoreRequest(savedGuidePath, owner.token, { method: "DELETE" }),
+);
+await expectDenied(
+  "user cannot create another user's saved guide",
+  await commit(otherUser.token, [savedGuideWrite(owner.uid, "other-guide")]),
+);
+
+await expectAllowed(
+  "user can register their notification installation",
+  await commit(
+    owner.token,
+    [notificationInstallationWrite(owner.uid, "owner-device-fid")],
+  ),
+);
+await expectDenied(
+  "user cannot register another user's notification installation",
+  await commit(
+    otherUser.token,
+    [notificationInstallationWrite(owner.uid, "other-device-fid")],
+  ),
+);
+await expectDenied(
+  "notification installations cannot be read by clients",
+  await firestoreRequest(
+    `notificationInstallations/${owner.uid}/installations/owner-device-fid`,
+    owner.token,
+  ),
 );
 
 await expectDenied(
@@ -233,6 +333,20 @@ console.log("PASS nonparticipant query returns no friendship documents");
 
 const friendshipPath =
   `friendships/${[owner.uid, otherUser.uid].sort()[0]}~${[owner.uid, otherUser.uid].sort()[1]}`;
+await expectNotFound(
+  "participant can check an absent friendship pair",
+  await firestoreRequest(
+    `friendships/${[owner.uid, stranger.uid].sort()[0]}~${[owner.uid, stranger.uid].sort()[1]}`,
+    owner.token,
+  ),
+);
+await expectDenied(
+  "nonparticipant cannot check an absent friendship pair",
+  await firestoreRequest(
+    `friendships/${[otherUser.uid, stranger.uid].sort()[0]}~${[otherUser.uid, stranger.uid].sort()[1]}`,
+    owner.token,
+  ),
+);
 await expectDenied(
   "nonparticipant cannot read a known friendship document",
   await firestoreRequest(friendshipPath, stranger.token),
@@ -270,10 +384,463 @@ await expectAllowed(
   await firestoreRequest(friendshipPath, otherUser.token, { method: "DELETE" }),
 );
 await expectAllowed(
-  "requester can send a new request after rejection",
+  "original requester can send a new request after rejection",
+  await commit(owner.token, [friendshipWrite(owner.uid, otherUser.uid)]),
+);
+await expectAllowed(
+  "recipient can reject the resent request",
+  await firestoreRequest(friendshipPath, otherUser.token, { method: "DELETE" }),
+);
+await expectAllowed(
+  "former recipient can send a new request after rejection",
   await commit(otherUser.token, [friendshipWrite(otherUser.uid, owner.uid)]),
 );
 await expectAllowed(
   "requester can cancel a pending request",
   await firestoreRequest(friendshipPath, otherUser.token, { method: "DELETE" }),
 );
+
+// --- users/{ownerUid}/savedGuides/{guideId} rules tests ---
+
+const guideOwner = await createUser();
+const friend = await createUser();
+const unlistedFriend = await createUser();
+const follower = await createUser();
+const strangerUser = await createUser();
+
+// Set up public profiles
+await commit(guideOwner.token, [
+  profileWrite(guideOwner.uid, `Owner_${guideOwner.uid.slice(0, 8)}`),
+  claimWrite(guideOwner.uid, `Owner_${guideOwner.uid.slice(0, 8)}`),
+]);
+await commit(friend.token, [
+  profileWrite(friend.uid, `Friend_${friend.uid.slice(0, 8)}`),
+  claimWrite(friend.uid, `Friend_${friend.uid.slice(0, 8)}`),
+]);
+await commit(unlistedFriend.token, [
+  profileWrite(unlistedFriend.uid, `Unlist_${unlistedFriend.uid.slice(0, 8)}`),
+  claimWrite(unlistedFriend.uid, `Unlist_${unlistedFriend.uid.slice(0, 8)}`),
+]);
+await commit(follower.token, [
+  profileWrite(follower.uid, `Follow_${follower.uid.slice(0, 8)}`),
+  claimWrite(follower.uid, `Follow_${follower.uid.slice(0, 8)}`),
+]);
+await commit(strangerUser.token, [
+  profileWrite(strangerUser.uid, `Strang_${strangerUser.uid.slice(0, 8)}`),
+  claimWrite(strangerUser.uid, `Strang_${strangerUser.uid.slice(0, 8)}`),
+]);
+
+// Set up accepted friendships via admin
+await commit("owner", [
+  friendshipWrite(guideOwner.uid, friend.uid, "ACCEPTED"),
+  friendshipWrite(guideOwner.uid, unlistedFriend.uid, "ACCEPTED"),
+]);
+
+// Set up follow relation (guideOwner is followed by follower) via admin
+await commit("owner", [
+  {
+    update: {
+      name: documentName(`follows/${guideOwner.uid}~${follower.uid}`),
+      fields: fields({ ownerUid: guideOwner.uid, followerUid: follower.uid }),
+    },
+  },
+]);
+
+// 1. Owner can create, read, update, and delete their own guide.
+const ownerGuidePath = `users/${guideOwner.uid}/savedGuides/guide-owner-crud`;
+await expectAllowed(
+  "owner can create own guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-owner-crud", {
+      monumentName: "Eiffel Tower",
+      photo: "bytes123",
+      confidence: 0.95,
+      shareAudience: "ALL_FRIENDS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "owner can read own guide",
+  await firestoreRequest(ownerGuidePath, guideOwner.token),
+);
+await expectAllowed(
+  "owner can update own guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-owner-crud", {
+      monumentName: "Eiffel Tower Updated",
+      photo: "bytes123",
+      confidence: 0.99,
+      shareAudience: "ALL_FRIENDS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "owner can delete own guide",
+  await firestoreRequest(ownerGuidePath, guideOwner.token, { method: "DELETE" }),
+);
+
+// 2. NONE: denied to accepted bidirectional friend and stranger.
+const noneGuidePath = `users/${guideOwner.uid}/savedGuides/guide-none`;
+await expectAllowed(
+  "owner can create NONE audience guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-none", {
+      monumentName: "Private Monument",
+      photo: "bytes",
+      shareAudience: "NONE",
+    }),
+  ]),
+);
+await expectDenied(
+  "NONE audience denied to accepted friend",
+  await firestoreRequest(noneGuidePath, friend.token),
+);
+await expectDenied(
+  "NONE audience denied to stranger",
+  await firestoreRequest(noneGuidePath, strangerUser.token),
+);
+
+// 3. SELECTED_FRIENDS: allowed to listed accepted friend; denied to unlisted accepted friend and non-friend.
+const selectedGuidePath = `users/${guideOwner.uid}/savedGuides/guide-selected`;
+await expectAllowed(
+  "owner can create SELECTED_FRIENDS guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-selected", {
+      monumentName: "Selected Friends Monument",
+      photo: "bytes",
+      shareAudience: "SELECTED_FRIENDS",
+      sharedWithUids: [friend.uid],
+    }),
+  ]),
+);
+await expectAllowed(
+  "SELECTED_FRIENDS allowed to listed accepted friend",
+  await firestoreRequest(selectedGuidePath, friend.token),
+);
+await expectDenied(
+  "SELECTED_FRIENDS denied to unlisted accepted friend",
+  await firestoreRequest(selectedGuidePath, unlistedFriend.token),
+);
+await expectDenied(
+  "SELECTED_FRIENDS denied to non-friend",
+  await firestoreRequest(selectedGuidePath, strangerUser.token),
+);
+
+// If stranger is somehow in sharedWithUids, read is still denied because not an accepted friend
+const selectedWithStrangerPath = `users/${guideOwner.uid}/savedGuides/guide-selected-stranger`;
+await commit(guideOwner.token, [
+  savedGuideWrite(guideOwner.uid, "guide-selected-stranger", {
+    monumentName: "Selected With Stranger Monument",
+    photo: "bytes",
+    shareAudience: "SELECTED_FRIENDS",
+    sharedWithUids: [friend.uid, strangerUser.uid],
+  }),
+]);
+await expectDenied(
+  "SELECTED_FRIENDS denied to listed non-friend",
+  await firestoreRequest(selectedWithStrangerPath, strangerUser.token),
+);
+
+// 4. ALL_FRIENDS: allowed to accepted friend; denied to stranger / non-friend.
+const allFriendsGuidePath = `users/${guideOwner.uid}/savedGuides/guide-all-friends`;
+await expectAllowed(
+  "owner can create ALL_FRIENDS guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-all-friends", {
+      monumentName: "All Friends Monument",
+      photo: "bytes",
+      shareAudience: "ALL_FRIENDS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "ALL_FRIENDS allowed to accepted friend",
+  await firestoreRequest(allFriendsGuidePath, friend.token),
+);
+await expectAllowed(
+  "ALL_FRIENDS allowed to other accepted friend",
+  await firestoreRequest(allFriendsGuidePath, unlistedFriend.token),
+);
+await expectDenied(
+  "ALL_FRIENDS denied to stranger",
+  await firestoreRequest(allFriendsGuidePath, strangerUser.token),
+);
+
+// 5. Legacy/#198 doc (no shareAudience field): allowed to accepted friend; denied to stranger.
+const legacyGuidePath = `users/${guideOwner.uid}/savedGuides/guide-legacy`;
+await expectAllowed(
+  "owner can create legacy guide without shareAudience",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-legacy", {
+      monumentName: "Legacy Monument",
+      photo: "bytes",
+    }),
+  ]),
+);
+await expectAllowed(
+  "legacy guide allowed to accepted friend",
+  await firestoreRequest(legacyGuidePath, friend.token),
+);
+await expectDenied(
+  "legacy guide denied to stranger",
+  await firestoreRequest(legacyGuidePath, strangerUser.token),
+);
+
+// 6. ALL_FOLLOWERS: allowed to accepted friend and to unidirectional follower; denied to stranger.
+const allFollowersGuidePath = `users/${guideOwner.uid}/savedGuides/guide-all-followers`;
+await expectAllowed(
+  "owner can create ALL_FOLLOWERS guide",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "guide-all-followers", {
+      monumentName: "All Followers Monument",
+      photo: "bytes",
+      shareAudience: "ALL_FOLLOWERS",
+    }),
+  ]),
+);
+await expectAllowed(
+  "ALL_FOLLOWERS allowed to accepted friend",
+  await firestoreRequest(allFollowersGuidePath, friend.token),
+);
+await expectAllowed(
+  "ALL_FOLLOWERS allowed to unidirectional follower",
+  await firestoreRequest(allFollowersGuidePath, follower.token),
+);
+await expectDenied(
+  "ALL_FOLLOWERS denied to stranger",
+  await firestoreRequest(allFollowersGuidePath, strangerUser.token),
+);
+
+// 7. Recipient dismissal:
+// Authorized friend can update *only* dismissedByUids (adding own UID) and sharedWithUids (removing own UID),
+// after which their read is denied. Recipient cannot delete the owner's guide, cannot modify monumentName/photo,
+// and cannot add another user's UID to dismissedByUids.
+const dismissGuidePath = `users/${guideOwner.uid}/savedGuides/guide-dismiss`;
+await commit(guideOwner.token, [
+  savedGuideWrite(guideOwner.uid, "guide-dismiss", {
+    monumentName: "Dismissible Monument",
+    photo: "bytes",
+    shareAudience: "SELECTED_FRIENDS",
+    sharedWithUids: [friend.uid, unlistedFriend.uid],
+    dismissedByUids: [],
+  }),
+]);
+
+// Recipient cannot delete the owner's guide
+await expectDenied(
+  "recipient cannot delete owner guide",
+  await firestoreRequest(dismissGuidePath, friend.token, { method: "DELETE" }),
+);
+
+// Recipient cannot modify monumentName or other non-dismissal fields
+await expectDenied(
+  "recipient cannot modify monumentName",
+  await commit(friend.token, [
+    {
+      update: {
+        name: documentName(dismissGuidePath),
+        fields: fields({
+          monumentName: "Hacked Monument Name",
+          dismissedByUids: [friend.uid],
+          sharedWithUids: [unlistedFriend.uid],
+        }),
+      },
+      updateMask: {
+        fieldPaths: ["monumentName", "dismissedByUids", "sharedWithUids"],
+      },
+    },
+  ]),
+);
+
+// Recipient cannot add another user's UID to dismissedByUids
+await expectDenied(
+  "recipient cannot add another user to dismissedByUids",
+  await commit(friend.token, [
+    {
+      update: {
+        name: documentName(dismissGuidePath),
+        fields: fields({
+          dismissedByUids: [unlistedFriend.uid],
+          sharedWithUids: [unlistedFriend.uid],
+        }),
+      },
+      updateMask: {
+        fieldPaths: ["dismissedByUids", "sharedWithUids"],
+      },
+    },
+  ]),
+);
+
+// Recipient dismissal: authorized friend updates only dismissedByUids (adding own UID) and sharedWithUids (removing own UID)
+await expectAllowed(
+  "recipient can dismiss shared guide",
+  await commit(friend.token, [
+    {
+      update: {
+        name: documentName(dismissGuidePath),
+        fields: fields({
+          dismissedByUids: [friend.uid],
+          sharedWithUids: [unlistedFriend.uid],
+        }),
+      },
+      updateMask: {
+        fieldPaths: ["dismissedByUids", "sharedWithUids"],
+      },
+    },
+  ]),
+);
+
+// After dismissal, their read is denied
+await expectDenied(
+  "read denied to dismissed recipient",
+  await firestoreRequest(dismissGuidePath, friend.token),
+);
+
+// But unlistedFriend (who wasn't dismissed) can still read
+await expectAllowed(
+  "non-dismissed friend can still read",
+  await firestoreRequest(dismissGuidePath, unlistedFriend.token),
+);
+
+// Dismissed recipient on ALL_FRIENDS guide is denied read by dismissedByUids guard
+const allFriendsDismissedPath = `users/${guideOwner.uid}/savedGuides/guide-all-friends-dismissed`;
+await commit(guideOwner.token, [
+  savedGuideWrite(guideOwner.uid, "guide-all-friends-dismissed", {
+    monumentName: "Dismissed All Friends Monument",
+    photo: "bytes",
+    shareAudience: "ALL_FRIENDS",
+    dismissedByUids: [friend.uid],
+  }),
+]);
+await expectDenied(
+  "dismissed friend on ALL_FRIENDS guide is denied read",
+  await firestoreRequest(allFriendsDismissedPath, friend.token),
+);
+
+// --- users/{ownerUid}/savedGuides collection list (runQuery) rules tests ---
+
+async function runSavedGuidesQuery(token, ownerUid, where = null) {
+  const structuredQuery = {
+    from: [{ collectionId: "savedGuides" }],
+    ...(where ? { where } : {}),
+  };
+  return firestoreRequest(`users/${ownerUid}:runQuery`, token, {
+    method: "POST",
+    body: JSON.stringify({ structuredQuery }),
+  });
+}
+
+// 1. Unfiltered list by accepted friend is denied (PERMISSION_DENIED) — proving "rules are not filters".
+await expectDenied(
+  "unfiltered savedGuides query by accepted friend is denied",
+  await runSavedGuidesQuery(friend.token, guideOwner.uid),
+);
+
+// 2. whereIn (shareAudience in ['ALL_FRIENDS', 'ALL_FOLLOWERS']) by accepted friend is allowed.
+const broadcastFilter = {
+  fieldFilter: {
+    field: { fieldPath: "shareAudience" },
+    op: "IN",
+    value: {
+      arrayValue: {
+        values: [{ stringValue: "ALL_FRIENDS" }, { stringValue: "ALL_FOLLOWERS" }],
+      },
+    },
+  },
+};
+
+const broadcastResponse = await runSavedGuidesQuery(friend.token, guideOwner.uid, broadcastFilter);
+const broadcastBody = await expectAllowed(
+  "whereIn ALL_FRIENDS/ALL_FOLLOWERS by accepted friend is allowed",
+  broadcastResponse,
+);
+const broadcastIds = broadcastBody
+  .filter((r) => r.document)
+  .map((r) => r.document.name.split("/").pop());
+if (
+  !broadcastIds.includes("guide-all-friends") ||
+  !broadcastIds.includes("guide-all-followers") ||
+  broadcastIds.includes("guide-none") ||
+  broadcastIds.includes("guide-selected")
+) {
+  throw new Error(`whereIn returned unexpected docs: ${JSON.stringify(broadcastIds)}`);
+}
+
+// 3. whereEqualTo("shareAudience", "SELECTED_FRIENDS") + whereArrayContains("sharedWithUids", friendUid) is allowed.
+const selectedFilter = {
+  compositeFilter: {
+    op: "AND",
+    filters: [
+      {
+        fieldFilter: {
+          field: { fieldPath: "shareAudience" },
+          op: "EQUAL",
+          value: { stringValue: "SELECTED_FRIENDS" },
+        },
+      },
+      {
+        fieldFilter: {
+          field: { fieldPath: "sharedWithUids" },
+          op: "ARRAY_CONTAINS",
+          value: { stringValue: friend.uid },
+        },
+      },
+    ],
+  },
+};
+
+const selectedResponse = await runSavedGuidesQuery(friend.token, guideOwner.uid, selectedFilter);
+const selectedBody = await expectAllowed(
+  "whereEqualTo SELECTED_FRIENDS and arrayContains friendUid by listed friend is allowed",
+  selectedResponse,
+);
+const selectedIds = selectedBody
+  .filter((r) => r.document)
+  .map((r) => r.document.name.split("/").pop());
+if (!selectedIds.includes("guide-selected") || selectedIds.includes("guide-none")) {
+  throw new Error(`selectedQuery returned unexpected docs: ${JSON.stringify(selectedIds)}`);
+}
+
+// 4. whereIn (['ALL_FRIENDS', 'ALL_FOLLOWERS']) by stranger is denied.
+await expectDenied(
+  "whereIn ALL_FRIENDS/ALL_FOLLOWERS by stranger is denied",
+  await runSavedGuidesQuery(strangerUser.token, guideOwner.uid, broadcastFilter),
+);
+
+// 5. whereEqualTo("shareAudience", "ALL_FOLLOWERS") by unidirectional follower is allowed.
+const followersFilter = {
+  fieldFilter: {
+    field: { fieldPath: "shareAudience" },
+    op: "EQUAL",
+    value: { stringValue: "ALL_FOLLOWERS" },
+  },
+};
+
+const followersResponse = await runSavedGuidesQuery(follower.token, guideOwner.uid, followersFilter);
+const followersBody = await expectAllowed(
+  "whereEqualTo ALL_FOLLOWERS by unidirectional follower is allowed",
+  followersResponse,
+);
+const followersIds = followersBody
+  .filter((r) => r.document)
+  .map((r) => r.document.name.split("/").pop());
+if (!followersIds.includes("guide-all-followers") || followersIds.includes("guide-all-friends")) {
+  throw new Error(`followersQuery returned unexpected docs: ${JSON.stringify(followersIds)}`);
+}
+
+// 6. whereEqualTo("shareAudience", "ALL_FRIENDS") by unidirectional follower is denied.
+const friendsFilter = {
+  fieldFilter: {
+    field: { fieldPath: "shareAudience" },
+    op: "EQUAL",
+    value: { stringValue: "ALL_FRIENDS" },
+  },
+};
+
+await expectDenied(
+  "whereEqualTo ALL_FRIENDS by unidirectional follower is denied",
+  await runSavedGuidesQuery(follower.token, guideOwner.uid, friendsFilter),
+);
+
+
+

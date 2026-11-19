@@ -11,13 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,6 +33,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +41,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,8 +51,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,9 +58,9 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
 import com.github.roamswent.roam.ui.theme.OnBrand
@@ -66,6 +68,7 @@ import com.github.roamswent.roam.ui.theme.ScreenBackground
 import com.github.roamswent.roam.ui.theme.accentIcon
 import com.github.roamswent.roam.ui.theme.isDark
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FriendsContent(
     friends: List<FriendUser>,
@@ -82,8 +85,12 @@ internal fun FriendsContent(
     onRejectRequest: (FriendRequest) -> Unit,
     isMutating: Boolean,
     isLoading: Boolean,
+    hasLoaded: Boolean,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+  val listState = rememberLazyListState()
+  val pullRefreshState = rememberPullToRefreshState()
   Column(
       modifier = modifier.statusBarsPadding().padding(horizontal = 20.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -95,39 +102,68 @@ internal fun FriendsContent(
         onAddFriendsClicked = onAddFriendsClicked,
         onProfileClicked = onProfileClicked,
     )
-    friendRequests.forEach { request ->
-      FriendRequestCard(
-          request = request,
-          onAccept = { onAcceptRequest(request) },
-          onReject = { onRejectRequest(request) },
-          enabled = !isMutating,
-          modifier = Modifier.fillMaxWidth(),
-      )
-    }
-    FriendsSearchField(
-        query = friendsQuery,
-        onQueryChanged = onFriendsQueryChanged,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    if (isLoading && friends.isEmpty() && friendRequests.isEmpty()) {
-      Box(
-          modifier = Modifier.fillMaxWidth().weight(1f),
-          contentAlignment = Alignment.Center,
-      ) {
-        CircularProgressIndicator()
-      }
-    } else {
-      LazyColumn(
-          modifier = Modifier.fillMaxWidth().weight(1f),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        items(friends, key = FriendUser::id) { friend ->
-          FriendRow(
-              friend = friend,
-              onClick = { onFriendClicked(friend) },
-              onRemove = { onRemoveFriend(friend) },
-              enabled = !isMutating,
+    val isRefreshing = isLoading && hasLoaded
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        state = pullRefreshState,
+        indicator = {
+          val refreshDescription = stringResource(R.string.friends_refreshing)
+          PullToRefreshDefaults.Indicator(
+              state = pullRefreshState,
+              isRefreshing = isRefreshing,
+              modifier =
+                  Modifier.align(Alignment.TopCenter).semantics {
+                    contentDescription = refreshDescription
+                    testTag = C.Tag.friends_refresh_indicator
+                  },
           )
+        },
+    ) {
+      Column(
+          modifier = Modifier.matchParentSize(),
+          verticalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        friendRequests.forEach { request ->
+          FriendRequestCard(
+              request = request,
+              onAccept = { onAcceptRequest(request) },
+              onReject = { onRejectRequest(request) },
+              enabled = !isMutating,
+              modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        FriendsSearchField(
+            query = friendsQuery,
+            onQueryChanged = onFriendsQueryChanged,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (isLoading && !hasLoaded && friends.isEmpty() && friendRequests.isEmpty()) {
+          Box(
+              modifier = Modifier.fillMaxWidth().weight(1f),
+              contentAlignment = Alignment.Center,
+          ) {
+            CircularProgressIndicator(
+                modifier = Modifier.semantics { testTag = C.Tag.friends_initial_loading }
+            )
+          }
+        } else {
+          LazyColumn(
+              modifier =
+                  Modifier.fillMaxWidth().weight(1f).semantics { testTag = C.Tag.friends_list },
+              state = listState,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            items(friends, key = FriendUser::id) { friend ->
+              FriendRow(
+                  friend = friend,
+                  onClick = { onFriendClicked(friend) },
+                  onRemove = { onRemoveFriend(friend) },
+                  enabled = !isMutating,
+              )
+            }
+          }
         }
       }
     }
@@ -258,7 +294,7 @@ internal fun FriendRequestCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Avatar(
+      ProfilePicture(
           name = request.user.username,
           avatarUrl = request.user.avatarUrl,
           modifier = Modifier.size(48.dp),
@@ -349,7 +385,7 @@ private fun FriendRow(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(14.dp),
       ) {
-        Avatar(
+        ProfilePicture(
             name = friend.username,
             avatarUrl = friend.avatarUrl,
             modifier = Modifier.size(52.dp),
@@ -420,32 +456,6 @@ private fun FriendRow(
           TextButton(onClick = { showRemoveConfirmation = false }) { Text(cancelLabel) }
         },
     )
-  }
-}
-
-@Composable
-internal fun Avatar(name: String, avatarUrl: String?, modifier: Modifier = Modifier) {
-  Box(
-      modifier = modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
-      contentAlignment = Alignment.Center,
-  ) {
-    if (avatarUrl != null) {
-      AsyncImage(
-          model = avatarUrl,
-          contentDescription = null,
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize().clip(CircleShape),
-      )
-    } else {
-      Text(
-          text = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-          color =
-              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
-              else HomeAccentGreen,
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-      )
-    }
   }
 }
 
