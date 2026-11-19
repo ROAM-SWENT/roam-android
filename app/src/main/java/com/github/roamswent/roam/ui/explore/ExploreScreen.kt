@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -70,6 +71,7 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.basemap.BaseMapPolygon
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.ProfilePicture
@@ -80,15 +82,21 @@ import com.github.roamswent.roam.ui.theme.OnBrand
 import com.github.roamswent.roam.ui.theme.ScanTeal
 import com.github.roamswent.roam.ui.theme.cardContainer
 import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.offlineMapBorder
+import com.github.roamswent.roam.ui.theme.offlineMapLand
+import com.github.roamswent.roam.ui.theme.offlineMapWater
 import com.github.roamswent.roam.ui.theme.screenBackground
 import com.github.roamswent.roam.ui.theme.secondaryText
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.ComposeMapColorScheme
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.rememberCameraPositionState
 
 private fun Coordinates.toLatLng() = LatLng(latitude, longitude)
@@ -123,6 +131,115 @@ internal fun updateSelectedMonumentId(
     selectedMonumentId: String?,
 ): String? = selectedMonumentId?.takeIf { selectedId -> monuments.any { it.guideId == selectedId } }
 
+/** Mercator maps stop around 85 degrees, so the sea is drawn up to there. */
+private const val OFFLINE_SEA_MAX_LATITUDE = 85.0
+
+/** Longitude width of each sea band; under 180 degrees so no band is drawn the short way round. */
+private const val OFFLINE_SEA_BAND_WIDTH = 90.0
+
+/**
+ * The sea of the offline base map, as rectangles that cover the world together. A single rectangle
+ * cannot be used: Google Maps joins two points by the shorter way round the globe.
+ */
+internal fun offlineSeaBands(): List<List<Coordinates>> =
+    generateSequence(-180.0) { it + OFFLINE_SEA_BAND_WIDTH }
+        .takeWhile { it < 180.0 }
+        .map { west ->
+          val east = west + OFFLINE_SEA_BAND_WIDTH
+          listOf(
+              Coordinates(-OFFLINE_SEA_MAX_LATITUDE, west),
+              Coordinates(-OFFLINE_SEA_MAX_LATITUDE, east),
+              Coordinates(OFFLINE_SEA_MAX_LATITUDE, east),
+              Coordinates(OFFLINE_SEA_MAX_LATITUDE, west),
+          )
+        }
+        .toList()
+
+/** The sea bands as Google Maps points. */
+internal fun offlineSeaShapes(): List<List<LatLng>> =
+    offlineSeaBands().map { band -> band.map { it.toLatLng() } }
+
+/** A land polygon as Google Maps points: its outline and the holes cut out of it. */
+internal data class OfflineLandShape(val outline: List<LatLng>, val holes: List<List<LatLng>>)
+
+/** Converts the bundled countries to the shapes drawn on the map. */
+internal fun offlineLandShapes(countries: List<BaseMapPolygon>): List<OfflineLandShape> =
+    countries.map { country ->
+      OfflineLandShape(
+          outline = country.outline.map { it.toLatLng() },
+          holes = country.holes.map { hole -> hole.map { it.toLatLng() } },
+      )
+    }
+
+/** The theme colors of the offline base map. */
+internal data class OfflineMapColors(val sea: Color, val land: Color, val border: Color)
+
+/** Reads the offline base map colors of the current theme. */
+@Composable
+internal fun offlineMapColors(): OfflineMapColors =
+    OfflineMapColors(
+        sea = MaterialTheme.offlineMapWater,
+        land = MaterialTheme.offlineMapLand,
+        border = MaterialTheme.offlineMapBorder,
+    )
+
+/** A polygon of the offline base map and how it is drawn. */
+internal data class OfflineMapPolygon(
+    val points: List<LatLng>,
+    val holes: List<List<LatLng>>,
+    val fillColor: Color,
+    val strokeColor: Color,
+    val strokeWidth: Float,
+    val zIndex: Float,
+)
+
+/** Border width in pixels, as Google Maps expects; thin enough for small countries. */
+internal const val OFFLINE_BORDER_WIDTH_PX = 2f
+
+/**
+ * The polygons of the offline base map, sea first then land. The sea has no visible border; the
+ * land is drawn above it with thin country borders.
+ */
+internal fun offlineBaseMapPolygons(
+    countries: List<BaseMapPolygon>,
+    colors: OfflineMapColors,
+): List<OfflineMapPolygon> {
+  val sea =
+      offlineSeaShapes().map { band ->
+        OfflineMapPolygon(
+            points = band,
+            holes = emptyList(),
+            fillColor = colors.sea,
+            strokeColor = colors.sea,
+            strokeWidth = 0f,
+            zIndex = 0f,
+        )
+      }
+  val land =
+      offlineLandShapes(countries).map { shape ->
+        OfflineMapPolygon(
+            points = shape.outline,
+            holes = shape.holes,
+            fillColor = colors.land,
+            strokeColor = colors.border,
+            strokeWidth = OFFLINE_BORDER_WIDTH_PX,
+            zIndex = 1f,
+        )
+      }
+  return sea + land
+}
+
+/**
+ * Map properties for the connection state: offline, the Google tiles are switched off so the
+ * bundled base map is the only background, rather than a patchwork of whatever tiles were cached.
+ * The blue location dot is shown whenever the location permission is granted.
+ */
+internal fun exploreMapProperties(isOnline: Boolean, isMyLocationEnabled: Boolean): MapProperties =
+    MapProperties(
+        isMyLocationEnabled = isMyLocationEnabled,
+        mapType = if (isOnline) MapType.NORMAL else MapType.NONE,
+    )
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
@@ -130,8 +247,12 @@ fun ExploreScreen(
     profileName: String,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
+    isOnline: Boolean = true,
 ) {
   val uiState by exploreViewModel.uiState.collectAsState()
+  val offlineBaseMap by exploreViewModel.offlineBaseMap.collectAsState()
+
+  LaunchedEffect(isOnline) { if (!isOnline) exploreViewModel.loadOfflineBaseMap() }
   val permissionState by locationPermissionController.state.collectAsState()
   val context = LocalContext.current
 
@@ -210,13 +331,15 @@ fun ExploreScreen(
             modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
             cameraPositionState = cameraPositionState,
             properties =
-                MapProperties(
+                exploreMapProperties(
+                    isOnline = isOnline,
                     isMyLocationEnabled =
-                        permissionState.isGranted && hasLocationPermission(context)
+                        permissionState.isGranted && hasLocationPermission(context),
                 ),
             uiSettings = MapUiSettings(myLocationButtonEnabled = false),
             mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
         ) {
+          if (!isOnline) OfflineBaseMap(offlineBaseMap)
           monuments.forEach { monument ->
             key(monument.guideId) {
               val position = monument.coordinates.toLatLng()
@@ -250,6 +373,24 @@ fun ExploreScreen(
         )
       }
     }
+  }
+}
+
+/** Draws the bundled world map, sea then land, with theme colors. Markers stay on top of it. */
+@Composable
+@GoogleMapComposable
+private fun OfflineBaseMap(countries: List<BaseMapPolygon>) {
+  val colors = offlineMapColors()
+  val polygons = remember(countries, colors) { offlineBaseMapPolygons(countries, colors) }
+  polygons.forEach {
+    Polygon(
+        points = it.points,
+        holes = it.holes,
+        fillColor = it.fillColor,
+        strokeColor = it.strokeColor,
+        strokeWidth = it.strokeWidth,
+        zIndex = it.zIndex,
+    )
   }
 }
 
