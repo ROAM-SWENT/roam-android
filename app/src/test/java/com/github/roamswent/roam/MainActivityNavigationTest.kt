@@ -1097,13 +1097,49 @@ class MainActivityNavigationTest {
     for ((tab, screen) in tabs) {
       composeTestRule.onNodeWithTag(tab).performClick()
       waitAndAssertDisplayed(screen)
-      composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+      val profileTag =
+          if (tab == C.Tag.dock_tab_explore) C.Tag.explore_profile_button
+          else C.Tag.home_profile_button
+      composeTestRule.onNodeWithTag(profileTag).performClick()
 
       waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
       composeTestRule.runOnIdle {
         assertEquals(Routes.Settings, navController.currentDestination?.route)
       }
     }
+  }
+
+  @Test
+  fun profileButtonFromCollectionReturnsToCollection() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.runOnIdle { navController.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    assertEquals(Routes.Collection, navController.currentDestination?.route)
+  }
+
+  @Test
+  fun profileButtonFromExploreReturnsToExplore() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.explore_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.runOnIdle { navController.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    assertEquals(Routes.Explore, navController.currentDestination?.route)
   }
 
   @Test

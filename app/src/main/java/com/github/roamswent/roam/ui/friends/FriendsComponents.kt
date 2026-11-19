@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
@@ -199,10 +200,11 @@ private fun FriendsHeader(
         fontWeight = FontWeight.Bold,
         modifier = Modifier.semantics { testTag = C.Tag.friends_title },
     )
-    ProfileButton(
-        name = profileName,
+    ProfileBubble(
+        name = profileName.orEmpty(),
         avatarBytes = profileAvatarBytes,
         onClick = onProfileClicked,
+        testTag = C.Tag.home_profile_button,
     )
   }
 }
