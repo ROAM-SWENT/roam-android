@@ -42,12 +42,12 @@ class ImagePreparerTest {
     assertRejected(RejectionReason.Undecodable) {
       preparer.prepareProfilePicture(bytes(0xFF, 0xD8, 0xFF, 0xE0) + ByteArray(64) { 0x13 })
     }
+  }
 
-    @Test
-    fun profilePictureRejectsImageWithTinyDimension() {
-      assertRejected(RejectionReason.DimensionsOutOfRange) {
-        preparer.prepareProfilePicture(encode(8, 8, Bitmap.CompressFormat.PNG))
-      }
+  @Test
+  fun profilePictureRejectsImageWithTinyDimension() {
+    assertRejected(RejectionReason.DimensionsOutOfRange) {
+      preparer.prepareProfilePicture(encode(8, 8, Bitmap.CompressFormat.PNG))
     }
   }
 
