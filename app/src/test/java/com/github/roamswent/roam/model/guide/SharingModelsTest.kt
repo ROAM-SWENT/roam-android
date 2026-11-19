@@ -15,11 +15,11 @@ import org.junit.Test
 class SharingModelsTest {
 
   @Test
-  fun monumentShareSettingsDefaultsToAllFriendsAndEmptyRecipientSets() {
+  fun monumentShareSettingsDefaultsToNoneAndEmptyRecipientSets() {
     val settings = MonumentShareSettings()
 
     assertEquals(DEFAULT_SHARE_AUDIENCE, settings.audience)
-    assertEquals(ShareAudience.ALL_FRIENDS, settings.audience)
+    assertEquals(ShareAudience.NONE, settings.audience)
     assertEquals(MonumentShareSettings.DEFAULT_SHARE_AUDIENCE, settings.audience)
     assertTrue(settings.sharedWithUids.isEmpty())
     assertTrue(settings.dismissedByUids.isEmpty())

@@ -103,7 +103,7 @@ class GuideFirestoreMapperTest {
   fun toFieldsAlwaysWritesAudienceAndOmitsEmptyRecipientSets() {
     val fields = GuideFirestoreMapper.toFields(guide)
 
-    assertEquals(ShareAudience.ALL_FRIENDS.name, fields[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD])
+    assertEquals(ShareAudience.NONE.name, fields[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD])
     assertFalse(fields.containsKey(GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD))
     assertFalse(fields.containsKey(GuideFirestoreMapper.DISMISSED_BY_UIDS_FIELD))
   }

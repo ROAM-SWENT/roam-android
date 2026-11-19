@@ -48,6 +48,7 @@ import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.basemap.AssetOfflineBaseMapRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.location.LocationProvider
@@ -178,6 +179,7 @@ internal data class RoamAppTestOverrides(
     val savedGuideRepository: SavedGuideRepository? = null,
     val publicProfileRepository: PublicProfileRepository? = null,
     val friendRepository: FriendRepository? = null,
+    val monumentSharingProvider: MonumentSharingProvider? = null,
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
@@ -539,6 +541,9 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               onGuideClick = { guideId -> navController.navigate(Routes.monumentDetail(guideId)) },
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
+              monumentSharingProvider = testOverrides?.monumentSharingProvider,
           )
         }
       }
