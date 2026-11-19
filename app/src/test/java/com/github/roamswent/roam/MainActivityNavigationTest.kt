@@ -882,9 +882,12 @@ class MainActivityNavigationTest {
     assertEquals(listOf(Routes.Home), backStackRoutes(navController))
   }
 
-  /** Collection remains accessible offline, while Explore and Friends require internet. */
+  /**
+   * Collection and Explore remain accessible offline, since both read saved guides from the local
+   * cache, while Friends requires internet.
+   */
   @Test
-  fun offlineExploreAndFriendsAreBlockedButCollectionRemainsAccessible() {
+  fun offlineFriendsIsBlockedButCollectionAndExploreRemainAccessible() {
     lateinit var navController: NavHostController
     showAuthenticatedHome(
         onNavControllerReady = { navController = it },
@@ -903,10 +906,14 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
-    waitAndAssertDisplayed(C.Tag.offline_action_dialog)
-    composeTestRule.runOnIdle { assertEquals(Routes.Home, navController.currentDestination?.route) }
-    composeTestRule.onNodeWithTag(C.Tag.offline_action_dialog_dismiss).performClick()
-    waitForGone(C.Tag.offline_action_dialog)
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onAllNodesWithTag(C.Tag.offline_action_dialog).assertCountEquals(0)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Explore, navController.currentDestination?.route)
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
 
     composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
     waitAndAssertDisplayed(C.Tag.offline_action_dialog)

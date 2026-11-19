@@ -75,7 +75,7 @@
     <string name="explore_back_description">Back</string>
     <string name="explore_user_location">Your location</string>
     <string name="explore_loading_location">Loading your location…</string>
-    <string name="explore_permission_required">Please activate location permission to explore nearby places.</string>
+    <string name="explore_permission_required">Turn on location permission to see where you are on the map.</string>
     <string name="explore_location_unavailable">We could not determine your location.</string>
     <string name="explore_retry">Retry</string>
     <string name="explore_monument_photo_description">Photo of %1$s</string>
