@@ -443,60 +443,57 @@ class SettingsViewModelTest {
             viewModel.uiState.value.usernameErrorMsg,
         )
       }
-    @Test
-    fun renameUsername_whilePublicProfileLoading_isIgnored() =
-        runTest(dispatcher) {
-            val initialProfile = PublicProfile("uid", "old_name")
-            val updatedProfile = PublicProfile("uid", "new_name")
-            val loadingResult = CompletableDeferred<PublicProfile>()
 
-            whenever(profileRepository.loadProfile())
-                .thenReturn(
-                    Result.success(
-                        UserProfile("Name", "user@example.com", "Google")
-                    )
-                )
+  @Test
+  fun renameUsername_whilePublicProfileLoading_isIgnored() =
+      runTest(dispatcher) {
+        val initialProfile = PublicProfile("uid", "old_name")
+        val updatedProfile = PublicProfile("uid", "new_name")
+        val loadingResult = CompletableDeferred<PublicProfile>()
 
-            whenever(publicProfileRepository.renameUsername("new_name"))
-                .thenReturn(updatedProfile)
+        whenever(profileRepository.loadProfile())
+            .thenReturn(Result.success(UserProfile("Name", "user@example.com", "Google")))
 
-            val blockingRepository =
-                object : PublicProfileRepository by publicProfileRepository {
-                    override suspend fun getCurrentProfile(): PublicProfile {
-                        return loadingResult.await()
-                    }
-                }
+        whenever(publicProfileRepository.renameUsername("new_name")).thenReturn(updatedProfile)
 
-            val viewModel = SettingsViewModel(
+        val blockingRepository =
+            object : PublicProfileRepository by publicProfileRepository {
+              override suspend fun getCurrentProfile(): PublicProfile {
+                return loadingResult.await()
+              }
+            }
+
+        val viewModel =
+            SettingsViewModel(
                 repository,
                 profileRepository,
                 userInterestsRepository,
-                blockingRepository
+                blockingRepository,
             )
 
-            viewModel.loadProfile()
-            runCurrent()
+        viewModel.loadProfile()
+        runCurrent()
 
-            // Attempt to rename while the initial request is pending.
-            viewModel.renameUsername("new_name")
-            runCurrent()
+        // Attempt to rename while the initial request is pending.
+        viewModel.renameUsername("new_name")
+        runCurrent()
 
-            verify(publicProfileRepository, org.mockito.kotlin.never())
-                .renameUsername("new_name")
+        verify(publicProfileRepository, org.mockito.kotlin.never()).renameUsername("new_name")
 
-            // Complete the initial profile request.
-            loadingResult.complete(initialProfile)
-            advanceUntilIdle()
+        // Complete the initial profile request.
+        loadingResult.complete(initialProfile)
+        advanceUntilIdle()
 
-            assertEquals(initialProfile, viewModel.uiState.value.publicProfile)
+        assertEquals(initialProfile, viewModel.uiState.value.publicProfile)
 
-            // Renaming should now be possible.
-            viewModel.renameUsername("new_name")
-            advanceUntilIdle()
+        // Renaming should now be possible.
+        viewModel.renameUsername("new_name")
+        advanceUntilIdle()
 
-            assertEquals(updatedProfile, viewModel.uiState.value.publicProfile)
-            verify(publicProfileRepository).renameUsername("new_name")
-        }
+        assertEquals(updatedProfile, viewModel.uiState.value.publicProfile)
+        verify(publicProfileRepository).renameUsername("new_name")
+      }
+
   /** Verifies that a profile load already in progress is not started a second time. */
   @Test
   fun loadProfile_whileAlreadyLoading_ignoresSecondRequest() =
