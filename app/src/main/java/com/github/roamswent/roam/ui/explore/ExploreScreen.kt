@@ -1,10 +1,14 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -23,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -57,11 +60,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
@@ -69,6 +74,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.basemap.BaseMapPolygon
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
@@ -88,50 +94,37 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
-import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.rememberCameraPositionState
 
 private fun Coordinates.toLatLng() = LatLng(latitude, longitude)
 
+private fun hasLocationPermission(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
 internal fun exploreMapColorScheme(isDark: Boolean): ComposeMapColorScheme =
     if (isDark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT
-
-/** A standard marker drawn on the Explore map, identified by a [key] unique within the map. */
-internal data class ExploreMapMarker(
-    val key: String,
-    val coordinates: Coordinates,
-    val title: String,
-)
-
-/** Key of the user's location marker; monument keys are prefixed so they can never collide. */
-internal const val USER_LOCATION_MARKER_KEY = "user_location"
-
-/**
- * Lists the markers of the Explore map: the user's location first when it is known, then one marker
- * per saved monument, titled with the monument name.
- */
-internal fun exploreMapMarkers(
-    userLocation: Coordinates?,
-    userLocationTitle: String,
-    monuments: List<ExploreMonument>,
-): List<ExploreMapMarker> =
-    listOfNotNull(
-        userLocation?.let { ExploreMapMarker(USER_LOCATION_MARKER_KEY, it, userLocationTitle) }
-    ) + monuments.map { ExploreMapMarker("monument_${it.guideId}", it.coordinates, it.name) }
 
 /** The user's coordinates when [state] has them, so the map can draw without a location. */
 internal fun exploreUserLocation(state: ExploreUiState): Coordinates? =
     (state as? ExploreUiState.LocationAvailable)?.coordinates
 
+/**
+ * The map is drawn once the camera has something to frame: the user's location, or the saved
+ * monuments (loaded, even if there are none).
+ */
+internal fun shouldShowExploreMap(userLocation: Coordinates?, monumentsLoaded: Boolean): Boolean =
+    userLocation != null || monumentsLoaded
+
 internal fun selectedMonumentForId(
     monuments: List<ExploreMonument>,
     selectedMonumentId: String?,
 ): ExploreMonument? = monuments.firstOrNull { it.guideId == selectedMonumentId }
-
-internal fun selectedMonumentIdForMarkerKey(markerKey: String): String? =
-    markerKey.takeUnless { it == USER_LOCATION_MARKER_KEY }?.removePrefix("monument_")
 
 internal fun updateSelectedMonumentId(
     monuments: List<ExploreMonument>,
@@ -239,23 +232,19 @@ internal fun offlineBaseMapPolygons(
 /**
  * Map properties for the connection state: offline, the Google tiles are switched off so the
  * bundled base map is the only background, rather than a patchwork of whatever tiles were cached.
+ * The blue location dot is shown whenever the location permission is granted.
  */
-internal fun exploreMapProperties(isOnline: Boolean): MapProperties =
-    MapProperties(mapType = if (isOnline) MapType.NORMAL else MapType.NONE)
-
-internal fun handleExploreMarkerClick(
-    markerKey: String,
-    onMonumentSelected: (String) -> Unit,
-): Boolean =
-    selectedMonumentIdForMarkerKey(markerKey)?.let {
-      onMonumentSelected(it)
-      true
-    } ?: false
+internal fun exploreMapProperties(isOnline: Boolean, isMyLocationEnabled: Boolean): MapProperties =
+    MapProperties(
+        isMyLocationEnabled = isMyLocationEnabled,
+        mapType = if (isOnline) MapType.NORMAL else MapType.NONE,
+    )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
-    onBackClick: () -> Unit,
+    onProfileClicked: () -> Unit,
+    profileName: String,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,
@@ -265,6 +254,7 @@ fun ExploreScreen(
 
   LaunchedEffect(isOnline) { if (!isOnline) exploreViewModel.loadOfflineBaseMap() }
   val permissionState by locationPermissionController.state.collectAsState()
+  val context = LocalContext.current
 
   LaunchedEffect(permissionState) {
     exploreViewModel.onPermissionStateChanged(
@@ -288,13 +278,18 @@ fun ExploreScreen(
                   fontWeight = FontWeight.Bold,
               )
             },
-            navigationIcon = {
-              IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.explore_back_description),
-                )
-              }
+            actions = {
+              val description = stringResource(R.string.home_profile_button_description)
+              ProfilePicture(
+                  name = profileName,
+                  onClick = onProfileClicked,
+                  modifier =
+                      Modifier.padding(end = 16.dp).size(48.dp).semantics {
+                        contentDescription = description
+                        testTag = C.Tag.home_profile_button
+                      },
+                  textStyle = MaterialTheme.typography.titleSmall,
+              )
             },
         )
       },
@@ -306,6 +301,7 @@ fun ExploreScreen(
             }
     ) {
       val monuments by exploreViewModel.monuments.collectAsState()
+      val monumentsLoaded by exploreViewModel.monumentsLoaded.collectAsState()
       val userLocation = exploreUserLocation(uiState)
       val cameraFocus = exploreCameraFocus(userLocation, monuments)
       val cameraPositionState = rememberCameraPositionState {
@@ -321,12 +317,6 @@ fun ExploreScreen(
           framedFocus = cameraFocus
         }
       }
-      val markers =
-          exploreMapMarkers(
-              userLocation = userLocation,
-              userLocationTitle = stringResource(R.string.explore_user_location),
-              monuments = monuments,
-          )
       var selectedMonumentId by remember { mutableStateOf<String?>(null) }
       LaunchedEffect(monuments, selectedMonumentId) {
         selectedMonumentId = updateSelectedMonumentId(monuments, selectedMonumentId)
@@ -334,22 +324,35 @@ fun ExploreScreen(
       val selectedMonument = selectedMonumentForId(monuments, selectedMonumentId)
       var isMonumentExpanded by remember(selectedMonumentId) { mutableStateOf(false) }
 
-      GoogleMap(
-          modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
-          cameraPositionState = cameraPositionState,
-          properties = exploreMapProperties(isOnline),
-          mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
-      ) {
-        if (!isOnline) OfflineBaseMap(offlineBaseMap)
-        markers.forEach { marker ->
-          key(marker.key) {
-            val position = marker.coordinates.toLatLng()
-            val markerState = remember(position) { MarkerState(position = position) }
-            Marker(
-                state = markerState,
-                title = marker.title,
-                onClick = { handleExploreMarkerClick(marker.key) { selectedMonumentId = it } },
-            )
+      // Wait for the saved monuments (a few frames at most) so the first frame is already framed
+      // on them rather than on the world view.
+      if (shouldShowExploreMap(userLocation, monumentsLoaded)) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
+            cameraPositionState = cameraPositionState,
+            properties =
+                exploreMapProperties(
+                    isOnline = isOnline,
+                    isMyLocationEnabled =
+                        permissionState.isGranted && hasLocationPermission(context),
+                ),
+            uiSettings = MapUiSettings(myLocationButtonEnabled = false),
+            mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
+        ) {
+          if (!isOnline) OfflineBaseMap(offlineBaseMap)
+          monuments.forEach { monument ->
+            key(monument.guideId) {
+              val position = monument.coordinates.toLatLng()
+              ExploreMonumentMarker(
+                  monument = monument,
+                  state = remember(position) { MarkerState(position = position) },
+                  isSelected = selectedMonumentId == monument.guideId,
+                  onClick = {
+                    selectedMonumentId = monument.guideId
+                    true
+                  },
+              )
+            }
           }
         }
       }
@@ -365,7 +368,8 @@ fun ExploreScreen(
             isExpanded = isMonumentExpanded,
             onExpand = { isMonumentExpanded = true },
             onMinimize = { isMonumentExpanded = false },
-            modifier = Modifier.align(Alignment.BottomCenter),
+            // The Scan halo rises 36 dp above the dock body reserved by the route.
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
         )
       }
     }

@@ -66,6 +66,14 @@ class ExploreCameraTest {
     assertTrue(europe > world)
   }
 
+  /** Paris and Sydney are about 150 degrees apart: the zoom must be wide enough to show both. */
+  @Test
+  fun monumentsMoreThanAScreenApartAreStillBothFramed() {
+    val sydney = ExploreMonument("guide-4", "Opera", Coordinates(-33.8568, 151.2153))
+
+    assertEquals(EXPLORE_WORLD_ZOOM, exploreCameraTarget(null, listOf(eiffel, sydney)).zoom)
+  }
+
   @Test
   fun framingZoomStaysWithinBounds() {
     val nextDoor = ExploreMonument("guide-3", "Next door", Coordinates(48.858371, 2.294481))

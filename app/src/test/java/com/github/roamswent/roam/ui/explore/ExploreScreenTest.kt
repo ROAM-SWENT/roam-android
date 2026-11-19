@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
@@ -63,18 +64,21 @@ class ExploreScreenTest {
   fun displaysExploreTitleAndMapContainerWhenLocationIsAvailable() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
             MutableStateFlow(ExploreUiState.LocationAvailable(Coordinates(48.85837, 2.29448)))
         )
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     val locationPermissionController = permissionController(granted = true)
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -90,13 +94,15 @@ class ExploreScreenTest {
   fun offlineBaseMapIsRequestedOnlyWhenOffline() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
     var isOnline by mutableStateOf(true)
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = true),
             isOnline = isOnline,
@@ -121,13 +127,13 @@ class ExploreScreenTest {
 
   /**
    * Verifies that the shown map reads the saved monuments from the view model. Google Maps markers
-   * expose no Compose semantics, so the markers built from these monuments are checked in
-   * [ExploreMapMarkersTest].
+   * expose no Compose semantics. Their SDK interactions are checked in [ExploreMapIntegrationTest].
    */
   @Test
   fun readsSavedMonumentsWhenMapIsShown() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
@@ -145,7 +151,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = true),
         )
@@ -306,6 +313,7 @@ class ExploreScreenTest {
   fun showsMapAndMonumentsWithoutLocationPermission() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
@@ -314,7 +322,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = false),
         )
@@ -327,11 +336,41 @@ class ExploreScreenTest {
     verify(exploreViewModel, atLeastOnce()).monuments
   }
 
+  /** Verifies that the map waits for the saved monuments, so it never flashes the world view. */
+  @Test
+  fun mapWaitsForMonumentsBeforeBeingDrawnWithoutLocation() {
+    val loaded = MutableStateFlow(false)
+    val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(loaded)
+    whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        ExploreScreen(
+            onProfileClicked = {},
+            profileName = "Alex",
+            exploreViewModel = exploreViewModel,
+            locationPermissionController = permissionController(granted = true),
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(0)
+    composeTestRule.onNodeWithText("Loading your location…").assertIsDisplayed()
+
+    loaded.value = true
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onAllNodesWithTag(C.Tag.explore_map).assertCountEquals(1)
+  }
+
   /** Verifies that no location status is drawn over the map once the location is known. */
   @Test
   fun hidesLocationStatusWhenLocationIsAvailable() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
@@ -340,7 +379,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = permissionController(granted = true),
         )
@@ -356,6 +396,7 @@ class ExploreScreenTest {
   fun exploreTitleUsesOnSurfaceColorInDarkTheme() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
     val locationPermissionController = permissionController(granted = true)
@@ -365,7 +406,8 @@ class ExploreScreenTest {
       SampleAppTheme(darkTheme = true, dynamicColor = false) {
         onSurfaceColor = MaterialTheme.colorScheme.onSurface.toArgb()
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -384,12 +426,13 @@ class ExploreScreenTest {
     assertTrue(foundOnSurfaceColor)
   }
 
-  /** Verifies that clicking the back button invokes the provided callback. */
+  /** Verifies that clicking the profile button invokes the provided callback. */
   @Test
-  fun backButtonInvokesCallback() {
-    var backClicks = 0
+  fun profileButtonInvokesCallback() {
+    var profileClicks = 0
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
@@ -399,17 +442,18 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = { backClicks++ },
+            onProfileClicked = { profileClicks++ },
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
       }
     }
 
-    val backButton = composeTestRule.onNodeWithContentDescription("Back")
-    backButton.assertIsDisplayed().performClick()
+    val profileButton = composeTestRule.onNodeWithContentDescription("Open profile")
+    profileButton.assertIsDisplayed().performClick()
 
-    assertEquals(1, backClicks)
+    assertEquals(1, profileClicks)
   }
 
   /** Verifies that a loading indicator is shown while the location is being loaded. */
@@ -417,13 +461,15 @@ class ExploreScreenTest {
   fun displaysLoadingState() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState).thenReturn(MutableStateFlow(ExploreUiState.Loading))
     val locationPermissionController = permissionController(granted = true)
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -439,6 +485,7 @@ class ExploreScreenTest {
   fun displaysPermissionGuidanceWithoutRequestAction() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
@@ -448,7 +495,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -466,6 +514,7 @@ class ExploreScreenTest {
   fun displaysUnavailableState() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(MutableStateFlow(ExploreUiState.LocationUnavailable))
@@ -473,7 +522,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -490,6 +540,7 @@ class ExploreScreenTest {
   fun retryButtonRetriesLocation() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(MutableStateFlow(ExploreUiState.LocationUnavailable))
@@ -497,7 +548,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )
@@ -514,6 +566,7 @@ class ExploreScreenTest {
   fun permissionStateChangesAreForwardedToViewModel() {
     val exploreViewModel = mock<ExploreViewModel>()
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
+    whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.uiState)
         .thenReturn(
@@ -532,7 +585,8 @@ class ExploreScreenTest {
     composeTestRule.setContent {
       SampleAppTheme {
         ExploreScreen(
-            onBackClick = {},
+            onProfileClicked = {},
+            profileName = "Alex",
             exploreViewModel = exploreViewModel,
             locationPermissionController = locationPermissionController,
         )

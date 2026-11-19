@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -52,6 +54,15 @@ class ExploreViewModel(
       )
   val uiState: StateFlow<ExploreUiState> = _uiState.asStateFlow()
 
+  private val _monumentsLoaded = MutableStateFlow(false)
+
+  /**
+   * True once the saved monuments have been read (from the local cache when offline), or once
+   * reading ended or failed. Lets the UI wait for them before framing the map, instead of showing
+   * the world view for a moment and then jumping to the monuments.
+   */
+  val monumentsLoaded: StateFlow<Boolean> = _monumentsLoaded.asStateFlow()
+
   /**
    * Saved guides that have a location, kept up to date with the repository while observed. Starts
    * empty; if observation fails, the failure is logged and the last received monuments stay on the
@@ -62,10 +73,14 @@ class ExploreViewModel(
           .observeSavedGuides()
           .map { guides -> guides.toExploreMonuments() }
           .distinctUntilChanged()
+          // Runs just before the value reaches the StateFlow below, with no suspension in between,
+          // so the UI never sees "loaded" with the previous (empty) list.
+          .onEach { _monumentsLoaded.value = true }
           .catch { exception ->
             if (exception is CancellationException) throw exception
             Log.e(TAG, "Failed to observe saved monuments", exception)
           }
+          .onCompletion { _monumentsLoaded.value = true }
           .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
   private val _offlineBaseMap = MutableStateFlow<List<BaseMapPolygon>>(emptyList())

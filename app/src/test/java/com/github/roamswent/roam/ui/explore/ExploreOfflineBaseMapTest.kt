@@ -8,6 +8,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.MapType
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,8 +17,22 @@ class ExploreOfflineBaseMapTest {
 
   @Test
   fun googleTilesAreOnlyShownOnline() {
-    assertEquals(MapType.NORMAL, exploreMapProperties(isOnline = true).mapType)
-    assertEquals(MapType.NONE, exploreMapProperties(isOnline = false).mapType)
+    assertEquals(
+        MapType.NORMAL,
+        exploreMapProperties(isOnline = true, isMyLocationEnabled = false).mapType,
+    )
+    assertEquals(
+        MapType.NONE,
+        exploreMapProperties(isOnline = false, isMyLocationEnabled = false).mapType,
+    )
+  }
+
+  @Test
+  fun locationDotFollowsThePermissionOnlineAndOffline() {
+    listOf(true, false).forEach { online ->
+      assertTrue(exploreMapProperties(online, isMyLocationEnabled = true).isMyLocationEnabled)
+      assertFalse(exploreMapProperties(online, isMyLocationEnabled = false).isMyLocationEnabled)
+    }
   }
 
   @Test
