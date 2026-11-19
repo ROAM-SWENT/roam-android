@@ -3,6 +3,7 @@ package com.github.roamswent.roam.model.ai
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import androidx.exifinterface.media.ExifInterface
 import java.io.ByteArrayOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -107,6 +108,32 @@ class ImagePreparerTest {
   }
 
   @Test
+  fun handlesEveryExifOrientation() {
+    val orientations =
+        listOf(
+            ExifInterface.ORIENTATION_NORMAL,
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL,
+            ExifInterface.ORIENTATION_ROTATE_180,
+            ExifInterface.ORIENTATION_FLIP_VERTICAL,
+            ExifInterface.ORIENTATION_TRANSPOSE,
+            ExifInterface.ORIENTATION_ROTATE_90,
+            ExifInterface.ORIENTATION_TRANSVERSE,
+            ExifInterface.ORIENTATION_ROTATE_270,
+        )
+
+    orientations.forEach { orientation ->
+      val payload =
+          preparer.prepare(
+              withExifOrientation(encode(100, 80, Bitmap.CompressFormat.JPEG), orientation)
+          )
+      val expectedDimensions =
+          if (orientation >= ExifInterface.ORIENTATION_TRANSPOSE) 80 to 100 else 100 to 80
+
+      assertEquals(expectedDimensions, dimensionsOf(payload.bytes))
+    }
+  }
+
+  @Test
   fun rejectsTinyFixtureBelowMinimumSide() {
     assertRejected(RejectionReason.DimensionsOutOfRange) {
       preparer.prepare(fixture("eiffel_tiny_32px.jpg"))
@@ -168,4 +195,51 @@ class ImagePreparerTest {
   }
 
   private fun bytes(vararg values: Int): ByteArray = ByteArray(values.size) { values[it].toByte() }
+
+  private fun withExifOrientation(jpeg: ByteArray, orientation: Int): ByteArray {
+    val exif =
+        byteArrayOf(
+            0x45,
+            0x78,
+            0x69,
+            0x66,
+            0,
+            0,
+            0x4D,
+            0x4D,
+            0,
+            0x2A,
+            0,
+            0,
+            0,
+            8,
+            0,
+            1,
+            1,
+            0x12,
+            0,
+            3,
+            0,
+            0,
+            0,
+            1,
+            0,
+            orientation.toByte(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+    val app1Length = exif.size + 2
+    return byteArrayOf(
+        0xFF.toByte(),
+        0xD8.toByte(),
+        0xFF.toByte(),
+        0xE1.toByte(),
+        (app1Length shr 8).toByte(),
+        app1Length.toByte(),
+    ) + exif + jpeg.copyOfRange(2, jpeg.size)
+  }
 }
