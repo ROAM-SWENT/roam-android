@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.navigation
 
 import org.junit.Assert.assertEquals
@@ -20,8 +21,12 @@ class RoutesTest {
   }
 
   @Test
-  fun friendCollectionPutsEncodedUidAndNameInThePath() {
-    assertEquals("friend_collection/uid1/Alice%20B", Routes.friendCollection("uid1", "Alice B"))
+  fun friendCollectionEncodesUidAndOptionalName() {
+    assertEquals(
+        "friend_collection/uid%2F1?friendName=Alice%20B",
+        Routes.friendCollection("uid/1", "Alice B"),
+    )
+    assertEquals("friend_collection/uid1", Routes.friendCollection("uid1", ""))
   }
 
   @Test

@@ -1,3 +1,4 @@
+<!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">MainActivity</string>
@@ -50,6 +51,7 @@
     <string name="friends_dismiss_action">Fermer</string>
     <string name="friends_view_collection_description">Voir les monuments partagés par %1$s</string>
     <string name="friend_collection_title">Monuments de %1$s</string>
+    <string name="friend_collection_error">Impossible de charger cette collection. Veuillez réessayer.</string>
     <string name="friend_collection_empty_title">Aucun monument partagé</string>
     <string name="friend_collection_empty_subtitle">Cet ami ne vous a partagé aucun monument.</string>
     <string name="collection_back_description">Retour</string>
@@ -198,5 +200,6 @@
     <string name="collection_search_clear_description">Effacer la recherche</string>
     <string name="saved_monument_detail_error">Impossible de charger ce monument. Veuillez réessayer.</string>
     <string name="saved_monument_detail_not_found">Ce monument n\'est plus dans votre collection.</string>
+    <string name="shared_monument_detail_not_found">Ce monument n\'est plus partagé avec vous.</string>
     <string name="saved_monument_detail_retry">Réessayer</string>
 </resources>

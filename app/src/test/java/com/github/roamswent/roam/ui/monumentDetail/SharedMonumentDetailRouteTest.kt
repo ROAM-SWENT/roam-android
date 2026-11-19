@@ -42,17 +42,19 @@ class SharedMonumentDetailRouteTest {
 
   @Test
   fun showsASpinnerWhileLoading() {
-    val pending = CompletableDeferred<List<Guide>>()
+    val pending = CompletableDeferred<Guide?>()
     setRoute(
         object : MonumentSharingRepository by FakeMonumentSharingRepository() {
-          override suspend fun getSharedGuidesFrom(ownerUid: String) = pending.await()
+          override suspend fun getSharedGuideFrom(ownerUid: String, guideId: String) =
+              pending.await()
         },
         "louvre",
     )
 
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_loading).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertDoesNotExist()
 
-    pending.complete(listOf(louvre))
+    pending.complete(louvre)
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
   }
@@ -62,19 +64,45 @@ class SharedMonumentDetailRouteTest {
     var backs = 0
     setRoute(FakeMonumentSharingRepository(), "louvre", onBack = { backs++ })
 
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_not_found).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_retry).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
     assertEquals(1, backs)
   }
 
   @Test
-  fun showsNotFoundWhenLoadingFails() {
+  fun showsErrorAndRetriesWhenLoadingFails() {
+    val repository = FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre)))
+    repository.loadError = IllegalStateException("boom")
+    setRoute(repository, "louvre")
+
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_not_found).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).assertIsDisplayed()
+    composeTestRule.runOnIdle { repository.loadError = null }
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_retry).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
+  }
+
+  @Test
+  fun loadsOnlyTheRequestedGuide() {
+    val requested = mutableListOf<Pair<String, String>>()
     setRoute(
-        FakeMonumentSharingRepository().apply { loadError = IllegalStateException("boom") },
+        object : MonumentSharingRepository by FakeMonumentSharingRepository() {
+          override suspend fun getSharedGuideFrom(ownerUid: String, guideId: String): Guide? {
+            requested.add(ownerUid to guideId)
+            return louvre
+          }
+
+          override suspend fun getSharedGuidesFrom(ownerUid: String): List<Guide> =
+              error("The entire collection must not be loaded")
+        },
         "louvre",
     )
 
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
+    assertEquals(listOf("friend" to "louvre"), requested)
   }
 
   private fun setRoute(

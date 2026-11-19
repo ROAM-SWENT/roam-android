@@ -10,8 +10,13 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -76,6 +81,44 @@ class FriendCollectionRouteTest {
   }
 
   @Test
+  fun retryAfterInitialFailureReloadsTheCollection() {
+    val repository = FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre)))
+    repository.loadError = IllegalStateException("offline")
+    setRoute(repository)
+    composeTestRule.onNodeWithTag(C.Tag.collection_error).assertIsDisplayed()
+
+    composeTestRule.runOnIdle { repository.loadError = null }
+    composeTestRule.onNodeWithTag(C.Tag.collection_retry).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun showsErrorAndRetryAlongsidePreviouslyLoadedGuides() {
+    val repository = mockk<MonumentSharingRepository>()
+    var attempts = 0
+    every { repository.observeSharedGuidesFrom("friend") } answers
+        {
+          attempts++
+          if (attempts == 1) {
+            flow {
+              emit(listOf(louvre))
+              throw IllegalStateException("offline")
+            }
+          } else flowOf(listOf(louvre))
+        }
+    setRoute(repository)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_retry_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_retry).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_retry_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).assertIsDisplayed()
+    assertEquals(2, attempts)
+  }
+
+  @Test
   fun searchFiltersTheSharedGuides() {
     setRoute(FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))))
 
@@ -83,7 +126,7 @@ class FriendCollectionRouteTest {
   }
 
   private fun setRoute(
-      repository: FakeMonumentSharingRepository,
+      repository: MonumentSharingRepository,
       onBack: () -> Unit = {},
       onGuideClick: (String) -> Unit = {},
   ) {

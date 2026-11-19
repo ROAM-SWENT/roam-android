@@ -590,7 +590,10 @@ internal fun RoamApp(
           arguments =
               listOf(
                   navArgument(Routes.FriendUidArg) { type = NavType.StringType },
-                  navArgument(Routes.FriendNameArg) { type = NavType.StringType },
+                  navArgument(Routes.FriendNameArg) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                  },
               ),
       ) { backStackEntry ->
         val friendUid = backStackEntry.arguments?.getString(Routes.FriendUidArg)
@@ -600,7 +603,7 @@ internal fun RoamApp(
           DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
             FriendCollectionRoute(
                 ownerUid = friendUid,
-                ownerName = friendName,
+                ownerName = friendName.ifBlank { friendUid },
                 repository = monumentSharingRepository,
                 onBackClick = { navController.popBackStack() },
                 modifier =

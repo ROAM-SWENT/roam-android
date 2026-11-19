@@ -1,3 +1,4 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 
 package com.github.roamswent.roam.model.guide
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -426,6 +428,114 @@ class FirestoreMonumentSharingRepositoryTest {
   // region getSharedGuidesFrom & observeSharedGuidesFrom tests
 
   @Test
+  fun getSharedGuideFromReadsOnlyTheRequestedDocument() = runTest {
+    val ref = mockk<DocumentReference>()
+    val snapshot = mockGuideSnapshot(guideId, ShareAudience.ALL_FOLLOWERS)
+    every { ownerSavedGuidesCollection.document(guideId) } returns ref
+    every { ref.get() } returns Tasks.forResult(snapshot)
+    every { snapshot.exists() } returns true
+
+    assertEquals(
+        expectedGuide(guideId, ShareAudience.ALL_FOLLOWERS),
+        repository.getSharedGuideFrom(ownerUid, guideId),
+    )
+    verify(exactly = 1) { ref.get() }
+    verify(exactly = 0) { allFriendsQuery.get() }
+    verify(exactly = 0) { allFollowersQuery.get() }
+    verify(exactly = 0) { selectedQuery.get() }
+  }
+
+  @Test
+  fun getSharedGuideFromReturnsNullForMissingAndPropagatesFailures() = runTest {
+    val ref = mockk<DocumentReference>()
+    val snapshot = mockk<DocumentSnapshot>()
+    every { ownerSavedGuidesCollection.document(guideId) } returns ref
+    every { snapshot.exists() } returns false
+    every { ref.get() } returns Tasks.forResult(snapshot)
+    assertNull(repository.getSharedGuideFrom(ownerUid, guideId))
+
+    val denied =
+        FirebaseFirestoreException("denied", FirebaseFirestoreException.Code.PERMISSION_DENIED)
+    every { ref.get() } returns Tasks.forException(denied)
+    val deniedFailure =
+        assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+          repository.getSharedGuideFrom(ownerUid, guideId)
+        }
+    assertSame(denied, deniedFailure.cause)
+
+    val unavailable =
+        FirebaseFirestoreException("offline", FirebaseFirestoreException.Code.UNAVAILABLE)
+    every { ref.get() } returns Tasks.forException(unavailable)
+    val failure =
+        assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+          repository.getSharedGuideFrom(ownerUid, guideId)
+        }
+    assertSame(unavailable, failure.cause)
+
+    every { savedGuidesCollection.document(guideId) } returns ref
+    every { ref.get() } returns Tasks.forException(denied)
+    val ownerFailure =
+        assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+          repository.getSharedGuideFrom(currentUid, guideId)
+        }
+    assertSame(denied, ownerFailure.cause)
+  }
+
+  @Test
+  fun getSharedGuideFromFiltersUnsharedDismissedAndUnselectedButAllowsOwnerSelection() = runTest {
+    val ref = mockk<DocumentReference>()
+    every { ownerSavedGuidesCollection.document(guideId) } returns ref
+    every { savedGuidesCollection.document(guideId) } returns ref
+    fun snapshot(
+        audience: ShareAudience,
+        selected: Set<String> = emptySet(),
+        dismissed: Set<String> = emptySet(),
+    ): QueryDocumentSnapshot =
+        mockGuideSnapshot(guideId, audience, selected, dismissed).also {
+          every { it.exists() } returns true
+        }
+
+    for (doc in
+        listOf(
+            snapshot(ShareAudience.NONE),
+            snapshot(ShareAudience.ALL_FRIENDS, dismissed = setOf(currentUid)),
+            snapshot(ShareAudience.SELECTED_FRIENDS, selected = setOf("someone-else")),
+        )) {
+      every { ref.get() } returns Tasks.forResult(doc)
+      assertNull(repository.getSharedGuideFrom(ownerUid, guideId))
+    }
+    val selected = snapshot(ShareAudience.SELECTED_FRIENDS, selected = setOf(currentUid))
+    every { ref.get() } returns Tasks.forResult(selected)
+    assertEquals(
+        expectedGuide(guideId, ShareAudience.SELECTED_FRIENDS, setOf(currentUid)),
+        repository.getSharedGuideFrom(ownerUid, guideId),
+    )
+    val ownerSelected = snapshot(ShareAudience.SELECTED_FRIENDS)
+    every { ref.get() } returns Tasks.forResult(ownerSelected)
+    assertEquals(
+        expectedGuide(guideId, ShareAudience.SELECTED_FRIENDS),
+        repository.getSharedGuideFrom(currentUid, guideId),
+    )
+  }
+
+  @Test
+  fun getSharedGuideFromWrapsMalformedDataAndPreservesCancellation() = runTest {
+    val ref = mockk<DocumentReference>()
+    val snapshot = mockGuideSnapshot(guideId, ShareAudience.ALL_FRIENDS, malformed = true)
+    every { ownerSavedGuidesCollection.document(guideId) } returns ref
+    every { snapshot.exists() } returns true
+    every { ref.get() } returns Tasks.forResult(snapshot)
+    assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+      repository.getSharedGuideFrom(ownerUid, guideId)
+    }
+
+    every { ref.get() } answers { throw CancellationException("cancelled") }
+    assertThrowsSuspending<CancellationException> {
+      repository.getSharedGuideFrom(ownerUid, guideId)
+    }
+  }
+
+  @Test
   fun getSharedGuidesFromCombinesQueriesDeduplicatesAndFilters() = runTest {
     val docFriends = mockGuideSnapshot("g-friends", ShareAudience.ALL_FRIENDS)
     val docFollowers = mockGuideSnapshot("g-followers", ShareAudience.ALL_FOLLOWERS)
@@ -587,6 +697,31 @@ class FirestoreMonumentSharingRepositoryTest {
   }
 
   @Test
+  fun observeSharedGuidesFromFailsWhenAllQueriesAreDenied() = runTest {
+    val denied =
+        FirebaseFirestoreException(
+            "Permission denied",
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+        )
+    val friends = stubListener(allFriendsQuery, error = denied)
+    val followers = stubListener(allFollowersQuery, error = denied)
+    val selected = stubListener(selectedQuery, error = denied)
+
+    val failure =
+        assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
+          repository.observeSharedGuidesFrom(ownerUid).take(1).toList()
+        }
+    assertTrue(
+        generateSequence<Throwable>(failure) { it.cause }
+            .filterIsInstance<FirebaseFirestoreException>()
+            .any { it === denied }
+    )
+    verify { friends.remove() }
+    verify { followers.remove() }
+    verify { selected.remove() }
+  }
+
+  @Test
   fun observeSharedGuidesFromClosesWithErrorWhenDocumentDataMalformed() = runTest {
     val malformedDoc =
         mockGuideSnapshot("malformed-guide", ShareAudience.ALL_FRIENDS, malformed = true)
@@ -638,6 +773,7 @@ class FirestoreMonumentSharingRepositoryTest {
             { repository.revokeAccess(guideId, setOf("uid-alice")) },
             { repository.dismissSharedGuide(ownerUid, guideId) },
             { repository.getShareSettings(guideId) },
+            { repository.getSharedGuideFrom(ownerUid, guideId) },
             { repository.getSharedGuidesFrom(ownerUid) },
             { repository.observeSharedGuidesFrom(ownerUid) },
         )
@@ -667,6 +803,7 @@ class FirestoreMonumentSharingRepositoryTest {
             { repository.revokeAccess(guideId, setOf("invalid uid!")) },
             { repository.dismissSharedGuide("invalid uid!", guideId) },
             { repository.getSharedGuidesFrom("invalid uid!") },
+            { repository.getSharedGuideFrom("invalid uid!", guideId) },
             { repository.observeSharedGuidesFrom("invalid uid!") },
         )
 
@@ -684,6 +821,7 @@ class FirestoreMonumentSharingRepositoryTest {
             { repository.revokeAccess("  ", setOf("uid-alice")) },
             { repository.dismissSharedGuide(ownerUid, "") },
             { repository.getShareSettings("") },
+            { repository.getSharedGuideFrom(ownerUid, "") },
         )
 
     for (action in actions) {

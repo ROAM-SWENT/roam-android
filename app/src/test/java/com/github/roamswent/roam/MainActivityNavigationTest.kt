@@ -1539,12 +1539,14 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_screen)
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       composeTestRule.onAllNodesWithTag(C.Tag.collection_card).fetchSemanticsNodes().isNotEmpty()
     }
     composeTestRule.onNodeWithTag(C.Tag.collection_card).performClick()
 
     waitAndAssertDisplayed(C.Tag.monument_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
     waitAndAssertDisplayed(C.Tag.collection_screen)
@@ -1583,6 +1585,37 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_screen)
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+  }
+
+  @Test
+  fun friendCollectionButtonWorksWithEmptyUsername() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val friendRepository = mockk<FriendRepository>()
+    coEvery { friendRepository.getFriends() } returns listOf(Friendship("f", "friend-uid"))
+    coEvery { friendRepository.getIncomingRequests() } returns emptyList()
+    coEvery { friendRepository.getOutgoingRequests() } returns emptyList()
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride =
+            TestPublicProfileRepository(
+                profiles = mapOf("friend-uid" to PublicProfile("friend-uid", ""))
+            ),
+        friendRepository = friendRepository,
+        monumentSharingRepository = FakeMonumentSharingRepository(),
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.friends_view_collection)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_view_collection).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("friend-uid's monuments")
   }
 
   private fun navigateToSettings(navController: NavHostController) {

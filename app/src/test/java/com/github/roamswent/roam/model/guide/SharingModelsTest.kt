@@ -1,3 +1,4 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 
 package com.github.roamswent.roam.model.guide
@@ -266,6 +267,8 @@ class SharingModelsTest {
 
           override suspend fun getSharedGuidesFrom(ownerUid: String): List<Guide> = emptyList()
 
+          override suspend fun getSharedGuideFrom(ownerUid: String, guideId: String): Guide? = null
+
           override fun observeSharedGuidesFrom(ownerUid: String): Flow<List<Guide>> = emptyFlow()
         }
     val provider = MonumentSharingProvider { dummyRepo }
@@ -297,6 +300,8 @@ class SharingModelsTest {
               MonumentShareSettings()
 
           override suspend fun getSharedGuidesFrom(ownerUid: String): List<Guide> = emptyList()
+
+          override suspend fun getSharedGuideFrom(ownerUid: String, guideId: String): Guide? = null
 
           override fun observeSharedGuidesFrom(ownerUid: String): Flow<List<Guide>> = emptyFlow()
         }

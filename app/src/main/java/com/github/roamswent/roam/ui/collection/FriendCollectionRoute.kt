@@ -35,5 +35,6 @@ fun FriendCollectionRoute(
       title = stringResource(R.string.friend_collection_title, ownerName),
       readOnly = true,
       onBackClick = onBackClick,
+      onRetryGuides = viewModel::load,
   )
 }

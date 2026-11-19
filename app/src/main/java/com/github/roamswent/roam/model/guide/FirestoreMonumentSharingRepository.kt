@@ -1,3 +1,4 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 
 package com.github.roamswent.roam.model.guide
@@ -16,6 +17,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
@@ -150,6 +152,30 @@ class FirestoreMonumentSharingRepository(
     }
   }
 
+  override suspend fun getSharedGuideFrom(ownerUid: String, guideId: String): Guide? {
+    val currentUid = requireCurrentUid()
+    validateUid(ownerUid)
+    validateGuideId(guideId)
+
+    return withFirestoreErrors {
+      val snapshot = savedGuidesCollection(ownerUid).document(guideId).get().await()
+      if (!snapshot.exists()) return@withFirestoreErrors null
+      val guide =
+          GuideFirestoreMapper.fromFields(
+              snapshot.id,
+              checkNotNull(snapshot.data) { "Saved guide ${snapshot.id} has no data" },
+          )
+      if (
+          filterEligibleGuides(listOf(guide), currentUid).isEmpty() ||
+              (ownerUid != currentUid &&
+                  guide.shareSettings.audience == ShareAudience.SELECTED_FRIENDS &&
+                  currentUid !in guide.shareSettings.sharedWithUids)
+      )
+          null
+      else guide
+    }
+  }
+
   override suspend fun getSharedGuidesFrom(ownerUid: String): List<Guide> {
     val currentUid = requireCurrentUid()
     validateUid(ownerUid)
@@ -224,12 +250,14 @@ class FirestoreMonumentSharingRepository(
               .whereArrayContains(GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD, currentUid)
 
       combine(
-          observeQuery(allFriendsQuery, allowPermissionDenied = true),
-          observeQuery(allFollowersQuery, allowPermissionDenied = true),
-          observeQuery(selectedQuery, allowPermissionDenied = true),
+          observeQueryAllowingPermissionDenied(allFriendsQuery),
+          observeQueryAllowingPermissionDenied(allFollowersQuery),
+          observeQueryAllowingPermissionDenied(selectedQuery),
       ) { allFriendsGuides, allFollowersGuides, selectedGuides ->
+        val results = listOf(allFriendsGuides, allFollowersGuides, selectedGuides)
+        if (results.all { it.isFailure }) throw checkNotNull(results.first().exceptionOrNull())
         filterEligibleGuides(
-            allFriendsGuides + allFollowersGuides + selectedGuides,
+            results.flatMap { it.getOrDefault(emptyList()) },
             currentUid,
         )
       }
@@ -275,21 +303,26 @@ class FirestoreMonumentSharingRepository(
                 guide.shareSettings.audience != ShareAudience.NONE
           }
 
-  private fun observeQuery(
-      query: Query,
-      allowPermissionDenied: Boolean = false,
-  ): Flow<List<Guide>> = callbackFlow {
+  private fun observeQueryAllowingPermissionDenied(query: Query): Flow<Result<List<Guide>>> =
+      observeQuery(query)
+          .map { Result.success(it) }
+          .catch { exception ->
+            val firestoreException =
+                generateSequence(exception) { it.cause?.takeUnless { cause -> cause === it } }
+                    .filterIsInstance<FirebaseFirestoreException>()
+                    .firstOrNull()
+            if (firestoreException?.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+              emit(Result.failure(MonumentSharingException.FirestoreFailure(firestoreException)))
+            } else {
+              throw exception
+            }
+          }
+
+  private fun observeQuery(query: Query): Flow<List<Guide>> = callbackFlow {
     val registration =
         query.addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
           if (error != null) {
-            if (
-                allowPermissionDenied &&
-                    error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
-            ) {
-              trySend(emptyList())
-            } else {
-              close(MonumentSharingException.FirestoreFailure(error))
-            }
+            close(MonumentSharingException.FirestoreFailure(error))
           } else {
             try {
               val guides =

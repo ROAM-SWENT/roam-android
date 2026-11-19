@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -114,6 +115,7 @@ fun CollectionScreen(
     title: String? = null,
     readOnly: Boolean = false,
     onBackClick: (() -> Unit)? = null,
+    onRetryGuides: (() -> Unit)? = null,
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
@@ -191,6 +193,9 @@ fun CollectionScreen(
             modifier = Modifier.semantics { testTag = C.Tag.collection_title },
         )
       }
+      if (state.guides.isNotEmpty() && state.guidesError != null && onRetryGuides != null) {
+        CollectionRetryError(onRetryGuides, Modifier.padding(horizontal = 20.dp))
+      }
       when {
         state.guides.isNotEmpty() -> {
           CollectionSearchBar(
@@ -221,7 +226,10 @@ fun CollectionScreen(
           }
         }
         state.isLoadingGuides -> CollectionLoading()
-        state.guidesError != null -> CollectionMessage(C.Tag.collection_error) { CollectionError() }
+        state.guidesError != null ->
+            CollectionMessage(C.Tag.collection_error) {
+              if (onRetryGuides != null) CollectionRetryError(onRetryGuides) else CollectionError()
+            }
         else -> CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty(readOnly) }
       }
     }
@@ -700,13 +708,29 @@ private fun CollectionSearchNoMatches() {
 }
 
 @Composable
-private fun CollectionError() {
+private fun CollectionError(readOnly: Boolean = false) {
   Text(
-      text = stringResource(R.string.collection_error),
+      text =
+          stringResource(
+              if (readOnly) R.string.friend_collection_error else R.string.collection_error
+          ),
       style = MaterialTheme.typography.bodySmall,
       color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.error else LoadingErrorText,
       textAlign = TextAlign.Center,
   )
+}
+
+@Composable
+private fun CollectionRetryError(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+  Column(
+      modifier = modifier.semantics { testTag = C.Tag.collection_retry_error },
+      horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    CollectionError(readOnly = true)
+    Button(onClick = onRetry, modifier = Modifier.semantics { testTag = C.Tag.collection_retry }) {
+      Text(stringResource(R.string.saved_monument_detail_retry))
+    }
+  }
 }
 
 private val discoveryDateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")

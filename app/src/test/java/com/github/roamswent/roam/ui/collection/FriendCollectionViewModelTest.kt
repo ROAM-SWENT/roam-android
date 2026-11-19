@@ -18,6 +18,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -65,6 +66,34 @@ class FriendCollectionViewModelTest {
 
         assertNotNull(viewModel.uiState.value.guidesError)
         assertFalse(viewModel.uiState.value.isLoadingGuides)
+      }
+
+  @Test
+  fun retryAfterFailurePreservesGuidesAndSubscribesAgain() =
+      runTest(dispatcher) {
+        var attempts = 0
+        every { repository.observeSharedGuidesFrom("friend") } answers
+            {
+              attempts++
+              if (attempts == 1) {
+                flow {
+                  emit(listOf(guide))
+                  throw IllegalStateException("offline")
+                }
+              } else flowOf(listOf(guide))
+            }
+        val viewModel = FriendCollectionViewModel(repository, "friend")
+
+        viewModel.load()
+        advanceUntilIdle()
+        assertEquals(listOf(guide), viewModel.uiState.value.guides)
+        assertNotNull(viewModel.uiState.value.guidesError)
+
+        viewModel.load()
+        advanceUntilIdle()
+        assertEquals(2, attempts)
+        assertEquals(listOf(guide), viewModel.uiState.value.guides)
+        assertNull(viewModel.uiState.value.guidesError)
       }
 
   @Test
