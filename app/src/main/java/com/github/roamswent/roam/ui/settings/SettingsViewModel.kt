@@ -38,6 +38,7 @@ data class SettingsUIState(
     val profileLoading: Boolean = false,
     val profile: UserProfile? = null,
     val publicProfile: PublicProfile? = null,
+    val isPublicProfileLoading: Boolean = false,
     val isUsernameSaving: Boolean = false,
     @param:StringRes val usernameErrorMsg: Int? = null,
     val interests: List<String> = emptyList(),
@@ -120,15 +121,22 @@ class SettingsViewModel(
 
   private fun loadPublicProfile() {
     val repository = publicProfileRepository ?: return
+    if (_uiState.value.isPublicProfileLoading || _uiState.value.isUsernameSaving) return
+    _uiState.update { it.copy(isPublicProfileLoading = true, usernameErrorMsg = null) }
     viewModelScope.launch {
       try {
-        _uiState.update { it.copy(usernameErrorMsg = null) }
         val publicProfile = repository.getCurrentProfile()
-        _uiState.update { it.copy(publicProfile = publicProfile) }
+        _uiState.update { it.copy(publicProfile = publicProfile, isPublicProfileLoading = false) }
       } catch (exception: CancellationException) {
+        _uiState.update { it.copy(isPublicProfileLoading = false) }
         throw exception
       } catch (_: Exception) {
-        _uiState.update { it.copy(usernameErrorMsg = R.string.settings_username_error_load) }
+        _uiState.update {
+          it.copy(
+              isPublicProfileLoading = false,
+              usernameErrorMsg = R.string.settings_username_error_load,
+          )
+        }
       }
     }
   }
@@ -145,10 +153,10 @@ class SettingsViewModel(
               }
               return
             }
-    if (_uiState.value.isUsernameSaving) return
+    if (_uiState.value.isPublicProfileLoading || _uiState.value.isUsernameSaving) return
 
+    _uiState.update { it.copy(isUsernameSaving = true, usernameErrorMsg = null) }
     viewModelScope.launch {
-      _uiState.update { it.copy(isUsernameSaving = true, usernameErrorMsg = null) }
       try {
         val updatedProfile = repository.renameUsername(username.trim())
         _uiState.update {

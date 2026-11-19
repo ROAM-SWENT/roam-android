@@ -99,6 +99,7 @@ private data class ProfileDisplayData(
     val email: String,
     val provider: String,
     val usernameError: String?,
+    val isPublicProfileLoading: Boolean,
     val isUsernameSaving: Boolean,
 )
 
@@ -204,6 +205,7 @@ fun SettingsScreen(
                 email = uiState.profile?.email.orEmpty(),
                 provider = uiState.profile?.provider.orEmpty(),
                 usernameError = usernameError,
+                isPublicProfileLoading = uiState.isPublicProfileLoading,
                 isUsernameSaving = uiState.isUsernameSaving,
             ),
         onManagePermissionsClick = onManagePermissionsClick,
@@ -484,10 +486,10 @@ private fun ProfileCard(
               modifier = Modifier.fillMaxWidth().testTag(C.Tag.settings_username_field),
               label = { Text(stringResource(R.string.settings_username_label)) },
               singleLine = true,
-              enabled = !profile.isUsernameSaving,
+              enabled = !profile.isPublicProfileLoading && !profile.isUsernameSaving,
               keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
               trailingIcon = {
-                if (profile.isUsernameSaving) {
+                if (profile.isPublicProfileLoading || profile.isUsernameSaving) {
                   CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 } else {
                   IconButton(
