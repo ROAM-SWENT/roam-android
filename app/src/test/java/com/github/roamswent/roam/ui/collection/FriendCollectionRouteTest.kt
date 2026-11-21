@@ -123,6 +123,16 @@ class FriendCollectionRouteTest {
   }
 
   @Test
+  fun showsFriendInitialInProfileBubble() {
+    setRoute(FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("A")
+  }
+
+  @Test
   fun searchFiltersTheSharedGuides() {
     setRoute(FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))))
 

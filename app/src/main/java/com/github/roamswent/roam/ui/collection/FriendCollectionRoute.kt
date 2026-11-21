@@ -33,6 +33,7 @@ fun FriendCollectionRoute(
       onGuideClick = onGuideClick,
       onSearchQueryChange = viewModel::onSearchQueryChange,
       title = stringResource(R.string.friend_collection_title, ownerName),
+      profileName = ownerName,
       readOnly = true,
       onBackClick = onBackClick,
       onRetryGuides = viewModel::load,
