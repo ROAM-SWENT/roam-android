@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.LoadingTextPrimary
@@ -199,7 +200,11 @@ private fun FriendsHeader(
         fontWeight = FontWeight.Bold,
         modifier = Modifier.semantics { testTag = C.Tag.friends_title },
     )
-    ProfileButton(name = profileName, onClick = onProfileClicked)
+    ProfileBubble(
+        name = profileName.orEmpty(),
+        onClick = onProfileClicked,
+        testTag = C.Tag.home_profile_button,
+    )
   }
 }
 
@@ -248,30 +253,6 @@ private fun AddFriendsButton(pendingRequestCount: Int, onClick: () -> Unit) {
           )
         }
       }
-    }
-  }
-}
-
-@Composable
-private fun ProfileButton(name: String?, onClick: () -> Unit) {
-  val description = stringResource(R.string.home_profile_button_description)
-  Surface(
-      onClick = onClick,
-      modifier =
-          Modifier.size(48.dp).semantics {
-            contentDescription = description
-            testTag = C.Tag.home_profile_button
-          },
-      shape = CircleShape,
-      color = HomeAccentGreen,
-  ) {
-    Box(contentAlignment = Alignment.Center) {
-      Text(
-          text = name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-          color = OnBrand,
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Bold,
-      )
     }
   }
 }

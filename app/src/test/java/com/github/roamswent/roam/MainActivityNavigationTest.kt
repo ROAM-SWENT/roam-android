@@ -3,6 +3,7 @@
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  * Co-authored-by: Codex <codex@openai.com>
+ * Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
  */
 
 package com.github.roamswent.roam
@@ -24,6 +25,7 @@ import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -40,6 +42,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
@@ -1102,13 +1105,49 @@ class MainActivityNavigationTest {
     for ((tab, screen) in tabs) {
       composeTestRule.onNodeWithTag(tab).performClick()
       waitAndAssertDisplayed(screen)
-      composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+      val profileTag =
+          if (tab == C.Tag.dock_tab_explore) C.Tag.explore_profile_button
+          else C.Tag.home_profile_button
+      composeTestRule.onNodeWithTag(profileTag).performClick()
 
       waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
       composeTestRule.runOnIdle {
         assertEquals(Routes.Settings, navController.currentDestination?.route)
       }
     }
+  }
+
+  @Test
+  fun profileButtonFromCollectionReturnsToCollection() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.runOnIdle { navController.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    assertEquals(Routes.Collection, navController.currentDestination?.route)
+  }
+
+  @Test
+  fun profileButtonFromExploreReturnsToExplore() {
+    lateinit var navController: NavHostController
+    showAuthenticatedHome(onNavControllerReady = { navController = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_explore).performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.explore_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.runOnIdle { navController.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    assertEquals(Routes.Explore, navController.currentDestination?.route)
   }
 
   @Test
@@ -1465,6 +1504,24 @@ class MainActivityNavigationTest {
       waitAndAssertDisplayed(C.Tag.main_screen_container)
     } finally {
       controller.pause().stop().destroy()
+    }
+  }
+
+  @Test
+  fun mainActivityOnCreate_populatesEmptyApplicationLocalesImmediately_regressionMissingSnapDefaultLocale() {
+    val originalDefault = java.util.Locale.getDefault()
+    java.util.Locale.setDefault(java.util.Locale.FRENCH)
+    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    assertTrue(AppCompatDelegate.getApplicationLocales().isEmpty)
+
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    try {
+      assertFalse(AppCompatDelegate.getApplicationLocales().isEmpty)
+      assertEquals("fr", AppCompatDelegate.getApplicationLocales()[0]?.language)
+    } finally {
+      controller.destroy()
+      AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+      java.util.Locale.setDefault(originalDefault)
     }
   }
 

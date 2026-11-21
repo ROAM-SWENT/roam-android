@@ -84,7 +84,9 @@ import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
+import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
@@ -122,6 +124,8 @@ fun CollectionScreen(
     state: SavedGuidesUiState,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
+    profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    onProfileClicked: () -> Unit = {},
     onDeleteGuide: (String) -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
@@ -197,7 +201,9 @@ fun CollectionScreen(
   ) { contentPadding ->
     Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
       Row(
-          modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+          modifier =
+              Modifier.fillMaxWidth()
+                  .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
           verticalAlignment = Alignment.CenterVertically,
       ) {
         if (onBackClick != null) {
@@ -223,7 +229,15 @@ fun CollectionScreen(
                 else LoadingTextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.semantics { testTag = C.Tag.collection_title },
+            modifier =
+                Modifier.weight(1f).padding(vertical = 8.dp).semantics {
+                  testTag = C.Tag.collection_title
+                },
+        )
+        ProfileBubble(
+            name = profileName,
+            onClick = onProfileClicked,
+            testTag = C.Tag.collection_profile_button,
         )
       }
       if (state.guides.isNotEmpty() && state.guidesError != null && onRetryGuides != null) {

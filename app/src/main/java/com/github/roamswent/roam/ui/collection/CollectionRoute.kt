@@ -17,6 +17,7 @@ import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
+import com.github.roamswent.roam.ui.home.HomeViewModel
 
 /**
  * Loads the guides saved in [repository] and shows them in [CollectionScreen]. The ViewModel is
@@ -30,6 +31,8 @@ fun CollectionRoute(
     friendRepository: FriendRepository? = null,
     publicProfileRepository: PublicProfileRepository? = null,
     monumentSharingProvider: MonumentSharingProvider? = null,
+    profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    onProfileClicked: () -> Unit = {},
     onPickFromGallery: () -> Unit = {},
 ) {
   val resolvedFriendRepository =
@@ -71,6 +74,8 @@ fun CollectionRoute(
       onRetryLoadingFriends = sharingViewModel::retryLoadingFriends,
       onSetShareAudience = viewModel::setShareAudience,
       onSharingErrorShown = viewModel::clearSharingError,
+      profileName = profileName,
+      onProfileClicked = onProfileClicked,
       onPickFromGallery = onPickFromGallery,
   )
 }
