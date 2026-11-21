@@ -1,3 +1,4 @@
+<!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">Roam</string>
@@ -49,6 +50,12 @@
     <string name="friends_remove_confirmation_message">Are you sure you want to delete %1$s?</string>
     <string name="friends_cancel_action">Cancel</string>
     <string name="friends_dismiss_action">Dismiss</string>
+    <string name="friends_view_collection_description">View monuments shared by %1$s</string>
+    <string name="friend_collection_title">%1$s\'s monuments</string>
+    <string name="friend_collection_error">Couldn’t load this collection. Please try again.</string>
+    <string name="friend_collection_empty_title">No shared monuments yet</string>
+    <string name="friend_collection_empty_subtitle">This friend has not shared any monument with you.</string>
+    <string name="collection_back_description">Back</string>
     <string name="home_tab_explore">Explore</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>
@@ -117,6 +124,7 @@
     <string name="collection_delete">Delete guide</string>
     <string name="collection_delete_error">Couldn’t delete this guide. Please try again.</string>
     <string name="collection_search_hint">Search your collection</string>
+    <string name="friend_collection_search_hint">Search their collection</string>
     <string name="collection_search_no_matches_title">No matches</string>
     <string name="collection_search_no_matches_subtitle">No monument matches your search.</string>
     <string name="collection_search_clear_description">Clear search</string>
@@ -184,6 +192,7 @@
     <string name="monument_detail_picture_description">Monument picture</string>
     <string name="saved_monument_detail_error">Couldn’t load this monument. Please try again.</string>
     <string name="saved_monument_detail_not_found">This monument is no longer in your collection.</string>
+    <string name="shared_monument_detail_not_found">This monument is no longer shared with you.</string>
     <string name="saved_monument_detail_retry">Retry</string>
     <string name="scan_review_photo_title">Review your photo</string>
     <string name="scan_review_choose_another_photo">Choose another photo</string>
