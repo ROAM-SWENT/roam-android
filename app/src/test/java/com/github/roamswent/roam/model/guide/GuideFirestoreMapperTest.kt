@@ -1,13 +1,16 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.location.Coordinates
 import com.google.firebase.firestore.Blob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,6 +27,8 @@ class GuideFirestoreMapperTest {
           culture = "A symbol of Paris.",
           sections = listOf(GuideSection("Architecture", "A detailed paragraph.")),
           interestCount = 1,
+          overview = "An iron landmark.",
+          timeline = listOf(GuideMilestone(1889, "Opened.")),
           location = Coordinates(48.8584, 2.2945),
           discoveryDate = 1_798_000_000_000,
       )
@@ -34,6 +39,7 @@ class GuideFirestoreMapperTest {
     val restored = GuideFirestoreMapper.fromFields(guide.id, fields)
 
     assertEquals(guide, restored)
+    assertEquals(guide.hashCode(), restored.hashCode())
     assertTrue((fields.getValue("photo") as Blob).toBytes().contentEquals(guide.photoBytes))
   }
 
@@ -57,6 +63,45 @@ class GuideFirestoreMapperTest {
 
     assertEquals(null, restored.location)
     assertEquals(null, restored.discoveryDate)
+  }
+
+  @Test
+  fun oldGuidesStillLoadWithTheirInterestContentAndWithoutNewFields() {
+    val legacy = guide.copy(overview = null, timeline = emptyList())
+
+    val fields = GuideFirestoreMapper.toFields(legacy)
+
+    assertFalse(fields.containsKey("overview"))
+    assertFalse(fields.containsKey("timeline"))
+    assertEquals(legacy, GuideFirestoreMapper.fromFields(guide.id, fields))
+  }
+
+  @Test
+  fun timelineReadsFirestoreIntegersAndSkipsInvalidOptionalRows() {
+    val fields =
+        GuideFirestoreMapper.toFields(guide) +
+            ("timeline" to
+                listOf(
+                    mapOf("year" to 1889L, "event" to "Opened."),
+                    5,
+                    mapOf("year" to 0L, "event" to "Invalid."),
+                    mapOf(
+                        "year" to Int.MIN_VALUE.toLong(),
+                        "event" to "Outside the supported range.",
+                    ),
+                    mapOf("year" to Long.MAX_VALUE, "event" to "Outside the supported range."),
+                    mapOf("year" to "1900", "event" to "Invalid."),
+                    mapOf("year" to 1900L, "event" to 5),
+                    mapOf("year" to 1900L, "event" to ""),
+                ))
+
+    assertEquals(guide.timeline, GuideFirestoreMapper.fromFields(guide.id, fields).timeline)
+  }
+
+  @Test
+  fun overviewAndTimelineChangesAffectSavedGuideEquality() {
+    assertNotEquals(guide, guide.copy(overview = "A revised introduction."))
+    assertNotEquals(guide, guide.copy(timeline = emptyList()))
   }
 
   @Test

@@ -1,8 +1,10 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.location.Coordinates
 
@@ -24,6 +26,8 @@ data class Guide(
     /** Whether the user marked this guide as a favourite. */
     val isFavorite: Boolean = false,
     val shareSettings: MonumentShareSettings = MonumentShareSettings(),
+    val overview: String? = null,
+    val timeline: List<GuideMilestone> = emptyList(),
 ) {
   override fun equals(other: Any?): Boolean =
       other is Guide &&
@@ -39,7 +43,9 @@ data class Guide(
           location == other.location &&
           discoveryDate == other.discoveryDate &&
           isFavorite == other.isFavorite &&
-          shareSettings == other.shareSettings
+          shareSettings == other.shareSettings &&
+          overview == other.overview &&
+          timeline == other.timeline
 
   override fun hashCode(): Int {
     var result = id.hashCode()
@@ -55,6 +61,8 @@ data class Guide(
     result = 31 * result + (discoveryDate?.hashCode() ?: 0)
     result = 31 * result + isFavorite.hashCode()
     result = 31 * result + shareSettings.hashCode()
+    result = 31 * result + (overview?.hashCode() ?: 0)
+    result = 31 * result + timeline.hashCode()
     return result
   }
 }

@@ -1,8 +1,11 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideMilestone
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.github.roamswent.roam.model.location.Coordinates
 import com.google.firebase.auth.FirebaseAuth
@@ -138,6 +141,10 @@ internal object GuideFirestoreMapper {
     put("culture", guide.culture)
     put("sections", guide.sections.map { mapOf("title" to it.title, "content" to it.content) })
     put("interestCount", guide.interestCount)
+    guide.overview?.let { put("overview", it) }
+    if (guide.timeline.isNotEmpty()) {
+      put("timeline", guide.timeline.map { mapOf("year" to it.year, "event" to it.event) })
+    }
     guide.location?.let { put(LOCATION_FIELD, locationFields(it)) }
     guide.discoveryDate?.let { put("discoveryDate", it) }
     put(FAVORITE_FIELD, guide.isFavorite)
@@ -168,6 +175,8 @@ internal object GuideFirestoreMapper {
         facts = requiredStringList(fields, "facts"),
         culture = required(fields, "culture"),
         sections = optionalSections(fields["sections"]),
+        overview = fields["overview"] as? String,
+        timeline = optionalTimeline(fields["timeline"]),
         interestCount = (fields["interestCount"] as? Number)?.toInt() ?: 0,
         location = optionalCoordinates(fields[LOCATION_FIELD]),
         discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
@@ -185,13 +194,26 @@ internal object GuideFirestoreMapper {
   private fun optionalStringSet(fields: Map<String, Any>, key: String): Set<String> =
       (fields[key] as? List<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet()
 
-  private fun optionalSections(value: Any?): List<com.github.roamswent.roam.model.ai.GuideSection> =
+  private fun optionalSections(value: Any?): List<GuideSection> =
       (value as? List<*>)?.mapNotNull { item ->
         val section = item as? Map<*, *> ?: return@mapNotNull null
         val title = section["title"] as? String ?: return@mapNotNull null
         val content = section["content"] as? String ?: return@mapNotNull null
-        com.github.roamswent.roam.model.ai.GuideSection(title, content)
+        GuideSection(title, content)
       } ?: emptyList()
+
+  private fun optionalTimeline(value: Any?): List<GuideMilestone> =
+      (value as? List<*>)
+          ?.mapNotNull { item ->
+            val milestone = item as? Map<*, *> ?: return@mapNotNull null
+            val year = (milestone["year"] as? Number)?.toString()?.toIntOrNull()
+            if (year == null || year == 0 || year == Int.MIN_VALUE) return@mapNotNull null
+            val event =
+                (milestone["event"] as? String)?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+            GuideMilestone(year, event)
+          }
+          .orEmpty()
 
   private fun optionalCoordinates(value: Any?): Coordinates? {
     if (value == null) return null
