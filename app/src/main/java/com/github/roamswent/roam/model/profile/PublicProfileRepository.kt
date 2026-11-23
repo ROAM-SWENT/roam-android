@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 
 package com.github.roamswent.roam.model.profile
 
@@ -18,6 +19,15 @@ interface PublicProfileRepository {
 
   /** Searches usernames by case-insensitive prefix, returning at most 20 profiles. */
   suspend fun searchProfiles(prefix: String): List<PublicProfile>
+
+  /**
+   * Updates the signed-in user's account privacy settings.
+   *
+   * @param isPublic Whether the account is public and allows unidirectional followers.
+   * @param allowFriendRequests Whether other users may send incoming friend requests.
+   * @return The updated [PublicProfile].
+   */
+  suspend fun updatePrivacySettings(isPublic: Boolean, allowFriendRequests: Boolean): PublicProfile
 }
 
 /** A distinguishable failure from a public-profile operation. */
