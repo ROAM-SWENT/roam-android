@@ -73,7 +73,7 @@ internal object MonumentShareNotifications {
         }
     val notification =
         NotificationCompat.Builder(context, FriendRequestNotifications.CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_friend)
+            .setSmallIcon(R.drawable.ic_notification_monument)
             .setLargeIcon(ProfilePictureBitmap.create(context, data.senderUsername))
             .setContentTitle(title)
             .setContentText(body)
