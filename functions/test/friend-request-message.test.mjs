@@ -4,6 +4,10 @@ import {
   friendRequestMessageData,
   isPendingFriendRequest,
 } from "../lib/friend-request-message.js";
+import {
+  monumentShareMessageData,
+  selectedRecipients,
+} from "../lib/monument-share-message.js";
 
 const validRequest = {
   participantUids: ["alice", "bob"],
@@ -36,5 +40,27 @@ test("produces the data contract consumed by Android", () => {
     requesterUid: "alice",
     requesterUsername: "Alice",
     recipientUid: "bob",
+  });
+
+  test("produces and validates the monument-share data contract", () => {
+    assert.deepEqual(
+      monumentShareMessageData("guide-1", "alice", "Alice", "bob", "The Tower"),
+      {
+        type: "monument_share",
+        guideId: "guide-1",
+        senderUid: "alice",
+        senderUsername: "Alice",
+        recipientUid: "bob",
+        monumentName: "The Tower",
+      },
+    );
+    assert.deepEqual(
+      selectedRecipients({
+        shareAudience: "SELECTED_FRIENDS",
+        sharedWithUids: ["bob", "bob", 42, "carol"],
+      }),
+      ["bob", "carol"],
+    );
+    assert.deepEqual(selectedRecipients({ shareAudience: "ALL_FRIENDS" }), []);
   });
 });
