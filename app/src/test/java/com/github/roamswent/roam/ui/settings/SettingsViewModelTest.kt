@@ -622,6 +622,128 @@ class SettingsViewModelTest {
         advanceUntilIdle()
       }
 
+  @Test
+  fun setAvatarError_setsErrorAndStopsSaving() {
+    val viewModel = newViewModel()
+
+    viewModel.setAvatarError(IllegalStateException("Invalid image"))
+
+    assertFalse(viewModel.uiState.value.isAvatarSaving)
+    assertEquals(
+        R.string.settings_avatar_error_update,
+        viewModel.uiState.value.avatarErrorMsg,
+    )
+  }
+
+  @Test
+  fun uploadAvatar_withoutRepositorySetsError() {
+    val viewModel =
+        SettingsViewModel(
+            repository,
+            profileRepository,
+            userInterestsRepository,
+            null,
+            notificationInstallationRepository,
+        )
+
+    viewModel.uploadAvatar(byteArrayOf(1, 2, 3))
+
+    assertFalse(viewModel.uiState.value.isAvatarSaving)
+    assertEquals(
+        R.string.settings_avatar_error_update,
+        viewModel.uiState.value.avatarErrorMsg,
+    )
+  }
+
+  @Test
+  fun removeAvatar_withoutRepositorySetsError() {
+    val viewModel =
+        SettingsViewModel(
+            repository,
+            profileRepository,
+            userInterestsRepository,
+            null,
+            notificationInstallationRepository,
+        )
+
+    viewModel.removeAvatar()
+
+    assertFalse(viewModel.uiState.value.isAvatarSaving)
+    assertEquals(
+        R.string.settings_avatar_error_remove,
+        viewModel.uiState.value.avatarErrorMsg,
+    )
+  }
+
+  @Test
+  fun removeAvatar_ignoresSecondModificationWhileSaving() =
+      runTest(dispatcher) {
+        val result = CompletableDeferred<PublicProfile>()
+        var removeCalls = 0
+
+        val blockingRepository =
+            object : PublicProfileRepository by publicProfileRepository {
+              override suspend fun removeAvatar(): PublicProfile {
+                removeCalls++
+                return result.await()
+              }
+            }
+
+        val viewModel =
+            SettingsViewModel(
+                repository,
+                profileRepository,
+                userInterestsRepository,
+                blockingRepository,
+                notificationInstallationRepository,
+            )
+
+        viewModel.removeAvatar()
+        runCurrent()
+
+        viewModel.removeAvatar()
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isAvatarSaving)
+        assertEquals(1, removeCalls)
+
+        result.complete(PublicProfile("uid", "traveler"))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isAvatarSaving)
+        assertNull(viewModel.uiState.value.avatarErrorMsg)
+      }
+
+  @Test
+  fun uploadAvatar_cancellationDoesNotSetError() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.uploadAvatar(byteArrayOf(1))).thenAnswer {
+          throw CancellationException("Upload cancelled")
+        }
+
+        val viewModel = newViewModel()
+        viewModel.uploadAvatar(byteArrayOf(1))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isAvatarSaving)
+        assertNull(viewModel.uiState.value.avatarErrorMsg)
+      }
+
+  @Test
+  fun removeAvatar_cancellationDoesNotSetError() =
+      runTest(dispatcher) {
+        whenever(publicProfileRepository.removeAvatar()).thenAnswer {
+          throw CancellationException("Removal cancelled")
+        }
+
+        val viewModel = newViewModel()
+        viewModel.removeAvatar()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isAvatarSaving)
+        assertNull(viewModel.uiState.value.avatarErrorMsg)
+      }
+
   private fun newViewModel() =
       SettingsViewModel(
           repository,

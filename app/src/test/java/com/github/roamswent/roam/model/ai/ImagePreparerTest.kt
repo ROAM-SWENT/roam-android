@@ -201,6 +201,43 @@ class ImagePreparerTest {
     }
   }
 
+  @Test
+  fun profilePicture_retriesCompressionWhenJpegIsTooLarge() {
+    val bitmap =
+        Bitmap.createBitmap(
+            512,
+            512,
+            Bitmap.Config.ARGB_8888,
+        )
+
+    val random = java.util.Random(42L)
+    val pixels =
+        IntArray(512 * 512) {
+          Color.rgb(
+              random.nextInt(256),
+              random.nextInt(256),
+              random.nextInt(256),
+          )
+        }
+
+    bitmap.setPixels(pixels, 0, 512, 0, 0, 512, 512)
+
+    val input = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, input)
+
+    val highQuality = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, highQuality)
+
+    bitmap.recycle()
+
+    assertTrue(highQuality.size() > ImagePreparer.PROFILE_PICTURE_MAX_BYTES)
+
+    val result = preparer.prepareProfilePicture(input.toByteArray())
+
+    assertTrue(result.size <= ImagePreparer.PROFILE_PICTURE_MAX_BYTES)
+    assertEquals(512 to 512, dimensionsOf(result))
+  }
+
   private fun fixture(name: String): ByteArray =
       javaClass.getResourceAsStream("/fixtures/$name")!!.use { it.readBytes() }
 

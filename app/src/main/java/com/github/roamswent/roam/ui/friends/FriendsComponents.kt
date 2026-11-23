@@ -259,26 +259,6 @@ private fun AddFriendsButton(pendingRequestCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ProfileButton(
-    name: String?,
-    avatarBytes: ByteArray?,
-    onClick: () -> Unit,
-) {
-  val description = stringResource(R.string.home_profile_button_description)
-  ProfilePicture(
-      name = name.orEmpty(),
-      avatarBytes = avatarBytes,
-      onClick = onClick,
-      modifier =
-          Modifier.size(48.dp).semantics {
-            contentDescription = description
-            testTag = C.Tag.home_profile_button
-          },
-      textStyle = MaterialTheme.typography.titleSmall,
-  )
-}
-
-@Composable
 internal fun FriendRequestCard(
     request: FriendRequest,
     onAccept: () -> Unit,

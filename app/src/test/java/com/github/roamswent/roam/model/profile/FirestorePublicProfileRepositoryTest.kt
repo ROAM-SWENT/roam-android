@@ -523,6 +523,24 @@ class FirestorePublicProfileRepositoryTest {
     assertTrue(error is CancellationException)
   }
 
+  @Test
+  fun uploadAvatar_propagatesCancellation() = runTest {
+    every { profileReference.get() } returns Tasks.forCanceled<DocumentSnapshot>()
+
+    val error = captureFailure { repository.uploadAvatar(byteArrayOf(1, 2, 3)) }
+
+    assertTrue(error is CancellationException)
+  }
+
+  @Test
+  fun removeAvatar_propagatesCancellation() = runTest {
+    every { profileReference.get() } returns Tasks.forCanceled<DocumentSnapshot>()
+
+    val error = captureFailure { repository.removeAvatar() }
+
+    assertTrue(error is CancellationException)
+  }
+
   private fun profileSnapshot(uid: String, username: String, usernameLower: String) =
       mockk<DocumentSnapshot> {
         every { exists() } returns true

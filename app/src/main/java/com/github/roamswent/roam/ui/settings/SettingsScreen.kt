@@ -521,7 +521,7 @@ private fun ProfileCard(
           ProfilePicture(
               name = profile.initial,
               avatarBytes = profile.avatarBytes,
-              modifier = Modifier.fillMaxSize(),
+              modifier = Modifier.fillMaxSize().testTag("settings_avatar_picker"),
               textStyle = MaterialTheme.typography.headlineSmall,
               onClick = onAvatarSelected,
           )
