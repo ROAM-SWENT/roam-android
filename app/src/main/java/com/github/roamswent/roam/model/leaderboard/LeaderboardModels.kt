@@ -37,6 +37,10 @@ sealed class LeaderboardException(message: String, cause: Throwable? = null) :
   class UnauthenticatedUser :
       LeaderboardException("A signed-in user is required for this operation.")
 
+  /** The signed-in user has no public profile, which holds their count. */
+  class ProfileNotRegistered :
+      LeaderboardException("The signed-in user does not have a registered username.")
+
   /** The underlying Firestore operation failed. */
   class FirestoreFailure(cause: Throwable) :
       LeaderboardException("The leaderboard operation failed in Firestore.", cause)

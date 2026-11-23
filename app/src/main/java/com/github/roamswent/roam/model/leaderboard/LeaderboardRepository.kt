@@ -16,6 +16,7 @@ interface LeaderboardRepository {
    * never raises the count.
    *
    * @throws LeaderboardException.UnauthenticatedUser if no user is signed in.
+   * @throws LeaderboardException.ProfileNotRegistered if the user has no public profile.
    * @throws LeaderboardException.FirestoreFailure if the count could not be stored.
    */
   suspend fun recordVerifiedMonument(monument: MonumentKey): VerifiedMonumentResult
