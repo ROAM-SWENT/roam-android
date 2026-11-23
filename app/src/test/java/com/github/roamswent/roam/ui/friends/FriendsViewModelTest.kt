@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.friends
@@ -7,6 +8,9 @@ package com.github.roamswent.roam.ui.friends
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.friend.FriendRequest as RepositoryFriendRequest
 import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.leaderboard.LeaderboardEntry
+import com.github.roamswent.roam.model.leaderboard.LeaderboardException
+import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import io.mockk.coEvery
@@ -26,6 +30,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -34,6 +39,13 @@ class FriendsViewModelTest {
   private val dispatcher = StandardTestDispatcher()
   private val friendsRepository = mockk<FriendRepository>()
   private val profilesRepository = mockk<PublicProfileRepository>()
+  private val leaderboardRepository = mockk<LeaderboardRepository>()
+  private val selfEntry = LeaderboardEntry("self", "Traveler", verifiedMonumentCount = 2, rank = 2)
+  private val friendEntry =
+      LeaderboardEntry("friend", "Friend", verifiedMonumentCount = 5, rank = 1)
+
+  private fun viewModelWithLeaderboard() =
+      FriendsViewModel(friendsRepository, profilesRepository, leaderboardRepository)
 
   @Before
   fun setMainDispatcher() {
@@ -47,6 +59,7 @@ class FriendsViewModelTest {
     coEvery { friendsRepository.getFriends() } returns emptyList()
     coEvery { friendsRepository.getIncomingRequests() } returns emptyList()
     coEvery { friendsRepository.getOutgoingRequests() } returns emptyList()
+    coEvery { leaderboardRepository.getFriendsLeaderboard() } returns listOf(friendEntry, selfEntry)
   }
 
   @After
@@ -435,5 +448,215 @@ class FriendsViewModelTest {
             ),
             viewModel.uiState.value.searchResults,
         )
+      }
+
+  @Test
+  fun initialLoadExposesLeaderboardInRepositoryOrderAndCurrentUser() =
+      runTest(dispatcher) {
+        // Deliberately not sorted by count: the view model must keep the repository's order.
+        val entries =
+            listOf(
+                LeaderboardEntry("b", "B", verifiedMonumentCount = 1, rank = 2),
+                LeaderboardEntry("a", "A", verifiedMonumentCount = 1, rank = 2),
+                LeaderboardEntry("self", "Traveler", verifiedMonumentCount = 0, rank = 9),
+            )
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns entries
+        val viewModel = viewModelWithLeaderboard()
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(entries, state.leaderboard)
+        assertEquals("self", state.currentUserUid)
+        assertNull(state.leaderboardError)
+        assertTrue(state.hasLoaded)
+        assertFalse(state.isLoading)
+        coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
+      }
+
+  @Test
+  fun leaderboardIsNotPublishedBeforeLoadCompletes() =
+      runTest(dispatcher) {
+        val leaderboardResult = CompletableDeferred<List<LeaderboardEntry>>()
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } coAnswers
+            {
+              leaderboardResult.await()
+            }
+        val viewModel = viewModelWithLeaderboard()
+
+        viewModel.loadFriends()
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isLoading)
+        assertFalse(viewModel.uiState.value.hasLoaded)
+
+        leaderboardResult.complete(listOf(selfEntry))
+        advanceUntilIdle()
+
+        assertEquals(listOf(selfEntry), viewModel.uiState.value.leaderboard)
+        assertFalse(viewModel.uiState.value.isLoading)
+      }
+
+  @Test
+  fun explicitRefreshReloadsLeaderboard() =
+      runTest(dispatcher) {
+        val updated = listOf(selfEntry.copy(verifiedMonumentCount = 6, rank = 1))
+        val viewModel = viewModelWithLeaderboard()
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns updated
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(updated, viewModel.uiState.value.leaderboard)
+        coVerify(exactly = 2) { leaderboardRepository.getFriendsLeaderboard() }
+      }
+
+  @Test
+  fun acceptingAndRemovingFriendsRefreshesLeaderboard() =
+      runTest(dispatcher) {
+        coEvery { friendsRepository.acceptFriendRequest("request-id") } returns Unit
+        coEvery { friendsRepository.removeFriend("friend") } returns Unit
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns listOf(selfEntry)
+        val viewModel = viewModelWithLeaderboard()
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns
+            listOf(friendEntry, selfEntry)
+        viewModel.acceptRequest(FriendRequest(FriendUser("friend", "Friend"), id = "request-id"))
+        advanceUntilIdle()
+
+        assertEquals(listOf(friendEntry, selfEntry), viewModel.uiState.value.leaderboard)
+        assertEquals("Friend request accepted.", viewModel.uiState.value.message)
+
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns
+            listOf(selfEntry.copy(rank = 1))
+        viewModel.removeFriend(FriendUser("friend", "Friend"))
+        advanceUntilIdle()
+
+        assertEquals(listOf(selfEntry.copy(rank = 1)), viewModel.uiState.value.leaderboard)
+        assertEquals("Friend removed.", viewModel.uiState.value.message)
+        coVerify(exactly = 3) { leaderboardRepository.getFriendsLeaderboard() }
+      }
+
+  @Test
+  fun leaderboardFailureKeepsFriendsAndRequestsAndIsExposedSeparately() =
+      runTest(dispatcher) {
+        val failure = LeaderboardException.FirestoreFailure(IllegalStateException("offline"))
+        coEvery { friendsRepository.getFriends() } returns
+            listOf(Friendship("friendship", "friend"))
+        coEvery { friendsRepository.getIncomingRequests() } returns
+            listOf(RepositoryFriendRequest("incoming-id", "requester", "self"))
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } throws failure
+        val viewModel = viewModelWithLeaderboard()
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(FriendUser("friend", "name-friend")), state.friends)
+        assertEquals(
+            listOf(FriendRequest(FriendUser("requester", "name-requester"), id = "incoming-id")),
+            state.incomingRequests,
+        )
+        assertEquals(failure, state.leaderboardError)
+        assertNull(state.error)
+        assertEquals("self", state.currentUserUid)
+        assertTrue(state.hasLoaded)
+        assertFalse(state.isLoading)
+      }
+
+  @Test
+  fun leaderboardFailureKeepsPreviousEntriesAndNextSuccessClearsIt() =
+      runTest(dispatcher) {
+        val viewModel = viewModelWithLeaderboard()
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        val failure = LeaderboardException.FirestoreFailure(IllegalStateException("offline"))
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } throws failure
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf(friendEntry, selfEntry), viewModel.uiState.value.leaderboard)
+        assertEquals(failure, viewModel.uiState.value.leaderboardError)
+
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns listOf(selfEntry)
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf(selfEntry), viewModel.uiState.value.leaderboard)
+        assertNull(viewModel.uiState.value.leaderboardError)
+      }
+
+  @Test
+  fun leaderboardFailureDuringMutationStillReportsMutationSuccess() =
+      runTest(dispatcher) {
+        coEvery { friendsRepository.removeFriend("friend") } returns Unit
+        val failure = LeaderboardException.FirestoreFailure(IllegalStateException("offline"))
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } throws failure
+        val viewModel = viewModelWithLeaderboard()
+
+        viewModel.removeFriend(FriendUser("friend", "Friend"))
+        advanceUntilIdle()
+
+        assertEquals("Friend removed.", viewModel.uiState.value.message)
+        assertNull(viewModel.uiState.value.error)
+        assertEquals(failure, viewModel.uiState.value.leaderboardError)
+        assertFalse(viewModel.uiState.value.isMutating)
+      }
+
+  @Test
+  fun friendsFailureStillAppliesLeaderboardResult() =
+      runTest(dispatcher) {
+        val error = IllegalStateException("friend list failed")
+        coEvery { friendsRepository.getFriends() } throws error
+        val viewModel = viewModelWithLeaderboard()
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        assertEquals(error.message, viewModel.uiState.value.error?.message)
+        assertEquals(listOf(friendEntry, selfEntry), viewModel.uiState.value.leaderboard)
+        assertNull(viewModel.uiState.value.leaderboardError)
+        assertFalse(viewModel.uiState.value.isLoading)
+      }
+
+  @Test
+  fun concurrentLoadAndRefreshStartOnlyOneLeaderboardLoad() =
+      runTest(dispatcher) {
+        val leaderboardResult = CompletableDeferred<List<LeaderboardEntry>>()
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } coAnswers
+            {
+              leaderboardResult.await()
+            }
+        val viewModel = viewModelWithLeaderboard()
+
+        viewModel.loadFriends()
+        runCurrent()
+        viewModel.loadFriends()
+        viewModel.refresh()
+        leaderboardResult.complete(listOf(selfEntry))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
+        assertEquals(listOf(selfEntry), viewModel.uiState.value.leaderboard)
+      }
+
+  @Test
+  fun withoutLeaderboardRepositoryLeaderboardStaysEmpty() =
+      runTest(dispatcher) {
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        assertEquals(emptyList<LeaderboardEntry>(), viewModel.uiState.value.leaderboard)
+        assertNull(viewModel.uiState.value.leaderboardError)
+        assertEquals("self", viewModel.uiState.value.currentUserUid)
+        coVerify(exactly = 0) { leaderboardRepository.getFriendsLeaderboard() }
       }
 }
