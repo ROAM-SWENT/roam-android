@@ -88,26 +88,28 @@ class FirestoreFollowRepository(
 
     withFirestoreErrors {
       val followRef = followReference(ownerUid, followerUid)
-      val friendshipRef = if (blacklist) friendshipReference(ownerUid, followerUid) else null
-      val blockedRef = if (blacklist) blockedUserReference(ownerUid, followerUid) else null
       firestore
           .runTransaction { transaction ->
             val followSnapshot = transaction.get(followRef)
-            val friendshipSnapshot = friendshipRef?.let(transaction::get)
-            val blockedSnapshot = blockedRef?.let(transaction::get)
             if (!followSnapshot.exists()) throw FollowRepositoryException.FollowNotFound()
             followSnapshot.toFollow()
 
+            if (!blacklist) {
+              transaction.delete(followRef)
+              return@runTransaction
+            }
+
+            val friendshipRef = friendshipReference(ownerUid, followerUid)
+            val blockedRef = blockedUserReference(ownerUid, followerUid)
+            val friendshipSnapshot = transaction.get(friendshipRef)
+            val blockedSnapshot = transaction.get(blockedRef)
+
             transaction.delete(followRef)
-            if (blacklist) {
-              if (blockedRef != null && blockedSnapshot != null && !blockedSnapshot.exists()) {
-                transaction.set(blockedRef, mapOf(BLOCKED_UID_FIELD to followerUid))
-              }
-              if (
-                  friendshipRef != null && friendshipSnapshot != null && friendshipSnapshot.exists()
-              ) {
-                transaction.delete(friendshipRef)
-              }
+            if (!blockedSnapshot.exists()) {
+              transaction.set(blockedRef, mapOf(BLOCKED_UID_FIELD to followerUid))
+            }
+            if (friendshipSnapshot.exists()) {
+              transaction.delete(friendshipRef)
             }
           }
           .await()
