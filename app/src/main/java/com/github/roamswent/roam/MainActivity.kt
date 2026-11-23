@@ -66,6 +66,7 @@ import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
@@ -196,6 +197,7 @@ internal data class RoamAppTestOverrides(
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
+    val privateProfileRepository: ProfileRepository? = null,
 )
 
 @Composable
@@ -223,7 +225,8 @@ internal fun RoamApp(
   val registerProfileViewModel: RegisterProfileViewModel = viewModel {
     RegisterProfileViewModel(
         publicProfileRepository,
-        ProfileRepositoryFirebase(),
+        testOverrides?.let { it.privateProfileRepository }
+            ?: if (testOverrides == null) ProfileRepositoryFirebase() else null,
     )
   }
   val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()

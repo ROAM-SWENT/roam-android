@@ -64,8 +64,10 @@ import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
@@ -76,6 +78,7 @@ import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.google.firebase.auth.FirebaseUser
 import io.mockk.coEvery
 import io.mockk.mockk
 import java.io.File
@@ -1446,7 +1449,8 @@ class MainActivityNavigationTest {
   fun scanReviewWithUriDisplaysReviewScreen() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authViewModel = mock<SignInViewModel>()
-    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = mock())))
+    val user = mock<FirebaseUser>()
+    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = user)))
 
     lateinit var navController: NavHostController
 
@@ -1874,6 +1878,13 @@ class MainActivityNavigationTest {
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
+    val privateProfileRepository =
+        object : ProfileRepository {
+          override suspend fun initializePrivateProfile(): Result<Unit> = Result.success(Unit)
+
+          override suspend fun loadProfile(): Result<UserProfile> =
+              Result.success(UserProfile("", "", "Account"))
+        }
     doAnswer {
           authState.value = AuthUIState(signOutCompleted = true)
           Unit
@@ -1906,6 +1917,7 @@ class MainActivityNavigationTest {
                       savedGuideRepository = savedGuideRepository,
                       isOnline = isOnlineOverride,
                       publicProfileRepository = publicProfileRepositoryOverride,
+                      privateProfileRepository = privateProfileRepository,
                       notificationInstallationRepository =
                           notificationInstallationRepositoryOverride,
                       monumentSharingRepository = monumentSharingRepository,
