@@ -51,7 +51,7 @@
             </intent-filter>
         </activity>
         <service
-            android:name=".ui.notifications.FriendRequestMessagingService"
+            android:name=".ui.notifications.NotificationMessagingService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />

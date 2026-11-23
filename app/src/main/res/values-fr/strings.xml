@@ -70,6 +70,8 @@
     <string name="notification_friend_request_accept">Accepter</string>
     <string name="notification_friend_request_decline">Refuser</string>
     <string name="notification_friend_request_action_failed">Impossible de traiter la demande. Ouvrez Roam pour réessayer.</string>
+    <string name="notification_monument_share_title">Monument partagé avec vous</string>
+    <string name="notification_monument_share_body">%1$s a partagé %2$s avec vous.</string>
     <string name="home_greeting_format">Bonjour %s,</string>
     <string name="home_greeting_no_name">Bonjour,</string>
     <string name="home_greeting_title">Prêt à explorer ?</string>
