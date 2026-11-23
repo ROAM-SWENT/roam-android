@@ -347,4 +347,84 @@ class SignInViewModelTest {
         verify(credentialManager, org.mockito.kotlin.times(1))
             .getCredential(any<Context>(), any<GetCredentialRequest>())
       }
+
+  @Test
+  fun signInWithEmail_successUpdatesUser() =
+      runTest(dispatcher) {
+        whenever(repository.signInWithEmail("roam@example.com", "password"))
+            .thenReturn(Result.success(user))
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signInWithEmail("roam@example.com", "password")
+        advanceUntilIdle()
+
+        assertEquals(user, viewModel.uiState.value.user)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNull(viewModel.uiState.value.errorMsg)
+      }
+
+  @Test
+  fun signInWithEmail_validatesEmailBeforeRepository() =
+      runTest(dispatcher) {
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signInWithEmail("not-an-email", "password")
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.user)
+        assertEquals(R.string.auth_validation_email, viewModel.uiState.value.errorMsg?.messageRes)
+        verify(repository, never()).signInWithEmail(any(), any())
+      }
+
+  @Test
+  fun signUpWithEmail_sendsVerificationAndUpdatesUser() =
+      runTest(dispatcher) {
+        whenever(repository.signUpWithEmail("roam@example.com", "password"))
+            .thenReturn(Result.success(user))
+        whenever(repository.sendEmailVerification()).thenReturn(Result.success(Unit))
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signUpWithEmail("roam@example.com", "password", "password")
+        advanceUntilIdle()
+
+        assertEquals(user, viewModel.uiState.value.user)
+        assertTrue(viewModel.uiState.value.verificationEmailSent)
+        assertFalse(viewModel.uiState.value.isLoading)
+        verify(repository).sendEmailVerification()
+      }
+
+  @Test
+  fun signUpWithEmail_rejectsPasswordMismatch() =
+      runTest(dispatcher) {
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signUpWithEmail("roam@example.com", "password", "different")
+        advanceUntilIdle()
+
+        assertEquals(
+            R.string.auth_validation_password_confirmation,
+            viewModel.uiState.value.errorMsg?.messageRes,
+        )
+        verify(repository, never()).signUpWithEmail(any(), any())
+      }
+
+  @Test
+  fun resendAndCheckEmailVerification_updateState() =
+      runTest(dispatcher) {
+        whenever(repository.resendEmailVerification()).thenReturn(Result.success(Unit))
+        whenever(repository.reloadEmailVerificationStatus()).thenReturn(Result.success(true))
+        var verified = false
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.resendEmailVerification()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.verificationEmailSent)
+        viewModel.checkEmailVerification { verified = true }
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.verificationEmailSent)
+        assertTrue(verified)
+        verify(repository).resendEmailVerification()
+        verify(repository).reloadEmailVerificationStatus()
+      }
 }
