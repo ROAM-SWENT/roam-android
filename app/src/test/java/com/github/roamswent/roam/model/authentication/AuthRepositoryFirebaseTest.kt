@@ -13,6 +13,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -24,6 +25,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.CALLS_REAL_METHODS
+import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doThrow
@@ -437,5 +440,69 @@ class AuthRepositoryFirebaseTest {
     advanceUntilIdle()
 
     verify(auth).removeAuthStateListener(listenerCaptor.firstValue)
+  }
+
+  private fun mapError(
+      operation: String,
+      error: Exception,
+  ): IllegalStateException {
+    val repository = mock(AuthRepositoryFirebase::class.java, CALLS_REAL_METHODS)
+    val method =
+        AuthRepositoryFirebase::class
+            .java
+            .getDeclaredMethod(
+                "mapEmailAuthError",
+                String::class.java,
+                Exception::class.java,
+            )
+    method.isAccessible = true
+    return method.invoke(repository, operation, error) as IllegalStateException
+  }
+
+  @Test
+  fun mapEmailAuthError_mapsKnownFirebaseErrors() {
+    val cases =
+        mapOf(
+            "ERROR_INVALID_EMAIL" to "The email address is invalid",
+            "ERROR_EMAIL_ALREADY_IN_USE" to "An account already exists with this email",
+            "ERROR_WEAK_PASSWORD" to "The password is too weak",
+            "ERROR_INVALID_CREDENTIAL" to "The email or password is incorrect",
+            "ERROR_USER_NOT_FOUND" to "The email or password is incorrect",
+            "ERROR_WRONG_PASSWORD" to "The email or password is incorrect",
+            "ERROR_USER_DISABLED" to "This account has been disabled",
+            "ERROR_TOO_MANY_REQUESTS" to "Too many attempts; try again later",
+            "ERROR_OPERATION_NOT_ALLOWED" to "Email/password authentication is not enabled",
+        )
+
+    cases.forEach { (code, expectedMessage) ->
+      val error = FirebaseAuthException(code, "Firebase error")
+
+      val result = mapError("Sign-in", error)
+
+      assertEquals("Sign-in failed: $expectedMessage", result.message)
+    }
+  }
+
+  @Test
+  fun mapEmailAuthError_unknownFirebaseCodeUsesOriginalMessage() {
+    val error = FirebaseAuthException("ERROR_UNKNOWN", "Unknown Firebase error")
+
+    val result = mapError("Sign-in", error)
+
+    assertEquals("Sign-in failed: Unknown Firebase error", result.message)
+  }
+
+  @Test
+  fun mapEmailAuthError_nonFirebaseExceptionUsesOriginalMessage() {
+    val result = mapError("Sign-up", IllegalArgumentException("Network error"))
+
+    assertEquals("Sign-up failed: Network error", result.message)
+  }
+
+  @Test
+  fun mapEmailAuthError_nullMessageUsesFallback() {
+    val result = mapError("Sign-in", Exception())
+
+    assertEquals("Sign-in failed: Unexpected error", result.message)
   }
 }

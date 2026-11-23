@@ -427,4 +427,110 @@ class SignInViewModelTest {
         verify(repository).resendEmailVerification()
         verify(repository).reloadEmailVerificationStatus()
       }
+
+  @Test
+  fun signUpWithEmail_passwordMismatchDoesNotCallRepository() =
+      runTest(dispatcher) {
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signUpWithEmail("user@example.com", "Password123!", "Different123!")
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.errorMsg != null)
+        verify(repository, never()).signUpWithEmail(any(), any())
+      }
+
+  @Test
+  fun signUpWithEmail_repositoryFailureSetsError() =
+      runTest(dispatcher) {
+        whenever(repository.signUpWithEmail("user@example.com", "Password123!"))
+            .thenReturn(Result.failure(IllegalStateException("Registration failed")))
+
+        val viewModel = SignInViewModel(repository)
+        viewModel.signUpWithEmail("user@example.com", "Password123!", "Password123!")
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.errorMsg != null)
+        assertNull(viewModel.uiState.value.user)
+      }
+
+  @Test
+  fun signUpWithEmail_verificationFailureSetsError() =
+      runTest(dispatcher) {
+        whenever(repository.signUpWithEmail("user@example.com", "Password123!"))
+            .thenReturn(Result.success(user))
+        whenever(repository.sendEmailVerification())
+            .thenReturn(Result.failure(IllegalStateException("Email failed")))
+
+        val viewModel = SignInViewModel(repository)
+        viewModel.signUpWithEmail("user@example.com", "Password123!", "Password123!")
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.errorMsg != null)
+        verify(repository).sendEmailVerification()
+      }
+
+  @Test
+  fun resendEmailVerification_successUpdatesState() =
+      runTest(dispatcher) {
+        whenever(repository.resendEmailVerification()).thenReturn(Result.success(Unit))
+
+        val viewModel = SignInViewModel(repository)
+        viewModel.resendEmailVerification()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNull(viewModel.uiState.value.errorMsg)
+        assertTrue(viewModel.uiState.value.verificationEmailSent)
+      }
+
+  @Test
+  fun resendEmailVerification_failureSetsError() =
+      runTest(dispatcher) {
+        whenever(repository.resendEmailVerification())
+            .thenReturn(Result.failure(IllegalStateException("Failed")))
+
+        val viewModel = SignInViewModel(repository)
+        viewModel.resendEmailVerification()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.errorMsg != null)
+      }
+
+  @Test
+  fun checkEmailVerificationStatus_notVerifiedSetsError() =
+      runTest(dispatcher) {
+        whenever(repository.reloadEmailVerificationStatus()).thenReturn(Result.success(false))
+
+        val viewModel = SignInViewModel(repository)
+        var callbackCalled = false
+
+        viewModel.checkEmailVerification { callbackCalled = true }
+        advanceUntilIdle()
+
+        assertFalse(callbackCalled)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.errorMsg != null)
+      }
+
+  @Test
+  fun checkEmailVerificationStatus_failureSetsError() =
+      runTest(dispatcher) {
+        whenever(repository.reloadEmailVerificationStatus())
+            .thenReturn(Result.failure(IllegalStateException("Network error")))
+
+        val viewModel = SignInViewModel(repository)
+        var callbackCalled = false
+
+        viewModel.checkEmailVerification { callbackCalled = true }
+        advanceUntilIdle()
+
+        assertFalse(callbackCalled)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.errorMsg != null)
+      }
 }
