@@ -25,6 +25,7 @@ class GuideMappingTest {
           overview = "An iron landmark.",
           timeline = listOf(GuideMilestone(1889, "Opened.")),
           location = Coordinates(48.85837, 2.29448),
+          monumentLocation = Coordinates(48.85826, 2.29450),
       )
 
   @Test
@@ -53,6 +54,7 @@ class GuideMappingTest {
             overview = "An iron landmark.",
             timeline = listOf(GuideMilestone(1889, "Opened.")),
             location = null,
+            monumentLocation = Coordinates(48.85826, 2.29450),
             discoveryDate = 1_700_000_000_000L,
             isFavorite = false,
         ),

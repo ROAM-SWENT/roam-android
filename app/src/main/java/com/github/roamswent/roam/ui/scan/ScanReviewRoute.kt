@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
@@ -27,6 +28,7 @@ import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.ui.loading.ContentResolverImageReader
 import com.github.roamswent.roam.ui.loading.LoadingRoute
@@ -45,6 +47,8 @@ fun ScanReviewRoute(
     isGalleryImage: Boolean = false,
     fromCollection: Boolean = false,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
+    isOnline: Boolean = true,
+    onOpenInExplore: ((Coordinates) -> Unit)? = null,
 ) {
   val context = LocalContext.current
   val capturedImageManager = remember(context) { FileCapturedImageManager(context, Dispatchers.IO) }
@@ -94,6 +98,7 @@ fun ScanReviewRoute(
             Locale.getDefault().toLanguageTag(),
             userInterestsRepository,
             savedGuideRepository,
+            isGalleryImage = isGalleryImage,
         )
       }
   val showLoading by loadingViewModel.showLoading.collectAsState()
@@ -175,6 +180,8 @@ fun ScanReviewRoute(
           exploreOptIn = exploreOptIn,
           exploreUnavailableReason = exploreUnavailableReason,
           onShowInExploreChange = loadingViewModel::setShownInExplore,
+          isOnline = isOnline,
+          onOpenInExplore = onOpenInExplore.takeIf { saveError == null },
       )
     }
   }

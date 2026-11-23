@@ -39,6 +39,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
@@ -53,6 +54,7 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
@@ -64,18 +66,25 @@ import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.explore.ExploreBitmapDescriptorShadow
+import com.github.roamswent.roam.ui.explore.ExploreCameraUpdateShadow
+import com.github.roamswent.roam.ui.explore.ExploreMapViewShadow
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.UiSettings
+import com.google.android.gms.maps.model.Marker
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -87,6 +96,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
@@ -94,6 +105,8 @@ import org.mockito.kotlin.whenever
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
@@ -660,6 +673,69 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_grid)
     assertEquals(listOf(Routes.Home, Routes.Collection), backStackRoutes(navController))
+  }
+
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  @Config(
+      shadows =
+          [
+              ExploreMapViewShadow::class,
+              ExploreCameraUpdateShadow::class,
+              ExploreBitmapDescriptorShadow::class,
+          ]
+  )
+  fun tappingTheSavedGuideMapOpensExploreAtTheLandmarkAndBackReturnsToTheGuide() {
+    val map = mock<GoogleMap>()
+    whenever(map.uiSettings).thenReturn(mock<UiSettings>())
+    whenever(map.addMarker(any())).thenReturn(mock<Marker>())
+    doAnswer { invocation ->
+          invocation.getArgument<GoogleMap.OnMapLoadedCallback?>(0)?.onMapLoaded()
+          null
+        }
+        .whenever(map)
+        .setOnMapLoadedCallback(anyOrNull())
+    ExploreMapViewShadow.map = map
+    ExploreBitmapDescriptorShadow.failDescriptorCreation = false
+    lateinit var navController: NavHostController
+    val location = Coordinates(48.85826, 2.29450)
+    val guide =
+        Guide(
+            id = "eiffel",
+            photoBytes = ByteArray(0),
+            monumentName = "Eiffel Tower",
+            confidence = 0.9,
+            history = "Built in 1889.",
+            facts = emptyList(),
+            culture = "A landmark in Paris.",
+            monumentLocation = location,
+        )
+    showAuthenticatedHome(
+        onNavControllerReady = { navController = it },
+        savedGuideRepository = FakeSavedGuideRepository(listOf(guide)),
+        isOnlineOverride = true,
+    )
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_grid)
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_map).performScrollTo().performClick()
+    waitAndAssertDisplayed(C.Tag.explore_screen_container)
+    composeTestRule.runOnIdle {
+      assertEquals(Routes.Explore, navController.currentDestination?.route)
+      assertArrayEquals(
+          doubleArrayOf(location.latitude, location.longitude),
+          navController.currentBackStackEntry
+              ?.savedStateHandle
+              ?.get(Routes.ExploreMonumentLocation),
+          0.0,
+      )
+    }
+
+    composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_map).performScrollTo().assertIsDisplayed()
   }
 
   @Test

@@ -18,6 +18,7 @@ fun MonumentGuide.toSavedGuide(
     photoBytes: ByteArray,
     discoveryDate: Long,
     location: Coordinates?,
+    exploreLocationFailure: ExploreLocationFailure? = null,
 ): Guide =
     Guide(
         id = id,
@@ -31,8 +32,10 @@ fun MonumentGuide.toSavedGuide(
         interestCount = interestCount,
         overview = overview,
         timeline = timeline,
+        monumentLocation = monumentLocation,
         location = location,
         discoveryDate = discoveryDate,
+        exploreLocationFailure = exploreLocationFailure,
     )
 
 /**
@@ -52,5 +55,6 @@ fun Guide.toMonumentGuide(): MonumentGuide =
         interestCount = interestCount,
         overview = overview,
         timeline = timeline,
+        monumentLocation = monumentLocation,
         location = location,
     )

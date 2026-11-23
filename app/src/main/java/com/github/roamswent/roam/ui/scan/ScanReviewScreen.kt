@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
@@ -57,10 +58,11 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.guide.ExploreUnavailableReason
 import com.github.roamswent.roam.model.interests.UserInterestCategories
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
-import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.CameraOverlayContent
@@ -92,6 +94,8 @@ fun ScanReviewScreen(
     exploreOptIn: ExploreOptInUiState? = null,
     onShowInExploreChange: (Boolean) -> Unit = {},
     exploreUnavailableReason: ExploreUnavailableReason? = null,
+    isOnline: Boolean = true,
+    onOpenInExplore: ((Coordinates) -> Unit)? = null,
 ) {
   if (state is ScanReviewUiState.Sent) {
     MonumentDetailScreen(
@@ -105,6 +109,8 @@ fun ScanReviewScreen(
         exploreOptIn = exploreOptIn,
         onShowInExploreChange = onShowInExploreChange,
         exploreUnavailableReason = exploreUnavailableReason,
+        isOnline = isOnline,
+        onOpenInExplore = onOpenInExplore,
         isGalleryImage = isGalleryImage,
     )
     return

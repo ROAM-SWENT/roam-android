@@ -46,10 +46,9 @@ data class DiscoveryRequest(
  *
  * Two positions are kept apart on purpose:
  * - [location] is the observed position, where the user was when the pipeline resolved it for the
- *   prompt, or null if it was unavailable. It is the only position ever pinned on Explore.
+ *   prompt, or null if it was unavailable. This is the position saved for opted-in Explore pins.
  * - [monumentLocation] is where the monument itself stands, according to the AI, or null when it
- *   gave no trustworthy position. It is only used to check the observed position is near the
- *   monument, and is never stored.
+ *   gave no trustworthy position. It anchors the guide map and the proximity check.
  *
  * [photo] is the downscaled JPEG the pipeline sent to the AI, so callers can store it without
  * preparing it again.

@@ -11,6 +11,7 @@ import com.google.firebase.firestore.Blob
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,6 +31,7 @@ class GuideFirestoreMapperTest {
           overview = "An iron landmark.",
           timeline = listOf(GuideMilestone(1889, "Opened.")),
           location = Coordinates(48.8584, 2.2945),
+          monumentLocation = Coordinates(48.85826, 2.29450),
           discoveryDate = 1_798_000_000_000,
       )
 
@@ -63,6 +65,41 @@ class GuideFirestoreMapperTest {
 
     assertEquals(null, restored.location)
     assertEquals(null, restored.discoveryDate)
+  }
+
+  @Test
+  fun landmarkCoordinatesAreOptionalAndIndependentOfTheScanLocation() {
+    val fields = GuideFirestoreMapper.toFields(guide)
+    val key = GuideFirestoreMapper.MONUMENT_LOCATION_FIELD
+
+    for (legacyFields in listOf(fields - key, fields + (key to mapOf("latitude" to 91)))) {
+      val restored = GuideFirestoreMapper.fromFields(guide.id, legacyFields)
+      assertNull(restored.monumentLocation)
+      assertEquals(guide.location, restored.location)
+    }
+    assertNotEquals(guide, guide.copy(monumentLocation = null))
+  }
+
+  @Test
+  fun locationFailureRoundTripsAndInvalidOptionalDataIsIgnored() {
+    val failure = ExploreLocationFailure(ExploreUnavailableReason.TOO_FAR, isGalleryImage = true)
+    val guideWithFailure = guide.copy(location = null, exploreLocationFailure = failure)
+    val fields = GuideFirestoreMapper.toFields(guideWithFailure)
+    val key = GuideFirestoreMapper.EXPLORE_LOCATION_FAILURE_FIELD
+
+    val restored = GuideFirestoreMapper.fromFields(guide.id, fields)
+    assertEquals(guideWithFailure, restored)
+    assertEquals(guideWithFailure.hashCode(), restored.hashCode())
+    assertNotEquals(guideWithFailure.copy(exploreLocationFailure = null), restored)
+
+    for (invalid in listOf(fields - key, fields + (key to mapOf("reason" to "UNKNOWN")))) {
+      assertNull(GuideFirestoreMapper.fromFields(guide.id, invalid).exploreLocationFailure)
+    }
+    val noSource = fields + (key to mapOf("reason" to "TOO_FAR"))
+    assertEquals(
+        failure.copy(isGalleryImage = false),
+        GuideFirestoreMapper.fromFields(guide.id, noSource).exploreLocationFailure,
+    )
   }
 
   @Test

@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Mistral Vibe <vibe@mistral.ai>
 package com.github.roamswent.roam.ui.navigation
@@ -9,6 +10,7 @@ object Routes {
   const val RegisterProfile = "register_profile"
   const val Home = "home"
   const val Explore = "explore"
+  internal const val ExploreMonumentLocation = "exploreMonumentLocation"
   const val Scan = "scan"
   const val ScanReview = "scan_review"
   const val Settings = "settings"

@@ -44,6 +44,33 @@ class GuideDocumentSizeTest {
   }
 
   @Test
+  fun estimatesLandmarkCoordinatesEvenWhenTheGuideIsNotPinned() {
+    val guide = guide(photoBytes = byteArrayOf(1, 2, 3))
+
+    assertEquals(
+        84L,
+        GuideDocumentSize.estimatedBytes(
+            guide.copy(monumentLocation = Coordinates(48.85826, 2.29450)),
+            documentPath,
+        ) - GuideDocumentSize.estimatedBytes(guide, documentPath),
+    )
+  }
+
+  @Test
+  fun estimatesTheLocationFailureReasonAndPhotoSource() {
+    val guide = guide(photoBytes = byteArrayOf(1, 2, 3))
+    val failure = ExploreLocationFailure(ExploreUnavailableReason.TOO_FAR, isGalleryImage = true)
+
+    assertEquals(
+        86L,
+        GuideDocumentSize.estimatedBytes(
+            guide.copy(exploreLocationFailure = failure),
+            documentPath,
+        ) - GuideDocumentSize.estimatedBytes(guide, documentPath),
+    )
+  }
+
+  @Test
   fun includesAdditionalPathSegmentsAndFactStrings() {
     val baseGuide = guide(photoBytes = byteArrayOf(1, 2, 3))
 

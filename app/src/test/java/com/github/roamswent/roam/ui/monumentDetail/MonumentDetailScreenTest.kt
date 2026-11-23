@@ -38,15 +38,19 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.sp
 import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.guide.ExploreUnavailableReason
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
-import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
+import com.github.roamswent.roam.ui.theme.GuideTypography
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.guideCalloutContainer
 import com.github.roamswent.roam.ui.theme.guideEyebrow
@@ -81,6 +85,64 @@ class MonumentDetailScreenTest {
                   "It hosts celebrations that bring Parisians together.",
           language = "en",
       )
+
+  @Test
+  fun guideRendersTypographyForContentAndLocationWarnings() {
+    val overview = "An iron landmark."
+    val fact = "The iron expands in summer."
+    val architecture = "Look up at the exposed lattice."
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide =
+                guide.copy(
+                    overview = overview,
+                    facts = listOf(fact),
+                    sections = listOf(GuideSection("Architecture", architecture)),
+                ),
+            onBackClick = {},
+        )
+      }
+    }
+
+    data class TextMetrics(val text: String, val size: Int, val height: Int, val weight: FontWeight)
+
+    val regular = FontWeight.Normal
+    val semibold = FontWeight.SemiBold
+    val bold = FontWeight.Bold
+    val expectations =
+        listOf(
+            TextMetrics("YOUR AI GUIDE", 11, 16, bold),
+            TextMetrics(guide.monumentName, 25, 32, bold),
+            TextMetrics(overview, 14, 21, regular),
+            TextMetrics("History", 17, 22, semibold),
+            TextMetrics(guide.history, 14, 22, regular),
+            TextMetrics("Architecture", 17, 22, semibold),
+            TextMetrics(architecture, 14, 22, regular),
+            TextMetrics("Fun Fact", 17, 22, semibold),
+            TextMetrics(fact, 14, 22, regular),
+            TextMetrics("Monument location unavailable", 14, 17, semibold),
+            TextMetrics("We couldn't confirm where this monument is.", 12, 16, regular),
+        )
+
+    val inter = GuideTypography.bodyLarge.fontFamily
+    assertNotEquals(FontFamily.Default, inter)
+    expectations.forEach { (text, size, height, weight) ->
+      val layouts = mutableListOf<TextLayoutResult>()
+      composeTestRule.onNodeWithText(text).performSemanticsAction(
+          SemanticsActions.GetTextLayoutResult
+      ) {
+        it(layouts)
+      }
+      val style = layouts.single().layoutInput.style
+      assertEquals(text, inter, style.fontFamily)
+      assertEquals(text, size.sp, style.fontSize)
+      assertEquals(text, height.sp, style.lineHeight)
+      assertEquals(text, weight, style.fontWeight)
+      assertEquals(text, if (text == "YOUR AI GUIDE") 1.2.sp else 0.sp, style.letterSpacing)
+    }
+  }
 
   @Test
   fun monumentDetailScreenDisplaysImageAndStructuredGuideCorrectly() {
@@ -521,7 +583,7 @@ class MonumentDetailScreenTest {
       SampleAppTheme {
         MonumentDetailScreen(
             image = ColorPainter(Color.LightGray),
-            guide = guide,
+            guide = guide.copy(monumentLocation = scanLocation),
             onBackClick = {},
             exploreOptIn = optIn,
             onShowInExploreChange = onShowInExploreChange,
@@ -552,16 +614,20 @@ class MonumentDetailScreenTest {
     composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_show_in_explore).assertCountEquals(0)
     composeTestRule
         .onNodeWithTag(C.Tag.monument_detail_explore_unavailable, useUnmergedTree = true)
+        .performScrollTo()
         .assertIsDisplayed()
         .assertTextEquals(expected)
+    val title =
+        if (reason == ExploreUnavailableReason.NO_MONUMENT_LOCATION) "Monument location unavailable"
+        else "Can't be added to Explore"
+    composeTestRule.onNodeWithText(title).assertIsDisplayed()
   }
 
   @Test
   fun missingObservedLocationIsExplainedInsteadOfTheSwitch() {
     assertUnavailableMessage(
         ExploreUnavailableReason.NO_OBSERVED_LOCATION,
-        "Your location wasn't available during the scan, so this monument can't be added to " +
-            "Explore.",
+        "Your location wasn't available during the scan.",
     )
   }
 
@@ -569,7 +635,7 @@ class MonumentDetailScreenTest {
   fun missingMonumentLocationIsExplainedInsteadOfTheSwitch() {
     assertUnavailableMessage(
         ExploreUnavailableReason.NO_MONUMENT_LOCATION,
-        "We couldn't confirm where this monument is, so it can't be added to Explore.",
+        "We couldn't confirm where this monument is.",
     )
   }
 
@@ -577,7 +643,7 @@ class MonumentDetailScreenTest {
   fun scanTooFarIsExplainedInsteadOfTheSwitch() {
     assertUnavailableMessage(
         ExploreUnavailableReason.TOO_FAR,
-        "You don't seem to be near this monument, so it can't be added to Explore.",
+        "You don't seem to be near this monument.",
     )
   }
 
@@ -585,7 +651,7 @@ class MonumentDetailScreenTest {
   fun galleryPhotoWithoutLocationIsExplainedAsMissingPhotoData() {
     assertUnavailableMessage(
         ExploreUnavailableReason.NO_OBSERVED_LOCATION,
-        "This photo has no location data, so this monument can't be added to Explore.",
+        "This photo has no GPS location data.",
         isGalleryImage = true,
     )
   }
@@ -594,8 +660,7 @@ class MonumentDetailScreenTest {
   fun galleryPhotoTooFarIsExplainedForThePhoto() {
     assertUnavailableMessage(
         ExploreUnavailableReason.TOO_FAR,
-        "This photo doesn't seem to have been taken near this monument, so it can't be added " +
-            "to Explore.",
+        "This photo doesn't seem to have been taken near the monument.",
         isGalleryImage = true,
     )
   }
@@ -604,7 +669,7 @@ class MonumentDetailScreenTest {
   fun galleryPhotoWithoutMonumentLocationUsesTheSharedMessage() {
     assertUnavailableMessage(
         ExploreUnavailableReason.NO_MONUMENT_LOCATION,
-        "We couldn't confirm where this monument is, so it can't be added to Explore.",
+        "We couldn't confirm where this monument is.",
         isGalleryImage = true,
     )
   }

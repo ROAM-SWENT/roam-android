@@ -108,6 +108,8 @@ object C {
     const val monument_detail_timeline_item = "monument_detail_timeline_item"
     const val monument_detail_facts = "monument_detail_facts"
     const val monument_detail_interest = "monument_detail_interest"
+    const val monument_detail_map = "monument_detail_map"
+    const val monument_detail_map_probe = "monument_detail_map_probe"
     const val monument_detail_fact_item = "monument_detail_fact_item"
     const val monument_detail_culture = "monument_detail_culture"
     const val saved_monument_detail_loading = "saved_monument_detail_loading"

@@ -66,13 +66,26 @@ internal object GuideDocumentSize {
           )
     }
 
-    guide.location?.let {
-      val locationSize =
-          fieldSize("latitude", NUMBER_SIZE_BYTES) +
-              fieldSize("longitude", NUMBER_SIZE_BYTES) +
-              DOCUMENT_OVERHEAD_BYTES
+    val locationSize =
+        fieldSize("latitude", NUMBER_SIZE_BYTES) +
+            fieldSize("longitude", NUMBER_SIZE_BYTES) +
+            DOCUMENT_OVERHEAD_BYTES
+    if (guide.location != null) {
+      fieldsSize += fieldSize(GuideFirestoreMapper.LOCATION_FIELD, locationSize)
+    }
+    if (guide.monumentLocation != null) {
+      fieldsSize += fieldSize(GuideFirestoreMapper.MONUMENT_LOCATION_FIELD, locationSize)
+    }
 
-      fieldsSize += fieldSize("location", locationSize)
+    guide.exploreLocationFailure?.let { failure ->
+      val failureSize =
+          fieldSize(
+              GuideFirestoreMapper.EXPLORE_FAILURE_REASON_FIELD,
+              failure.reason.name.firestoreStringSize(),
+          ) +
+              fieldSize(GuideFirestoreMapper.EXPLORE_FAILURE_GALLERY_FIELD, BOOLEAN_SIZE_BYTES) +
+              DOCUMENT_OVERHEAD_BYTES
+      fieldsSize += fieldSize(GuideFirestoreMapper.EXPLORE_LOCATION_FAILURE_FIELD, failureSize)
     }
 
     if (guide.discoveryDate != null) {

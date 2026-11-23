@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -33,6 +34,7 @@ import com.github.roamswent.roam.ui.theme.guideCalloutContainer
 import com.github.roamswent.roam.ui.theme.guideEyebrow
 import com.github.roamswent.roam.ui.theme.guideHeading
 import com.github.roamswent.roam.ui.theme.guideMatchAccent
+import com.github.roamswent.roam.ui.theme.guideOverview
 import com.github.roamswent.roam.ui.theme.guideText
 import kotlin.math.roundToInt
 
@@ -41,20 +43,24 @@ internal fun GuideHeader(guide: MonumentGuide) {
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     Text(
         text = stringResource(R.string.monument_detail_ai_guide_label),
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.guideEyebrow,
     )
     Text(
         text = guide.monumentName,
         style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
         color = MaterialTheme.guideHeading,
         modifier = Modifier.testTag(C.Tag.monument_detail_title).semantics { heading() },
     )
     guide.overview
         ?.takeIf { it.isNotBlank() }
-        ?.let { GuideBody(it, Modifier.testTag(C.Tag.monument_detail_overview)) }
+        ?.let {
+          GuideBody(
+              it,
+              Modifier.testTag(C.Tag.monument_detail_overview),
+              style = MaterialTheme.typography.guideOverview,
+          )
+        }
     GuideMatchBadge((guide.confidence * 100).roundToInt())
   }
 }
@@ -110,7 +116,10 @@ internal fun GuideContent(guide: MonumentGuide) {
     }
     guide.sections.forEach { section ->
       if (section.title.isNotBlank() && section.content.isNotBlank()) {
-        GuideCallout(section.title, Modifier.testTag(C.Tag.monument_detail_interest)) {
+        GuideCallout(
+            title = section.title,
+            modifier = Modifier.testTag(C.Tag.monument_detail_interest),
+        ) {
           GuideBody(section.content)
         }
       }
@@ -133,8 +142,7 @@ private fun GuideParagraph(title: String, content: String, contentTag: String) {
 private fun GuideHeading(title: String, modifier: Modifier = Modifier) {
   Text(
       text = title,
-      style = MaterialTheme.typography.titleSmall,
-      fontWeight = FontWeight.Bold,
+      style = MaterialTheme.typography.titleMedium,
       color = MaterialTheme.guideHeading,
       modifier = modifier.semantics { heading() },
   )
@@ -154,13 +162,7 @@ private fun GuideCallout(
               .padding(14.dp),
       verticalArrangement = Arrangement.spacedBy(4.dp),
   ) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.guideHeading,
-        modifier = Modifier.semantics { heading() },
-    )
+    GuideHeading(title)
     content()
   }
 }
@@ -216,10 +218,14 @@ private fun GuideTimeline(milestones: List<GuideMilestone>) {
 }
 
 @Composable
-private fun GuideBody(text: String, modifier: Modifier = Modifier) {
+private fun GuideBody(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
+) {
   Text(
       text = remember(text) { markdownText(text) },
-      style = MaterialTheme.typography.bodyLarge,
+      style = style,
       color = MaterialTheme.guideText,
       modifier = modifier,
   )
