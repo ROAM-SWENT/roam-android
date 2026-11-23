@@ -2,9 +2,18 @@
 package com.github.roamswent.roam.model.leaderboard
 
 import com.github.roamswent.roam.model.firestore.RoamFirestore
+import com.github.roamswent.roam.model.friend.FirestoreFriendRepository
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.FriendRepositoryException
+import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfileException
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -27,10 +36,16 @@ import kotlinx.coroutines.tasks.await
  * Security rules only let the owner raise the count, by exactly one per write, and only let a
  * counted-monument document be created together with that increment. They cannot prove that the
  * user was at the monument: a modified client can still report fabricated visits.
+ *
+ * The leaderboard reads no Firestore document itself: accepted friends come from [friendRepository]
+ * and usernames and counts from [publicProfileRepository].
  */
 class FirestoreLeaderboardRepository(
     private val firestore: FirebaseFirestore = RoamFirestore.instance,
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val friendRepository: FriendRepository = FirestoreFriendRepository(firestore, auth),
+    private val publicProfileRepository: PublicProfileRepository =
+        FirestorePublicProfileRepository(firestore, auth),
 ) : LeaderboardRepository {
 
   /**
@@ -70,9 +85,29 @@ class FirestoreLeaderboardRepository(
     }
   }
 
-  /** Not implemented yet; ranking friends is the next step of issue #265. */
-  override suspend fun getFriendsLeaderboard(): List<LeaderboardEntry> =
-      TODO("Ranking friends is not implemented yet.")
+  /**
+   * Ranks the signed-in user and their accepted friends with [rankLeaderboard]. Profiles are loaded
+   * in parallel. A friend without a public profile is left out, as there is no username to show.
+   *
+   * @throws LeaderboardException.UnauthenticatedUser if no user is signed in.
+   * @throws LeaderboardException.ProfileNotRegistered if the signed-in user has no public profile.
+   * @throws LeaderboardException.FirestoreFailure if friends or profiles could not be loaded, or a
+   *   profile is invalid.
+   */
+  override suspend fun getFriendsLeaderboard(): List<LeaderboardEntry> {
+    val uid = requireCurrentUid()
+    return withFirestoreErrors {
+      val friendUids = friendRepository.getFriends().map { it.friendUid }.distinct() - uid
+      val (currentProfile, friendProfiles) =
+          coroutineScope {
+            val current = async { publicProfileRepository.getProfile(uid) }
+            val friends = friendUids.map { async { publicProfileRepository.getProfile(it) } }
+            current.await() to friends.awaitAll()
+          }
+      if (currentProfile == null) throw LeaderboardException.ProfileNotRegistered()
+      rankLeaderboard(listOf(currentProfile) + friendProfiles.filterNotNull())
+    }
+  }
 
   private fun requireCurrentUid(): String =
       auth.currentUser?.uid?.takeIf(String::isNotBlank)
@@ -85,6 +120,10 @@ class FirestoreLeaderboardRepository(
         throw exception
       } catch (exception: LeaderboardException) {
         throw exception
+      } catch (exception: FriendRepositoryException.UnauthenticatedUser) {
+        throw LeaderboardException.UnauthenticatedUser()
+      } catch (exception: PublicProfileException.UnauthenticatedUser) {
+        throw LeaderboardException.UnauthenticatedUser()
       } catch (exception: Exception) {
         throw LeaderboardException.FirestoreFailure(exception)
       }

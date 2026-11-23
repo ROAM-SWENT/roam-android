@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.profile
 
@@ -92,7 +93,8 @@ class FirestorePublicProfileRepository(
                 profileReference,
                 profileFields(uid, username, usernameLower),
             )
-            PublicProfile(uid, username)
+            // The update keeps the other fields, so the returned profile keeps them too.
+            currentProfile.copy(username = username)
           }
           .await()
     }
@@ -144,7 +146,12 @@ class FirestorePublicProfileRepository(
     check(username.matches(USERNAME_PATTERN) && username.lowercase(Locale.ROOT) == usernameLower) {
       "Public profile contains an invalid username."
     }
-    return PublicProfile(uid, username)
+    // A missing count means the user has not verified a monument yet.
+    val verifiedMonumentCount = getLong(VERIFIED_MONUMENT_COUNT_FIELD) ?: 0L
+    check(verifiedMonumentCount in 0..Int.MAX_VALUE) {
+      "Public profile contains an invalid verified monument count."
+    }
+    return PublicProfile(uid, username, verifiedMonumentCount.toInt())
   }
 
   private fun profileFields(uid: String, username: String, usernameLower: String) =
@@ -177,6 +184,7 @@ class FirestorePublicProfileRepository(
     const val UID_FIELD = "uid"
     const val USERNAME_FIELD = "username"
     const val USERNAME_LOWER_FIELD = "usernameLower"
+    const val VERIFIED_MONUMENT_COUNT_FIELD = "verifiedMonumentCount"
     const val MAX_USERNAME_LENGTH = 20
     const val MAX_SEARCH_RESULTS = 20
     val USERNAME_PATTERN = Regex("[A-Za-z0-9_]{3,20}")

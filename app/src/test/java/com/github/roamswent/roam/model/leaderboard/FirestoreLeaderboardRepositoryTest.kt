@@ -1,6 +1,12 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.leaderboard
 
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.FriendRepositoryException
+import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileException
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -9,6 +15,9 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Transaction
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -28,7 +37,10 @@ class FirestoreLeaderboardRepositoryTest {
   private val monuments = mockk<CollectionReference>()
   private val profileReference = mockk<DocumentReference>()
   private val transaction = mockk<Transaction>()
-  private val repository = FirestoreLeaderboardRepository(firestore, auth)
+  private val friendRepository = mockk<FriendRepository>()
+  private val publicProfileRepository = mockk<PublicProfileRepository>()
+  private val repository =
+      FirestoreLeaderboardRepository(firestore, auth, friendRepository, publicProfileRepository)
 
   private val eiffelTower = MonumentKey(48858, 2294)
   private val arcDeTriomphe = MonumentKey(48874, 2295)
@@ -232,6 +244,156 @@ class FirestoreLeaderboardRepositoryTest {
     assertTrue(error.toString(), error is LeaderboardException.FirestoreFailure)
     assertTrue(error.cause === failure)
     assertEquals(null, storedCount)
+  }
+
+  @Test
+  fun leaderboardWithoutFriendsHasOnlyTheCurrentUser() = runTest {
+    givenFriends()
+    givenProfiles(PublicProfile("user-id", "Me", 3))
+
+    assertEquals(
+        listOf(LeaderboardEntry("user-id", "Me", 3, rank = 1)),
+        repository.getFriendsLeaderboard(),
+    )
+  }
+
+  @Test
+  fun friendsAreSortedByDescendingCountWithTheCurrentUserInPlace() = runTest {
+    givenFriends("ann", "bob", "cal")
+    givenProfiles(
+        PublicProfile("user-id", "Me", 4),
+        PublicProfile("ann", "Ann", 2),
+        PublicProfile("bob", "Bob", 9),
+        PublicProfile("cal", "Cal", 6),
+    )
+
+    val leaderboard = repository.getFriendsLeaderboard()
+
+    assertEquals(
+        listOf(
+            LeaderboardEntry("bob", "Bob", 9, 1),
+            LeaderboardEntry("cal", "Cal", 6, 2),
+            LeaderboardEntry("user-id", "Me", 4, 3),
+            LeaderboardEntry("ann", "Ann", 2, 4),
+        ),
+        leaderboard,
+    )
+  }
+
+  @Test
+  fun equalCountsShareARankAndAreOrderedByUsername() = runTest {
+    givenFriends("zed", "amy", "low")
+    givenProfiles(
+        PublicProfile("user-id", "me", 5),
+        PublicProfile("zed", "Zed", 5),
+        PublicProfile("amy", "Amy", 5),
+        PublicProfile("low", "Low", 1),
+    )
+
+    val leaderboard = repository.getFriendsLeaderboard()
+
+    assertEquals(listOf("Amy", "me", "Zed", "Low"), leaderboard.map { it.username })
+    assertEquals(listOf(1, 1, 1, 4), leaderboard.map { it.rank })
+  }
+
+  @Test
+  fun friendWithoutStoredCountRanksWithZero() = runTest {
+    givenFriends("new")
+    givenProfiles(PublicProfile("user-id", "Me", 1), PublicProfile("new", "Newbie"))
+
+    assertEquals(
+        LeaderboardEntry("new", "Newbie", 0, 2),
+        repository.getFriendsLeaderboard().last(),
+    )
+  }
+
+  @Test
+  fun onlyAcceptedFriendsFromFriendRepositoryAreLoaded() = runTest {
+    givenFriends("ann", "ann", "user-id")
+    givenProfiles(PublicProfile("user-id", "Me", 0), PublicProfile("ann", "Ann", 1))
+
+    val leaderboard = repository.getFriendsLeaderboard()
+
+    assertEquals(listOf("ann", "user-id"), leaderboard.map { it.uid })
+    // Pending requests are never consulted: only the accepted friendships are.
+    coVerify(exactly = 1) { friendRepository.getFriends() }
+    confirmVerified(friendRepository)
+    coVerify(exactly = 1) { publicProfileRepository.getProfile("user-id") }
+    coVerify(exactly = 1) { publicProfileRepository.getProfile("ann") }
+    confirmVerified(publicProfileRepository)
+  }
+
+  @Test
+  fun friendWithoutProfileIsLeftOut() = runTest {
+    givenFriends("ghost", "ann")
+    givenProfiles(PublicProfile("user-id", "Me", 0), PublicProfile("ann", "Ann", 1))
+
+    assertEquals(listOf("ann", "user-id"), repository.getFriendsLeaderboard().map { it.uid })
+  }
+
+  @Test
+  fun currentUserWithoutProfileFails() = runTest {
+    givenFriends("ann")
+    givenProfiles(PublicProfile("ann", "Ann", 1))
+
+    val error = captureFailure { repository.getFriendsLeaderboard() }
+
+    assertTrue(error.toString(), error is LeaderboardException.ProfileNotRegistered)
+  }
+
+  @Test
+  fun leaderboardForUnauthenticatedUserFailsWithoutLoading() = runTest {
+    every { auth.currentUser } returns null
+
+    val error = captureFailure { repository.getFriendsLeaderboard() }
+
+    assertTrue(error.toString(), error is LeaderboardException.UnauthenticatedUser)
+    confirmVerified(friendRepository, publicProfileRepository)
+  }
+
+  @Test
+  fun signOutDuringLoadingIsUnauthenticated() = runTest {
+    coEvery { friendRepository.getFriends() } throws FriendRepositoryException.UnauthenticatedUser()
+
+    val error = captureFailure { repository.getFriendsLeaderboard() }
+
+    assertTrue(error.toString(), error is LeaderboardException.UnauthenticatedUser)
+  }
+
+  @Test
+  fun friendLoadingFailureIsFirestoreFailure() = runTest {
+    val failure = FriendRepositoryException.FirestoreFailure(IllegalStateException("offline"))
+    coEvery { friendRepository.getFriends() } throws failure
+
+    val error = captureFailure { repository.getFriendsLeaderboard() }
+
+    assertTrue(error.toString(), error is LeaderboardException.FirestoreFailure)
+    assertTrue(error.cause === failure)
+  }
+
+  @Test
+  fun invalidProfileIsFirestoreFailure() = runTest {
+    val failure = PublicProfileException.FirestoreFailure(IllegalStateException("bad count"))
+    givenFriends("ann")
+    coEvery { publicProfileRepository.getProfile("user-id") } returns PublicProfile("user-id", "Me")
+    coEvery { publicProfileRepository.getProfile("ann") } throws failure
+
+    val error = captureFailure { repository.getFriendsLeaderboard() }
+
+    assertTrue(error.toString(), error is LeaderboardException.FirestoreFailure)
+    // The failure crosses an async boundary, where coroutine debugging may rethrow a copy of it.
+    assertTrue(error.cause is PublicProfileException.FirestoreFailure)
+    assertEquals(failure.message, error.cause?.message)
+  }
+
+  private fun givenFriends(vararg friendUids: String) {
+    coEvery { friendRepository.getFriends() } returns
+        friendUids.mapIndexed { index, uid -> Friendship("friendship-$index", uid) }
+  }
+
+  private fun givenProfiles(vararg profiles: PublicProfile) {
+    coEvery { publicProfileRepository.getProfile(any()) } returns null
+    profiles.forEach { coEvery { publicProfileRepository.getProfile(it.uid) } returns it }
   }
 
   private fun runTransactionsAndCommit() {
