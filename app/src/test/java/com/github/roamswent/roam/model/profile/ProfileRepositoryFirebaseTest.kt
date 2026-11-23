@@ -162,4 +162,48 @@ class ProfileRepositoryFirebaseTest {
     assertTrue(result.isSuccess)
     verify(reference, org.mockito.kotlin.never()).set(any<Map<String, Any>>())
   }
+
+  @Test
+  fun initializePrivateProfile_failsWithoutAuthenticatedUser() = runTest {
+    whenever(auth.currentUser).thenReturn(null)
+
+    val result = repository.initializePrivateProfile()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "You must be signed in to view your profile.",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun initializePrivateProfile_failsWithoutEmail() = runTest {
+    val user = mock<FirebaseUser>()
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.email).thenReturn(null)
+
+    val result = repository.initializePrivateProfile()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "The signed-in user does not have an email.",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun initializePrivateProfile_mapsFirestoreFailure() = runTest {
+    val user = mock<FirebaseUser>()
+    val users = mock<CollectionReference>()
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.uid).thenReturn("user-id")
+    whenever(user.email).thenReturn("traveler@example.com")
+    whenever(firestore.collection("users")).thenReturn(users)
+    whenever(users.document("user-id")).thenThrow(IllegalStateException("Firestore unavailable"))
+
+    val result = repository.initializePrivateProfile()
+
+    assertFalse(result.isSuccess)
+    assertEquals("Firestore unavailable", result.exceptionOrNull()?.message)
+  }
 }

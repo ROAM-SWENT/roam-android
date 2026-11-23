@@ -86,6 +86,22 @@ class RegisterProfileViewModelTest {
       }
 
   @Test
+  fun checkCurrentProfile_privateProfileFailureSetsErrorWithoutPublicLookup() =
+      runTest(dispatcher) {
+        val privateRepository: ProfileRepository = mock()
+        val failure = IllegalStateException("Private profile unavailable")
+        whenever(privateRepository.initializePrivateProfile()).thenReturn(Result.failure(failure))
+        val viewModel = RegisterProfileViewModel(repository, privateRepository)
+
+        viewModel.checkCurrentProfile()
+        advanceUntilIdle()
+
+        assertEquals(ProfileRegistrationStatus.ERROR, viewModel.uiState.value.status)
+        assertEquals(failure.localizedMessage, viewModel.uiState.value.errorMessage)
+        verify(repository, never()).getCurrentProfile()
+      }
+
+  @Test
   fun checkCurrentProfile_failureSetsErrorStatusAndMessage() =
       runTest(dispatcher) {
         val failure = IllegalStateException("Profile lookup failed")
