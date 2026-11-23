@@ -73,7 +73,7 @@ import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
-import com.github.roamswent.roam.ui.notifications.SharedMonumentNavigation
+import com.github.roamswent.roam.ui.notifications.NotificationNavigation
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -163,7 +163,7 @@ class MainActivityNavigationTest {
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
-        openFriendsOnLaunch = true,
+        notificationNavigationOnLaunch = NotificationNavigation.Friends,
     )
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -185,7 +185,7 @@ class MainActivityNavigationTest {
     renderApp(
         authState,
         onNavControllerReady = { navController[0] = it },
-        openFriendsOnLaunch = true,
+        notificationNavigationOnLaunch = NotificationNavigation.Friends,
     )
 
     waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
@@ -203,7 +203,7 @@ class MainActivityNavigationTest {
   fun notificationTapFromAnotherScreenNavigatesToFriends() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val navController = arrayOfNulls<NavHostController>(1)
-    val notificationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val notificationEvents = MutableSharedFlow<NotificationNavigation>(extraBufferCapacity = 1)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
@@ -213,7 +213,9 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     navigateToSettings(checkNotNull(navController[0]))
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    composeTestRule.runOnIdle { assertTrue(notificationEvents.tryEmit(Unit)) }
+    composeTestRule.runOnIdle {
+      assertTrue(notificationEvents.tryEmit(NotificationNavigation.Friends))
+    }
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       navController[0]?.currentDestination?.route == Routes.Friends
@@ -230,7 +232,7 @@ class MainActivityNavigationTest {
   fun sharedMonumentNotificationNavigatesToSharedDetail() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val navController = arrayOfNulls<NavHostController>(1)
-    val notificationEvents = MutableSharedFlow<Any>(extraBufferCapacity = 1)
+    val notificationEvents = MutableSharedFlow<NotificationNavigation>(extraBufferCapacity = 1)
     val guide =
         Guide(
             id = "guide-1",
@@ -250,7 +252,9 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     composeTestRule.runOnIdle {
-      assertTrue(notificationEvents.tryEmit(SharedMonumentNavigation("alice", "guide-1")))
+      assertTrue(
+          notificationEvents.tryEmit(NotificationNavigation.SharedMonument("alice", "guide-1"))
+      )
     }
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -1899,9 +1903,9 @@ class MainActivityNavigationTest {
       publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
       signOutFailure: Throwable? = null,
-      openFriendsOnLaunch: Boolean = false,
+      notificationNavigationOnLaunch: NotificationNavigation? = null,
       notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
-      notificationNavigationEvents: Flow<*> = emptyFlow<Any>(),
+      notificationNavigationEvents: Flow<NotificationNavigation> = emptyFlow(),
       monumentSharingRepository: MonumentSharingRepository? = null,
       friendRepository: FriendRepository? = null,
       activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
@@ -1945,7 +1949,7 @@ class MainActivityNavigationTest {
                       monumentSharingRepository = monumentSharingRepository,
                       friendRepository = friendRepository,
                   ),
-              openFriendsOnLaunch = openFriendsOnLaunch,
+              notificationNavigationOnLaunch = notificationNavigationOnLaunch,
               notificationNavigationEvents = notificationNavigationEvents,
           )
         }

@@ -53,8 +53,6 @@ data class MonumentShareNotificationData(
   }
 }
 
-data class SharedMonumentNavigation(val ownerUid: String, val guideId: String)
-
 internal object MonumentShareNotifications {
   const val ACTION_OPEN_SHARED_MONUMENT = "com.github.roamswent.roam.OPEN_SHARED_MONUMENT"
   const val EXTRA_SHARED_MONUMENT_OWNER_UID = "shared_monument_owner_uid"
