@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 
 package com.github.roamswent.roam.model.guide
@@ -158,7 +159,19 @@ class FirestoreMonumentSharingRepository(
     validateGuideId(guideId)
 
     return withFirestoreErrors {
-      val snapshot = savedGuidesCollection(ownerUid).document(guideId).get().await()
+      val snapshot =
+          try {
+            savedGuidesCollection(ownerUid).document(guideId).get().await()
+          } catch (exception: FirebaseFirestoreException) {
+            // Rules cannot distinguish a deleted guide from one whose access was revoked.
+            if (
+                ownerUid != currentUid &&
+                    exception.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+            ) {
+              return@withFirestoreErrors null
+            }
+            throw exception
+          }
       if (!snapshot.exists()) return@withFirestoreErrors null
       val guide =
           GuideFirestoreMapper.fromFields(

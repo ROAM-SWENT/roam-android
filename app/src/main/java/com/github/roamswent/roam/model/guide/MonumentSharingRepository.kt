@@ -22,8 +22,10 @@ interface MonumentSharingRepository {
 
   /**
    * Reads one shared guide, or returns null when it is missing, not shared, or dismissed. Owner
-   * reads follow the same shared-only filtering as [getSharedGuidesFrom]. Authentication, invalid
-   * input, permission and other storage failures are reported as exceptions.
+   * reads follow the same shared-only filtering as [getSharedGuidesFrom]. A permission-denied read
+   * of another user's guide also returns null: Firestore does not distinguish a deleted document
+   * from revoked access. Authentication, invalid input, owner permission and other storage failures
+   * are reported as exceptions.
    */
   suspend fun getSharedGuideFrom(ownerUid: String, guideId: String): Guide?
 

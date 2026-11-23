@@ -379,6 +379,7 @@ internal fun RoamApp(
       when (currentBackStackEntry?.destination?.route) {
         Routes.Friends -> DockDestination.FRIENDS
         Routes.Settings -> null
+        Routes.FriendCollectionPattern -> null
         Routes.Collection -> DockDestination.COLLECTION
         Routes.Explore -> DockDestination.EXPLORE
         else -> DockDestination.HOME

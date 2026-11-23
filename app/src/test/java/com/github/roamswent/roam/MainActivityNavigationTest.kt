@@ -1688,14 +1688,16 @@ class MainActivityNavigationTest {
   }
 
   @Test
-  fun friendCollectionButtonOpensThatFriendsCollection() {
+  fun friendCollectionButtonOpensCollectionAndHomeDockReturnsHome() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val friendRepository = mockk<FriendRepository>()
     coEvery { friendRepository.getFriends() } returns listOf(Friendship("f", "friend-uid"))
     coEvery { friendRepository.getIncomingRequests() } returns emptyList()
     coEvery { friendRepository.getOutgoingRequests() } returns emptyList()
+    val navController = arrayOfNulls<NavHostController>(1)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
         publicProfileRepositoryOverride =
             TestPublicProfileRepository(
                 profiles = mapOf("friend-uid" to PublicProfile("friend-uid", "Alice"))
@@ -1716,6 +1718,10 @@ class MainActivityNavigationTest {
 
     waitAndAssertDisplayed(C.Tag.collection_screen)
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled().performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(Routes.Home, navController[0]?.currentDestination?.route)
+    assertEquals(listOf(Routes.Home), backStackRoutes(checkNotNull(navController[0])))
   }
 
   @Test

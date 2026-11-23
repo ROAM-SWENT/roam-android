@@ -457,11 +457,7 @@ class FirestoreMonumentSharingRepositoryTest {
     val denied =
         FirebaseFirestoreException("denied", FirebaseFirestoreException.Code.PERMISSION_DENIED)
     every { ref.get() } returns Tasks.forException(denied)
-    val deniedFailure =
-        assertThrowsSuspending<MonumentSharingException.FirestoreFailure> {
-          repository.getSharedGuideFrom(ownerUid, guideId)
-        }
-    assertSame(denied, deniedFailure.cause)
+    assertNull(repository.getSharedGuideFrom(ownerUid, guideId))
 
     val unavailable =
         FirebaseFirestoreException("offline", FirebaseFirestoreException.Code.UNAVAILABLE)
