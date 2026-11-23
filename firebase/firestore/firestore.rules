@@ -240,9 +240,11 @@ service cloud.firestore {
       allow get: if request.auth != null
         && ((!exists(/databases/$(database)/documents/follows/$(followId))
             && followPairIncludesUid(followId, request.auth.uid))
-          || request.auth.uid in [resource.data.ownerUid, resource.data.followerUid]);
+          || resource.data.ownerUid == request.auth.uid
+          || resource.data.followerUid == request.auth.uid);
       allow list: if request.auth != null
-        && request.auth.uid in [resource.data.ownerUid, resource.data.followerUid];
+        && (resource.data.ownerUid == request.auth.uid
+          || resource.data.followerUid == request.auth.uid);
       allow create: if request.auth != null
         && validFollow(request.resource.data, followId)
         && request.resource.data.followerUid == request.auth.uid
