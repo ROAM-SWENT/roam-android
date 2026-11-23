@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 
 package com.github.roamswent.roam.model.profile
 
@@ -90,11 +91,20 @@ class FirestorePublicProfileRepositoryTest {
 
     val result = repository.registerUsername("Traveler_1")
 
-    assertEquals(PublicProfile("user-id", "Traveler_1"), result)
+    assertEquals(
+        PublicProfile("user-id", "Traveler_1", isPublic = false, allowFriendRequests = true),
+        result,
+    )
     verify {
       transaction.set(
           profileReference,
-          mapOf("uid" to "user-id", "username" to "Traveler_1", "usernameLower" to "traveler_1"),
+          mapOf(
+              "uid" to "user-id",
+              "username" to "Traveler_1",
+              "usernameLower" to "traveler_1",
+              "isPublic" to false,
+              "allowFriendRequests" to true,
+          ),
       )
     }
     verify { transaction.set(claim, mapOf("uid" to "user-id")) }
@@ -136,7 +146,13 @@ class FirestorePublicProfileRepositoryTest {
     verify {
       transaction.update(
           profileReference,
-          mapOf("uid" to "user-id", "username" to "NewName", "usernameLower" to "newname"),
+          mapOf(
+              "uid" to "user-id",
+              "username" to "NewName",
+              "usernameLower" to "newname",
+              "isPublic" to false,
+              "allowFriendRequests" to true,
+          ),
       )
     }
   }
@@ -452,12 +468,253 @@ class FirestorePublicProfileRepositoryTest {
     assertTrue(error is CancellationException)
   }
 
-  private fun profileSnapshot(uid: String, username: String, usernameLower: String) =
+  @Test
+  fun getCurrentProfile_legacyDocumentDefaultsPrivacySettings() = runTest {
+    val snapshot =
+        profileSnapshot(
+            "user-id",
+            "Traveler",
+            "traveler",
+            isPublic = null,
+            allowFriendRequests = null,
+        )
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+
+    val result = repository.getCurrentProfile()
+
+    assertEquals(
+        PublicProfile("user-id", "Traveler", isPublic = false, allowFriendRequests = true),
+        result,
+    )
+  }
+
+  @Test
+  fun getCurrentProfile_deserializesExplicitPrivacySettings() = runTest {
+    val publicNoRequests =
+        profileSnapshot(
+            "user-id",
+            "Traveler",
+            "traveler",
+            isPublic = true,
+            allowFriendRequests = false,
+        )
+    every { profileReference.get() } returns Tasks.forResult(publicNoRequests)
+    assertEquals(
+        PublicProfile("user-id", "Traveler", isPublic = true, allowFriendRequests = false),
+        repository.getCurrentProfile(),
+    )
+
+    val privateNoRequests =
+        profileSnapshot(
+            "user-id",
+            "Traveler",
+            "traveler",
+            isPublic = false,
+            allowFriendRequests = false,
+        )
+    every { profileReference.get() } returns Tasks.forResult(privateNoRequests)
+    assertEquals(
+        PublicProfile("user-id", "Traveler", isPublic = false, allowFriendRequests = false),
+        repository.getCurrentProfile(),
+    )
+  }
+
+  @Test
+  fun renameUsername_preservesPrivacySettingsOnCaseOnlyAndFullRename() = runTest {
+    val caseTransaction = mockk<Transaction>(relaxed = true)
+    every { caseTransaction.get(profileReference) } returns
+        profileSnapshot(
+            "user-id",
+            "Traveler",
+            "traveler",
+            isPublic = true,
+            allowFriendRequests = false,
+        )
+    runTransactionWith(caseTransaction)
+
+    val caseResult = repository.renameUsername("TRAVELER")
+
+    assertEquals(
+        PublicProfile("user-id", "TRAVELER", isPublic = true, allowFriendRequests = false),
+        caseResult,
+    )
+    verify { caseTransaction.update(profileReference, "username", "TRAVELER") }
+
+    val oldClaim = mockk<DocumentReference>()
+    val newClaim = mockk<DocumentReference>()
+    val fullTransaction = mockk<Transaction>(relaxed = true)
+    val oldClaimSnapshot = mockk<DocumentSnapshot>()
+    val newClaimSnapshot = mockk<DocumentSnapshot>()
+    every { claims.document("newname") } returns newClaim
+    every { claims.document("traveler") } returns oldClaim
+    every { fullTransaction.get(profileReference) } returns
+        profileSnapshot(
+            "user-id",
+            "Traveler",
+            "traveler",
+            isPublic = true,
+            allowFriendRequests = false,
+        )
+    every { fullTransaction.get(newClaim) } returns newClaimSnapshot
+    every { fullTransaction.get(oldClaim) } returns oldClaimSnapshot
+    every { newClaimSnapshot.exists() } returns false
+    every { oldClaimSnapshot.getString("uid") } returns "user-id"
+    runTransactionWith(fullTransaction)
+
+    val fullResult = repository.renameUsername("NewName")
+
+    assertEquals(
+        PublicProfile("user-id", "NewName", isPublic = true, allowFriendRequests = false),
+        fullResult,
+    )
+    verify {
+      fullTransaction.update(
+          profileReference,
+          mapOf(
+              "uid" to "user-id",
+              "username" to "NewName",
+              "usernameLower" to "newname",
+              "isPublic" to true,
+              "allowFriendRequests" to false,
+          ),
+      )
+    }
+  }
+
+  @Test
+  fun updatePrivacySettings_persistsSettingsAndReturnsUpdatedProfile() = runTest {
+    val transaction = mockk<Transaction>(relaxed = true)
+    every { transaction.get(profileReference) } returns
+        profileSnapshot("user-id", "Traveler", "traveler")
+    runTransactionWith(transaction)
+
+    val publicResult =
+        repository.updatePrivacySettings(isPublic = true, allowFriendRequests = false)
+    assertEquals(
+        PublicProfile("user-id", "Traveler", isPublic = true, allowFriendRequests = false),
+        publicResult,
+    )
+    verify {
+      transaction.update(
+          profileReference,
+          mapOf("isPublic" to true, "allowFriendRequests" to false),
+      )
+    }
+
+    val privateResult =
+        repository.updatePrivacySettings(isPublic = false, allowFriendRequests = false)
+    assertEquals(
+        PublicProfile("user-id", "Traveler", isPublic = false, allowFriendRequests = false),
+        privateResult,
+    )
+    verify {
+      transaction.update(
+          profileReference,
+          mapOf("isPublic" to false, "allowFriendRequests" to false),
+      )
+    }
+  }
+
+  @Test
+  fun updatePrivacySettings_throwsProfileNotRegisteredWhenProfileMissing() = runTest {
+    val transaction = mockk<Transaction>(relaxed = true)
+    val missingSnapshot = mockk<DocumentSnapshot> { every { exists() } returns false }
+    every { transaction.get(profileReference) } returns missingSnapshot
+    runTransactionWith(transaction)
+
+    val error = captureFailure {
+      repository.updatePrivacySettings(isPublic = true, allowFriendRequests = false)
+    }
+
+    assertTrue(error is PublicProfileException.ProfileNotRegistered)
+    verify(exactly = 0) { transaction.update(any(), any<Map<String, Any>>()) }
+  }
+
+  @Test
+  fun updatePrivacySettings_throwsUnauthenticatedUserWhenSignedOut() = runTest {
+    every { auth.currentUser } returns null
+
+    val error = captureFailure {
+      repository.updatePrivacySettings(isPublic = true, allowFriendRequests = false)
+    }
+
+    assertTrue(error is PublicProfileException.UnauthenticatedUser)
+  }
+
+  @Test
+  fun updatePrivacySettings_wrapsUnexpectedFirestoreExceptionsInFirestoreFailure() = runTest {
+    val failure = IllegalStateException("Firestore unavailable")
+    every { firestore.runTransaction<PublicProfile>(any()) } returns Tasks.forException(failure)
+
+    val error = captureFailure {
+      repository.updatePrivacySettings(isPublic = true, allowFriendRequests = false)
+    }
+
+    assertTrue(error is PublicProfileException.FirestoreFailure)
+    assertTrue(error.cause === failure)
+  }
+
+  @Test
+  fun updatePrivacySettings_propagatesCancellationException() = runTest {
+    every { firestore.runTransaction<PublicProfile>(any()) } returns Tasks.forCanceled()
+
+    val error = captureFailure {
+      repository.updatePrivacySettings(isPublic = true, allowFriendRequests = false)
+    }
+
+    assertTrue(error is CancellationException)
+  }
+
+  @Test
+  fun searchProfiles_emptyPrefixReturnsEmptyWithoutQueryingFirestore() = runTest {
+    val result = repository.searchProfiles("")
+
+    assertTrue(result.isEmpty())
+    verify(exactly = 0) { firestore.collection("publicProfiles") }
+  }
+
+  @Test
+  fun searchProfiles_acceptsMixedValidCharactersInPrefix() = runTest {
+    val query = mockk<Query>()
+    val snapshot = mockk<QuerySnapshot>()
+    every { profiles.orderBy("usernameLower") } returns query
+    every { query.startAt("ab_1") } returns query
+    every { query.endAt("ab_1\uf8ff") } returns query
+    every { query.limit(20) } returns query
+    every { query.get() } returns Tasks.forResult(snapshot)
+    every { snapshot.documents } returns emptyList()
+
+    val result = repository.searchProfiles("Ab_1")
+
+    assertTrue(result.isEmpty())
+    verify { query.startAt("ab_1") }
+  }
+
+  @Test
+  fun updatePrivacySettings_throwsUnauthenticatedUserWhenUidIsBlank() = runTest {
+    every { user.uid } returns "   "
+
+    val error = captureFailure {
+      repository.updatePrivacySettings(isPublic = true, allowFriendRequests = true)
+    }
+
+    assertTrue(error is PublicProfileException.UnauthenticatedUser)
+  }
+
+  private fun profileSnapshot(
+      uid: String,
+      username: String,
+      usernameLower: String,
+      isPublic: Boolean? = null,
+      allowFriendRequests: Boolean? = null,
+  ) =
       mockk<DocumentSnapshot> {
         every { exists() } returns true
         every { getString("uid") } returns uid
         every { getString("username") } returns username
         every { getString("usernameLower") } returns usernameLower
+        every { getBoolean("isPublic") } returns isPublic
+        every { getBoolean("allowFriendRequests") } returns allowFriendRequests
       }
 
   private fun runTransactionWith(transaction: Transaction) {

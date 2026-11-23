@@ -1,6 +1,7 @@
 /*
  * Portions of this code were generated with the help of GitHub Copilot.
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Gemini 4 Neon <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.settings
@@ -561,6 +562,11 @@ class SettingsViewModelTest {
     }
 
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
+
+    override suspend fun updatePrivacySettings(
+        isPublic: Boolean,
+        allowFriendRequests: Boolean,
+    ): PublicProfile = error("Privacy settings are not used in this test.")
   }
 
   private class FakeUserInterestsRepository(
