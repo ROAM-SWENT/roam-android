@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.friends
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,11 +35,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.leaderboard.LeaderboardEntry
 import com.github.roamswent.roam.resources.C
 
 /**
- * Renders friends and requests exposed by [FriendsViewModel]. Screen callbacks keep rendering
- * independently testable and allow navigation to remain owned by the app.
+ * Renders friends, requests and the friends leaderboard exposed by [FriendsViewModel]. Screen
+ * callbacks keep rendering independently testable and allow navigation to remain owned by the app.
+ *
+ * @param leaderboard Entries in the order and with the ranks given by the repository.
+ * @param currentUserUid UID of the signed-in user, whose leaderboard entry is highlighted.
+ * @param hasLeaderboardError Whether the last leaderboard load failed; shown in the leaderboard
+ *   only, so the friends list stays usable.
  */
 @Composable
 fun FriendsScreen(
@@ -65,7 +73,11 @@ fun FriendsScreen(
     message: String? = null,
     onMessageDismiss: () -> Unit = {},
     showAddFriendsInitially: Boolean = false,
+    leaderboard: List<LeaderboardEntry> = emptyList(),
+    currentUserUid: String? = null,
+    hasLeaderboardError: Boolean = false,
 ) {
+  var selectedTab by rememberSaveable { mutableStateOf(FriendsTab.Friends) }
   var friendsQuery by remember { mutableStateOf("") }
   var userQuery by remember { mutableStateOf("") }
   var isAddFriendsOpen by
@@ -106,6 +118,11 @@ fun FriendsScreen(
         isLoading = isLoading,
         hasLoaded = hasLoaded,
         onRefresh = onRefresh,
+        selectedTab = selectedTab,
+        onTabSelected = { selectedTab = it },
+        leaderboard = leaderboard,
+        currentUserUid = currentUserUid,
+        hasLeaderboardError = hasLeaderboardError,
         modifier = Modifier.fillMaxSize().blur(if (isAddFriendsOpen) 8.dp else 0.dp),
     )
 
