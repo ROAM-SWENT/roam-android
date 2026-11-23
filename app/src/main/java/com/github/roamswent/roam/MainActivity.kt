@@ -8,6 +8,7 @@
 
 package com.github.roamswent.roam
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -90,6 +91,8 @@ import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
+import com.github.roamswent.roam.ui.notifications.MonumentShareNotifications
+import com.github.roamswent.roam.ui.notifications.SharedMonumentNavigation
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -129,8 +132,8 @@ private fun NavHostController.clearSavedUserNavigation() {
 private const val TAG = "RoamMainActivity"
 
 class MainActivity : AppCompatActivity() {
-  private val notificationNavigationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-  private val notificationNavigationFlow: Flow<Unit> = notificationNavigationEvents
+  private val notificationNavigationEvents = MutableSharedFlow<Any>(extraBufferCapacity = 1)
+  private val notificationNavigationFlow: Flow<Any> = notificationNavigationEvents
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -155,6 +158,7 @@ class MainActivity : AppCompatActivity() {
             themeMode = selectedTheme,
             onThemeModeSelected = themeViewModel::setThemeMode,
             openFriendsOnLaunch = intent?.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS,
+            sharedMonumentOnLaunch = sharedMonumentFromIntent(intent),
             notificationNavigationEvents = notificationNavigationFlow,
         )
       }
@@ -172,7 +176,17 @@ class MainActivity : AppCompatActivity() {
     setIntent(intent)
     if (intent.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS) {
       notificationNavigationEvents.tryEmit(Unit)
+    } else if (intent.action == MonumentShareNotifications.ACTION_OPEN_SHARED_MONUMENT) {
+      sharedMonumentFromIntent(intent)?.let(notificationNavigationEvents::tryEmit)
     }
+  }
+
+  private fun sharedMonumentFromIntent(intent: Intent?): SharedMonumentNavigation? {
+    if (intent?.action != MonumentShareNotifications.ACTION_OPEN_SHARED_MONUMENT) return null
+    val ownerUid = intent.getStringExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_OWNER_UID)
+    val guideId = intent.getStringExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_GUIDE_ID)
+    if (ownerUid.isNullOrBlank() || guideId.isNullOrBlank()) return null
+    return SharedMonumentNavigation(ownerUid, guideId)
   }
 }
 
@@ -202,7 +216,8 @@ internal fun RoamApp(
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     testOverrides: RoamAppTestOverrides? = null,
     openFriendsOnLaunch: Boolean = false,
-    notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+    sharedMonumentOnLaunch: SharedMonumentNavigation? = null,
+    notificationNavigationEvents: Flow<*> = emptyFlow<Any>(),
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
@@ -222,8 +237,16 @@ internal fun RoamApp(
   val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()
   val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
   var openFriendsAfterAuthentication by remember { mutableStateOf(openFriendsOnLaunch) }
+  var sharedMonumentAfterAuthentication by remember {
+    mutableStateOf<SharedMonumentNavigation?>(sharedMonumentOnLaunch)
+  }
   LaunchedEffect(notificationNavigationEvents) {
-    notificationNavigationEvents.collect { openFriendsAfterAuthentication = true }
+    notificationNavigationEvents.collect { event ->
+      when (event) {
+        is SharedMonumentNavigation -> sharedMonumentAfterAuthentication = event
+        else -> openFriendsAfterAuthentication = true
+      }
+    }
   }
   LaunchedEffect(authUiState.user) {
     if (authUiState.user == null) registerProfileViewModel.reset()
@@ -356,10 +379,24 @@ internal fun RoamApp(
   LaunchedEffect(
       profileUiState.status,
       openFriendsAfterAuthentication,
+      sharedMonumentAfterAuthentication,
       currentBackStackEntry?.destination?.route,
   ) {
     val route = currentBackStackEntry?.destination?.route
     if (
+        profileUiState.status == ProfileRegistrationStatus.REGISTERED &&
+            route != null &&
+            route !in setOf(Routes.SignIn, Routes.RegisterProfile) &&
+            sharedMonumentAfterAuthentication != null
+    ) {
+      val shared = checkNotNull(sharedMonumentAfterAuthentication)
+      navController.navigate(Routes.sharedMonumentDetail(shared.ownerUid, shared.guideId)) {
+        popUpTo(Routes.Home) { inclusive = false }
+        launchSingleTop = true
+      }
+      sharedMonumentAfterAuthentication = null
+      openFriendsAfterAuthentication = false
+    } else if (
         profileUiState.status == ProfileRegistrationStatus.REGISTERED &&
             openFriendsAfterAuthentication &&
             route != null &&

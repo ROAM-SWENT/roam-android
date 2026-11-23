@@ -73,6 +73,7 @@ import com.github.roamswent.roam.ui.authentication.SignInViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
+import com.github.roamswent.roam.ui.notifications.SharedMonumentNavigation
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -217,11 +218,44 @@ class MainActivityNavigationTest {
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       navController[0]?.currentDestination?.route == Routes.Friends
     }
+
     composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
     assertEquals(
         listOf(Routes.Home, Routes.Friends),
         backStackRoutes(checkNotNull(navController[0])),
     )
+  }
+
+  @Test
+  fun sharedMonumentNotificationNavigatesToSharedDetail() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val notificationEvents = MutableSharedFlow<Any>(extraBufferCapacity = 1)
+    val guide =
+        Guide(
+            id = "guide-1",
+            photoBytes = ByteArray(0),
+            monumentName = "The Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationEvents = notificationEvents,
+        monumentSharingRepository = FakeMonumentSharingRepository(mapOf("alice" to listOf(guide))),
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.runOnIdle {
+      assertTrue(notificationEvents.tryEmit(SharedMonumentNavigation("alice", "guide-1")))
+    }
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.SharedMonumentDetailPattern
+    }
   }
 
   /** Existing server tokens are removed when notification permission is not granted. */
@@ -1867,7 +1901,7 @@ class MainActivityNavigationTest {
       signOutFailure: Throwable? = null,
       openFriendsOnLaunch: Boolean = false,
       notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
-      notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+      notificationNavigationEvents: Flow<*> = emptyFlow<Any>(),
       monumentSharingRepository: MonumentSharingRepository? = null,
       friendRepository: FriendRepository? = null,
       activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
