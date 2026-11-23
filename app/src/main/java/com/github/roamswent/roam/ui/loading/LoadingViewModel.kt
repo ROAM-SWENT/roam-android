@@ -4,6 +4,7 @@
 package com.github.roamswent.roam.ui.loading
 
 import android.net.Uri
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,6 +24,8 @@ import com.github.roamswent.roam.model.ai.UserPreferences
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.toSavedGuide
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
+import com.github.roamswent.roam.model.leaderboard.MonumentKey
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.ProximityPolicy
 import com.github.roamswent.roam.model.location.ProximityResult
@@ -90,6 +93,9 @@ sealed interface LoadingNavigationEvent {
  * [savedGuideRepository] under an id from [newGuideId], with the photo the pipeline sent to the AI
  * and [clock] as discovery date. It is saved without location, so it is not on Explore until the
  * user opts in with [setShownInExplore]. It can also be added to favourites with [toggleFavorite].
+ *
+ * Once the save succeeds, a verified visit, one whose observed position is near the monument's own,
+ * is recorded in [leaderboardRepository], which counts each monument only once.
  */
 class LoadingViewModel(
     private val repository: MonumentGuideRepository,
@@ -98,6 +104,7 @@ class LoadingViewModel(
     private val language: String,
     private val userInterestsRepository: UserInterestsRepository,
     private val savedGuideRepository: SavedGuideRepository,
+    private val leaderboardRepository: LeaderboardRepository,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newGuideId: () -> String = { UUID.randomUUID().toString() },
 ) : ViewModel() {
@@ -113,6 +120,13 @@ class LoadingViewModel(
   private val _saveError = MutableStateFlow<Exception?>(null)
   /** Failure from the most recent attempt to save a discovered guide to the collection. */
   val saveError: StateFlow<Exception?> = _saveError.asStateFlow()
+
+  private val _verifiedMonumentError = MutableStateFlow<Exception?>(null)
+  /**
+   * Failure from recording the verified visit of the saved guide on the leaderboard, or `null`. The
+   * guide stays saved and the rest of the screen is unaffected; this is not shown in the UI yet.
+   */
+  val verifiedMonumentError: StateFlow<Exception?> = _verifiedMonumentError.asStateFlow()
 
   private val _isFavorite = MutableStateFlow(false)
   /** Whether the guide saved from this discovery is a favourite, updated optimistically. */
@@ -248,6 +262,10 @@ class LoadingViewModel(
    *
    * The id is generated here rather than by the repository, so the guide can be added to favourites
    * before the save is confirmed, which only happens once back online.
+   *
+   * A verified visit is recorded only after the save is confirmed, in the same coroutine, so a
+   * failed save never counts. Offline, the save, and so the recording, waits for the connection; if
+   * the user leaves the screen first, the guide is still saved but the visit is not counted.
    */
   private fun saveToCollection(guide: MonumentGuide) {
     val discoveryDate = clock()
@@ -263,36 +281,64 @@ class LoadingViewModel(
     // Results of requests made for a previous guide are now stale.
     confirmedLocationRequest = ++lastLocationRequest
     latestLocationRequestFailed = false
-    offerExplore(guide)
+    // One proximity check decides both the Explore offer and whether the visit is verified.
+    val proximity = ProximityPolicy.check(guide.location, guide.monumentLocation)
+    offerExplore(guide, proximity)
+    // The key comes from the monument's own position, never from where the user was. Near is only
+    // returned for a known monument position.
+    val verifiedMonument =
+        if (proximity == ProximityResult.Near) MonumentKey.of(checkNotNull(guide.monumentLocation))
+        else null
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
-      try {
-        _saveError.value = null
-        val photo = checkNotNull(guide.photo) { "The discovery returned no photo to save" }
-        savedGuideRepository.addGuide(
-            guide.toSavedGuide(guideId, photo.bytes, discoveryDate, location = null)
-        )
-      } catch (exception: CancellationException) {
-        throw exception
-      } catch (exception: Exception) {
-        _saveError.value = exception
-        if (savedGuideId == guideId) {
-          // Without a saved guide there is nothing to favourite or put on Explore.
-          savedGuideId = null
-          _exploreOptIn.value = null
-          _exploreUnavailableReason.value = null
-        }
-      }
+      val saved =
+          try {
+            _saveError.value = null
+            _verifiedMonumentError.value = null
+            val photo = checkNotNull(guide.photo) { "The discovery returned no photo to save" }
+            savedGuideRepository.addGuide(
+                guide.toSavedGuide(guideId, photo.bytes, discoveryDate, location = null)
+            )
+            true
+          } catch (exception: CancellationException) {
+            throw exception
+          } catch (exception: Exception) {
+            _saveError.value = exception
+            if (savedGuideId == guideId) {
+              // Without a saved guide there is nothing to favourite or put on Explore.
+              savedGuideId = null
+              _exploreOptIn.value = null
+              _exploreUnavailableReason.value = null
+            }
+            false
+          }
+      if (saved && verifiedMonument != null) recordVerifiedMonument(verifiedMonument)
+    }
+  }
+
+  /**
+   * Records [monument] on the leaderboard. A failure is kept in [verifiedMonumentError] and logged,
+   * but never undoes the save nor changes the Explore or navigation state.
+   */
+  private suspend fun recordVerifiedMonument(monument: MonumentKey) {
+    try {
+      leaderboardRepository.recordVerifiedMonument(monument)
+    } catch (exception: CancellationException) {
+      throw exception
+    } catch (exception: Exception) {
+      Log.w(TAG, "The verified monument could not be recorded on the leaderboard.", exception)
+      _verifiedMonumentError.value = exception
     }
   }
 
   /**
    * Offers the Explore switch for [guide] only when its observed position is near the monument's
-   * own position, otherwise exposes why not. It does not affect saving to the collection. The state
-   * being replaced is cleared first, so the switch and the reason are never both set.
+   * own position, as [proximity] says, otherwise exposes why not. It does not affect saving to the
+   * collection. The state being replaced is cleared first, so the switch and the reason are never
+   * both set.
    */
-  private fun offerExplore(guide: MonumentGuide) {
+  private fun offerExplore(guide: MonumentGuide, proximity: ProximityResult) {
     val observed = guide.location
-    when (val result = ProximityPolicy.check(observed, guide.monumentLocation)) {
+    when (proximity) {
       ProximityResult.Near -> {
         _exploreUnavailableReason.value = null
         // Near is only returned for a known observed position.
@@ -401,6 +447,7 @@ class LoadingViewModel(
 
   private companion object {
     const val DISCOVERY_TIMEOUT_MILLIS = 60_000L
+    const val TAG = "LoadingViewModel"
   }
 
   private fun userMessageResId(exception: Exception): Int =
