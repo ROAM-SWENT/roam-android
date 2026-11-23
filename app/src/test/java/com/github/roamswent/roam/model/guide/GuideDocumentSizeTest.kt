@@ -1,8 +1,10 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.location.Coordinates
 import org.junit.Assert.assertEquals
@@ -67,11 +69,24 @@ class GuideDocumentSizeTest {
             sections = listOf(GuideSection("Architecture", "Detailed context.")),
         )
 
-    // "Architecture" = 13 bytes, "Detailed context." = 18 bytes, plus 32 bytes for the map.
+    // Title and content field names add 14 bytes to the strings and 32-byte map overhead.
     assertEquals(
-        63L,
+        77L,
         GuideDocumentSize.estimatedBytes(withOneSection, documentPath) -
             GuideDocumentSize.estimatedBytes(withoutSections, documentPath),
+    )
+  }
+
+  @Test
+  fun estimatesOptionalOverviewAndTimeline() {
+    val base = guide(photoBytes = byteArrayOf(1, 2, 3))
+    val withTimeline =
+        base.copy(overview = "Résumé", timeline = listOf(GuideMilestone(-200, "Érigé")))
+
+    assertEquals(
+        86L,
+        GuideDocumentSize.estimatedBytes(withTimeline, documentPath) -
+            GuideDocumentSize.estimatedBytes(base, documentPath),
     )
   }
 

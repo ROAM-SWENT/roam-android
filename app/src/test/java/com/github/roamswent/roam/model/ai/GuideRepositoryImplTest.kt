@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
@@ -34,6 +35,25 @@ class GuideRepositoryImplTest {
     assertEquals("Eiffel Tower", guide.monumentName)
     assertEquals("fr", guide.language)
     assertTrue(gemini.prompts.single().contains("Write the text fields in fr."))
+  }
+
+  @Test
+  fun returnsGeneratedPrimitivesAndUsesThePreferencesSentToGemini() = runBlocking {
+    val json =
+        validGuide.dropLast(1) +
+            ""","overview":"Une tour en fer.","timeline":[{"year":1889,"event":"Inaugurée."}],
+               "sections":[{"topic":"Architecture","title":"Architecture","content":"Une charpente."},
+               {"topic":"Nature","title":"Nature","content":"Près de jardins."}]}"""
+    val gemini = FakeGeminiClient(reply(json))
+    val guide =
+        repository(FakeImageScreen(verdict()), gemini)
+            .guideFor(request().copy(preferences = UserPreferences("fr", listOf(" Architecture "))))
+
+    assertTrue(gemini.prompts.single().contains("""["Architecture"]"""))
+    assertEquals(1, guide.interestCount)
+    assertEquals("Une tour en fer.", guide.overview)
+    assertEquals(listOf(GuideMilestone(1889, "Inaugurée.")), guide.timeline)
+    assertEquals(listOf(GuideSection("Architecture", "Une charpente.")), guide.sections)
   }
 
   @Test

@@ -1,4 +1,5 @@
 <!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
+<!-- Co-authored-by: Codex <codex@openai.com> -->
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">Roam</string>
@@ -215,11 +216,13 @@
     <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">App Permissions</string>
     <string name="monument_detail_match_percent">%1$d%% match</string>
-    <string name="monument_detail_fact_bullet">• %1$s</string>
     <string name="monument_detail_ai_guide_label">YOUR AI GUIDE</string>
     <string name="monument_detail_history_title">History</string>
     <string name="monument_detail_culture_title">Local Culture</string>
     <string name="monument_detail_facts_title">Fun Fact</string>
+    <string name="monument_detail_facts_plural_title">Fun Facts</string>
+    <string name="monument_detail_timeline_title">Timeline</string>
+    <string name="monument_detail_year_bce">%1$d BCE</string>
     <string name="monument_detail_show_in_explore">Show in Explore</string>
     <string name="monument_detail_show_in_explore_supporting">Pin this monument on the map where you scanned it.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Pin this monument on the map where the photo was taken.</string>

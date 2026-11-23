@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Mistral Vibe <vibe@mistral.ai>
 package com.github.roamswent.roam.ui.theme
@@ -5,6 +6,7 @@ package com.github.roamswent.roam.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
@@ -79,13 +81,37 @@ val MaterialTheme.monumentMarkerBorder: Color
 val MaterialTheme.cardContainer: Color
   @Composable get() = if (isDark) colorScheme.surfaceVariant else Color.White
 
-/** Soft container for short guide callouts, readable in both themes. */
+/** Surface of the guide sheet over the monument photo. */
+val MaterialTheme.guidePanel: Color
+  @Composable get() = if (isDark) colorScheme.surface else Color(0xFFF5F7F3)
+
+/** Headings on the guide sheet. */
+val MaterialTheme.guideHeading: Color
+  @Composable get() = if (isDark) colorScheme.onSurface else Color(0xFF172D29)
+
+/** Body text on the guide sheet and inside its callouts. */
+val MaterialTheme.guideText: Color
+  @Composable get() = if (isDark) colorScheme.onSurfaceVariant else Color(0xFF3F544E)
+
+/** Soft container for guide callouts, readable in both themes. */
 val MaterialTheme.guideCalloutContainer: Color
-  @Composable get() = if (isDark) colorScheme.surfaceVariant else Color(0xFFDDEBDD)
+  @Composable get() = if (isDark) colorScheme.surfaceVariant else Color(0xFFE5EFE6)
 
 /** Lighter green eyebrow in light mode; the subtitle accent in dark mode. */
 val MaterialTheme.guideEyebrow: Color
-  @Composable get() = if (isDark) MaterialTheme.accentIcon else Color(0xFF3B8068)
+  @Composable get() = if (isDark) MaterialTheme.accentIcon else Color(0xFF347568)
+
+/** Match colors distinguish scores below 50%, below 80%, and 80% or more. */
+@Composable
+fun MaterialTheme.guideMatchAccent(percent: Int): Color {
+  val accent =
+      when {
+        percent < 50 -> Color(0xFFAA322B)
+        percent < 80 -> Color(0xFF944C09)
+        else -> Color(0xFF246746)
+      }
+  return if (isDark) lerp(accent, colorScheme.onSurface, 0.55f) else accent
+}
 
 /** Translucent circle behind an icon button drawn over a photo. */
 val MaterialTheme.photoButtonContainer: Color

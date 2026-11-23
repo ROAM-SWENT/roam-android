@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
@@ -97,12 +98,16 @@ object C {
     const val monument_detail_panel = "monument_detail_panel"
     const val monument_detail_picture = "monument_detail_picture"
     const val monument_detail_text = "monument_detail_text"
-    const val monument_detail_drag_handle = "monument_detail_drag_handle"
     const val monument_detail_title = "monument_detail_title"
     const val monument_detail_confidence = "monument_detail_confidence"
     const val monument_detail_back_button = "monument_detail_back_button"
     const val monument_detail_favorite_button = "monument_detail_favorite_button"
+    const val monument_detail_overview = "monument_detail_overview"
     const val monument_detail_history = "monument_detail_history"
+    const val monument_detail_timeline = "monument_detail_timeline"
+    const val monument_detail_timeline_item = "monument_detail_timeline_item"
+    const val monument_detail_facts = "monument_detail_facts"
+    const val monument_detail_interest = "monument_detail_interest"
     const val monument_detail_fact_item = "monument_detail_fact_item"
     const val monument_detail_culture = "monument_detail_culture"
     const val saved_monument_detail_loading = "saved_monument_detail_loading"
