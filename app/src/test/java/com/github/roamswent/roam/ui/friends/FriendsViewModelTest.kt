@@ -44,7 +44,7 @@ class FriendsViewModelTest {
   private val friendEntry =
       LeaderboardEntry("friend", "Friend", verifiedMonumentCount = 5, rank = 1)
 
-  private fun viewModelWithLeaderboard() =
+  private fun viewModel() =
       FriendsViewModel(friendsRepository, profilesRepository, leaderboardRepository)
 
   @Before
@@ -76,7 +76,7 @@ class FriendsViewModelTest {
             listOf(RepositoryFriendRequest("incoming-id", "requester", "self"))
         coEvery { friendsRepository.getOutgoingRequests() } returns
             listOf(RepositoryFriendRequest("outgoing-id", "self", "recipient"))
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         advanceUntilIdle()
@@ -111,7 +111,7 @@ class FriendsViewModelTest {
                 PublicProfile("recipient", "NameRecipient"),
                 PublicProfile("new-user", "NameNewUser"),
             )
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
         viewModel.loadFriends()
         advanceUntilIdle()
 
@@ -148,7 +148,7 @@ class FriendsViewModelTest {
         coEvery { friendsRepository.removeFriend(any()) } returns Unit
         val request = FriendRequest(FriendUser("target", "Target"), id = "request-id")
         val user = FriendUser("target", "Target")
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.sendRequest(user)
         advanceUntilIdle()
@@ -185,7 +185,10 @@ class FriendsViewModelTest {
             {
               PublicProfile("friend", if (nowMillis == 0L) "OldName" else "NewName")
             }
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository) { nowMillis }
+        val viewModel =
+            FriendsViewModel(friendsRepository, profilesRepository, leaderboardRepository) {
+              nowMillis
+            }
         val request = FriendRequest(FriendUser("requester", "Requester"), id = "request-id")
 
         viewModel.loadFriends()
@@ -214,7 +217,7 @@ class FriendsViewModelTest {
             {
               PublicProfile("friend", username)
             }
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         advanceUntilIdle()
@@ -238,7 +241,7 @@ class FriendsViewModelTest {
             PublicProfile("friend", "FriendName", avatarBytes = avatarBytes)
         coEvery { profilesRepository.searchProfiles("Friend") } returns
             listOf(PublicProfile("friend", "FriendName", avatarBytes = avatarBytes))
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         advanceUntilIdle()
@@ -264,7 +267,7 @@ class FriendsViewModelTest {
       runTest(dispatcher) {
         val error = IllegalStateException("profile search failed")
         coEvery { profilesRepository.searchProfiles("bad") } throws error
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.searchUsers("bad")
         advanceTimeBy(300)
@@ -279,7 +282,7 @@ class FriendsViewModelTest {
   @Test
   fun blankSearchClearsResultsWithoutCallingRepository() =
       runTest(dispatcher) {
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.searchUsers(" ")
         advanceUntilIdle()
@@ -294,7 +297,7 @@ class FriendsViewModelTest {
       runTest(dispatcher) {
         val friendsResult = CompletableDeferred<List<Friendship>>()
         coEvery { friendsRepository.getFriends() } coAnswers { friendsResult.await() }
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         runCurrent()
@@ -311,7 +314,7 @@ class FriendsViewModelTest {
       runTest(dispatcher) {
         val friendsResult = CompletableDeferred<List<Friendship>>()
         coEvery { friendsRepository.getFriends() } coAnswers { friendsResult.await() }
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         runCurrent()
@@ -331,7 +334,7 @@ class FriendsViewModelTest {
             {
               pendingRequest.await()
             }
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.sendRequest(FriendUser("target", "Target"))
         runCurrent()
@@ -348,7 +351,7 @@ class FriendsViewModelTest {
       runTest(dispatcher) {
         coEvery { friendsRepository.getFriends() } returns listOf(Friendship("id", "friend"))
         coEvery { profilesRepository.getProfile("friend") } returns null
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         advanceUntilIdle()
@@ -372,7 +375,7 @@ class FriendsViewModelTest {
             {
               pendingRequest.await()
             }
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
         val target = FriendUser("target", "Target")
 
         viewModel.sendRequest(target)
@@ -393,7 +396,7 @@ class FriendsViewModelTest {
         coEvery { profilesRepository.searchProfiles("first") } coAnswers { firstSearch.await() }
         coEvery { profilesRepository.searchProfiles("second") } returns
             listOf(PublicProfile("result", "SecondResult"))
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
 
         viewModel.searchUsers("first")
         advanceTimeBy(300)
@@ -419,7 +422,7 @@ class FriendsViewModelTest {
                 PublicProfile("outgoing", "Outgoing"),
                 PublicProfile("new", "New"),
             )
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+        val viewModel = viewModel()
         viewModel.searchUsers("friend")
         advanceTimeBy(300)
         runCurrent()
@@ -461,7 +464,7 @@ class FriendsViewModelTest {
                 LeaderboardEntry("self", "Traveler", verifiedMonumentCount = 0, rank = 9),
             )
         coEvery { leaderboardRepository.getFriendsLeaderboard() } returns entries
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         advanceUntilIdle()
@@ -483,7 +486,7 @@ class FriendsViewModelTest {
             {
               leaderboardResult.await()
             }
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         runCurrent()
@@ -502,7 +505,7 @@ class FriendsViewModelTest {
   fun explicitRefreshReloadsLeaderboard() =
       runTest(dispatcher) {
         val updated = listOf(selfEntry.copy(verifiedMonumentCount = 6, rank = 1))
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
         viewModel.loadFriends()
         advanceUntilIdle()
 
@@ -520,7 +523,7 @@ class FriendsViewModelTest {
         coEvery { friendsRepository.acceptFriendRequest("request-id") } returns Unit
         coEvery { friendsRepository.removeFriend("friend") } returns Unit
         coEvery { leaderboardRepository.getFriendsLeaderboard() } returns listOf(selfEntry)
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
         viewModel.loadFriends()
         advanceUntilIdle()
 
@@ -551,7 +554,7 @@ class FriendsViewModelTest {
         coEvery { friendsRepository.getIncomingRequests() } returns
             listOf(RepositoryFriendRequest("incoming-id", "requester", "self"))
         coEvery { leaderboardRepository.getFriendsLeaderboard() } throws failure
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         advanceUntilIdle()
@@ -572,7 +575,7 @@ class FriendsViewModelTest {
   @Test
   fun leaderboardFailureKeepsPreviousEntriesAndNextSuccessClearsIt() =
       runTest(dispatcher) {
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
         viewModel.loadFriends()
         advanceUntilIdle()
 
@@ -598,7 +601,7 @@ class FriendsViewModelTest {
         coEvery { friendsRepository.removeFriend("friend") } returns Unit
         val failure = LeaderboardException.FirestoreFailure(IllegalStateException("offline"))
         coEvery { leaderboardRepository.getFriendsLeaderboard() } throws failure
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
 
         viewModel.removeFriend(FriendUser("friend", "Friend"))
         advanceUntilIdle()
@@ -614,7 +617,7 @@ class FriendsViewModelTest {
       runTest(dispatcher) {
         val error = IllegalStateException("friend list failed")
         coEvery { friendsRepository.getFriends() } throws error
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         advanceUntilIdle()
@@ -633,7 +636,7 @@ class FriendsViewModelTest {
             {
               leaderboardResult.await()
             }
-        val viewModel = viewModelWithLeaderboard()
+        val viewModel = viewModel()
 
         viewModel.loadFriends()
         runCurrent()
@@ -644,19 +647,5 @@ class FriendsViewModelTest {
 
         coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
         assertEquals(listOf(selfEntry), viewModel.uiState.value.leaderboard)
-      }
-
-  @Test
-  fun withoutLeaderboardRepositoryLeaderboardStaysEmpty() =
-      runTest(dispatcher) {
-        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
-
-        viewModel.loadFriends()
-        advanceUntilIdle()
-
-        assertEquals(emptyList<LeaderboardEntry>(), viewModel.uiState.value.leaderboard)
-        assertNull(viewModel.uiState.value.leaderboardError)
-        assertEquals("self", viewModel.uiState.value.currentUserUid)
-        coVerify(exactly = 0) { leaderboardRepository.getFriendsLeaderboard() }
       }
 }

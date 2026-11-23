@@ -72,13 +72,12 @@ data class FriendsUiState(
  * Coordinates friends, public-profile and leaderboard repositories for the Friends screen.
  *
  * The leaderboard is reloaded with every friends load, refresh and mutation, since accepting or
- * removing a friend changes who is on it. When [leaderboardRepository] is `null` the leaderboard is
- * not loaded and stays empty.
+ * removing a friend changes who is on it.
  */
 class FriendsViewModel(
     private val friendRepository: FriendRepository,
     private val publicProfileRepository: PublicProfileRepository,
-    private val leaderboardRepository: LeaderboardRepository? = null,
+    private val leaderboardRepository: LeaderboardRepository,
     private val cacheClockMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(FriendsUiState())
@@ -198,7 +197,7 @@ class FriendsViewModel(
       }
 
   private suspend fun refreshFriendLists(
-      leaderboardDeferred: Deferred<Result<List<LeaderboardEntry>>?>
+      leaderboardDeferred: Deferred<Result<List<LeaderboardEntry>>>
   ) {
     try {
       val currentProfile = publicProfileRepository.getCurrentProfile()
@@ -282,28 +281,24 @@ class FriendsViewModel(
     }
   }
 
-  /**
-   * Loads the leaderboard, or returns `null` when no repository is wired. Never throws a failure.
-   */
-  private suspend fun loadLeaderboard(): Result<List<LeaderboardEntry>>? {
-    val repository = leaderboardRepository ?: return null
-    return try {
-      Result.success(repository.getFriendsLeaderboard())
-    } catch (exception: CancellationException) {
-      throw exception
-    } catch (exception: Exception) {
-      Result.failure(exception)
-    }
-  }
+  /** Loads the leaderboard. A failure is returned, never thrown, so it cannot cancel the lists. */
+  private suspend fun loadLeaderboard(): Result<List<LeaderboardEntry>> =
+      try {
+        Result.success(leaderboardRepository.getFriendsLeaderboard())
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Result.failure(exception)
+      }
 
   /** Applies a leaderboard load; a failure keeps the previous entries and exposes the error. */
   private fun FriendsUiState.withLeaderboard(
-      result: Result<List<LeaderboardEntry>>?
+      result: Result<List<LeaderboardEntry>>
   ): FriendsUiState =
-      result?.fold(
+      result.fold(
           onSuccess = { copy(leaderboard = it, leaderboardError = null) },
           onFailure = { copy(leaderboardError = it as Exception) },
-      ) ?: this
+      )
 
   private suspend fun getCachedProfile(uid: String, nowMillis: Long): PublicProfile? {
     val cached = profileCache[uid]
