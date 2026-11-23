@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
@@ -46,12 +47,24 @@ internal object GuideDocumentSize {
         fieldSize(
             "sections",
             guide.sections.sumOf {
-              it.title.firestoreStringSize() +
-                  it.content.firestoreStringSize() +
+              fieldSize("title", it.title.firestoreStringSize()) +
+                  fieldSize("content", it.content.firestoreStringSize()) +
                   DOCUMENT_OVERHEAD_BYTES
             },
         )
     fieldsSize += fieldSize("interestCount", NUMBER_SIZE_BYTES)
+    guide.overview?.let { fieldsSize += fieldSize("overview", it.firestoreStringSize()) }
+    if (guide.timeline.isNotEmpty()) {
+      fieldsSize +=
+          fieldSize(
+              "timeline",
+              guide.timeline.sumOf {
+                fieldSize("year", NUMBER_SIZE_BYTES) +
+                    fieldSize("event", it.event.firestoreStringSize()) +
+                    DOCUMENT_OVERHEAD_BYTES
+              },
+          )
+    }
 
     guide.location?.let {
       val locationSize =
