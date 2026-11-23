@@ -166,6 +166,99 @@ class AuthRepositoryFirebaseTest {
     assertEquals("Login failed: firebase unavailable", result.exceptionOrNull()?.message)
   }
 
+  @Test
+  fun signUpWithEmail_returnsUser() = runTest {
+    val authResult = mock<AuthResult>()
+    whenever(authResult.user).thenReturn(user)
+    whenever(auth.createUserWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forResult(authResult))
+
+    val result = repository.signUpWithEmail("roam@example.com", "password")
+
+    assertTrue(result.isSuccess)
+    assertEquals(user, result.getOrNull())
+  }
+
+  @Test
+  fun signUpWithEmail_mapsFirebaseFailure() = runTest {
+    whenever(auth.createUserWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forException(IllegalStateException("email already in use")))
+
+    val result = repository.signUpWithEmail("roam@example.com", "password")
+
+    assertFalse(result.isSuccess)
+    assertEquals("Sign-up failed: email already in use", result.exceptionOrNull()?.message)
+  }
+
+  @Test
+  fun signInWithEmail_returnsUser() = runTest {
+    val authResult = mock<AuthResult>()
+    whenever(authResult.user).thenReturn(user)
+    whenever(auth.signInWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forResult(authResult))
+
+    val result = repository.signInWithEmail("roam@example.com", "password")
+
+    assertTrue(result.isSuccess)
+    assertEquals(user, result.getOrNull())
+  }
+
+  @Test
+  fun signInWithEmail_mapsFirebaseFailure() = runTest {
+    whenever(auth.signInWithEmailAndPassword("roam@example.com", "wrong"))
+        .thenReturn(Tasks.forException(IllegalStateException("invalid credential")))
+
+    val result = repository.signInWithEmail("roam@example.com", "wrong")
+
+    assertFalse(result.isSuccess)
+    assertEquals("Sign-in failed: invalid credential", result.exceptionOrNull()?.message)
+  }
+
+  @Test
+  fun sendEmailVerification_sendsToCurrentUser() = runTest {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.sendEmailVerification()).thenReturn(Tasks.forResult(null))
+
+    val result = repository.sendEmailVerification()
+
+    assertTrue(result.isSuccess)
+    verify(user).sendEmailVerification()
+  }
+
+  @Test
+  fun resendEmailVerification_failsWhenNoUserIsSignedIn() = runTest {
+    whenever(auth.currentUser).thenReturn(null)
+
+    val result = repository.resendEmailVerification()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Email verification failed: No user is signed in",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun reloadEmailVerificationStatus_reloadsAndReturnsStatus() = runTest {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.reload()).thenReturn(Tasks.forResult(null))
+    whenever(user.isEmailVerified).thenReturn(true)
+
+    val result = repository.reloadEmailVerificationStatus()
+
+    assertTrue(result.isSuccess)
+    assertEquals(true, result.getOrNull())
+    verify(user).reload()
+  }
+
+  @Test
+  fun isEmailVerified_returnsCachedStatus() {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.isEmailVerified).thenReturn(true)
+
+    assertTrue(repository.isEmailVerified())
+  }
+
   /**
    * Verifies that signing out successfully calls Firebase's sign-out method and returns a
    * successful result.
