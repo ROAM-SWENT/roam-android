@@ -8,12 +8,17 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
+import com.github.roamswent.roam.model.guide.ExploreLocationFailure
+import com.github.roamswent.roam.model.guide.ExploreUnavailableReason
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -58,6 +63,27 @@ class SavedMonumentDetailRouteTest {
     composeTestRule
         .onNodeWithTag(C.Tag.monument_detail_culture)
         .assertTextEquals("A symbol of Paris.")
+  }
+
+  @Test
+  fun reopeningAGuideWithMissingPhotoGpsShowsItsWarning() {
+    val guide =
+        eiffelTower.copy(
+            monumentLocation = Coordinates(48.85826, 2.29450),
+            exploreLocationFailure =
+                ExploreLocationFailure(
+                    ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+                    isGalleryImage = true,
+                ),
+        )
+    setRoute(FakeSavedGuideRepository(listOf(guide)), guideId = guide.id, onOpenInExplore = {})
+
+    composeTestRule
+        .onNodeWithText("This photo has no GPS location data.")
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText("Explore nearby").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_map_probe).assertDoesNotExist()
   }
 
   @Test
@@ -135,6 +161,7 @@ class SavedMonumentDetailRouteTest {
       repository: SavedGuideRepository,
       guideId: String,
       onBackClick: () -> Unit = {},
+      onOpenInExplore: ((Coordinates) -> Unit)? = null,
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -142,6 +169,7 @@ class SavedMonumentDetailRouteTest {
             guideId = guideId,
             repository = repository,
             onBackClick = onBackClick,
+            onOpenInExplore = onOpenInExplore,
         )
       }
     }

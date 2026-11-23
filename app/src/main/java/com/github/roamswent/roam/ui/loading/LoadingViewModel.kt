@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
@@ -20,6 +21,8 @@ import com.github.roamswent.roam.model.ai.ParseException
 import com.github.roamswent.roam.model.ai.RejectedImageException
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
+import com.github.roamswent.roam.model.guide.ExploreLocationFailure
+import com.github.roamswent.roam.model.guide.ExploreUnavailableReason
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.toSavedGuide
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
@@ -63,21 +66,6 @@ data class ExploreOptInUiState(
     get() = savedLocation != null
 }
 
-/** Why the saved guide cannot be put on Explore, explained in place of the Explore switch. */
-enum class ExploreUnavailableReason {
-  /**
-   * No observed position: for a camera scan, location permission denied, GPS off, or no fix in
-   * time; for a gallery photo, no usable GPS in its metadata.
-   */
-  NO_OBSERVED_LOCATION,
-
-  /** The AI gave no trustworthy position for the monument. */
-  NO_MONUMENT_LOCATION,
-
-  /** The observed position is farther than [ProximityPolicy.MAX_DISTANCE_METERS] from it. */
-  TOO_FAR,
-}
-
 sealed interface LoadingNavigationEvent {
   data class NavigateToMonumentDetail(val guide: MonumentGuide, val imageUri: String) :
       LoadingNavigationEvent
@@ -100,6 +88,7 @@ class LoadingViewModel(
     private val savedGuideRepository: SavedGuideRepository,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newGuideId: () -> String = { UUID.randomUUID().toString() },
+    private val isGalleryImage: Boolean = false,
 ) : ViewModel() {
   private val _showLoading = MutableStateFlow(false)
   val showLoading: StateFlow<Boolean> = _showLoading.asStateFlow()
@@ -264,12 +253,20 @@ class LoadingViewModel(
     confirmedLocationRequest = ++lastLocationRequest
     latestLocationRequestFailed = false
     offerExplore(guide)
+    val exploreLocationFailure =
+        _exploreUnavailableReason.value?.let { ExploreLocationFailure(it, isGalleryImage) }
     viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
       try {
         _saveError.value = null
         val photo = checkNotNull(guide.photo) { "The discovery returned no photo to save" }
         savedGuideRepository.addGuide(
-            guide.toSavedGuide(guideId, photo.bytes, discoveryDate, location = null)
+            guide.toSavedGuide(
+                guideId,
+                photo.bytes,
+                discoveryDate,
+                location = null,
+                exploreLocationFailure = exploreLocationFailure,
+            )
         )
       } catch (exception: CancellationException) {
         throw exception

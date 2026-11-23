@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.explore
 
@@ -19,6 +20,15 @@ class ExploreCameraTest {
         ExploreCameraTarget(user, EXPLORE_POINT_ZOOM),
         exploreCameraTarget(user, listOf(eiffel)),
     )
+  }
+
+  @Test
+  fun landmarkFromGuideIsFramedEvenWhenUserLocationArrives() {
+    val landmark = eiffel.coordinates
+    assertEquals(ExploreCameraFocus.LANDMARK, exploreCameraFocus(null, emptyList(), landmark))
+    val expected = ExploreCameraTarget(landmark, EXPLORE_POINT_ZOOM)
+    assertEquals(expected, exploreCameraTarget(null, emptyList(), landmark))
+    assertEquals(expected, exploreCameraTarget(user, listOf(colosseum), landmark))
   }
 
   @Test

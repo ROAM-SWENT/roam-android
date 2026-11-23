@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
@@ -21,6 +22,8 @@ import com.github.roamswent.roam.model.ai.RejectedImageException
 import com.github.roamswent.roam.model.ai.RejectionReason
 import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
+import com.github.roamswent.roam.model.guide.ExploreLocationFailure
+import com.github.roamswent.roam.model.guide.ExploreUnavailableReason
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
@@ -377,7 +380,10 @@ class LoadingViewModelTest {
         assertEquals(true, nextViewModel.showLoading.value)
       }
 
-  private fun newViewModel(interestsRepository: UserInterestsRepository) =
+  private fun newViewModel(
+      interestsRepository: UserInterestsRepository,
+      isGalleryImage: Boolean = false,
+  ) =
       LoadingViewModel(
           repository,
           readImage,
@@ -387,6 +393,7 @@ class LoadingViewModelTest {
           savedGuides,
           clock = { discoveryDate },
           newGuideId = { GUIDE_ID },
+          isGalleryImage = isGalleryImage,
       )
 
   @Test
@@ -704,7 +711,31 @@ class LoadingViewModelTest {
         val saved = savedGuides.guides.value.single()
         assertEquals(GUIDE_ID, saved.id)
         assertNull(saved.location)
+        assertEquals(
+            ExploreLocationFailure(ExploreUnavailableReason.TOO_FAR, isGalleryImage = false),
+            saved.exploreLocationFailure,
+        )
         assertTrue(savedGuides.locationUpdates.isEmpty())
+      }
+
+  @Test
+  fun galleryPhotoLocationFailureKeepsItsSourceInTheSavedGuide() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        val viewModel = newViewModel(userInterestsRepository, isGalleryImage = true)
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        val saved = savedGuides.guides.value.single()
+        assertEquals(
+            ExploreLocationFailure(
+                ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+                isGalleryImage = true,
+            ),
+            saved.exploreLocationFailure,
+        )
+        assertEquals(monumentLocation, saved.monumentLocation)
+        assertNull(saved.location)
       }
 
   @Test

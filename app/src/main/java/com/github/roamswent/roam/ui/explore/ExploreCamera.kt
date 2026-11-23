@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.explore
 
@@ -7,6 +8,8 @@ import kotlin.math.log2
 
 /** What the Explore camera is framing; the camera only moves when this changes. */
 internal enum class ExploreCameraFocus {
+  /** The monument opened from the guide. */
+  LANDMARK,
   /** The user's current location. */
   USER,
   /** The saved monuments, used when the user's location is not known. */
@@ -47,8 +50,10 @@ private const val FRAMING_DEGREES_AT_ZOOM_0 = 300.0
 internal fun exploreCameraFocus(
     userLocation: Coordinates?,
     monuments: List<ExploreMonument>,
+    monumentLocation: Coordinates? = null,
 ): ExploreCameraFocus =
     when {
+      monumentLocation != null -> ExploreCameraFocus.LANDMARK
       userLocation != null -> ExploreCameraFocus.USER
       monuments.isNotEmpty() -> ExploreCameraFocus.MONUMENTS
       else -> ExploreCameraFocus.WORLD
@@ -58,8 +63,11 @@ internal fun exploreCameraFocus(
 internal fun exploreCameraTarget(
     userLocation: Coordinates?,
     monuments: List<ExploreMonument>,
+    monumentLocation: Coordinates? = null,
 ): ExploreCameraTarget =
-    when (exploreCameraFocus(userLocation, monuments)) {
+    when (exploreCameraFocus(userLocation, monuments, monumentLocation)) {
+      ExploreCameraFocus.LANDMARK ->
+          ExploreCameraTarget(checkNotNull(monumentLocation), EXPLORE_POINT_ZOOM)
       ExploreCameraFocus.USER -> ExploreCameraTarget(checkNotNull(userLocation), EXPLORE_POINT_ZOOM)
       ExploreCameraFocus.MONUMENTS -> framing(monuments.map { it.coordinates })
       ExploreCameraFocus.WORLD -> ExploreCameraTarget(EXPLORE_WORLD_CENTER, EXPLORE_WORLD_ZOOM)

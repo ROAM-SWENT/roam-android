@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
@@ -26,6 +27,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.toMonumentGuide
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 
@@ -40,6 +42,8 @@ fun SavedMonumentDetailRoute(
     repository: SavedGuideRepository,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isOnline: Boolean = true,
+    onOpenInExplore: ((Coordinates) -> Unit)? = null,
 ) {
   val viewModel: SavedGuidesViewModel = viewModel {
     SavedGuidesViewModel(repository).also { it.loadGuide(guideId) }
@@ -55,6 +59,10 @@ fun SavedMonumentDetailRoute(
           guide = monumentGuide,
           onBackClick = onBackClick,
           modifier = modifier,
+          isOnline = isOnline,
+          onOpenInExplore = onOpenInExplore,
+          exploreUnavailableReason = guide.exploreLocationFailure?.reason,
+          isGalleryImage = guide.exploreLocationFailure?.isGalleryImage == true,
       )
     }
     state.isLoadingGuide ->

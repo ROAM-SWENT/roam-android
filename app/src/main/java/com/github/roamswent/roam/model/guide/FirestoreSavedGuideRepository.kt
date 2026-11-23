@@ -125,6 +125,10 @@ class FirestoreSavedGuideRepository(
 internal object GuideFirestoreMapper {
   const val FAVORITE_FIELD = "isFavorite"
   const val LOCATION_FIELD = "location"
+  const val MONUMENT_LOCATION_FIELD = "monumentLocation"
+  const val EXPLORE_LOCATION_FAILURE_FIELD = "exploreLocationFailure"
+  const val EXPLORE_FAILURE_REASON_FIELD = "reason"
+  const val EXPLORE_FAILURE_GALLERY_FIELD = "isGalleryImage"
   const val SHARE_AUDIENCE_FIELD = "shareAudience"
   const val SHARED_WITH_UIDS_FIELD = "sharedWithUids"
   const val DISMISSED_BY_UIDS_FIELD = "dismissedByUids"
@@ -146,6 +150,16 @@ internal object GuideFirestoreMapper {
       put("timeline", guide.timeline.map { mapOf("year" to it.year, "event" to it.event) })
     }
     guide.location?.let { put(LOCATION_FIELD, locationFields(it)) }
+    guide.monumentLocation?.let { put(MONUMENT_LOCATION_FIELD, locationFields(it)) }
+    guide.exploreLocationFailure?.let { failure ->
+      put(
+          EXPLORE_LOCATION_FAILURE_FIELD,
+          mapOf(
+              EXPLORE_FAILURE_REASON_FIELD to failure.reason.name,
+              EXPLORE_FAILURE_GALLERY_FIELD to failure.isGalleryImage,
+          ),
+      )
+    }
     guide.discoveryDate?.let { put("discoveryDate", it) }
     put(FAVORITE_FIELD, guide.isFavorite)
     put(SHARE_AUDIENCE_FIELD, guide.shareSettings.audience.name)
@@ -179,6 +193,10 @@ internal object GuideFirestoreMapper {
         timeline = optionalTimeline(fields["timeline"]),
         interestCount = (fields["interestCount"] as? Number)?.toInt() ?: 0,
         location = optionalCoordinates(fields[LOCATION_FIELD]),
+        monumentLocation =
+            runCatching { optionalCoordinates(fields[MONUMENT_LOCATION_FIELD]) }.getOrNull(),
+        exploreLocationFailure =
+            optionalExploreLocationFailure(fields[EXPLORE_LOCATION_FAILURE_FIELD]),
         discoveryDate = (fields["discoveryDate"] as? Number)?.toLong(),
         // Guides saved before favourites existed have no flag, so they are not favourites.
         isFavorite = fields[FAVORITE_FIELD] as? Boolean ?: false,
@@ -214,6 +232,18 @@ internal object GuideFirestoreMapper {
             GuideMilestone(year, event)
           }
           .orEmpty()
+
+  private fun optionalExploreLocationFailure(value: Any?): ExploreLocationFailure? {
+    val fields = value as? Map<*, *> ?: return null
+    val reason =
+        ExploreUnavailableReason.entries.firstOrNull {
+          it.name == fields[EXPLORE_FAILURE_REASON_FIELD]
+        } ?: return null
+    return ExploreLocationFailure(
+        reason,
+        fields[EXPLORE_FAILURE_GALLERY_FIELD] as? Boolean ?: false,
+    )
+  }
 
   private fun optionalCoordinates(value: Any?): Coordinates? {
     if (value == null) return null

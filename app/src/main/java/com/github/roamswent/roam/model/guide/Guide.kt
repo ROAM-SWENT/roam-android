@@ -28,6 +28,9 @@ data class Guide(
     val shareSettings: MonumentShareSettings = MonumentShareSettings(),
     val overview: String? = null,
     val timeline: List<GuideMilestone> = emptyList(),
+    /** Coordinates of the monument itself, independent of the opted-in scan location. */
+    val monumentLocation: Coordinates? = null,
+    val exploreLocationFailure: ExploreLocationFailure? = null,
 ) {
   override fun equals(other: Any?): Boolean =
       other is Guide &&
@@ -45,7 +48,9 @@ data class Guide(
           isFavorite == other.isFavorite &&
           shareSettings == other.shareSettings &&
           overview == other.overview &&
-          timeline == other.timeline
+          timeline == other.timeline &&
+          monumentLocation == other.monumentLocation &&
+          exploreLocationFailure == other.exploreLocationFailure
 
   override fun hashCode(): Int {
     var result = id.hashCode()
@@ -63,6 +68,8 @@ data class Guide(
     result = 31 * result + shareSettings.hashCode()
     result = 31 * result + (overview?.hashCode() ?: 0)
     result = 31 * result + timeline.hashCode()
+    result = 31 * result + (monumentLocation?.hashCode() ?: 0)
+    result = 31 * result + (exploreLocationFailure?.hashCode() ?: 0)
     return result
   }
 }

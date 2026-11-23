@@ -56,6 +56,7 @@ import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
 import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
 import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
@@ -408,6 +409,15 @@ internal fun RoamApp(
     if (offlineAction == null) navigate() else runOfflineAction(offlineAction, navigate)
   }
   val onProfileClicked = { navController.navigate(Routes.Settings) { launchSingleTop = true } }
+  val openMonumentInExplore: (Coordinates) -> Unit = { location ->
+    navController.navigate(Routes.Explore) { launchSingleTop = true }
+    navController.currentBackStackEntry
+        ?.savedStateHandle
+        ?.set(
+            Routes.ExploreMonumentLocation,
+            doubleArrayOf(location.latitude, location.longitude),
+        )
+  }
   // Screens apply their own status bar inset, so the top inset stays 0 and
   // containerColor covers the status bar strip.
   @Composable
@@ -502,6 +512,8 @@ internal fun RoamApp(
               uri,
               testOverrides?.captureSender,
               savedGuideRepository = savedGuideRepository.value,
+              isOnline = isOnline,
+              onOpenInExplore = openMonumentInExplore,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
@@ -582,6 +594,8 @@ internal fun RoamApp(
               guideId = guideId,
               repository = savedGuideRepository.value,
               onBackClick = { navController.popBackStack() },
+              isOnline = isOnline,
+              onOpenInExplore = openMonumentInExplore,
           )
         }
       }
@@ -605,7 +619,12 @@ internal fun RoamApp(
         }
       }
 
-      composable(Routes.Explore) {
+      composable(Routes.Explore) { entry ->
+        val position by
+            entry.savedStateHandle
+                .getStateFlow<DoubleArray?>(Routes.ExploreMonumentLocation, null)
+                .collectAsState()
+        val monumentLocation = position?.let { Coordinates(it[0], it[1]) }
         val homeViewModel: HomeViewModel = viewModel()
         val userName by homeViewModel.userName.collectAsState()
         val exploreViewModel: ExploreViewModel = viewModel {
@@ -637,6 +656,7 @@ internal fun RoamApp(
                 onProfileClicked = onProfileClicked,
                 profileName = userName,
                 isOnline = isOnline,
+                monumentLocation = monumentLocation,
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,
             )

@@ -100,7 +100,7 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.rememberCameraPositionState
 
-private fun Coordinates.toLatLng() = LatLng(latitude, longitude)
+internal fun Coordinates.toLatLng() = LatLng(latitude, longitude)
 
 private fun hasLocationPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
@@ -249,6 +249,7 @@ fun ExploreScreen(
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,
+    monumentLocation: Coordinates? = null,
 ) {
   val uiState by exploreViewModel.uiState.collectAsState()
   val offlineBaseMap by exploreViewModel.offlineBaseMap.collectAsState()
@@ -299,9 +300,9 @@ fun ExploreScreen(
       val monuments by exploreViewModel.monuments.collectAsState()
       val monumentsLoaded by exploreViewModel.monumentsLoaded.collectAsState()
       val userLocation = exploreUserLocation(uiState)
-      val cameraFocus = exploreCameraFocus(userLocation, monuments)
+      val cameraFocus = exploreCameraFocus(userLocation, monuments, monumentLocation)
       val cameraPositionState = rememberCameraPositionState {
-        position = exploreCameraTarget(userLocation, monuments).toCameraPosition()
+        position = exploreCameraTarget(userLocation, monuments, monumentLocation).toCameraPosition()
       }
       // Reframe only when the focus changes (the location arrives, the first monuments load), so
       // the user's panning is kept when monuments are added and across configuration changes.
@@ -309,7 +310,7 @@ fun ExploreScreen(
       LaunchedEffect(cameraFocus) {
         if (framedFocus != cameraFocus) {
           cameraPositionState.position =
-              exploreCameraTarget(userLocation, monuments).toCameraPosition()
+              exploreCameraTarget(userLocation, monuments, monumentLocation).toCameraPosition()
           framedFocus = cameraFocus
         }
       }
@@ -322,7 +323,7 @@ fun ExploreScreen(
 
       // Wait for the saved monuments (a few frames at most) so the first frame is already framed
       // on them rather than on the world view.
-      if (shouldShowExploreMap(userLocation, monumentsLoaded)) {
+      if (monumentLocation != null || shouldShowExploreMap(userLocation, monumentsLoaded)) {
         GoogleMap(
             modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
             cameraPositionState = cameraPositionState,
@@ -336,6 +337,7 @@ fun ExploreScreen(
             mapColorScheme = exploreMapColorScheme(MaterialTheme.isDark),
         ) {
           if (!isOnline) OfflineBaseMap(offlineBaseMap)
+          if (monumentLocation != null) GuideMonumentPin(monumentLocation)
           monuments.forEach { monument ->
             key(monument.guideId) {
               val position = monument.coordinates.toLatLng()
@@ -390,7 +392,7 @@ private fun OfflineBaseMap(countries: List<BaseMapPolygon>) {
   }
 }
 
-private fun ExploreCameraTarget.toCameraPosition(): CameraPosition =
+internal fun ExploreCameraTarget.toCameraPosition(): CameraPosition =
     CameraPosition.fromLatLngZoom(center.toLatLng(), zoom)
 
 /**

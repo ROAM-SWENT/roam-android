@@ -212,15 +212,19 @@
     <string name="monument_detail_culture_title">Local Culture</string>
     <string name="monument_detail_facts_title">Fun Fact</string>
     <string name="monument_detail_facts_plural_title">Fun Facts</string>
+    <string name="monument_detail_map_title">Explore nearby</string>
+    <string name="monument_detail_open_map">Open %1$s in Explore</string>
     <string name="monument_detail_timeline_title">Timeline</string>
     <string name="monument_detail_year_bce">%1$d BCE</string>
     <string name="monument_detail_show_in_explore">Show in Explore</string>
     <string name="monument_detail_show_in_explore_supporting">Pin this monument on the map where you scanned it.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Pin this monument on the map where the photo was taken.</string>
     <string name="monument_detail_show_in_explore_error">Could not update Explore. Try again.</string>
-    <string name="monument_detail_explore_unavailable_no_location">Your location wasn\'t available during the scan, so this monument can\'t be added to Explore.</string>
-    <string name="monument_detail_explore_unavailable_no_monument_location">We couldn\'t confirm where this monument is, so it can\'t be added to Explore.</string>
-    <string name="monument_detail_explore_unavailable_no_photo_location">This photo has no location data, so this monument can\'t be added to Explore.</string>
-    <string name="monument_detail_explore_unavailable_photo_too_far">This photo doesn\'t seem to have been taken near this monument, so it can\'t be added to Explore.</string>
-    <string name="monument_detail_explore_unavailable_too_far">You don\'t seem to be near this monument, so it can\'t be added to Explore.</string>
+    <string name="monument_detail_explore_unavailable_title">Can\'t be added to Explore</string>
+    <string name="monument_detail_explore_location_unavailable_title">Monument location unavailable</string>
+    <string name="monument_detail_explore_unavailable_no_location">Your location wasn\'t available during the scan.</string>
+    <string name="monument_detail_explore_unavailable_no_monument_location">We couldn\'t confirm where this monument is.</string>
+    <string name="monument_detail_explore_unavailable_no_photo_location">This photo has no GPS location data.</string>
+    <string name="monument_detail_explore_unavailable_photo_too_far">This photo doesn\'t seem to have been taken near the monument.</string>
+    <string name="monument_detail_explore_unavailable_too_far">You don\'t seem to be near this monument.</string>
 </resources>

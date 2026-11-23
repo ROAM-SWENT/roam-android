@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -36,12 +37,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.guide.ExploreUnavailableReason
+import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
-import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
+import com.github.roamswent.roam.ui.theme.GuideTypography
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.accentIcon
 import com.github.roamswent.roam.ui.theme.guidePanel
+import com.github.roamswent.roam.ui.theme.offlineNoticeContainer
 import com.github.roamswent.roam.ui.theme.photoButtonContainer
 
 /**
@@ -67,6 +71,8 @@ fun MonumentDetailScreen(
     onShowInExploreChange: (Boolean) -> Unit = {},
     exploreUnavailableReason: ExploreUnavailableReason? = null,
     isGalleryImage: Boolean = false,
+    isOnline: Boolean = true,
+    onOpenInExplore: ((Coordinates) -> Unit)? = null,
 ) {
   val cornerRadius = 24.dp
 
@@ -114,20 +120,36 @@ fun MonumentDetailScreen(
                   .semantics { testTag = C.Tag.monument_detail_text },
           verticalArrangement = Arrangement.spacedBy(18.dp),
       ) {
-        GuideHeader(guide)
-        if (exploreOptIn != null) {
-          ShowInExploreRow(
-              optIn = exploreOptIn,
-              onCheckedChange = onShowInExploreChange,
-              isGalleryImage = isGalleryImage,
-          )
-        } else if (exploreUnavailableReason != null) {
-          ExploreUnavailableMessage(
-              reason = exploreUnavailableReason,
-              isGalleryImage = isGalleryImage,
-          )
+        MaterialTheme(typography = GuideTypography) {
+          GuideHeader(guide)
+          if (exploreOptIn != null) {
+            ShowInExploreRow(
+                optIn = exploreOptIn,
+                onCheckedChange = onShowInExploreChange,
+                isGalleryImage = isGalleryImage,
+            )
+          }
+          GuideContent(guide)
+          val monumentLocation = guide.monumentLocation
+          val unavailableReason =
+              if (monumentLocation == null) ExploreUnavailableReason.NO_MONUMENT_LOCATION
+              else exploreUnavailableReason.takeIf { exploreOptIn == null }
+          if (unavailableReason != null) {
+            ExploreUnavailableMessage(unavailableReason, isGalleryImage)
+          } else if (
+              isOnline &&
+                  monumentLocation != null &&
+                  onOpenInExplore != null &&
+                  exploreUnavailableReason == null &&
+                  exploreOptIn?.error == null
+          ) {
+            GuideMiniMap(
+                monumentName = guide.monumentName,
+                location = monumentLocation,
+                onOpen = { onOpenInExplore(monumentLocation) },
+            )
+          }
         }
-        GuideContent(guide)
       }
     }
 
@@ -229,7 +251,7 @@ private fun ShowInExploreRow(
                     if (isGalleryImage) R.string.monument_detail_show_in_explore_supporting_photo
                     else R.string.monument_detail_show_in_explore_supporting
                 ),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
@@ -239,7 +261,7 @@ private fun ShowInExploreRow(
     if (optIn.error != null) {
       Text(
           text = stringResource(R.string.monument_detail_show_in_explore_error),
-          style = MaterialTheme.typography.bodySmall,
+          style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.error,
           modifier = Modifier.semantics { testTag = C.Tag.monument_detail_show_in_explore_error },
       )
@@ -248,14 +270,13 @@ private fun ShowInExploreRow(
 }
 
 /**
- * Explains why the guide cannot be put on Explore, shown in place of the Explore switch. For a
- * gallery photo ([isGalleryImage]) the observed location is the photo's, not the user's.
+ * Explains the location problem in the footer. For gallery images the observed location is the
+ * photo's capture position.
  */
 @Composable
 private fun ExploreUnavailableMessage(
     reason: ExploreUnavailableReason,
     isGalleryImage: Boolean,
-    modifier: Modifier = Modifier,
 ) {
   val message =
       when (reason) {
@@ -268,13 +289,40 @@ private fun ExploreUnavailableMessage(
             if (isGalleryImage) R.string.monument_detail_explore_unavailable_photo_too_far
             else R.string.monument_detail_explore_unavailable_too_far
       }
-  Text(
-      text = stringResource(message),
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
+  val title =
+      if (reason == ExploreUnavailableReason.NO_MONUMENT_LOCATION) {
+        R.string.monument_detail_explore_location_unavailable_title
+      } else {
+        R.string.monument_detail_explore_unavailable_title
+      }
+  Row(
       modifier =
-          modifier.fillMaxWidth().semantics { testTag = C.Tag.monument_detail_explore_unavailable },
-  )
+          Modifier.fillMaxWidth()
+              .background(MaterialTheme.offlineNoticeContainer, RoundedCornerShape(12.dp))
+              .padding(16.dp),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+      verticalAlignment = Alignment.Top,
+  ) {
+    Icon(
+        imageVector = Icons.Outlined.Info,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.error,
+        modifier = Modifier.size(20.dp),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      Text(
+          text = stringResource(title),
+          style = MaterialTheme.typography.labelLarge,
+          color = MaterialTheme.colorScheme.onSurface,
+      )
+      Text(
+          text = stringResource(message),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.semantics { testTag = C.Tag.monument_detail_explore_unavailable },
+      )
+    }
+  }
 }
 
 @Composable
