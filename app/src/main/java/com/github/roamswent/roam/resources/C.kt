@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
@@ -97,18 +98,26 @@ object C {
     const val monument_detail_panel = "monument_detail_panel"
     const val monument_detail_picture = "monument_detail_picture"
     const val monument_detail_text = "monument_detail_text"
-    const val monument_detail_drag_handle = "monument_detail_drag_handle"
     const val monument_detail_title = "monument_detail_title"
     const val monument_detail_confidence = "monument_detail_confidence"
     const val monument_detail_back_button = "monument_detail_back_button"
     const val monument_detail_favorite_button = "monument_detail_favorite_button"
+    const val monument_detail_overview = "monument_detail_overview"
     const val monument_detail_history = "monument_detail_history"
+    const val monument_detail_timeline = "monument_detail_timeline"
+    const val monument_detail_timeline_item = "monument_detail_timeline_item"
+    const val monument_detail_facts = "monument_detail_facts"
+    const val monument_detail_interest = "monument_detail_interest"
     const val monument_detail_fact_item = "monument_detail_fact_item"
     const val monument_detail_culture = "monument_detail_culture"
     const val saved_monument_detail_loading = "saved_monument_detail_loading"
     const val saved_monument_detail_error = "saved_monument_detail_error"
     const val saved_monument_detail_not_found = "saved_monument_detail_not_found"
     const val saved_monument_detail_retry = "saved_monument_detail_retry"
+    const val shared_monument_detail_loading = "shared_monument_detail_loading"
+    const val shared_monument_detail_error = "shared_monument_detail_error"
+    const val shared_monument_detail_not_found = "shared_monument_detail_not_found"
+    const val shared_monument_detail_retry = "shared_monument_detail_retry"
     const val monument_detail_show_in_explore = "monument_detail_show_in_explore"
     const val monument_detail_show_in_explore_error = "monument_detail_show_in_explore_error"
     const val monument_detail_explore_unavailable = "monument_detail_explore_unavailable"
@@ -155,6 +164,8 @@ object C {
     const val collection_empty_state = "collection_empty_state"
     const val collection_loading = "collection_loading"
     const val collection_error = "collection_error"
+    const val collection_retry_error = "collection_retry_error"
+    const val collection_retry = "collection_retry"
     const val explore_monument_photo = "explore_monument_photo"
     const val explore_monument_photo_loading = "explore_monument_photo_loading"
     const val explore_monument_photo_error = "explore_monument_photo_error"
@@ -180,5 +191,7 @@ object C {
     const val friends_add_dismiss = "friends_add_dismiss"
     const val friends_remove_friend = "friends_remove_friend"
     const val friends_cancel_request = "friends_cancel_request"
+    const val friends_view_collection = "friends_view_collection"
+    const val collection_back_button = "collection_back_button"
   }
 }

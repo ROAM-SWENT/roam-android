@@ -1,3 +1,4 @@
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 
 package com.github.roamswent.roam.model.guide
@@ -10,11 +11,11 @@ import kotlinx.coroutines.flow.update
 
 /**
  * In-memory [MonumentSharingRepository] backed by [MutableStateFlow] for tests and future UI
- * consumers.
+ * consumers. Relationship authorization is not modeled; callers supply accessible owners.
  *
  * Configurable error hooks:
- * - [loadError]: when non-null, [getShareSettings], [getSharedGuidesFrom], and
- *   [observeSharedGuidesFrom] fail with it.
+ * - [loadError]: when non-null, [getShareSettings], [getSharedGuideFrom], [getSharedGuidesFrom],
+ *   and [observeSharedGuidesFrom] fail with it.
  * - [updateError]: when non-null, [setShareAudience], [grantAccess], and [revokeAccess] fail with
  *   it.
  * - [dismissError]: when non-null, [dismissSharedGuide] fails with it.
@@ -129,6 +130,21 @@ class FakeMonumentSharingRepository(
     return (guidesByOwner.value[ownerUid] ?: emptyList()).filter(::isVisible)
   }
 
+  override suspend fun getSharedGuideFrom(ownerUid: String, guideId: String): Guide? {
+    if (!UID_PATTERN.matches(currentUserId) || !UID_PATTERN.matches(ownerUid)) {
+      throw MonumentSharingException.InvalidUid()
+    }
+    validateGuideId(guideId)
+    loadError?.let { throw it }
+    return guidesByOwner.value[ownerUid]?.firstOrNull { guide ->
+      guide.id == guideId &&
+          isVisible(guide) &&
+          (ownerUid == currentUserId ||
+              guide.shareSettings.audience != ShareAudience.SELECTED_FRIENDS ||
+              currentUserId in guide.shareSettings.sharedWithUids)
+    }
+  }
+
   override fun observeSharedGuidesFrom(ownerUid: String): Flow<List<Guide>> {
     loadError?.let { error ->
       return flow { throw error }
@@ -138,5 +154,9 @@ class FakeMonumentSharingRepository(
 
   private fun validateGuideId(guideId: String) {
     require(guideId.isNotBlank()) { "Guide ID cannot be blank." }
+  }
+
+  private companion object {
+    val UID_PATTERN = Regex("[A-Za-z0-9_-]{1,128}")
   }
 }

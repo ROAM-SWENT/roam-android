@@ -76,6 +76,48 @@ class WishlistScreenTest {
   }
 
   @Test
+  fun readOnlyCollectionDoesNotExposeWishlistOrOwnerActions() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(guide)),
+            readOnly = true,
+            wishlistState = WishlistUiState(listOf(monument)),
+            initialShowWishlist = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Search their collection").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun retryRemainsAvailableAlongsideWishlistControls() {
+    var retries = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state =
+                SavedGuidesUiState(
+                    guides = listOf(guide),
+                    guidesError = IllegalStateException("offline"),
+                ),
+            wishlistState = WishlistUiState(listOf(monument)),
+            onRetryGuides = { retries++ },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.collection_retry).performClick()
+    assertEquals(1, retries)
+  }
+
+  @Test
   fun wishlistMonumentsOnlyAppearInWishlistAndRemainAfterRemoval() {
     val changes = mutableListOf<Pair<String, Boolean>>()
     composeTestRule.setContent {

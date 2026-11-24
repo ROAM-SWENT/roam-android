@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
@@ -21,7 +22,10 @@ class PromptBuilderTest {
     listOf(
             "monumentName",
             "confidence",
+            "overview",
             "history",
+            "timeline",
+            "sections",
             "facts",
             "culture",
             "language",
@@ -29,6 +33,21 @@ class PromptBuilderTest {
             "monumentLongitude",
         )
         .forEach { assertTrue("missing field $it", prompt.contains(it)) }
+  }
+
+  @Test
+  fun guidePromptRequestsTimelineWithEarliestEventsFirst() {
+    assertTrue(PromptBuilder.guidePrompt(french, null).contains("events, earliest first"))
+  }
+
+  @Test
+  fun guidePromptRequestsDetailedHistoryAndLocalCultureAsProse() {
+    val prompt = PromptBuilder.guidePrompt(french, null)
+
+    assertTrue(prompt.contains("who commissioned or built it and why"))
+    assertTrue(prompt.contains("what the monument means locally"))
+    assertTrue(prompt.contains("one or two substantive prose paragraphs each"))
+    assertTrue(prompt.contains("Separate paragraphs with a blank line and use no list markers."))
   }
 
   @Test
@@ -62,6 +81,8 @@ class PromptBuilderTest {
 
     assertTrue(prompt.contains("Personalize the guide toward these interests when relevant"))
     assertTrue(prompt.contains("""["art","architecture"]"""))
+    assertTrue(prompt.contains("Copy topic exactly"))
+    assertTrue(prompt.contains("at most one section per relevant selected topic"))
   }
 
   @Test

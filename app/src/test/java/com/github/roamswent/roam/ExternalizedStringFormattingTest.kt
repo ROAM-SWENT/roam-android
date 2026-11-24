@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 package com.github.roamswent.roam
 
 import android.content.Context
@@ -22,15 +23,6 @@ class ExternalizedStringFormattingTest {
         xmlStringValue("monument_detail_match_percent"),
     )
     assertEquals("87% match", context.getString(R.string.monument_detail_match_percent, 87))
-  }
-
-  @Test
-  fun factBulletFormatsWithBulletAndFact() {
-    assertEquals("• %1\$s", xmlStringValue("monument_detail_fact_bullet"))
-    assertEquals(
-        "• Built in 1889",
-        context.getString(R.string.monument_detail_fact_bullet, "Built in 1889"),
-    )
   }
 
   @Test
@@ -60,13 +52,6 @@ class ExternalizedStringFormattingTest {
     assertEquals("87% de correspondance", formatted)
     assertTrue(formatted.contains("87%"))
     assertFalse(formatted.contains("%%"))
-  }
-
-  @Test
-  @Config(qualifiers = "fr")
-  fun factBulletFrenchFormatsWithSampleFact_regressionDetectsPlaceholderDefect() {
-    val formatted = context.getString(R.string.monument_detail_fact_bullet, "Construit en 1889")
-    assertEquals("• Construit en 1889", formatted)
   }
 
   @Test

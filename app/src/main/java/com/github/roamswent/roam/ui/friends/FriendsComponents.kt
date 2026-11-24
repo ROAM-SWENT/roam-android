@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
@@ -81,6 +82,7 @@ internal fun FriendsContent(
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
     onFriendClicked: (FriendUser) -> Unit,
+    onFriendCollectionClicked: (FriendUser) -> Unit,
     onRemoveFriend: (FriendUser) -> Unit,
     onAcceptRequest: (FriendRequest) -> Unit,
     onRejectRequest: (FriendRequest) -> Unit,
@@ -160,6 +162,7 @@ internal fun FriendsContent(
               FriendRow(
                   friend = friend,
                   onClick = { onFriendClicked(friend) },
+                  onViewCollection = { onFriendCollectionClicked(friend) },
                   onRemove = { onRemoveFriend(friend) },
                   enabled = !isMutating,
               )
@@ -341,6 +344,7 @@ private fun FriendsSearchField(
 private fun FriendRow(
     friend: FriendUser,
     onClick: () -> Unit,
+    onViewCollection: () -> Unit,
     onRemove: () -> Unit,
     enabled: Boolean,
 ) {
@@ -348,6 +352,8 @@ private fun FriendRow(
   var showRemoveConfirmation by remember { mutableStateOf(false) }
   val moreOptionsDescription =
       stringResource(R.string.friends_more_options_description, friend.username)
+  val viewCollectionDescription =
+      stringResource(R.string.friends_view_collection_description, friend.username)
   val deleteFriendLabel = stringResource(R.string.friends_delete_friend)
   val removeConfirmationTitle = stringResource(R.string.friends_remove_confirmation_title)
   val removeConfirmationMessage =
@@ -379,6 +385,20 @@ private fun FriendRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        IconButton(
+            onClick = onViewCollection,
+            modifier =
+                Modifier.semantics {
+                  contentDescription = viewCollectionDescription
+                  testTag = C.Tag.friends_view_collection
+                },
+        ) {
+          Icon(
+              imageVector = Icons.Default.AccountBalance,
+              contentDescription = null,
+              tint = MaterialTheme.accentIcon,
+          )
+        }
         Box {
           IconButton(
               onClick = { isMenuExpanded = true },

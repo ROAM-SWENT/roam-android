@@ -1,3 +1,5 @@
+<!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
+<!-- Co-authored-by: Codex <codex@openai.com> -->
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">Roam</string>
@@ -49,6 +51,12 @@
     <string name="friends_remove_confirmation_message">Voulez-vous vraiment supprimer %1$s ?</string>
     <string name="friends_cancel_action">Annuler</string>
     <string name="friends_dismiss_action">Fermer</string>
+    <string name="friends_view_collection_description">Voir les monuments partagés par %1$s</string>
+    <string name="friend_collection_title">Monuments de %1$s</string>
+    <string name="friend_collection_error">Impossible de charger cette collection. Veuillez réessayer.</string>
+    <string name="friend_collection_empty_title">Aucun monument partagé</string>
+    <string name="friend_collection_empty_subtitle">Cet ami ne vous a partagé aucun monument.</string>
+    <string name="collection_back_description">Retour</string>
     <string name="home_tab_explore">Explorer</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">Aucun appareil photo détecté sur cet appareil</string>
@@ -197,11 +205,13 @@
     <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">Autorisations de l\'application</string>
     <string name="monument_detail_match_percent">%1$d%% de correspondance</string>
-    <string name="monument_detail_fact_bullet">• %1$s</string>
     <string name="monument_detail_ai_guide_label">VOTRE GUIDE IA</string>
     <string name="monument_detail_history_title">Histoire</string>
     <string name="monument_detail_culture_title">Culture locale</string>
     <string name="monument_detail_facts_title">Le saviez-vous ?</string>
+    <string name="monument_detail_facts_plural_title">Le saviez-vous ?</string>
+    <string name="monument_detail_timeline_title">Chronologie</string>
+    <string name="monument_detail_year_bce">%1$d av. J.-C.</string>
     <string name="monument_detail_show_in_explore">Afficher dans Explorer</string>
     <string name="monument_detail_show_in_explore_supporting">Épinglez ce monument sur la carte à l\'endroit où vous l\'avez scanné.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Épinglez ce monument sur la carte à l\'endroit où la photo a été prise.</string>
@@ -215,11 +225,13 @@
     <string name="explore_close_monument_description">Fermer les informations sur le monument</string>
     <string name="explore_minimize_monument_description">Réduire les informations sur le monument</string>
     <string name="collection_search_hint">Rechercher dans votre collection</string>
+    <string name="friend_collection_search_hint">Rechercher dans sa collection</string>
     <string name="collection_search_no_matches_title">Aucun résultat</string>
     <string name="collection_search_no_matches_subtitle">Aucun monument ne correspond à votre recherche.</string>
     <string name="collection_search_clear_description">Effacer la recherche</string>
     <string name="saved_monument_detail_error">Impossible de charger ce monument. Veuillez réessayer.</string>
     <string name="saved_monument_detail_not_found">Ce monument n\'est plus dans votre collection.</string>
+    <string name="shared_monument_detail_not_found">Ce monument n\'est plus partagé avec vous.</string>
     <string name="saved_monument_detail_retry">Réessayer</string>
     <string name="settings_username_label">Nom d\'utilisateur</string>
     <string name="settings_username_save">Enregistrer le nom d\'utilisateur</string>
