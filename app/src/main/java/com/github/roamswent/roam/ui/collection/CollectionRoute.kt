@@ -51,10 +51,13 @@ fun CollectionRoute(
   val sharingViewModel: CollectionSharingViewModel = viewModel {
     CollectionSharingViewModel(resolvedFriendRepository, resolvedProfileRepository)
   }
+  val wishlistViewModel: WishlistViewModel = viewModel()
   val state by viewModel.uiState.collectAsState()
   val sharingState by sharingViewModel.uiState.collectAsState()
+  val wishlistState by wishlistViewModel.uiState.collectAsState()
 
   LaunchedEffect(viewModel) { viewModel.loadSavedGuides() }
+  LaunchedEffect(wishlistViewModel) { wishlistViewModel.loadWishlist() }
 
   CollectionScreen(
       state = state,
@@ -77,5 +80,7 @@ fun CollectionRoute(
       profileName = profileName,
       onProfileClicked = onProfileClicked,
       onPickFromGallery = onPickFromGallery,
+      wishlistState = wishlistState,
+      onSetWishlisted = wishlistViewModel::setWishlisted,
   )
 }

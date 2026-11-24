@@ -753,15 +753,15 @@ class CollectionScreenTest {
   }
 
   @Test
-  fun chipsAreHiddenWhenTheCollectionIsEmptyOrLoading() {
+  fun chipsRemainAvailableWhenTheCollectionIsEmptyOrLoading() {
     var state by mutableStateOf(SavedGuidesUiState())
     composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
-    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertIsDisplayed()
 
     state = SavedGuidesUiState(isLoadingGuides = true)
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).assertIsDisplayed()
   }
 
   @Test
