@@ -140,6 +140,7 @@ object C {
     const val collection_card_date = "collection_card_date"
     const val collection_share_status = "collection_share_status"
     const val collection_card_favorite = "collection_card_favorite"
+    const val collection_card_wishlist = "collection_card_wishlist"
     const val collection_card_share = "collection_card_share"
     const val collection_share_dialog = "collection_share_dialog"
     const val collection_share_friend = "collection_share_friend"

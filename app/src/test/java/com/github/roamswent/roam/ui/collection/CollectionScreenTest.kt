@@ -303,6 +303,40 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun readOnlyScreenShowsWishlistButtonOnlyWhenHandlerProvided() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(state = SavedGuidesUiState(guides = listOf(olderGuide)), readOnly = true)
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist).assertDoesNotExist()
+  }
+
+  @Test
+  fun wishlistButtonTogglesGuideAndReflectsState() {
+    var wishlisted by mutableStateOf(emptySet<String>())
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            readOnly = true,
+            wishlistedGuideIds = wishlisted,
+            onToggleWishlist = { id ->
+              wishlisted = if (id in wishlisted) wishlisted - id else wishlisted + id
+            },
+        )
+      }
+    }
+    val button = composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist)
+    button.assertContentDescriptionEquals("Add to wishlist")
+    button.performClick()
+    assertEquals(setOf(olderGuide.id), wishlisted)
+    button.assertContentDescriptionEquals("Remove from wishlist")
+    button.performClick()
+    assertTrue(wishlisted.isEmpty())
+  }
+
+  @Test
   fun readOnlyEmptyStateExplainsNothingIsShared() {
     composeTestRule.setContent {
       SampleAppTheme { CollectionScreen(state = SavedGuidesUiState(), readOnly = true) }
