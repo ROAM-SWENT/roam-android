@@ -79,6 +79,7 @@ import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.model.notification.FirestoreNotificationInstallationRepository
 import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.resources.C
@@ -521,7 +522,9 @@ private fun ProfileCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-              Text("G", color = GoogleBrandBlue, fontWeight = FontWeight.Bold)
+              if (profile.provider == ProfileRepositoryFirebase.PROVIDER_GOOGLE) {
+                Text("G", color = GoogleBrandBlue, fontWeight = FontWeight.Bold)
+              }
               Text(
                   text = profile.provider,
                   style = MaterialTheme.typography.labelMedium,

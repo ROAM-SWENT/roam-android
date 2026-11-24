@@ -64,8 +64,10 @@ import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
@@ -76,6 +78,9 @@ import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserInfo
 import io.mockk.coEvery
 import io.mockk.mockk
 import java.io.File
@@ -152,6 +157,38 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
     waitForGone(C.Tag.home_screen_container)
     waitForGone(C.Tag.scan_camera_screen)
+  }
+
+  @Test
+  fun signUpButtonNavigatesToSignUpScreen() {
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState()),
+        onNavControllerReady = { navController[0] = it },
+    )
+
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_button).performClick()
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      navController[0]?.currentDestination?.route == Routes.SignUp
+    }
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_screen_container).assertIsDisplayed()
+  }
+
+  @Test
+  fun unverifiedEmailUserIsBlockedAtEmailVerification() {
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mockEmailUser())),
+        onNavControllerReady = { navController[0] = it },
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      navController[0]?.currentDestination?.route == Routes.EmailVerification
+    }
+    composeTestRule.onNodeWithTag(C.Tag.email_verification_screen_container).assertIsDisplayed()
+    waitForGone(C.Tag.home_screen_container)
   }
 
   /** Notification deep links wait for authentication, then open the Friends tab. */
@@ -1446,7 +1483,8 @@ class MainActivityNavigationTest {
   fun scanReviewWithUriDisplaysReviewScreen() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authViewModel = mock<SignInViewModel>()
-    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = mock())))
+    val user = mock<FirebaseUser>()
+    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = user)))
 
     lateinit var navController: NavHostController
 
@@ -1874,6 +1912,13 @@ class MainActivityNavigationTest {
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
+    val privateProfileRepository =
+        object : ProfileRepository {
+          override suspend fun initializePrivateProfile(): Result<Unit> = Result.success(Unit)
+
+          override suspend fun loadProfile(): Result<UserProfile> =
+              Result.success(UserProfile("", "", "Account"))
+        }
     doAnswer {
           authState.value = AuthUIState(signOutCompleted = true)
           Unit
@@ -1906,6 +1951,7 @@ class MainActivityNavigationTest {
                       savedGuideRepository = savedGuideRepository,
                       isOnline = isOnlineOverride,
                       publicProfileRepository = publicProfileRepositoryOverride,
+                      privateProfileRepository = privateProfileRepository,
                       notificationInstallationRepository =
                           notificationInstallationRepositoryOverride,
                       monumentSharingRepository = monumentSharingRepository,
@@ -1925,6 +1971,52 @@ class MainActivityNavigationTest {
           appContent()
         }
       }
+    }
+  }
+
+  @Test
+  fun signUpWithUnverifiedEmailNavigatesToEmailVerification() {
+    val authState = MutableStateFlow(AuthUIState())
+    lateinit var navController: NavHostController
+
+    renderApp(
+        authState,
+        onNavControllerReady = { navController = it },
+    )
+
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+
+    composeTestRule.runOnIdle { navController.navigate(Routes.SignUp) }
+
+    waitAndAssertDisplayed(C.Tag.sign_up_screen_container)
+
+    val provider = mock<UserInfo>()
+    whenever(provider.providerId).thenReturn("password")
+
+    val user = mock<FirebaseUser>()
+    whenever(user.isEmailVerified).thenReturn(false)
+    whenever(user.providerData).thenReturn(listOf(provider))
+    whenever(user.email).thenReturn("roam@example.com")
+
+    composeTestRule.runOnIdle { authState.value = AuthUIState(user = user) }
+
+    waitAndAssertDisplayed(C.Tag.email_verification_screen_container)
+
+    composeTestRule.runOnIdle {
+      assertEquals(
+          Routes.EmailVerification,
+          navController.currentDestination?.route,
+      )
+    }
+  }
+
+  private fun mockEmailUser(): FirebaseUser {
+    val provider = mock<UserInfo>()
+    whenever(provider.providerId).thenReturn(EmailAuthProvider.PROVIDER_ID)
+    return mock<FirebaseUser>().also { user ->
+      whenever(user.uid).thenReturn("test-user")
+      whenever(user.isEmailVerified).thenReturn(false)
+      whenever(user.providerData).thenReturn(listOf(provider))
     }
   }
 

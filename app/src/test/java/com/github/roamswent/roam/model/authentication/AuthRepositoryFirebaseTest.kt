@@ -13,6 +13,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -24,6 +25,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.CALLS_REAL_METHODS
+import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doThrow
@@ -166,6 +169,194 @@ class AuthRepositoryFirebaseTest {
     assertEquals("Login failed: firebase unavailable", result.exceptionOrNull()?.message)
   }
 
+  @Test
+  fun signUpWithEmail_returnsUser() = runTest {
+    val authResult = mock<AuthResult>()
+    whenever(authResult.user).thenReturn(user)
+    whenever(auth.createUserWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forResult(authResult))
+
+    val result = repository.signUpWithEmail("roam@example.com", "password")
+
+    assertTrue(result.isSuccess)
+    assertEquals(user, result.getOrNull())
+  }
+
+  @Test
+  fun signUpWithEmail_failsWhenFirebaseReturnsNoUser() = runTest {
+    val authResult = mock<AuthResult>()
+    whenever(authResult.user).thenReturn(null)
+    whenever(auth.createUserWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forResult(authResult))
+
+    val result = repository.signUpWithEmail("roam@example.com", "password")
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Sign-up failed: Could not retrieve user information",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun signUpWithEmail_mapsFirebaseFailure() = runTest {
+    whenever(auth.createUserWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forException(IllegalStateException("email already in use")))
+
+    val result = repository.signUpWithEmail("roam@example.com", "password")
+
+    assertFalse(result.isSuccess)
+    assertEquals("Sign-up failed: email already in use", result.exceptionOrNull()?.message)
+  }
+
+  @Test
+  fun signInWithEmail_returnsUser() = runTest {
+    val authResult = mock<AuthResult>()
+    whenever(authResult.user).thenReturn(user)
+    whenever(auth.signInWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forResult(authResult))
+
+    val result = repository.signInWithEmail("roam@example.com", "password")
+
+    assertTrue(result.isSuccess)
+    assertEquals(user, result.getOrNull())
+  }
+
+  @Test
+  fun signInWithEmail_failsWhenFirebaseReturnsNoUser() = runTest {
+    val authResult = mock<AuthResult>()
+    whenever(authResult.user).thenReturn(null)
+    whenever(auth.signInWithEmailAndPassword("roam@example.com", "password"))
+        .thenReturn(Tasks.forResult(authResult))
+
+    val result = repository.signInWithEmail("roam@example.com", "password")
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Sign-in failed: Could not retrieve user information",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun signInWithEmail_mapsFirebaseFailure() = runTest {
+    whenever(auth.signInWithEmailAndPassword("roam@example.com", "wrong"))
+        .thenReturn(Tasks.forException(IllegalStateException("invalid credential")))
+
+    val result = repository.signInWithEmail("roam@example.com", "wrong")
+
+    assertFalse(result.isSuccess)
+    assertEquals("Sign-in failed: invalid credential", result.exceptionOrNull()?.message)
+  }
+
+  @Test
+  fun sendEmailVerification_sendsToCurrentUser() = runTest {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.sendEmailVerification()).thenReturn(Tasks.forResult(null))
+
+    val result = repository.sendEmailVerification()
+
+    assertTrue(result.isSuccess)
+    verify(user).sendEmailVerification()
+  }
+
+  @Test
+  fun sendEmailVerification_failsWhenNoUserIsSignedIn() = runTest {
+    whenever(auth.currentUser).thenReturn(null)
+
+    val result = repository.sendEmailVerification()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Email verification failed: No user is signed in",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun sendEmailVerification_mapsFirebaseFailure() = runTest {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.sendEmailVerification())
+        .thenReturn(Tasks.forException(IllegalStateException("too many requests")))
+
+    val result = repository.sendEmailVerification()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Email verification failed: too many requests",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun resendEmailVerification_failsWhenNoUserIsSignedIn() = runTest {
+    whenever(auth.currentUser).thenReturn(null)
+
+    val result = repository.resendEmailVerification()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Email verification failed: No user is signed in",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun reloadEmailVerificationStatus_reloadsAndReturnsStatus() = runTest {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.reload()).thenReturn(Tasks.forResult(null))
+    whenever(user.isEmailVerified).thenReturn(true)
+
+    val result = repository.reloadEmailVerificationStatus()
+
+    assertTrue(result.isSuccess)
+    assertEquals(true, result.getOrNull())
+    verify(user).reload()
+  }
+
+  @Test
+  fun reloadEmailVerificationStatus_failsWhenNoUserIsSignedIn() = runTest {
+    whenever(auth.currentUser).thenReturn(null)
+
+    val result = repository.reloadEmailVerificationStatus()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Email verification check failed: No user is signed in",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun reloadEmailVerificationStatus_mapsFirebaseFailure() = runTest {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.reload())
+        .thenReturn(Tasks.forException(IllegalStateException("network unavailable")))
+
+    val result = repository.reloadEmailVerificationStatus()
+
+    assertFalse(result.isSuccess)
+    assertEquals(
+        "Email verification check failed: network unavailable",
+        result.exceptionOrNull()?.message,
+    )
+  }
+
+  @Test
+  fun isEmailVerified_returnsCachedStatus() {
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.isEmailVerified).thenReturn(true)
+
+    assertTrue(repository.isEmailVerified())
+  }
+
+  @Test
+  fun isEmailVerified_returnsFalseWithoutUser() {
+    whenever(auth.currentUser).thenReturn(null)
+
+    assertFalse(repository.isEmailVerified())
+  }
+
   /**
    * Verifies that signing out successfully calls Firebase's sign-out method and returns a
    * successful result.
@@ -249,5 +440,69 @@ class AuthRepositoryFirebaseTest {
     advanceUntilIdle()
 
     verify(auth).removeAuthStateListener(listenerCaptor.firstValue)
+  }
+
+  private fun mapError(
+      operation: String,
+      error: Exception,
+  ): IllegalStateException {
+    val repository = mock(AuthRepositoryFirebase::class.java, CALLS_REAL_METHODS)
+    val method =
+        AuthRepositoryFirebase::class
+            .java
+            .getDeclaredMethod(
+                "mapEmailAuthError",
+                String::class.java,
+                Exception::class.java,
+            )
+    method.isAccessible = true
+    return method.invoke(repository, operation, error) as IllegalStateException
+  }
+
+  @Test
+  fun mapEmailAuthError_mapsKnownFirebaseErrors() {
+    val cases =
+        mapOf(
+            "ERROR_INVALID_EMAIL" to "The email address is invalid",
+            "ERROR_EMAIL_ALREADY_IN_USE" to "An account already exists with this email",
+            "ERROR_WEAK_PASSWORD" to "The password is too weak",
+            "ERROR_INVALID_CREDENTIAL" to "The email or password is incorrect",
+            "ERROR_USER_NOT_FOUND" to "The email or password is incorrect",
+            "ERROR_WRONG_PASSWORD" to "The email or password is incorrect",
+            "ERROR_USER_DISABLED" to "This account has been disabled",
+            "ERROR_TOO_MANY_REQUESTS" to "Too many attempts; try again later",
+            "ERROR_OPERATION_NOT_ALLOWED" to "Email/password authentication is not enabled",
+        )
+
+    cases.forEach { (code, expectedMessage) ->
+      val error = FirebaseAuthException(code, "Firebase error")
+
+      val result = mapError("Sign-in", error)
+
+      assertEquals("Sign-in failed: $expectedMessage", result.message)
+    }
+  }
+
+  @Test
+  fun mapEmailAuthError_unknownFirebaseCodeUsesOriginalMessage() {
+    val error = FirebaseAuthException("ERROR_UNKNOWN", "Unknown Firebase error")
+
+    val result = mapError("Sign-in", error)
+
+    assertEquals("Sign-in failed: Unknown Firebase error", result.message)
+  }
+
+  @Test
+  fun mapEmailAuthError_nonFirebaseExceptionUsesOriginalMessage() {
+    val result = mapError("Sign-up", IllegalArgumentException("Network error"))
+
+    assertEquals("Sign-up failed: Network error", result.message)
+  }
+
+  @Test
+  fun mapEmailAuthError_nullMessageUsesFallback() {
+    val result = mapError("Sign-in", Exception())
+
+    assertEquals("Sign-in failed: Unexpected error", result.message)
   }
 }
