@@ -533,4 +533,29 @@ class SignInViewModelTest {
         assertFalse(viewModel.uiState.value.isLoading)
         assertTrue(viewModel.uiState.value.errorMsg != null)
       }
+
+  @Test
+  fun signInWithEmail_repositoryFailureSetsError() =
+      runTest(dispatcher) {
+        whenever(repository.signInWithEmail("roam@example.com", "password"))
+            .thenReturn(Result.failure(IllegalStateException("Authentication failed")))
+
+        val viewModel = SignInViewModel(repository)
+
+        viewModel.signInWithEmail("roam@example.com", "password")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+
+        assertFalse(state.isLoading)
+        assertNull(state.user)
+        assertEquals(
+            R.string.sign_in_error_unexpected,
+            state.errorMsg?.messageRes,
+        )
+        assertEquals(
+            "Authentication failed",
+            state.errorMsg?.formatArg,
+        )
+      }
 }

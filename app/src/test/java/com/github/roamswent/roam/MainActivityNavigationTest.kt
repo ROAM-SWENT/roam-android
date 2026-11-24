@@ -80,7 +80,6 @@ import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserInfo
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -1975,13 +1974,39 @@ class MainActivityNavigationTest {
     }
   }
 
-  private fun mockGoogleUser(): FirebaseUser {
+  @Test
+  fun signUpWithUnverifiedEmailNavigatesToEmailVerification() {
+    val authState = MutableStateFlow(AuthUIState())
+    lateinit var navController: NavHostController
+
+    renderApp(
+        authState,
+        onNavControllerReady = { navController = it },
+    )
+
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+
+    composeTestRule.runOnIdle { navController.navigate(Routes.SignUp) }
+
+    waitAndAssertDisplayed(C.Tag.sign_up_screen_container)
+
     val provider = mock<UserInfo>()
-    whenever(provider.providerId).thenReturn(GoogleAuthProvider.PROVIDER_ID)
-    return mock<FirebaseUser>().also { user ->
-      whenever(user.uid).thenReturn("test-user")
-      whenever(user.isEmailVerified).thenReturn(true)
-      whenever(user.providerData).thenReturn(listOf(provider))
+    whenever(provider.providerId).thenReturn("password")
+
+    val user = mock<FirebaseUser>()
+    whenever(user.isEmailVerified).thenReturn(false)
+    whenever(user.providerData).thenReturn(listOf(provider))
+    whenever(user.email).thenReturn("roam@example.com")
+
+    composeTestRule.runOnIdle { authState.value = AuthUIState(user = user) }
+
+    waitAndAssertDisplayed(C.Tag.email_verification_screen_container)
+
+    composeTestRule.runOnIdle {
+      assertEquals(
+          Routes.EmailVerification,
+          navController.currentDestination?.route,
+      )
     }
   }
 
