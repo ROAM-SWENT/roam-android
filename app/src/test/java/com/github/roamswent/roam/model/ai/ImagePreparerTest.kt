@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import androidx.exifinterface.media.ExifInterface
 import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -14,6 +15,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
+import org.robolectric.shadows.ShadowLegacyBitmap
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -238,6 +242,32 @@ class ImagePreparerTest {
     assertEquals(512 to 512, dimensionsOf(result))
   }
 
+  @Test
+  @Config(shadows = [ProfileCompressionShadow::class])
+  fun profilePictureRejectsFailedJpegCompression() {
+    val input = encode(512, 512, Bitmap.CompressFormat.PNG)
+    ProfileCompressionShadow.failCompression = true
+
+    try {
+      assertRejected(RejectionReason.Undecodable) { preparer.prepareProfilePicture(input) }
+    } finally {
+      ProfileCompressionShadow.failCompression = false
+    }
+  }
+
+  @Test
+  @Config(shadows = [ProfileCompressionShadow::class])
+  fun profilePictureRejectsWhenAllQualityStepsExceedLimit() {
+    val input = encode(512, 512, Bitmap.CompressFormat.PNG)
+    ProfileCompressionShadow.forceOversized = true
+
+    try {
+      assertRejected(RejectionReason.Oversized) { preparer.prepareProfilePicture(input) }
+    } finally {
+      ProfileCompressionShadow.forceOversized = false
+    }
+  }
+
   private fun fixture(name: String): ByteArray =
       javaClass.getResourceAsStream("/fixtures/$name")!!.use { it.readBytes() }
 
@@ -308,5 +338,34 @@ class ImagePreparerTest {
         (app1Length shr 8).toByte(),
         app1Length.toByte(),
     ) + exif + jpeg.copyOfRange(2, jpeg.size)
+  }
+}
+
+@Implements(Bitmap::class)
+class ProfileCompressionShadow : ShadowLegacyBitmap() {
+
+  companion object {
+    var failCompression = false
+    var forceOversized = false
+  }
+
+  @Implementation
+  override fun compress(
+      format: Bitmap.CompressFormat,
+      quality: Int,
+      stream: OutputStream,
+  ): Boolean {
+    if (format == Bitmap.CompressFormat.JPEG) {
+      if (failCompression) {
+        return false
+      }
+
+      if (forceOversized) {
+        stream.write(ByteArray(ImagePreparer.PROFILE_PICTURE_MAX_BYTES + 1))
+        return true
+      }
+    }
+
+    return super.compress(format, quality, stream)
   }
 }

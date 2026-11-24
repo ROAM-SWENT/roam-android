@@ -744,6 +744,25 @@ class SettingsViewModelTest {
         assertNull(viewModel.uiState.value.avatarErrorMsg)
       }
 
+  @Test
+  fun setAvatarErrorWithoutExceptionSetsFallbackError() {
+    val viewModel =
+        SettingsViewModel(
+            authRepository = repository,
+            profileRepository = profileRepository,
+            userInterestsRepository = userInterestsRepository,
+            notificationInstallationRepository = mock(),
+        )
+
+    viewModel.setAvatarError()
+
+    assertEquals(
+        R.string.settings_avatar_error_update,
+        viewModel.uiState.value.avatarErrorMsg,
+    )
+    assertFalse(viewModel.uiState.value.isAvatarSaving)
+  }
+
   private fun newViewModel() =
       SettingsViewModel(
           repository,
