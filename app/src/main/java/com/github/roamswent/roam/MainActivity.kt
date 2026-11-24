@@ -380,7 +380,11 @@ internal fun RoamApp(
   }
   val onDockDestinationSelected = { destination: DockDestination ->
     val navigate = {
-      if (destination.route != currentBackStackEntry?.destination?.route) {
+      if (navController.currentDestination?.route == Routes.Settings) {
+        navController.popBackStack()
+      }
+
+      if (destination.route != navController.currentDestination?.route) {
         if (destination.route == Routes.Home) {
           // Home is the navigation root: pop back to it instead of navigating,
           // which launchSingleTop would swallow because popUpTo(Home) already
@@ -408,6 +412,23 @@ internal fun RoamApp(
     if (offlineAction == null) navigate() else runOfflineAction(offlineAction, navigate)
   }
   val onProfileClicked = { navController.navigate(Routes.Settings) { launchSingleTop = true } }
+
+  @Composable
+  fun RefreshProfileOnResume(homeViewModel: HomeViewModel) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner, homeViewModel) {
+      val observer = LifecycleEventObserver { _, event ->
+        if (event == Lifecycle.Event.ON_RESUME) {
+          homeViewModel.refreshUserName()
+        }
+      }
+
+      lifecycleOwner.lifecycle.addObserver(observer)
+
+      onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+  }
   // Screens apply their own status bar inset, so the top inset stays 0 and
   // containerColor covers the status bar strip.
   @Composable
@@ -454,14 +475,7 @@ internal fun RoamApp(
         }
         val userName by homeViewModel.userName.collectAsState()
         val avatarBytes by homeViewModel.avatarBytes.collectAsState()
-        val lifecycleOwner = LocalLifecycleOwner.current
-        DisposableEffect(lifecycleOwner, homeViewModel) {
-          val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) homeViewModel.refreshUserName()
-          }
-          lifecycleOwner.lifecycle.addObserver(observer)
-          onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-        }
+        RefreshProfileOnResume(homeViewModel)
         // HomeScreen and the dock apply their own status/nav bar insets, so the
         // scaffold only contributes the ScreenBackground behind the status bar.
         Scaffold(
@@ -549,6 +563,7 @@ internal fun RoamApp(
         }
         val userName by homeViewModel.userName.collectAsState()
         val avatarBytes by homeViewModel.avatarBytes.collectAsState()
+        RefreshProfileOnResume(homeViewModel)
         val dockClearance = dockContentClearance()
         val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
           uri?.let {
@@ -598,6 +613,7 @@ internal fun RoamApp(
         }
         val userName by homeViewModel.userName.collectAsState()
         val avatarBytes by homeViewModel.avatarBytes.collectAsState()
+        RefreshProfileOnResume(homeViewModel)
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           FriendsRoute(
@@ -621,6 +637,7 @@ internal fun RoamApp(
         }
         val userName by homeViewModel.userName.collectAsState()
         val avatarBytes by homeViewModel.avatarBytes.collectAsState()
+        RefreshProfileOnResume(homeViewModel)
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
