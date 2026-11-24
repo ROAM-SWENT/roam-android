@@ -413,22 +413,6 @@ internal fun RoamApp(
   }
   val onProfileClicked = { navController.navigate(Routes.Settings) { launchSingleTop = true } }
 
-  @Composable
-  fun RefreshProfileOnResume(homeViewModel: HomeViewModel) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    DisposableEffect(lifecycleOwner, homeViewModel) {
-      val observer = LifecycleEventObserver { _, event ->
-        if (event == Lifecycle.Event.ON_RESUME) {
-          homeViewModel.refreshUserName()
-        }
-      }
-
-      lifecycleOwner.lifecycle.addObserver(observer)
-
-      onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-  }
   // Screens apply their own status bar inset, so the top inset stays 0 and
   // containerColor covers the status bar strip.
   @Composable
@@ -684,5 +668,22 @@ internal fun RoamApp(
           onDismiss = { showPermissionDialog = false },
       )
     }
+  }
+}
+
+@Composable
+fun RefreshProfileOnResume(homeViewModel: HomeViewModel) {
+  val lifecycleOwner = LocalLifecycleOwner.current
+
+  DisposableEffect(lifecycleOwner, homeViewModel) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
+        homeViewModel.refreshUserName()
+      }
+    }
+
+    lifecycleOwner.lifecycle.addObserver(observer)
+
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 }
