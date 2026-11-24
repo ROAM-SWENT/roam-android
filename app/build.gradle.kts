@@ -48,6 +48,7 @@ android {
 
   buildTypes {
     release {
+      manifestPlaceholders["allowCleartextTraffic"] = "false"
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(
@@ -57,6 +58,7 @@ android {
     }
 
     debug {
+      manifestPlaceholders["allowCleartextTraffic"] = "true"
       enableUnitTestCoverage = true
       enableAndroidTestCoverage = true
       signingConfig = signingConfigs.getByName("debug")
