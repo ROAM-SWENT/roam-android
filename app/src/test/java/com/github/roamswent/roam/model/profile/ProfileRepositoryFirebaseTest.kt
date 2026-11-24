@@ -206,4 +206,44 @@ class ProfileRepositoryFirebaseTest {
     assertFalse(result.isSuccess)
     assertEquals("Firestore unavailable", result.exceptionOrNull()?.message)
   }
+
+  @Test
+  fun initializePrivateProfile_failsWithBlankEmail() = runTest {
+    val user = mock<FirebaseUser>()
+    whenever(auth.currentUser).thenReturn(user)
+
+    for (email in listOf("", "   ", "\t\n")) {
+      whenever(user.email).thenReturn(email)
+
+      val result = repository.initializePrivateProfile()
+
+      assertTrue(result.isFailure)
+      assertEquals(
+          "The signed-in user does not have an email.",
+          result.exceptionOrNull()?.message,
+      )
+    }
+
+    verify(firestore, never()).collection(any())
+  }
+
+  @Test
+  fun loadProfile_blankDisplayName_fallsBackToEmail() = runTest {
+    val user = mock<FirebaseUser>()
+    whenever(auth.currentUser).thenReturn(user)
+    whenever(user.providerData).thenReturn(emptyList())
+    whenever(user.email).thenReturn("traveler@example.com")
+
+    for (displayName in listOf("", "   ", "\t\n")) {
+      whenever(user.displayName).thenReturn(displayName)
+
+      val result = repository.loadProfile()
+
+      assertTrue(result.isSuccess)
+      assertEquals(
+          UserProfile("traveler", "traveler@example.com", "Account"),
+          result.getOrNull(),
+      )
+    }
+  }
 }
