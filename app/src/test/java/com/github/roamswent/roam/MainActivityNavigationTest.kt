@@ -55,8 +55,14 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.authentication.AuthRepository
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.notification.NotificationInstallationRepository
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
@@ -77,6 +83,8 @@ import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.google.firebase.auth.FirebaseUser
+import io.mockk.coEvery
+import io.mockk.mockk
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1833,6 +1841,121 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
   }
 
+  @Test
+  fun friendCollectionRouteShowsMonumentsSharedByTheFriendAndOpensTheirDetail() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val shared =
+        Guide(
+            id = "shared-1",
+            photoBytes = ByteArray(0),
+            monumentName = "Louvre",
+            confidence = 0.9,
+            history = "A museum.",
+            facts = emptyList(),
+            culture = "French.",
+            shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+        )
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        monumentSharingRepository =
+            FakeMonumentSharingRepository(mapOf("friend-uid" to listOf(shared))),
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    composeTestRule.runOnIdle {
+      checkNotNull(navController[0]).navigate(Routes.friendCollection("friend-uid", "Alice"))
+    }
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule.onAllNodesWithTag(C.Tag.collection_card).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).performClick()
+
+    waitAndAssertDisplayed(C.Tag.monument_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_back_button).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route != Routes.FriendCollectionPattern
+    }
+  }
+
+  @Test
+  fun friendCollectionButtonOpensCollectionAndHomeDockReturnsHome() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val friendRepository = mockk<FriendRepository>()
+    coEvery { friendRepository.getFriends() } returns listOf(Friendship("f", "friend-uid"))
+    coEvery { friendRepository.getIncomingRequests() } returns emptyList()
+    coEvery { friendRepository.getOutgoingRequests() } returns emptyList()
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        publicProfileRepositoryOverride =
+            TestPublicProfileRepository(
+                profiles = mapOf("friend-uid" to PublicProfile("friend-uid", "Alice"))
+            ),
+        friendRepository = friendRepository,
+        monumentSharingRepository = FakeMonumentSharingRepository(),
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.friends_view_collection)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_view_collection).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).assertIsEnabled().performClick()
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(Routes.Home, navController[0]?.currentDestination?.route)
+    assertEquals(listOf(Routes.Home), backStackRoutes(checkNotNull(navController[0])))
+  }
+
+  @Test
+  fun friendCollectionButtonWorksWithEmptyUsername() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val friendRepository = mockk<FriendRepository>()
+    coEvery { friendRepository.getFriends() } returns listOf(Friendship("f", "friend-uid"))
+    coEvery { friendRepository.getIncomingRequests() } returns emptyList()
+    coEvery { friendRepository.getOutgoingRequests() } returns emptyList()
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        publicProfileRepositoryOverride =
+            TestPublicProfileRepository(
+                profiles = mapOf("friend-uid" to PublicProfile("friend-uid", ""))
+            ),
+        friendRepository = friendRepository,
+        monumentSharingRepository = FakeMonumentSharingRepository(),
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.friends_view_collection)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_view_collection).performClick()
+
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("friend-uid's monuments")
+  }
+
   private fun navigateToSettings(navController: NavHostController) {
     composeTestRule.runOnIdle { navController.navigate(Routes.Settings) }
   }
@@ -1946,6 +2069,8 @@ class MainActivityNavigationTest {
       openFriendsOnLaunch: Boolean = false,
       notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
       notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+      monumentSharingRepository: MonumentSharingRepository? = null,
+      friendRepository: FriendRepository? = null,
       activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
@@ -1984,6 +2109,8 @@ class MainActivityNavigationTest {
                       publicProfileRepository = publicProfileRepositoryOverride,
                       notificationInstallationRepository =
                           notificationInstallationRepositoryOverride,
+                      monumentSharingRepository = monumentSharingRepository,
+                      friendRepository = friendRepository,
                   ),
               openFriendsOnLaunch = openFriendsOnLaunch,
               notificationNavigationEvents = notificationNavigationEvents,
@@ -2026,6 +2153,7 @@ class MainActivityNavigationTest {
       initialProfile: PublicProfile? = PublicProfile("test-user", "test_user"),
       private val profileCheckFailure: Exception? = null,
       var registrationFailure: Exception? = null,
+      private val profiles: Map<String, PublicProfile> = emptyMap(),
   ) : PublicProfileRepository {
     private var profile = initialProfile
     var registeredUsername: String? = null
@@ -2036,7 +2164,7 @@ class MainActivityNavigationTest {
       return profile
     }
 
-    override suspend fun getProfile(uid: String): PublicProfile? = null
+    override suspend fun getProfile(uid: String): PublicProfile? = profiles[uid]
 
     override suspend fun registerUsername(username: String): PublicProfile {
       registrationFailure?.let { throw it }

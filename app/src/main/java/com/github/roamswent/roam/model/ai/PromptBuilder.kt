@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
@@ -37,12 +38,32 @@ object PromptBuilder {
     appendLine("Answer only with a JSON object containing these fields:")
     appendLine("- monumentName: the monument's name, or null if no monument is recognisable")
     appendLine("- confidence: a number from 0 to 1")
-    appendLine("- history: a short history of the monument")
-    appendLine("- facts: a list of short, interesting facts")
-    appendLine("- culture: its cultural significance")
+    appendLine("- overview: a one- or two-sentence introduction, or null when unavailable")
     appendLine(
-        "- sections: a list of objects with title and content, one for each traveler topic; " +
-            "use an empty list when no topics are provided"
+        "- history: explain the monument's origins, who commissioned or built it and why, " +
+            "and how it changed over time. Include specific events and historical context " +
+            "where these are well established."
+    )
+    appendLine("- facts: a list of short, interesting facts")
+    appendLine(
+        "- culture: explain what the monument means locally and how people relate to it. " +
+            "Include concrete examples of traditions, commemorations, or contemporary uses " +
+            "when they are well established."
+    )
+    appendLine(
+        "Write history and culture as one or two substantive prose paragraphs each. " +
+            "Separate paragraphs with a blank line and use no list markers. " +
+            "Omit details you cannot confidently support."
+    )
+    appendLine(
+        "- sections: a list of objects with topic, title and content. Copy topic exactly from " +
+            "the traveler's selected topics and localize title and content. Include at most one " +
+            "section per relevant selected topic, or an empty list when none apply."
+    )
+    appendLine(
+        "- timeline: a list of up to 8 well-established events, earliest first. Each object has " +
+            "year (an integer, negative for BCE, never zero) and event (one short sentence). " +
+            "Use an empty list when you cannot confidently date any important events."
     )
     appendLine("- language: the language of your answer")
     appendLine(
@@ -58,6 +79,7 @@ object PromptBuilder {
             "place where the photo was taken."
     )
     appendLine("Write the text fields in ${sanitizeLanguage(preferences.language)}.")
+    appendLine("Keep topic identifiers exactly as provided.")
     val interests = sanitizeInterests(preferences.interests)
     if (interests.isNotEmpty()) {
       appendLine(
@@ -74,7 +96,7 @@ object PromptBuilder {
       } else {
         appendLine(
             "Because there are more than three selected topics, keep each section focused, concise, and " +
-                "easy to scan while covering every topic."
+                "easy to scan for each relevant topic."
         )
       }
     }
@@ -107,10 +129,7 @@ object PromptBuilder {
     return if (LANGUAGE_TAG.matches(trimmed)) trimmed else DEFAULT_LANGUAGE
   }
 
-  internal fun sanitizedInterestCount(interests: List<String>): Int =
-      sanitizeInterests(interests).size
-
-  private fun sanitizeInterests(interests: List<String>): List<String> =
+  internal fun sanitizeInterests(interests: List<String>): List<String> =
       interests
           .map { it.trim().take(MAX_INTEREST_LENGTH) }
           .filter { it.isNotEmpty() }

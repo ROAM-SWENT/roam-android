@@ -1,3 +1,5 @@
+<!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
+<!-- Co-authored-by: Codex <codex@openai.com> -->
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">Roam</string>
@@ -49,6 +51,12 @@
     <string name="friends_remove_confirmation_message">Are you sure you want to delete %1$s?</string>
     <string name="friends_cancel_action">Cancel</string>
     <string name="friends_dismiss_action">Dismiss</string>
+    <string name="friends_view_collection_description">View monuments shared by %1$s</string>
+    <string name="friend_collection_title">%1$s\'s monuments</string>
+    <string name="friend_collection_error">Couldn’t load this collection. Please try again.</string>
+    <string name="friend_collection_empty_title">No shared monuments yet</string>
+    <string name="friend_collection_empty_subtitle">This friend has not shared any monument with you.</string>
+    <string name="collection_back_description">Back</string>
     <string name="home_tab_explore">Explore</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>
@@ -117,6 +125,7 @@
     <string name="collection_delete">Delete guide</string>
     <string name="collection_delete_error">Couldn’t delete this guide. Please try again.</string>
     <string name="collection_search_hint">Search your collection</string>
+    <string name="friend_collection_search_hint">Search their collection</string>
     <string name="collection_search_no_matches_title">No matches</string>
     <string name="collection_search_no_matches_subtitle">No monument matches your search.</string>
     <string name="collection_search_clear_description">Clear search</string>
@@ -188,6 +197,7 @@
     <string name="monument_detail_picture_description">Monument picture</string>
     <string name="saved_monument_detail_error">Couldn’t load this monument. Please try again.</string>
     <string name="saved_monument_detail_not_found">This monument is no longer in your collection.</string>
+    <string name="shared_monument_detail_not_found">This monument is no longer shared with you.</string>
     <string name="saved_monument_detail_retry">Retry</string>
     <string name="scan_review_photo_title">Review your photo</string>
     <string name="scan_review_choose_another_photo">Choose another photo</string>
@@ -210,11 +220,13 @@
     <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">App Permissions</string>
     <string name="monument_detail_match_percent">%1$d%% match</string>
-    <string name="monument_detail_fact_bullet">• %1$s</string>
     <string name="monument_detail_ai_guide_label">YOUR AI GUIDE</string>
     <string name="monument_detail_history_title">History</string>
     <string name="monument_detail_culture_title">Local Culture</string>
     <string name="monument_detail_facts_title">Fun Fact</string>
+    <string name="monument_detail_facts_plural_title">Fun Facts</string>
+    <string name="monument_detail_timeline_title">Timeline</string>
+    <string name="monument_detail_year_bce">%1$d BCE</string>
     <string name="monument_detail_show_in_explore">Show in Explore</string>
     <string name="monument_detail_show_in_explore_supporting">Pin this monument on the map where you scanned it.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Pin this monument on the map where the photo was taken.</string>
