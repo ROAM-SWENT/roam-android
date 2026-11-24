@@ -74,6 +74,7 @@ import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.notifications.NotificationNavigation
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationRequest
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -163,7 +164,11 @@ class MainActivityNavigationTest {
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
-        notificationNavigationOnLaunch = NotificationNavigation.Friends,
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.Friends,
+                preserveBackStack = false,
+            ),
     )
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -185,7 +190,11 @@ class MainActivityNavigationTest {
     renderApp(
         authState,
         onNavControllerReady = { navController[0] = it },
-        notificationNavigationOnLaunch = NotificationNavigation.Friends,
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.Friends,
+                preserveBackStack = false,
+            ),
     )
 
     waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
@@ -203,7 +212,8 @@ class MainActivityNavigationTest {
   fun notificationTapFromAnotherScreenNavigatesToFriends() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val navController = arrayOfNulls<NavHostController>(1)
-    val notificationEvents = MutableSharedFlow<NotificationNavigation>(extraBufferCapacity = 1)
+    val notificationEvents =
+        MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
@@ -214,7 +224,14 @@ class MainActivityNavigationTest {
     navigateToSettings(checkNotNull(navController[0]))
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
     composeTestRule.runOnIdle {
-      assertTrue(notificationEvents.tryEmit(NotificationNavigation.Friends))
+      assertTrue(
+          notificationEvents.tryEmit(
+              NotificationNavigationRequest(
+                  NotificationNavigation.Friends,
+                  preserveBackStack = true,
+              )
+          )
+      )
     }
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -223,16 +240,19 @@ class MainActivityNavigationTest {
 
     composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
     assertEquals(
-        listOf(Routes.Home, Routes.Friends),
+        listOf(Routes.Home, Routes.Settings, Routes.Friends),
         backStackRoutes(checkNotNull(navController[0])),
     )
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
   }
 
   @Test
   fun sharedMonumentNotificationNavigatesToSharedDetail() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val navController = arrayOfNulls<NavHostController>(1)
-    val notificationEvents = MutableSharedFlow<NotificationNavigation>(extraBufferCapacity = 1)
+    val notificationEvents =
+        MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
     val guide =
         Guide(
             id = "guide-1",
@@ -251,15 +271,23 @@ class MainActivityNavigationTest {
     )
 
     waitAndAssertDisplayed(C.Tag.home_screen_container)
+    navigateToSettings(checkNotNull(navController[0]))
     composeTestRule.runOnIdle {
       assertTrue(
-          notificationEvents.tryEmit(NotificationNavigation.SharedMonument("alice", "guide-1"))
+          notificationEvents.tryEmit(
+              NotificationNavigationRequest(
+                  NotificationNavigation.SharedMonument("alice", "guide-1"),
+                  preserveBackStack = true,
+              )
+          )
       )
     }
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       navController[0]?.currentDestination?.route == Routes.SharedMonumentDetailPattern
     }
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
   }
 
   /** Existing server tokens are removed when notification permission is not granted. */
@@ -1903,9 +1931,9 @@ class MainActivityNavigationTest {
       publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
       signOutFailure: Throwable? = null,
-      notificationNavigationOnLaunch: NotificationNavigation? = null,
+      notificationNavigationOnLaunch: NotificationNavigationRequest? = null,
       notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
-      notificationNavigationEvents: Flow<NotificationNavigation> = emptyFlow(),
+      notificationNavigationEvents: Flow<NotificationNavigationRequest> = emptyFlow(),
       monumentSharingRepository: MonumentSharingRepository? = null,
       friendRepository: FriendRepository? = null,
       activityResultRegistryOwner: ActivityResultRegistryOwner? = null,

@@ -93,6 +93,7 @@ import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.notifications.NotificationNavigation
 import com.github.roamswent.roam.ui.notifications.NotificationNavigationParser
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationRequest
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -133,8 +134,8 @@ private const val TAG = "RoamMainActivity"
 
 class MainActivity : AppCompatActivity() {
   private val notificationNavigationEvents =
-      MutableSharedFlow<NotificationNavigation>(extraBufferCapacity = 1)
-  private val notificationNavigationFlow: Flow<NotificationNavigation> =
+      MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
+  private val notificationNavigationFlow: Flow<NotificationNavigationRequest> =
       notificationNavigationEvents
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -159,7 +160,10 @@ class MainActivity : AppCompatActivity() {
             authViewModel = authViewModel,
             themeMode = selectedTheme,
             onThemeModeSelected = themeViewModel::setThemeMode,
-            notificationNavigationOnLaunch = NotificationNavigationParser.parse(intent),
+            notificationNavigationOnLaunch =
+                NotificationNavigationParser.parse(intent)?.let {
+                  NotificationNavigationRequest(it, preserveBackStack = false)
+                },
             notificationNavigationEvents = notificationNavigationFlow,
         )
       }
@@ -175,7 +179,11 @@ class MainActivity : AppCompatActivity() {
   override fun onNewIntent(intent: android.content.Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
-    NotificationNavigationParser.parse(intent)?.let(notificationNavigationEvents::tryEmit)
+    NotificationNavigationParser.parse(intent)?.let {
+      notificationNavigationEvents.tryEmit(
+          NotificationNavigationRequest(it, preserveBackStack = true)
+      )
+    }
   }
 }
 
@@ -204,8 +212,8 @@ internal fun RoamApp(
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     testOverrides: RoamAppTestOverrides? = null,
-    notificationNavigationOnLaunch: NotificationNavigation? = null,
-    notificationNavigationEvents: Flow<NotificationNavigation> = emptyFlow(),
+    notificationNavigationOnLaunch: NotificationNavigationRequest? = null,
+    notificationNavigationEvents: Flow<NotificationNavigationRequest> = emptyFlow(),
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
@@ -368,11 +376,14 @@ internal fun RoamApp(
             route !in setOf(Routes.SignIn, Routes.RegisterProfile) &&
             pendingNotificationNavigation != null
     ) {
-      when (val navigation = checkNotNull(pendingNotificationNavigation)) {
+      val notification = checkNotNull(pendingNotificationNavigation)
+      when (val navigation = notification.navigation) {
         NotificationNavigation.Friends -> {
           if (route != Routes.Friends) {
             navController.navigate(Routes.Friends) {
-              popUpTo(Routes.Home) { inclusive = false }
+              if (!notification.preserveBackStack) {
+                popUpTo(Routes.Home) { inclusive = false }
+              }
               launchSingleTop = true
               restoreState = true
             }
@@ -382,7 +393,9 @@ internal fun RoamApp(
           navController.navigate(
               Routes.sharedMonumentDetail(navigation.ownerUid, navigation.guideId)
           ) {
-            popUpTo(Routes.Home) { inclusive = false }
+            if (!notification.preserveBackStack) {
+              popUpTo(Routes.Home) { inclusive = false }
+            }
             launchSingleTop = true
           }
         }

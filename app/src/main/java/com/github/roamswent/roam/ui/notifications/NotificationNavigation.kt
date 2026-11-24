@@ -12,6 +12,11 @@ sealed interface NotificationNavigation {
   data class SharedMonument(val ownerUid: String, val guideId: String) : NotificationNavigation
 }
 
+data class NotificationNavigationRequest(
+    val navigation: NotificationNavigation,
+    val preserveBackStack: Boolean,
+)
+
 object NotificationNavigationParser {
   fun parse(intent: Intent?): NotificationNavigation? {
     return when (intent?.action) {
