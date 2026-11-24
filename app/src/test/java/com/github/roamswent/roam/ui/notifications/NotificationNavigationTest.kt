@@ -36,8 +36,19 @@ class NotificationNavigationTest {
   fun rejectsInvalidOrUnknownNotificationIntents() {
     val missingExtra = Intent(MonumentShareNotifications.ACTION_OPEN_SHARED_MONUMENT)
     missingExtra.putExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_OWNER_UID, "owner")
+    val missingOwner = Intent(MonumentShareNotifications.ACTION_OPEN_SHARED_MONUMENT)
+    missingOwner.putExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_GUIDE_ID, "guide")
+    val blankOwner = Intent(MonumentShareNotifications.ACTION_OPEN_SHARED_MONUMENT)
+    blankOwner.putExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_OWNER_UID, " ")
+    blankOwner.putExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_GUIDE_ID, "guide")
+    val blankGuide = Intent(MonumentShareNotifications.ACTION_OPEN_SHARED_MONUMENT)
+    blankGuide.putExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_OWNER_UID, "owner")
+    blankGuide.putExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_GUIDE_ID, " ")
 
     assertNull(NotificationNavigationParser.parse(missingExtra))
+    assertNull(NotificationNavigationParser.parse(missingOwner))
+    assertNull(NotificationNavigationParser.parse(blankOwner))
+    assertNull(NotificationNavigationParser.parse(blankGuide))
     assertNull(NotificationNavigationParser.parse(Intent("unknown")))
     assertNull(NotificationNavigationParser.parse(null))
   }

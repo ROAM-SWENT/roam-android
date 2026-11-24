@@ -50,4 +50,19 @@ class MonumentShareNotificationTest {
         intent.getStringExtra(MonumentShareNotifications.EXTRA_SHARED_MONUMENT_GUIDE_ID),
     )
   }
+
+  @Test
+  fun doesNotShowNotificationWhenNotificationsAreDisabled() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(false)
+    val notificationCount = shadowOf(manager).allNotifications.size
+
+    MonumentShareNotifications.show(
+        context,
+        MonumentShareNotificationData("guide-2", "alice", "Alice", "bob", "The Bridge"),
+    )
+
+    assertEquals(notificationCount, shadowOf(manager).allNotifications.size)
+  }
 }
