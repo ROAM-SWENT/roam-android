@@ -7,6 +7,8 @@ import android.net.Uri
 
 object Routes {
   const val SignIn = "sign_in"
+  const val SignUp = "sign_up"
+  const val EmailVerification = "email_verification"
   const val RegisterProfile = "register_profile"
   const val Home = "home"
   const val Explore = "explore"

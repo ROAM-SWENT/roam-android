@@ -18,6 +18,39 @@ interface AuthRepository {
    */
   suspend fun signInWithGoogle(credential: Credential): Result<FirebaseUser>
 
+  /** Creates a Firebase user with an email and password. */
+  suspend fun signUpWithEmail(email: String, password: String): Result<FirebaseUser> =
+      Result.failure(UnsupportedOperationException("Email/password sign-up is not supported"))
+
+  /** Signs in a Firebase user with an email and password. */
+  suspend fun signInWithEmail(email: String, password: String): Result<FirebaseUser> =
+      Result.failure(UnsupportedOperationException("Email/password sign-in is not supported"))
+
+  /** Sends a verification email to the currently signed-in user. */
+  suspend fun sendEmailVerification(): Result<Unit> =
+      Result.failure(UnsupportedOperationException("Email verification is not supported"))
+
+  /** Resends a verification email to the currently signed-in user. */
+  suspend fun resendEmailVerification(): Result<Unit> = sendEmailVerification()
+
+  /** Reloads the current user and reports whether their email has been verified. */
+  suspend fun reloadEmailVerificationStatus(): Result<Boolean> =
+      Result.failure(UnsupportedOperationException("Email verification status is not supported"))
+
+  /** Returns the locally cached email verification status. */
+  fun isEmailVerified(): Boolean = false
+
+  /** Firebase-named aliases for email/password authentication. */
+  suspend fun signUpWithEmailAndPassword(
+      email: String,
+      password: String,
+  ): Result<FirebaseUser> = signUpWithEmail(email, password)
+
+  suspend fun signInWithEmailAndPassword(
+      email: String,
+      password: String,
+  ): Result<FirebaseUser> = signInWithEmail(email, password)
+
   /** Returns the currently signed-in user, or null when signed out. */
   fun currentUser(): FirebaseUser?
 

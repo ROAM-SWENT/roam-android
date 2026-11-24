@@ -66,13 +66,18 @@ import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
+import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.authentication.EmailVerificationScreen
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.authentication.SignUpScreen
+import com.github.roamswent.roam.ui.authentication.isUnverifiedEmailPasswordUser
 import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.collection.FriendCollectionRoute
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
@@ -192,6 +197,7 @@ internal data class RoamAppTestOverrides(
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
+    val privateProfileRepository: ProfileRepository? = null,
 )
 
 @Composable
@@ -217,7 +223,11 @@ internal fun RoamApp(
     testOverrides?.publicProfileRepository ?: FirestorePublicProfileRepository()
   }
   val registerProfileViewModel: RegisterProfileViewModel = viewModel {
-    RegisterProfileViewModel(publicProfileRepository)
+    RegisterProfileViewModel(
+        publicProfileRepository,
+        testOverrides?.let { it.privateProfileRepository }
+            ?: if (testOverrides == null) ProfileRepositoryFirebase() else null,
+    )
   }
   val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()
   val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
@@ -320,7 +330,14 @@ internal fun RoamApp(
       profileUiState.status,
       profileUiState.errorMessage,
       currentBackStackEntry?.destination?.route,
+      authUiState.user,
   ) {
+    if (isUnverifiedEmailPasswordUser(authUiState.user)) {
+      if (currentBackStackEntry?.destination?.route != Routes.EmailVerification) {
+        navController.navigate(Routes.EmailVerification)
+      }
+      return@LaunchedEffect
+    }
     when (profileUiState.status) {
       ProfileRegistrationStatus.REGISTRATION_REQUIRED -> {
         if (currentBackStackEntry?.destination?.route != Routes.RegisterProfile) {
@@ -330,6 +347,8 @@ internal fun RoamApp(
       ProfileRegistrationStatus.REGISTERED -> {
         if (
             currentBackStackEntry?.destination?.route == Routes.SignIn ||
+                currentBackStackEntry?.destination?.route == Routes.SignUp ||
+                currentBackStackEntry?.destination?.route == Routes.EmailVerification ||
                 currentBackStackEntry?.destination?.route == Routes.RegisterProfile
         ) {
           if (
@@ -363,7 +382,13 @@ internal fun RoamApp(
         profileUiState.status == ProfileRegistrationStatus.REGISTERED &&
             openFriendsAfterAuthentication &&
             route != null &&
-            route !in setOf(Routes.SignIn, Routes.RegisterProfile)
+            route !in
+                setOf(
+                    Routes.SignIn,
+                    Routes.SignUp,
+                    Routes.EmailVerification,
+                    Routes.RegisterProfile,
+                )
     ) {
       if (route != Routes.Friends) {
         navController.navigate(Routes.Friends) {
@@ -459,7 +484,35 @@ internal fun RoamApp(
                 testOverrides?.onSignedIn?.let { onSignedIn ->
                   { onSignedIn(locationPermissionController) }
                 } ?: registerProfileViewModel::checkCurrentProfile,
+            onSignUp = { navController.navigate(Routes.SignUp) },
+            onEmailVerification = {
+              navController.navigate(Routes.EmailVerification) { launchSingleTop = true }
+            },
             onSignInClickOverride = testOverrides?.onSignInClick,
+        )
+      }
+      composable(Routes.SignUp) {
+        SignUpScreen(
+            authViewModel = authViewModel,
+            onBack = { navController.popBackStack() },
+            onEmailVerification = {
+              navController.navigate(Routes.EmailVerification) { launchSingleTop = true }
+            },
+        )
+      }
+      composable(Routes.EmailVerification) {
+        EmailVerificationScreen(
+            authViewModel = authViewModel,
+            onVerified =
+                testOverrides?.onSignedIn?.let { onSignedIn ->
+                  { onSignedIn(locationPermissionController) }
+                } ?: registerProfileViewModel::checkCurrentProfile,
+            onBack = {
+              authViewModel.signOut()
+              navController.navigate(Routes.SignIn) {
+                popUpTo(navController.graph.id) { inclusive = true }
+              }
+            },
         )
       }
       composable(Routes.RegisterProfile) {
