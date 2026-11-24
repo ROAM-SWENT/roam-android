@@ -98,6 +98,13 @@
     <string name="collection_photo_description">Photo of %1$s</string>
     <string name="collection_filter_all">All</string>
     <string name="collection_filter_favorites">Favourites</string>
+    <string name="collection_filter_wishlist">Wishlist</string>
+    <string name="collection_wishlist_info">From friends. Scan one to move it to your collection.</string>
+    <string name="collection_wishlist_empty">No monuments in your wishlist yet.</string>
+    <string name="collection_wishlist_add">Add to wishlist</string>
+    <string name="collection_wishlist_remove">Remove from wishlist</string>
+    <string name="collection_wishlist_scanned_by">Scanned by %1$s</string>
+    <string name="collection_wishlist_scanned_by_friends">Scanned by %1$d friends</string>
     <string name="collection_favorite_add">Add to favourites</string>
     <string name="collection_favorite_remove">Remove from favourites</string>
     <string name="collection_favorites_empty_title">No favourites yet</string>
