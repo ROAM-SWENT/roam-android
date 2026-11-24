@@ -214,6 +214,39 @@ class FriendsViewModelTest {
       }
 
   @Test
+  fun loadsAvatarBytesForFriendsAndSearchResults() =
+      runTest(dispatcher) {
+        val avatarBytes = byteArrayOf(1, 2, 3)
+        coEvery { friendsRepository.getFriends() } returns
+            listOf(Friendship("friendship", "friend"))
+        coEvery { friendsRepository.getIncomingRequests() } returns emptyList()
+        coEvery { friendsRepository.getOutgoingRequests() } returns emptyList()
+        coEvery { profilesRepository.getProfile("friend") } returns
+            PublicProfile("friend", "FriendName", avatarBytes)
+        coEvery { profilesRepository.searchProfiles("Friend") } returns
+            listOf(PublicProfile("friend", "FriendName", avatarBytes))
+        val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+        viewModel.searchUsers("Friend")
+        advanceUntilIdle()
+
+        assertEquals(
+            true,
+            viewModel.uiState.value.friends.single().avatarBytes.contentEquals(avatarBytes),
+        )
+        assertEquals(
+            true,
+            viewModel.uiState.value.searchResults
+                .single()
+                .user
+                .avatarBytes
+                .contentEquals(avatarBytes),
+        )
+      }
+
+  @Test
   fun searchFailureIsShownAndCanBeCleared() =
       runTest(dispatcher) {
         val error = IllegalStateException("profile search failed")

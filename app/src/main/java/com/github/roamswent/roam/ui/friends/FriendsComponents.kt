@@ -79,6 +79,7 @@ internal fun FriendsContent(
     friendsQuery: String,
     onFriendsQueryChanged: (String) -> Unit,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
     onFriendClicked: (FriendUser) -> Unit,
@@ -102,6 +103,7 @@ internal fun FriendsContent(
         title = stringResource(R.string.friends_title),
         pendingRequestCount = pendingRequestCount,
         profileName = profileName,
+        profileAvatarBytes = profileAvatarBytes,
         onAddFriendsClicked = onAddFriendsClicked,
         onProfileClicked = onProfileClicked,
     )
@@ -179,6 +181,7 @@ private fun FriendsHeader(
     title: String,
     pendingRequestCount: Int,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
 ) {
@@ -202,6 +205,7 @@ private fun FriendsHeader(
     )
     ProfileBubble(
         name = profileName.orEmpty(),
+        avatarBytes = profileAvatarBytes,
         onClick = onProfileClicked,
         testTag = C.Tag.home_profile_button,
     )
@@ -280,7 +284,7 @@ internal fun FriendRequestCard(
     ) {
       ProfilePicture(
           name = request.user.username,
-          avatarUrl = request.user.avatarUrl,
+          avatarBytes = request.user.avatarBytes,
           modifier = Modifier.size(48.dp),
       )
       Text(
@@ -374,7 +378,7 @@ private fun FriendRow(
       ) {
         ProfilePicture(
             name = friend.username,
-            avatarUrl = friend.avatarUrl,
+            avatarBytes = friend.avatarBytes,
             modifier = Modifier.size(52.dp),
         )
         Text(

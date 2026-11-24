@@ -67,13 +67,18 @@ import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
+import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.authentication.EmailVerificationScreen
 import com.github.roamswent.roam.ui.authentication.SignInScreen
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.authentication.SignUpScreen
+import com.github.roamswent.roam.ui.authentication.isUnverifiedEmailPasswordUser
 import com.github.roamswent.roam.ui.collection.CollectionRoute
 import com.github.roamswent.roam.ui.collection.FriendCollectionRoute
 import com.github.roamswent.roam.ui.components.bottomdock.AppBottomDock
@@ -203,6 +208,7 @@ internal data class RoamAppTestOverrides(
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
+    val privateProfileRepository: ProfileRepository? = null,
 )
 
 @Composable
@@ -228,7 +234,11 @@ internal fun RoamApp(
     testOverrides?.publicProfileRepository ?: FirestorePublicProfileRepository()
   }
   val registerProfileViewModel: RegisterProfileViewModel = viewModel {
-    RegisterProfileViewModel(publicProfileRepository)
+    RegisterProfileViewModel(
+        publicProfileRepository,
+        testOverrides?.let { it.privateProfileRepository }
+            ?: if (testOverrides == null) ProfileRepositoryFirebase() else null,
+    )
   }
   val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()
   val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
@@ -331,7 +341,14 @@ internal fun RoamApp(
       profileUiState.status,
       profileUiState.errorMessage,
       currentBackStackEntry?.destination?.route,
+      authUiState.user,
   ) {
+    if (isUnverifiedEmailPasswordUser(authUiState.user)) {
+      if (currentBackStackEntry?.destination?.route != Routes.EmailVerification) {
+        navController.navigate(Routes.EmailVerification)
+      }
+      return@LaunchedEffect
+    }
     when (profileUiState.status) {
       ProfileRegistrationStatus.REGISTRATION_REQUIRED -> {
         if (currentBackStackEntry?.destination?.route != Routes.RegisterProfile) {
@@ -341,6 +358,8 @@ internal fun RoamApp(
       ProfileRegistrationStatus.REGISTERED -> {
         if (
             currentBackStackEntry?.destination?.route == Routes.SignIn ||
+                currentBackStackEntry?.destination?.route == Routes.SignUp ||
+                currentBackStackEntry?.destination?.route == Routes.EmailVerification ||
                 currentBackStackEntry?.destination?.route == Routes.RegisterProfile
         ) {
           if (
@@ -373,8 +392,13 @@ internal fun RoamApp(
     if (
         profileUiState.status == ProfileRegistrationStatus.REGISTERED &&
             route != null &&
-            route !in setOf(Routes.SignIn, Routes.RegisterProfile) &&
-            pendingNotificationNavigation != null
+            route !in
+                setOf(
+                    Routes.SignIn,
+                    Routes.SignUp,
+                    Routes.EmailVerification,
+                    Routes.RegisterProfile,
+                ) && pendingNotificationNavigation != null
     ) {
       val notification = checkNotNull(pendingNotificationNavigation)
       when (val navigation = notification.navigation) {
@@ -420,7 +444,11 @@ internal fun RoamApp(
   }
   val onDockDestinationSelected = { destination: DockDestination ->
     val navigate = {
-      if (destination.route != currentBackStackEntry?.destination?.route) {
+      if (navController.currentDestination?.route == Routes.Settings) {
+        navController.popBackStack()
+      }
+
+      if (destination.route != navController.currentDestination?.route) {
         if (destination.route == Routes.Home) {
           // Home is the navigation root: pop back to it instead of navigating,
           // which launchSingleTop would swallow because popUpTo(Home) already
@@ -448,6 +476,7 @@ internal fun RoamApp(
     if (offlineAction == null) navigate() else runOfflineAction(offlineAction, navigate)
   }
   val onProfileClicked = { navController.navigate(Routes.Settings) { launchSingleTop = true } }
+
   // Screens apply their own status bar inset, so the top inset stays 0 and
   // containerColor covers the status bar strip.
   @Composable
@@ -482,7 +511,35 @@ internal fun RoamApp(
                 testOverrides?.onSignedIn?.let { onSignedIn ->
                   { onSignedIn(locationPermissionController) }
                 } ?: registerProfileViewModel::checkCurrentProfile,
+            onSignUp = { navController.navigate(Routes.SignUp) },
+            onEmailVerification = {
+              navController.navigate(Routes.EmailVerification) { launchSingleTop = true }
+            },
             onSignInClickOverride = testOverrides?.onSignInClick,
+        )
+      }
+      composable(Routes.SignUp) {
+        SignUpScreen(
+            authViewModel = authViewModel,
+            onBack = { navController.popBackStack() },
+            onEmailVerification = {
+              navController.navigate(Routes.EmailVerification) { launchSingleTop = true }
+            },
+        )
+      }
+      composable(Routes.EmailVerification) {
+        EmailVerificationScreen(
+            authViewModel = authViewModel,
+            onVerified =
+                testOverrides?.onSignedIn?.let { onSignedIn ->
+                  { onSignedIn(locationPermissionController) }
+                } ?: registerProfileViewModel::checkCurrentProfile,
+            onBack = {
+              authViewModel.signOut()
+              navController.navigate(Routes.SignIn) {
+                popUpTo(navController.graph.id) { inclusive = true }
+              }
+            },
         )
       }
       composable(Routes.RegisterProfile) {
@@ -493,14 +550,8 @@ internal fun RoamApp(
           HomeViewModel(publicProfileRepository = publicProfileRepository)
         }
         val userName by homeViewModel.userName.collectAsState()
-        val lifecycleOwner = LocalLifecycleOwner.current
-        DisposableEffect(lifecycleOwner, homeViewModel) {
-          val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) homeViewModel.refreshUserName()
-          }
-          lifecycleOwner.lifecycle.addObserver(observer)
-          onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-        }
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
+        RefreshProfileOnResume(homeViewModel)
         // HomeScreen and the dock apply their own status/nav bar insets, so the
         // scaffold only contributes the ScreenBackground behind the status bar.
         Scaffold(
@@ -512,6 +563,7 @@ internal fun RoamApp(
               onScanClicked = onScanClick,
               cameraAvailable = cameraAvailable,
               userName = userName,
+              avatarBytes = avatarBytes,
               onDockDestinationSelected = onDockDestinationSelected,
               onProfileClicked = onProfileClicked,
               isConnectedToInternet = isOnline,
@@ -582,8 +634,12 @@ internal fun RoamApp(
       }
 
       composable(Routes.Collection) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
+        RefreshProfileOnResume(homeViewModel)
         val dockClearance = dockContentClearance()
         val onGalleryImagePicked: (Uri?) -> Unit = { uri ->
           uri?.let {
@@ -606,6 +662,7 @@ internal fun RoamApp(
               publicProfileRepository = publicProfileRepository,
               monumentSharingProvider = monumentSharingProvider,
               profileName = userName,
+              profileAvatarBytes = avatarBytes,
               onProfileClicked = onProfileClicked,
               onPickFromGallery = pickFromGallery,
           )
@@ -627,8 +684,12 @@ internal fun RoamApp(
       }
 
       composable(Routes.Friends) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
+        RefreshProfileOnResume(homeViewModel)
         val dockClearance = dockContentClearance()
         DockedScaffold(containerColor = dockedScreenBackground) { innerPadding ->
           FriendsRoute(
@@ -638,6 +699,7 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               profileName = userName,
+              profileAvatarBytes = avatarBytes,
               onProfileClicked = onProfileClicked,
               onFriendCollectionClicked = { friend ->
                 navController.navigate(Routes.friendCollection(friend.id, friend.username))
@@ -702,8 +764,12 @@ internal fun RoamApp(
       }
 
       composable(Routes.Explore) {
-        val homeViewModel: HomeViewModel = viewModel()
+        val homeViewModel: HomeViewModel = viewModel {
+          HomeViewModel(publicProfileRepository = publicProfileRepository)
+        }
         val userName by homeViewModel.userName.collectAsState()
+        val avatarBytes by homeViewModel.avatarBytes.collectAsState()
+        RefreshProfileOnResume(homeViewModel)
         val exploreViewModel: ExploreViewModel = viewModel {
           ExploreViewModel(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
@@ -732,6 +798,7 @@ internal fun RoamApp(
             ExploreScreen(
                 onProfileClicked = onProfileClicked,
                 profileName = userName,
+                profileAvatarBytes = avatarBytes,
                 isOnline = isOnline,
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,
@@ -749,5 +816,22 @@ internal fun RoamApp(
           onDismiss = { showPermissionDialog = false },
       )
     }
+  }
+}
+
+@Composable
+fun RefreshProfileOnResume(homeViewModel: HomeViewModel) {
+  val lifecycleOwner = LocalLifecycleOwner.current
+
+  DisposableEffect(lifecycleOwner, homeViewModel) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
+        homeViewModel.refreshUserName()
+      }
+    }
+
+    lifecycleOwner.lifecycle.addObserver(observer)
+
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 }

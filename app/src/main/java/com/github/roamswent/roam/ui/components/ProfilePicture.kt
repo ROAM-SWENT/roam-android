@@ -6,6 +6,7 @@ package com.github.roamswent.roam.ui.components
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -20,11 +21,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import coil.compose.AsyncImage
 import com.github.roamswent.roam.ui.theme.HomeAccentGreen
 import com.github.roamswent.roam.ui.theme.OnBrand
 import kotlin.math.roundToInt
@@ -32,7 +33,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun ProfilePicture(
     name: String,
-    avatarUrl: String? = null,
+    avatarBytes: ByteArray? = null,
     modifier: Modifier = Modifier,
     textStyle: TextStyle = MaterialTheme.typography.titleMedium,
     onClick: (() -> Unit)? = null,
@@ -42,13 +43,23 @@ internal fun ProfilePicture(
       modifier = clickableModifier.clip(CircleShape).background(HomeAccentGreen),
       contentAlignment = Alignment.Center,
   ) {
-    if (avatarUrl != null) {
-      AsyncImage(
-          model = avatarUrl,
-          contentDescription = null,
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize().clip(CircleShape),
-      )
+    if (avatarBytes != null) {
+      val avatar = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.size)
+      if (avatar != null) {
+        androidx.compose.foundation.Image(
+            bitmap = avatar.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().clip(CircleShape),
+        )
+      } else {
+        Text(
+            text = profilePictureInitial(name),
+            color = OnBrand,
+            style = textStyle,
+            fontWeight = FontWeight.Bold,
+        )
+      }
     } else {
       Text(
           text = profilePictureInitial(name),

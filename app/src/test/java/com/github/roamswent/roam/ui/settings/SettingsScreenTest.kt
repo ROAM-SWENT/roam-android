@@ -5,7 +5,15 @@
 
 package com.github.roamswent.roam.ui.settings
 
+import android.app.Activity
+import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -35,6 +43,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.core.app.ActivityOptionsCompat
 import androidx.core.os.LocaleListCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.Lifecycle
@@ -58,6 +67,7 @@ import com.github.roamswent.roam.ui.permission.NotificationPermissionController
 import com.github.roamswent.roam.ui.permission.NotificationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.github.roamswent.roam.ui.theme.ScreenBackground
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -68,7 +78,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
+import org.mockito.Mockito.timeout
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
@@ -944,6 +956,137 @@ class SettingsScreenTest {
     } finally {
       java.util.Locale.setDefault(originalDefault)
       AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+    }
+  }
+
+  @Test
+  fun avatarErrorState_displaysToast() {
+    val viewModel = mock<SettingsViewModel>()
+    val state =
+        MutableStateFlow(SettingsUIState(avatarErrorMsg = R.string.settings_avatar_error_update))
+    whenever(viewModel.uiState).thenReturn(state)
+
+    renderSettingsScreen(viewModel)
+    composeTestRule.waitForIdle()
+
+    assertEquals(
+        context.getString(R.string.settings_avatar_error_update),
+        ShadowToast.getTextOfLatestToast(),
+    )
+  }
+
+  @Test
+  fun avatarPicker_validImage_uploadsProcessedPicture() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(SettingsUIState(publicProfile = PublicProfile("uid", "roamer")))
+        )
+
+    val file = File.createTempFile("avatar", ".jpg", context.cacheDir)
+    try {
+      val bitmap =
+          Bitmap.createBitmap(
+              640,
+              480,
+              Bitmap.Config.ARGB_8888,
+          )
+      file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+      bitmap.recycle()
+
+      renderSettingsWithPickerResult(viewModel, Uri.fromFile(file))
+
+      composeTestRule.onNodeWithTag("settings_avatar_picker").performClick()
+
+      val captor = argumentCaptor<ByteArray>()
+      verify(viewModel, timeout(5000)).uploadAvatar(captor.capture())
+
+      val bytes = captor.firstValue
+      val decoded =
+          BitmapFactory.decodeByteArray(
+              bytes,
+              0,
+              bytes.size,
+          )
+
+      assertEquals(512, decoded.width)
+      assertEquals(512, decoded.height)
+      assertTrue(bytes.size < 200 * 1024)
+      decoded.recycle()
+    } finally {
+      file.delete()
+    }
+  }
+
+  @Test
+  fun avatarPicker_invalidUri_reportsError() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+
+    renderSettingsWithPickerResult(
+        viewModel,
+        Uri.parse("content://invalid.provider/missing.jpg"),
+    )
+
+    composeTestRule.onNodeWithTag("settings_avatar_picker").performClick()
+
+    verify(viewModel, timeout(5000)).setAvatarError(any())
+
+    verify(viewModel, never()).uploadAvatar(any())
+  }
+
+  @Test
+  fun avatarPicker_cancelled_doesNotUpload() {
+    val viewModel = mock<SettingsViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(SettingsUIState()))
+
+    renderSettingsWithPickerResult(viewModel, null)
+
+    composeTestRule.onNodeWithTag("settings_avatar_picker").performClick()
+
+    composeTestRule.waitForIdle()
+
+    verify(viewModel, never()).uploadAvatar(any())
+    verify(viewModel, never()).setAvatarError(any())
+  }
+
+  private fun renderSettingsWithPickerResult(
+      viewModel: SettingsViewModel,
+      uri: Uri?,
+  ) {
+    val registry =
+        object : ActivityResultRegistry() {
+          override fun <I, O> onLaunch(
+              requestCode: Int,
+              contract: ActivityResultContract<I, O>,
+              input: I,
+              options: ActivityOptionsCompat?,
+          ) {
+            dispatchResult(
+                requestCode,
+                if (uri == null) Activity.RESULT_CANCELED else Activity.RESULT_OK,
+                uri?.let { Intent().apply { data = it } },
+            )
+          }
+        }
+
+    val owner =
+        object : ActivityResultRegistryOwner {
+          override val activityResultRegistry = registry
+        }
+
+    val (cameraController, locationController) = permissionControllers()
+
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+        SampleAppTheme {
+          SettingsScreen(
+              settingsViewModel = viewModel,
+              cameraPermissionController = cameraController,
+              locationPermissionController = locationController,
+          )
+        }
+      }
     }
   }
 
