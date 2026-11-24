@@ -146,6 +146,12 @@ class MainActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     RoamApplication.snapDefaultLocale()
+    val notificationNavigationOnLaunch =
+        if (savedInstanceState == null)
+            NotificationNavigationParser.parse(intent)?.let {
+              NotificationNavigationRequest(it, preserveBackStack = false)
+            }
+        else null
     setContent {
       val themeRepository = remember { DataStoreThemePreferencesRepository(applicationContext) }
       val themeViewModel: ThemeViewModel =
@@ -165,12 +171,7 @@ class MainActivity : AppCompatActivity() {
             authViewModel = authViewModel,
             themeMode = selectedTheme,
             onThemeModeSelected = themeViewModel::setThemeMode,
-            notificationNavigationOnLaunch =
-                if (savedInstanceState == null)
-                    NotificationNavigationParser.parse(intent)?.let {
-                      NotificationNavigationRequest(it, preserveBackStack = false)
-                    }
-                else null,
+            notificationNavigationOnLaunch = notificationNavigationOnLaunch,
             notificationNavigationEvents = notificationNavigationFlow,
         )
       }

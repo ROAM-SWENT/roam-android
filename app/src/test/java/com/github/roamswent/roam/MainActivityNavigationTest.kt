@@ -82,6 +82,7 @@ import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
 import com.github.roamswent.roam.ui.notifications.NotificationNavigation
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationParser
 import com.github.roamswent.roam.ui.notifications.NotificationNavigationRequest
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
@@ -90,7 +91,11 @@ import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserInfo
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import io.mockk.verify
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1652,6 +1657,82 @@ class MainActivityNavigationTest {
       waitAndAssertDisplayed(C.Tag.main_screen_container)
     } finally {
       controller.pause().stop().destroy()
+    }
+  }
+
+  @Test
+  fun mainActivityOnCreate_parsesNotificationIntentOnFreshLaunch() {
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val launchIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+    val controller = Robolectric.buildActivity(MainActivity::class.java, launchIntent)
+
+    try {
+      controller.create().start().resume()
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(any()) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnCreate_doesNotParseNotificationIntentAfterRecreation() {
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val launchIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+    val controller = Robolectric.buildActivity(MainActivity::class.java, launchIntent)
+
+    try {
+      controller.create(android.os.Bundle()).start().resume()
+
+      verify(exactly = 0) { NotificationNavigationParser.parse(any()) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnNewIntent_parsesNotificationNavigation() {
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val notificationIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+
+    try {
+      MainActivity::class
+          .java
+          .getDeclaredMethod("onNewIntent", Intent::class.java)
+          .apply { isAccessible = true }
+          .invoke(controller.get(), notificationIntent)
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(notificationIntent) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnNewIntent_ignoresUnsupportedIntent() {
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns null
+    val unsupportedIntent = Intent("unsupported")
+
+    try {
+      MainActivity::class
+          .java
+          .getDeclaredMethod("onNewIntent", Intent::class.java)
+          .apply { isAccessible = true }
+          .invoke(controller.get(), unsupportedIntent)
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(unsupportedIntent) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
     }
   }
 
