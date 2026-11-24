@@ -286,6 +286,11 @@ class RegisterProfileViewModelTest {
     override suspend fun renameUsername(username: String): PublicProfile =
         error("Not used in this test")
 
+    override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+        error("Not used in this test")
+
+    override suspend fun removeAvatar(): PublicProfile = error("Not used in this test")
+
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
   }
 }

@@ -246,6 +246,7 @@ internal fun exploreMapProperties(isOnline: Boolean, isMyLocationEnabled: Boolea
 fun ExploreScreen(
     onProfileClicked: () -> Unit = {},
     profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    profileAvatarBytes: ByteArray? = null,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,
@@ -282,6 +283,7 @@ fun ExploreScreen(
             actions = {
               ProfileBubble(
                   name = profileName,
+                  avatarBytes = profileAvatarBytes,
                   onClick = onProfileClicked,
                   testTag = C.Tag.explore_profile_button,
                   modifier = Modifier.padding(end = 12.dp),

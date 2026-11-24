@@ -43,13 +43,18 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.friend.Friendship
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
@@ -72,6 +77,7 @@ import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
@@ -89,6 +95,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -1584,6 +1591,199 @@ class MainActivityNavigationTest {
     assertEquals("Michael_Jordan", repository.registeredUsername)
   }
 
+  @Test
+  fun switchingTabsFromProfileDoesNotRestoreProfileLater() {
+    val navController = showAuthenticatedHomeWithNavController()
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+
+    assertEquals(
+        listOf(Routes.Home, Routes.Friends),
+        backStackRoutes(navController),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+
+    assertEquals(
+        listOf(Routes.Home, Routes.Collection),
+        backStackRoutes(navController),
+    )
+
+    waitForGone(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun collectionDockTabFromProfileReturnsToCollection() {
+    assertDockTabReturnsFromProfile(
+        C.Tag.dock_tab_collection,
+        C.Tag.collection_screen,
+        C.Tag.collection_profile_button,
+        Routes.Collection,
+    )
+  }
+
+  @Test
+  fun friendsDockTabFromProfileReturnsToFriends() {
+    assertDockTabReturnsFromProfile(
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
+        C.Tag.home_profile_button,
+        Routes.Friends,
+    )
+  }
+
+  @Test
+  fun exploreDockTabFromProfileReturnsToExplore() {
+    assertDockTabReturnsFromProfile(
+        C.Tag.dock_tab_explore,
+        C.Tag.explore_screen_container,
+        C.Tag.explore_profile_button,
+        Routes.Explore,
+    )
+  }
+
+  @Test
+  fun homeDockTabFromProfileReturnsToHome() {
+    val navController = showAuthenticatedHomeWithNavController()
+
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    assertEquals(
+        listOf(Routes.Home),
+        backStackRoutes(navController),
+    )
+  }
+
+  private fun assertDockTabReturnsFromProfile(
+      tabTag: String,
+      screenTag: String,
+      profileTag: String,
+      route: String,
+  ) {
+    val navController = showAuthenticatedHomeWithNavController()
+
+    composeTestRule.onNodeWithTag(tabTag).performClick()
+    waitAndAssertDisplayed(screenTag)
+
+    composeTestRule.onNodeWithTag(profileTag).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    assertEquals(
+        listOf(Routes.Home, route, Routes.Settings),
+        backStackRoutes(navController),
+    )
+
+    composeTestRule.onNodeWithTag(tabTag).performClick()
+    waitAndAssertDisplayed(screenTag)
+
+    assertEquals(
+        listOf(Routes.Home, route),
+        backStackRoutes(navController),
+    )
+
+    waitForGone(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun profileAvatarIsRefreshedOnResume() {
+    assertAvatarRefreshOnResume(
+        initialAvatar = byteArrayOf(1, 2, 3),
+        updatedAvatar = byteArrayOf(4, 5, 6),
+    )
+  }
+
+  @Test
+  fun removedProfileAvatarIsRefreshedOnResume() {
+    assertAvatarRefreshOnResume(
+        initialAvatar = byteArrayOf(1, 2, 3),
+        updatedAvatar = null,
+    )
+  }
+
+  @Test
+  fun newProfileAvatarIsRefreshedOnResume() {
+    assertAvatarRefreshOnResume(
+        initialAvatar = null,
+        updatedAvatar = byteArrayOf(4, 5, 6),
+    )
+  }
+
+  private fun assertAvatarRefreshOnResume(
+      initialAvatar: ByteArray?,
+      updatedAvatar: ByteArray?,
+  ) {
+    val repository =
+        TestPublicProfileRepository(
+            initialProfile =
+                PublicProfile(
+                    "test-user",
+                    "test_user",
+                    avatarBytes = initialAvatar,
+                )
+        )
+
+    val user = mock<FirebaseUser>()
+    whenever(user.uid).thenReturn("test-user")
+
+    val authRepository = mock<AuthRepository>()
+    whenever(authRepository.currentUser()).thenReturn(user)
+    whenever(authRepository.currentUserFlow()).thenReturn(emptyFlow())
+
+    lateinit var viewModel: HomeViewModel
+    lateinit var lifecycle: LifecycleRegistry
+
+    composeTestRule.runOnUiThread {
+      HomeViewModel.clearProfileCacheForTests()
+
+      viewModel = HomeViewModel(authRepository, repository)
+
+      val owner =
+          object : LifecycleOwner {
+            override val lifecycle = LifecycleRegistry(this)
+          }
+
+      lifecycle = owner.lifecycle
+      lifecycle.currentState = Lifecycle.State.STARTED
+
+      composeTestRule.activity.setContent {
+        CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+          RefreshProfileOnResume(viewModel)
+        }
+      }
+    }
+
+    composeTestRule.waitForIdle()
+
+    assertArrayEquals(initialAvatar, viewModel.avatarBytes.value)
+
+    composeTestRule.runOnIdle {
+      repository.setAvatar(updatedAvatar)
+
+      // The avatar must remain unchanged before ON_RESUME.
+      assertArrayEquals(initialAvatar, viewModel.avatarBytes.value)
+
+      lifecycle.currentState = Lifecycle.State.RESUMED
+    }
+
+    composeTestRule.waitUntil { viewModel.avatarBytes.value.contentEquals(updatedAvatar) }
+
+    assertArrayEquals(updatedAvatar, viewModel.avatarBytes.value)
+  }
+
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
     return checkNotNull(shadowOf(composeTestRule.activity).lastRequestedPermission)
   }
@@ -2063,8 +2263,17 @@ class MainActivityNavigationTest {
       return PublicProfile("test-user", username).also { profile = it }
     }
 
+    fun setAvatar(avatarBytes: ByteArray?) {
+      profile = checkNotNull(profile).copy(avatarBytes = avatarBytes)
+    }
+
     override suspend fun renameUsername(username: String): PublicProfile =
         error("Not used in navigation tests")
+
+    override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+        error("Not used in navigation tests")
+
+    override suspend fun removeAvatar(): PublicProfile = error("Not used in navigation tests")
 
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
   }

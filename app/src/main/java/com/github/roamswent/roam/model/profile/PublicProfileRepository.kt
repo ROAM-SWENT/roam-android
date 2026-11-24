@@ -16,6 +16,12 @@ interface PublicProfileRepository {
   /** Changes the signed-in user's username and releases the previous username. */
   suspend fun renameUsername(username: String): PublicProfile
 
+  /** Uploads a profile picture and updates the signed-in user's public profile. */
+  suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile
+
+  /** Removes the signed-in user's profile picture. */
+  suspend fun removeAvatar(): PublicProfile
+
   /** Searches usernames by case-insensitive prefix, returning at most 20 profiles. */
   suspend fun searchProfiles(prefix: String): List<PublicProfile>
 }
@@ -36,6 +42,9 @@ sealed class PublicProfileException(message: String, cause: Throwable? = null) :
 
   class ProfileNotRegistered :
       PublicProfileException("The signed-in user does not have a registered username.")
+
+  class AvatarFailure(cause: Throwable) :
+      PublicProfileException("The profile picture operation failed.", cause)
 
   class FirestoreFailure(cause: Throwable) :
       PublicProfileException("The public profile operation failed in Firestore.", cause)

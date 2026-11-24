@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 data class FriendUser(
     val id: String,
     val username: String,
-    val avatarUrl: String? = null,
+    val avatarBytes: ByteArray? = null,
 )
 
 data class FriendRequest(
@@ -104,7 +104,7 @@ class FriendsViewModel(
                       .filterNot { profile -> profile.uid == selfUid }
                       .map { profile ->
                         FriendSearchResult(
-                            user = FriendUser(profile.uid, profile.username),
+                            user = FriendUser(profile.uid, profile.username, profile.avatarBytes),
                             outgoingRequestId = outgoingByUid[profile.uid]?.id,
                             incomingRequestId = incomingByUid[profile.uid]?.id,
                             isFriend = profile.uid in friendIds,
@@ -191,7 +191,12 @@ class FriendsViewModel(
                 .map { uid ->
                   async {
                     val profile = getCachedProfile(uid, cacheTimestamp)
-                    uid to FriendUser(uid, profile?.username ?: uid)
+                    uid to
+                        FriendUser(
+                            uid,
+                            profile?.username ?: uid,
+                            profile?.avatarBytes,
+                        )
                   }
                 }
                 .map { it.await() }
