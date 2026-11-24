@@ -1,6 +1,8 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.collection
 
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,6 +11,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -19,12 +22,16 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
 import coil.ImageLoader
+import coil.decode.DataSource
 import coil.intercept.Interceptor
+import coil.request.ErrorResult
+import coil.request.SuccessResult
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -230,6 +237,136 @@ class WishlistScreenTest {
         .assertCountEquals(3)
     composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_more_friends, true).assertDoesNotExist()
     composeTestRule.onNodeWithText("Scanned by 3 friends").assertIsDisplayed()
+  }
+
+  @Test
+  fun missingLocationAndFriendsAreHiddenAndBlankPhotoUsesPlaceholder() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(
+                            city = " ",
+                            country = "",
+                            photoUrl = " ",
+                            scannedBy = emptyList(),
+                            isWishlisted = false,
+                        )
+                    )
+                ),
+            initialShowWishlist = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Barcelona, Spain").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Scanned by 2 friends").assertDoesNotExist()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.collection_wishlist_avatar, useUnmergedTree = true)
+        .assertCountEquals(0)
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_photo_placeholder, true).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_wishlist_button)
+        .assertContentDescriptionEquals("Add to wishlist")
+  }
+
+  @Test
+  fun wishlistImageShowsErrorAndThenSuccessfulReplacement() {
+    val successfulRequests = AtomicInteger()
+    Coil.setImageLoader(
+        ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components {
+              add(
+                  Interceptor { chain ->
+                    if (chain.request.data.toString().endsWith("error")) {
+                      ErrorResult(null, chain.request, IllegalStateException("image unavailable"))
+                    } else {
+                      successfulRequests.incrementAndGet()
+                      SuccessResult(ColorDrawable(Color.RED), chain.request, DataSource.MEMORY)
+                    }
+                  }
+              )
+            }
+            .build()
+    )
+    var wishlist by
+        mutableStateOf(
+            WishlistUiState(listOf(monument.copy(photoUrl = "https://example.com/error")))
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = wishlist,
+            initialShowWishlist = true,
+        )
+      }
+    }
+
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.collection_card_photo_error, useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_photo_error, true).assertIsDisplayed()
+    composeTestRule.runOnIdle {
+      wishlist = WishlistUiState(listOf(monument.copy(photoUrl = "https://example.com/success")))
+    }
+    composeTestRule.waitUntil(5_000) {
+      val errors =
+          composeTestRule
+              .onAllNodesWithTag(C.Tag.collection_card_photo_error, useUnmergedTree = true)
+              .fetchSemanticsNodes()
+      successfulRequests.get() > 0 && errors.isEmpty()
+    }
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_photo, true).assertExists()
+  }
+
+  @Test
+  fun selectedWishlistSurvivesStateRestoration() {
+    val restoration = StateRestorationTester(composeTestRule)
+    restoration.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = WishlistUiState(listOf(monument)),
+        )
+      }
+    }
+
+    selectWishlist()
+    restoration.emulateSavedInstanceStateRestore()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertIsDisplayed()
+  }
+
+  @Test
+  fun wishlistSelectedWhileFavoritesFilterIsActiveAndSearchMatchesName() {
+    var state by
+        mutableStateOf(SavedGuidesUiState(guides = listOf(guide), showFavoritesOnly = true))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = state,
+            wishlistState = WishlistUiState(listOf(monument.copy(city = "", country = "Spain"))),
+            onShowFavoritesOnlyChange = { state = state.copy(showFavoritesOnly = it) },
+            onSearchQueryChange = { state = state.copy(searchQuery = it) },
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).assertIsSelected()
+    composeTestRule.onNodeWithText("Spain").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_search_bar).performTextInput("Sagrada")
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).assertIsDisplayed()
   }
 
   @Test

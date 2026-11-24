@@ -159,6 +159,23 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun deletingGuideDisablesOnlyItsDeleteButton() {
+    val deleted = mutableListOf<String>()
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide, newerGuide),
+            deletingGuideIds = setOf(olderGuide.id),
+        ),
+        onDeleteGuide = deleted::add,
+    )
+
+    val buttons = composeTestRule.onAllNodesWithTag(C.Tag.collection_card_delete)
+    buttons[1].assertIsNotEnabled()
+    buttons[0].assertIsEnabled().performClick()
+    assertEquals(listOf(newerGuide.id), deleted)
+  }
+
+  @Test
   fun showsEmptyStateWhenCollectionIsEmpty() {
     setScreen(SavedGuidesUiState())
 
@@ -293,6 +310,59 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun emptyFavoritesAndReadOnlyCollectionUseTheirOwnEmptyStatesInDarkTheme() {
+    var readOnly by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        CollectionScreen(
+            state = SavedGuidesUiState(showFavoritesOnly = true),
+            readOnly = readOnly,
+            onBackClick = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_back_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_favorites_empty).assertIsDisplayed()
+    composeTestRule.runOnIdle { readOnly = true }
+    composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_favorites_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun darkThemeShowsCollectionErrorAndPhoto() {
+    var state by mutableStateOf(SavedGuidesUiState(guidesError = IllegalStateException("offline")))
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) { CollectionScreen(state = state) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_error).assertIsDisplayed()
+    composeTestRule.runOnIdle {
+      state = SavedGuidesUiState(guides = listOf(newerGuide.copy(photoBytes = pngBytes())))
+    }
+    waitForTag(C.Tag.collection_card_photo)
+  }
+
+  @Test
+  fun switchingToReadOnlyClosesAnOpenSharingDialog() {
+    var readOnly by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            readOnly = readOnly,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+    composeTestRule.runOnIdle { readOnly = true }
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).assertIsDisplayed()
   }
 
   @Test
