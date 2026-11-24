@@ -83,6 +83,7 @@
     <string name="settings_title">Profil</string>
     <string name="settings_notification_permission">Autorisation des notifications</string>
     <string name="notification_friend_requests_channel">Demandes d’amis</string>
+    <string name="notification_monument_shares_channel">Monuments partagés</string>
     <string name="notification_friend_request_title">Nouvelle demande d’ami</string>
     <string name="notification_friend_request_body">%1$s souhaite devenir votre ami.</string>
     <string name="notification_friend_request_accept">Accepter</string>

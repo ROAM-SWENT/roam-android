@@ -334,6 +334,43 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
   }
 
+  @Test
+  fun sharedMonumentNotificationLaunchNavigatesToSharedDetailAndPopsHome() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val guide =
+        Guide(
+            id = "guide-1",
+            photoBytes = ByteArray(0),
+            monumentName = "The Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.SharedMonument("alice", "guide-1"),
+                preserveBackStack = false,
+            ),
+        monumentSharingRepository = FakeMonumentSharingRepository(mapOf("alice" to listOf(guide))),
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.SharedMonumentDetailPattern
+    }
+    assertEquals(
+        listOf(Routes.Home, Routes.SharedMonumentDetailPattern),
+        backStackRoutes(checkNotNull(navController[0])),
+    )
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(Routes.Home, navController[0]?.currentDestination?.route)
+  }
+
   /** Existing server tokens are removed when notification permission is not granted. */
   @Test
   fun notificationPermissionDenialUnregistersTheDeviceToken() {

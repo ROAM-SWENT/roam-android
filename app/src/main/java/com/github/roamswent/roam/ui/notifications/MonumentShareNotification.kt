@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
+import android.os.Build
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.StyleSpan
@@ -25,6 +26,15 @@ private const val DATA_RECIPIENT_UID = "recipientUid"
 private const val DATA_MONUMENT_NAME = "monumentName"
 private const val TYPE_MONUMENT_SHARE = "monument_share"
 
+/**
+ * Data carried by a monument-share notification and used to render its content.
+ *
+ * @property guideId identifier of the shared guide
+ * @property senderUid identifier of the account sharing the guide
+ * @property senderUsername display name of the sender
+ * @property recipientUid identifier of the intended recipient
+ * @property monumentName display name of the shared monument
+ */
 data class MonumentShareNotificationData(
     val guideId: String,
     val senderUid: String,
@@ -32,9 +42,19 @@ data class MonumentShareNotificationData(
     val recipientUid: String,
     val monumentName: String,
 ) {
+  /**
+   * Returns whether this notification belongs to the currently signed-in account.
+   *
+   * @param uid identifier of the currently signed-in account, or `null` when signed out
+   */
   fun isForAccount(uid: String?): Boolean = uid != null && recipientUid == uid
 
   companion object {
+    /**
+     * Parses a valid monument-share notification payload, or returns `null` otherwise.
+     *
+     * @param data key-value payload received from Firebase Cloud Messaging
+     */
     fun from(data: Map<String, String>): MonumentShareNotificationData? {
       if (data[DATA_TYPE] != TYPE_MONUMENT_SHARE) return null
       val guideId = data[DATA_GUIDE_ID]?.takeIf(String::isNotBlank) ?: return null
@@ -54,13 +74,30 @@ data class MonumentShareNotificationData(
 }
 
 internal object MonumentShareNotifications {
+  const val CHANNEL_ID = "monument_shares"
   const val ACTION_OPEN_SHARED_MONUMENT = "com.github.roamswent.roam.OPEN_SHARED_MONUMENT"
   const val EXTRA_SHARED_MONUMENT_OWNER_UID = "shared_monument_owner_uid"
   const val EXTRA_SHARED_MONUMENT_GUIDE_ID = "shared_monument_guide_id"
 
+  /** Creates the Android 8+ notification channel; repeated calls are safe. */
+  fun createChannel(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val channel =
+          android.app.NotificationChannel(
+              CHANNEL_ID,
+              context.getString(R.string.notification_monument_shares_channel),
+              android.app.NotificationManager.IMPORTANCE_HIGH,
+          )
+      context
+          .getSystemService(android.app.NotificationManager::class.java)
+          .createNotificationChannel(channel)
+    }
+  }
+
+  /** Displays a high-priority local notification for a shared monument. */
   fun show(context: Context, data: MonumentShareNotificationData) {
     if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
-    FriendRequestNotifications.createChannel(context)
+    createChannel(context)
     val body =
         context.getString(
             R.string.notification_monument_share_body,
@@ -72,7 +109,7 @@ internal object MonumentShareNotifications {
           setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     val notification =
-        NotificationCompat.Builder(context, FriendRequestNotifications.CHANNEL_ID)
+        NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_monument)
             .setLargeIcon(ProfilePictureBitmap.create(context, data.senderUsername))
             .setContentTitle(title)
@@ -84,6 +121,11 @@ internal object MonumentShareNotifications {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
     NotificationManagerCompat.from(context).notify(notificationId(data), notification)
+  }
+
+  /** Dismisses visible monument-share notifications when the account signs out. */
+  fun cancelAllMonumentShares(context: Context) {
+    NotificationCleanup.cancelChannels(context, setOf(CHANNEL_ID))
   }
 
   private fun openPendingIntent(

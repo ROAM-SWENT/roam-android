@@ -95,7 +95,7 @@ import com.github.roamswent.roam.ui.monumentDetail.SharedMonumentDetailRoute
 import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
-import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
+import com.github.roamswent.roam.ui.notifications.NotificationCleanup
 import com.github.roamswent.roam.ui.notifications.NotificationNavigation
 import com.github.roamswent.roam.ui.notifications.NotificationNavigationParser
 import com.github.roamswent.roam.ui.notifications.NotificationNavigationRequest
@@ -166,9 +166,11 @@ class MainActivity : AppCompatActivity() {
             themeMode = selectedTheme,
             onThemeModeSelected = themeViewModel::setThemeMode,
             notificationNavigationOnLaunch =
-                NotificationNavigationParser.parse(intent)?.let {
-                  NotificationNavigationRequest(it, preserveBackStack = false)
-                },
+                if (savedInstanceState == null)
+                    NotificationNavigationParser.parse(intent)?.let {
+                      NotificationNavigationRequest(it, preserveBackStack = false)
+                    }
+                else null,
             notificationNavigationEvents = notificationNavigationFlow,
         )
       }
@@ -398,7 +400,8 @@ internal fun RoamApp(
                     Routes.SignUp,
                     Routes.EmailVerification,
                     Routes.RegisterProfile,
-                ) && pendingNotificationNavigation != null
+                ) &&
+            pendingNotificationNavigation != null
     ) {
       val notification = checkNotNull(pendingNotificationNavigation)
       when (val navigation = notification.navigation) {
@@ -621,7 +624,7 @@ internal fun RoamApp(
               onThemeModeSelected = onThemeModeSelected,
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
-                FriendRequestNotifications.cancelAllFriendRequests(context)
+                NotificationCleanup.cancelAccountNotifications(context)
                 authViewModel.clearSignedInUser()
                 registerProfileViewModel.reset()
                 navController.clearSavedUserNavigation()

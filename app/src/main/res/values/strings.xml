@@ -83,6 +83,7 @@
     <string name="settings_title">Profile</string>
     <string name="settings_notification_permission">Notification permission</string>
     <string name="notification_friend_requests_channel">Friend requests</string>
+    <string name="notification_monument_shares_channel">Shared monuments</string>
     <string name="notification_friend_request_title">New friend request</string>
     <string name="notification_friend_request_body">%1$s wants to be your friend.</string>
     <string name="notification_friend_request_accept">Accept</string>

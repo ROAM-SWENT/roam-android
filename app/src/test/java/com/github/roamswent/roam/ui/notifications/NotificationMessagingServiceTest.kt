@@ -79,6 +79,35 @@ class NotificationMessagingServiceTest {
   }
 
   @Test
+  fun onMessageReceived_ignoresMonumentShareForAnotherAccountOrWhenSignedOut() {
+    mockkStatic(FirebaseAuth::class)
+    every { FirebaseAuth.getInstance() } returns auth
+    every { auth.currentUser } returns user
+    every { user.uid } returns "user-b"
+    mockkObject(MonumentShareNotifications)
+
+    val message =
+        RemoteMessage.Builder("sender")
+            .setData(
+                mapOf(
+                    "type" to "monument_share",
+                    "guideId" to "guide",
+                    "senderUid" to "user-a",
+                    "senderUsername" to "Alice",
+                    "recipientUid" to "user-c",
+                    "monumentName" to "The Tower",
+                )
+            )
+            .build()
+
+    NotificationMessagingService().onMessageReceived(message)
+    every { auth.currentUser } returns null
+    NotificationMessagingService().onMessageReceived(message)
+
+    verify(exactly = 0) { MonumentShareNotifications.show(any(), any()) }
+  }
+
+  @Test
   fun onMessageReceived_showsPayloadForCurrentAccount() {
     mockkStatic(FirebaseAuth::class)
     every { FirebaseAuth.getInstance() } returns auth

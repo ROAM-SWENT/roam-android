@@ -6,18 +6,38 @@ package com.github.roamswent.roam.ui.notifications
 
 import android.content.Intent
 
+/** Destination requested by a notification tap. */
 sealed interface NotificationNavigation {
+  /** Opens the friends screen. */
   data object Friends : NotificationNavigation
 
+  /**
+   * Opens a monument shared by [ownerUid].
+   *
+   * @property ownerUid identifier of the account that owns the shared guide
+   * @property guideId identifier of the shared guide
+   */
   data class SharedMonument(val ownerUid: String, val guideId: String) : NotificationNavigation
 }
 
+/**
+ * A notification destination together with its back-stack behavior.
+ *
+ * @property navigation destination requested by the notification
+ * @property preserveBackStack whether navigation should retain the current back stack
+ */
 data class NotificationNavigationRequest(
     val navigation: NotificationNavigation,
     val preserveBackStack: Boolean,
 )
 
+/** Parses notification intents into app navigation destinations. */
 object NotificationNavigationParser {
+  /**
+   * Returns the destination encoded by [intent], or `null` for unsupported intents.
+   *
+   * @param intent notification intent to parse, or `null`
+   */
   fun parse(intent: Intent?): NotificationNavigation? {
     return when (intent?.action) {
       FriendRequestNotifications.ACTION_OPEN_FRIENDS -> NotificationNavigation.Friends

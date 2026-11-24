@@ -30,6 +30,7 @@ class MonumentShareNotificationTest {
     )
 
     val notification = shadowOf(manager).allNotifications.single()
+    assertEquals(MonumentShareNotifications.CHANNEL_ID, notification.channelId)
     assertEquals(
         context.getString(R.string.notification_monument_share_title),
         notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString(),
@@ -64,5 +65,49 @@ class MonumentShareNotificationTest {
     )
 
     assertEquals(notificationCount, shadowOf(manager).allNotifications.size)
+  }
+
+  @Test
+  fun cancelAllMonumentShares_removesOnlyMonumentShareNotifications() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(true)
+
+    MonumentShareNotifications.show(
+        context,
+        MonumentShareNotificationData("guide-3", "alice", "Alice", "bob", "The Castle"),
+    )
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("request-3", "alice", "Alice", "bob"),
+    )
+
+    MonumentShareNotifications.cancelAllMonumentShares(context)
+
+    assertEquals(1, shadowOf(manager).allNotifications.size)
+    assertEquals(
+        FriendRequestNotifications.CHANNEL_ID,
+        shadowOf(manager).allNotifications.single().channelId,
+    )
+  }
+
+  @Test
+  fun cancelAccountNotifications_removesAllAccountNotificationTypes() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val manager = context.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(true)
+
+    MonumentShareNotifications.show(
+        context,
+        MonumentShareNotificationData("guide-4", "alice", "Alice", "bob", "The Museum"),
+    )
+    FriendRequestNotifications.showFriendRequest(
+        context,
+        FriendRequestNotificationData("request-4", "alice", "Alice", "bob"),
+    )
+
+    NotificationCleanup.cancelAccountNotifications(context)
+
+    assertEquals(0, shadowOf(manager).allNotifications.size)
   }
 }
