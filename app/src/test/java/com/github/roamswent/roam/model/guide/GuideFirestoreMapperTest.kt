@@ -166,6 +166,39 @@ class GuideFirestoreMapperTest {
   }
 
   @Test
+  fun fromFieldsTreatsLegacyExploreGuidesAsAllowed() {
+    val fields = GuideFirestoreMapper.toFields(guide).toMutableMap()
+    fields.remove(GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD)
+
+    assertEquals(
+        SharingEligibility.ALLOWED,
+        GuideFirestoreMapper.fromFields(guide.id, fields).sharingEligibility,
+    )
+  }
+
+  @Test
+  fun fromFieldsTreatsLegacyGuidesWithoutLocationAsUnknownEligibility() {
+    val fields = GuideFirestoreMapper.toFields(guide).toMutableMap()
+    fields.remove(GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD)
+    fields.remove(GuideFirestoreMapper.LOCATION_FIELD)
+
+    assertEquals(
+        SharingEligibility.UNKNOWN,
+        GuideFirestoreMapper.fromFields(guide.id, fields).sharingEligibility,
+    )
+  }
+
+  @Test
+  fun sharingEligibilityRoundTrips() {
+    val tooFar = guide.copy(sharingEligibility = SharingEligibility.TOO_FAR)
+
+    assertEquals(
+        tooFar,
+        GuideFirestoreMapper.fromFields(tooFar.id, GuideFirestoreMapper.toFields(tooFar)),
+    )
+  }
+
+  @Test
   fun fromFieldsFallsBackToNoneForUnrecognizedOrInvalidAudienceType() {
     val unknownFields = GuideFirestoreMapper.toFields(guide).toMutableMap()
     unknownFields[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD] = "FUTURE_UNRECOGNIZED_AUDIENCE"
