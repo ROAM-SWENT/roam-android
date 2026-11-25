@@ -4,6 +4,7 @@
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  * Co-authored-by: Codex <codex@openai.com>
  * Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+ * Co-authored-by: Gemini 4 Neon <noreply@google.com>
  */
 
 package com.github.roamswent.roam
@@ -2460,6 +2461,11 @@ class MainActivityNavigationTest {
     override suspend fun removeAvatar(): PublicProfile = error("Not used in navigation tests")
 
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
+
+    override suspend fun updatePrivacySettings(
+        isPublic: Boolean,
+        allowFriendRequests: Boolean,
+    ): PublicProfile = error("Not used in navigation tests")
   }
 
   private fun dispatchCameraPermissionResult() = dispatchCameraPermissionResult(permissionRequest())
