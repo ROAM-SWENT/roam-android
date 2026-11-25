@@ -77,6 +77,13 @@ class CollectionSharingViewModelTest {
     assertNotEquals(first, withoutAvatar)
     assertEquals(withoutAvatar, anotherWithoutAvatar)
     assertEquals(withoutAvatar.hashCode(), anotherWithoutAvatar.hashCode())
+    assertNotEquals(first, Any())
+    assertNotEquals(first, CollectionFriend("other", "Alice", byteArrayOf(1, 2, 3)))
+    assertNotEquals(first, CollectionFriend("friend", "Bob", byteArrayOf(1, 2, 3)))
+    assertNotEquals(
+        first,
+        CollectionFriend("friend", "Alice", byteArrayOf(3, 2, 1)),
+    )
   }
 
   @Test

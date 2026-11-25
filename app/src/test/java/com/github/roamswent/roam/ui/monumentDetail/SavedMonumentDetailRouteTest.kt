@@ -237,6 +237,21 @@ class SavedMonumentDetailRouteTest {
   }
 
   @Test
+  fun routeUsesDefaultSharingDependenciesWhenOverridesAreOmitted() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SavedMonumentDetailRoute(
+            guideId = "eiffel",
+            repository = FakeSavedGuideRepository(listOf(eiffelTower)),
+            onBackClick = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertIsDisplayed()
+  }
+
+  @Test
   fun sharingFailureShowsErrorSnackbarAfterConfirmingAllFriends() {
     val failure = IllegalStateException("offline")
     val sharing = FakeMonumentSharingRepository().apply { updateError = failure }
