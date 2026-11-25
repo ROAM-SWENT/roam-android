@@ -184,7 +184,6 @@ class CollectionRouteTest {
     setSharingRoute(repository, sharing, friends, profiles)
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithText("Alice").performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
     composeTestRule.waitUntil { sharing.shareSettings.value[colosseum.id] != null }
@@ -221,12 +220,10 @@ class CollectionRouteTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithText("Add friends before sharing a guide.").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_cancel).performClick()
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithText("Alice").assertIsDisplayed()
     coVerify(exactly = 2) { friends.getFriends() }
   }
@@ -245,7 +242,6 @@ class CollectionRouteTest {
     setSharingRoute(repository, sharing, friends, profiles)
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithText("Retry").performClick()
     composeTestRule.onNodeWithText("Alice").performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
