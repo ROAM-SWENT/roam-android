@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -22,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.credentials.CredentialManager
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
@@ -186,6 +188,131 @@ class SignInScreenRobolectricTest {
             .fetchSemanticsNodes()
             .isEmpty()
     )
+  }
+
+  @Test
+  fun emailSignIn_submitsEnteredCredentialsAndSignUpOpensSignUpScreen() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+    var signUpCount = 0
+
+    composeTestRule.setContent {
+      SignInScreen(
+          authViewModel = viewModel,
+          onSignUp = { signUpCount++ },
+      )
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_email).performTextInput("traveler@example.com")
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_password).performTextInput("secret1")
+    composeTestRule.onNodeWithTag(C.Tag.sign_in_email_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_button).performClick()
+
+    verify(viewModel).signInWithEmail("traveler@example.com", "secret1")
+    assertEquals(1, signUpCount)
+  }
+
+  @Test
+  fun signUpScreen_submitsCredentialsAndHandlesLoadingAndBack() {
+    val state = MutableStateFlow(AuthUIState())
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(state)
+    var backCount = 0
+    var verificationCount = 0
+
+    composeTestRule.setContent {
+      SignUpScreen(
+          authViewModel = viewModel,
+          onBack = { backCount++ },
+          onEmailVerification = { verificationCount++ },
+      )
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_email).performTextInput("traveler@example.com")
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_password).performTextInput("secret1")
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_password_confirmation).performTextInput("secret1")
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_submit).performClick()
+
+    verify(viewModel).signUpWithEmail("traveler@example.com", "secret1", "secret1")
+
+    state.value = AuthUIState(isLoading = true)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_submit).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_email).assertIsNotEnabled()
+  }
+
+  @Test
+  fun signUpScreen_errorStateAndBackActionRemainUsable() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState)
+        .thenReturn(
+            MutableStateFlow(
+                AuthUIState(errorMsg = AuthError(R.string.auth_validation_password_confirmation))
+            )
+        )
+    var backCount = 0
+
+    composeTestRule.setContent {
+      SignUpScreen(
+          authViewModel = viewModel,
+          onBack = { backCount++ },
+          onEmailVerification = {},
+      )
+    }
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.auth_validation_password_confirmation))
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText(context.getString(R.string.sign_up_back)).performClick()
+    assertEquals(1, backCount)
+  }
+
+  @Test
+  fun emailVerificationScreen_resendAndCheckActions() {
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(MutableStateFlow(AuthUIState()))
+    var verifiedCount = 0
+    var backCount = 0
+
+    composeTestRule.setContent {
+      EmailVerificationScreen(
+          authViewModel = viewModel,
+          onVerified = { verifiedCount++ },
+          onBack = { backCount++ },
+      )
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.email_verification_resend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.email_verification_check).performClick()
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.email_verification_back))
+        .performClick()
+
+    verify(viewModel).resendEmailVerification()
+    verify(viewModel).checkEmailVerification(any())
+    assertEquals(0, verifiedCount)
+    assertEquals(1, backCount)
+  }
+
+  @Test
+  fun emailVerificationScreen_loadingAndSentStates() {
+    val state = MutableStateFlow(AuthUIState(isLoading = true, verificationEmailSent = true))
+    val viewModel = mock<SignInViewModel>()
+    whenever(viewModel.uiState).thenReturn(state)
+
+    composeTestRule.setContent {
+      EmailVerificationScreen(
+          authViewModel = viewModel,
+          onVerified = {},
+          onBack = {},
+      )
+    }
+
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.email_verification_sent))
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.email_verification_resend).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.email_verification_check).assertIsNotEnabled()
   }
 
   /**

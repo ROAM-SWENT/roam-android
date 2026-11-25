@@ -1,5 +1,6 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 // Co-authored-by: Google Antigravity <noreply@google.com>
 package com.github.roamswent.roam.ui.collection
 
@@ -33,6 +34,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ApplicationProvider
@@ -127,6 +129,40 @@ class CollectionScreenTest {
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card)[1].performClick()
 
     assertEquals(listOf("older"), clicked)
+  }
+
+  @Test
+  fun profileBubbleShowsInitialAndInvokesCallback() {
+    var clicked = false
+    setScreen(
+        SavedGuidesUiState(),
+        profileName = "Ada Lovelace",
+        onProfileClicked = { clicked = true },
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_profile_button)
+        .assertIsDisplayed()
+        .assertTextEquals("A")
+        .performClick()
+
+    assertTrue(clicked)
+  }
+
+  @Test
+  fun profileBubbleAcceptsAvatarBytes() {
+    val bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    bitmap.recycle()
+
+    setScreen(
+        SavedGuidesUiState(),
+        profileName = "Ada Lovelace",
+        profileAvatarBytes = out.toByteArray(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).assertIsDisplayed()
   }
 
   @Test
@@ -247,6 +283,39 @@ class CollectionScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_grid).assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(4)
+  }
+
+  @Test
+  fun readOnlyScreenHidesOwnerActionsAndFilters() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            title = "Alice's monuments",
+            readOnly = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_delete).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_status, true).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_back_button).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Search their collection").assertIsDisplayed()
+  }
+
+  @Test
+  fun readOnlyEmptyStateExplainsNothingIsShared() {
+    composeTestRule.setContent {
+      SampleAppTheme { CollectionScreen(state = SavedGuidesUiState(), readOnly = true) }
+    }
+
+    composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
   }
 
   @Test
@@ -877,6 +946,26 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun profileBubbleHasBreathingRoomAboveSearchBarWhenCollectionIsPopulated() {
+    setScreen(SavedGuidesUiState(guides = listOf(olderGuide)))
+
+    val profileBottom =
+        composeTestRule
+            .onNodeWithTag(C.Tag.collection_profile_button)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .bottom
+    val searchTop =
+        composeTestRule
+            .onNodeWithTag(C.Tag.collection_search_bar)
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .top
+
+    assertTrue(searchTop - profileBottom >= with(composeTestRule.density) { 12.dp.toPx() })
+  }
+
+  @Test
   fun typingInSearchBarFiltersGuideGridLive() {
     var state by mutableStateOf(SavedGuidesUiState(guides = listOf(olderGuide, newerGuide)))
     composeTestRule.setContent {
@@ -1015,6 +1104,9 @@ class CollectionScreenTest {
   private fun setScreen(
       state: SavedGuidesUiState,
       onGuideClick: (String) -> Unit = {},
+      profileName: String = "Traveler",
+      profileAvatarBytes: ByteArray? = null,
+      onProfileClicked: () -> Unit = {},
       onDeleteGuide: (String) -> Unit = {},
       onDeleteErrorShown: () -> Unit = {},
       onToggleFavorite: (String) -> Unit = {},
@@ -1035,6 +1127,9 @@ class CollectionScreenTest {
       SampleAppTheme {
         CollectionScreen(
             state = state,
+            profileName = profileName,
+            profileAvatarBytes = profileAvatarBytes,
+            onProfileClicked = onProfileClicked,
             onGuideClick = onGuideClick,
             onDeleteGuide = onDeleteGuide,
             onDeleteErrorShown = onDeleteErrorShown,

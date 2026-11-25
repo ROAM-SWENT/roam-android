@@ -74,7 +74,8 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.basemap.BaseMapPolygon
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
-import com.github.roamswent.roam.ui.components.ProfilePicture
+import com.github.roamswent.roam.ui.components.ProfileBubble
+import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
@@ -243,8 +244,9 @@ internal fun exploreMapProperties(isOnline: Boolean, isMyLocationEnabled: Boolea
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
-    onProfileClicked: () -> Unit,
-    profileName: String,
+    onProfileClicked: () -> Unit = {},
+    profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    profileAvatarBytes: ByteArray? = null,
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,
@@ -279,16 +281,12 @@ fun ExploreScreen(
               )
             },
             actions = {
-              val description = stringResource(R.string.home_profile_button_description)
-              ProfilePicture(
+              ProfileBubble(
                   name = profileName,
+                  avatarBytes = profileAvatarBytes,
                   onClick = onProfileClicked,
-                  modifier =
-                      Modifier.padding(end = 16.dp).size(48.dp).semantics {
-                        contentDescription = description
-                        testTag = C.Tag.home_profile_button
-                      },
-                  textStyle = MaterialTheme.typography.titleSmall,
+                  testTag = C.Tag.explore_profile_button,
+                  modifier = Modifier.padding(end = 12.dp),
               )
             },
         )

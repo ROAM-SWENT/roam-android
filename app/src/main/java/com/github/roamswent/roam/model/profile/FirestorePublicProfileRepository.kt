@@ -1,10 +1,13 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.profile
 
 import com.github.roamswent.roam.model.firestore.RoamFirestore
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -67,7 +70,6 @@ class FirestorePublicProfileRepository(
             if (!profileSnapshot.exists()) {
               throw PublicProfileException.ProfileNotRegistered()
             }
-
             val currentProfile = profileSnapshot.toPublicProfile()
             val oldUsernameLower = currentProfile.username.lowercase(Locale.ROOT)
             if (oldUsernameLower == usernameLower) {
@@ -92,10 +94,31 @@ class FirestorePublicProfileRepository(
                 profileReference,
                 profileFields(uid, username, usernameLower),
             )
-            PublicProfile(uid, username)
+            // The update keeps the other fields, so the returned profile keeps them too.
+            currentProfile.copy(username = username)
           }
           .await()
     }
+  }
+
+  override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile = withAvatarErrors {
+    val uid = requireCurrentUid()
+    val profileReference = publicProfiles().document(uid)
+    val snapshot = profileReference.get().await()
+    if (!snapshot.exists()) throw PublicProfileException.ProfileNotRegistered()
+    val currentProfile = snapshot.toPublicProfile()
+    profileReference.update(AVATAR_FIELD, Blob.fromBytes(imageBytes)).await()
+    currentProfile.copy(avatarBytes = imageBytes)
+  }
+
+  override suspend fun removeAvatar(): PublicProfile = withAvatarErrors {
+    val uid = requireCurrentUid()
+    val profileReference = publicProfiles().document(uid)
+    val snapshot = profileReference.get().await()
+    if (!snapshot.exists()) throw PublicProfileException.ProfileNotRegistered()
+    val currentProfile = snapshot.toPublicProfile()
+    profileReference.update(AVATAR_FIELD, FieldValue.delete()).await()
+    currentProfile.copy(avatarBytes = null)
   }
 
   override suspend fun searchProfiles(prefix: String): List<PublicProfile> = withFirestoreErrors {
@@ -133,6 +156,17 @@ class FirestorePublicProfileRepository(
         throw PublicProfileException.FirestoreFailure(exception)
       }
 
+  private suspend fun <T> withAvatarErrors(operation: suspend () -> T): T =
+      try {
+        operation()
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: PublicProfileException) {
+        throw exception
+      } catch (exception: Exception) {
+        throw PublicProfileException.AvatarFailure(exception)
+      }
+
   private fun DocumentSnapshot.toPublicProfile(): PublicProfile {
     val uid = checkNotNull(getString(UID_FIELD)) { "Public profile is missing its UID." }
     val username =
@@ -144,7 +178,18 @@ class FirestorePublicProfileRepository(
     check(username.matches(USERNAME_PATTERN) && username.lowercase(Locale.ROOT) == usernameLower) {
       "Public profile contains an invalid username."
     }
-    return PublicProfile(uid, username)
+    // A missing count means the user has not verified a monument yet.
+    val verifiedMonumentCount = getLong(VERIFIED_MONUMENT_COUNT_FIELD) ?: 0L
+    check(verifiedMonumentCount in 0..Int.MAX_VALUE) {
+      "Public profile contains an invalid verified monument count."
+    }
+    val avatarBytes = getBlob(AVATAR_FIELD)?.toBytes()
+    return PublicProfile(
+        uid = uid,
+        username = username,
+        verifiedMonumentCount = verifiedMonumentCount.toInt(),
+        avatarBytes = avatarBytes,
+    )
   }
 
   private fun profileFields(uid: String, username: String, usernameLower: String) =
@@ -177,6 +222,8 @@ class FirestorePublicProfileRepository(
     const val UID_FIELD = "uid"
     const val USERNAME_FIELD = "username"
     const val USERNAME_LOWER_FIELD = "usernameLower"
+    const val VERIFIED_MONUMENT_COUNT_FIELD = "verifiedMonumentCount"
+    const val AVATAR_FIELD = "avatar"
     const val MAX_USERNAME_LENGTH = 20
     const val MAX_SEARCH_RESULTS = 20
     val USERNAME_PATTERN = Regex("[A-Za-z0-9_]{3,20}")

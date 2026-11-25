@@ -16,6 +16,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.authentication.AuthRepositoryFirebase
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,13 @@ data class AuthUIState(
     val user: FirebaseUser? = null,
     val errorMsg: AuthError? = null,
     val signOutCompleted: Boolean = false,
+    val verificationEmailSent: Boolean = false,
 )
+
+fun isUnverifiedEmailPasswordUser(user: FirebaseUser?): Boolean =
+    user != null &&
+        !user.isEmailVerified &&
+        user.providerData.any { it.providerId == EmailAuthProvider.PROVIDER_ID }
 
 /**
  * ViewModel for the Sign-In view.
@@ -68,6 +75,132 @@ class SignInViewModel(private val repository: AuthRepository = AuthRepositoryFir
   /** Clears the error message in the UI state. */
   fun clearErrorMsg() {
     _uiState.update { it.copy(errorMsg = null) }
+  }
+
+  fun signInWithEmail(email: String, password: String) {
+    if (_uiState.value.isLoading) return
+    val validationError = validateEmailPassword(email, password)
+    if (validationError != null) {
+      _uiState.update { it.copy(errorMsg = validationError, isLoading = false) }
+      return
+    }
+    viewModelScope.launch {
+      _uiState.update { it.copy(isLoading = true, errorMsg = null, verificationEmailSent = false) }
+      repository.signInWithEmail(email.trim(), password).fold({ user ->
+        _uiState.update {
+          it.copy(isLoading = false, user = user, errorMsg = null, signOutCompleted = false)
+        }
+      }) { failure ->
+        _uiState.update {
+          it.copy(
+              isLoading = false,
+              errorMsg = AuthError(R.string.sign_in_error_unexpected, failure.localizedMessage),
+              user = null,
+          )
+        }
+      }
+    }
+  }
+
+  fun signUpWithEmail(email: String, password: String, confirmation: String) {
+    if (_uiState.value.isLoading) return
+    val validationError =
+        validateEmailPassword(email, password)
+            ?: if (password != confirmation)
+                AuthError(R.string.auth_validation_password_confirmation)
+            else null
+    if (validationError != null) {
+      _uiState.update { it.copy(errorMsg = validationError, isLoading = false) }
+      return
+    }
+    viewModelScope.launch {
+      _uiState.update { it.copy(isLoading = true, errorMsg = null, verificationEmailSent = false) }
+      repository.signUpWithEmail(email.trim(), password).fold({ user ->
+        repository.sendEmailVerification().fold({
+          _uiState.update {
+            it.copy(
+                isLoading = false,
+                user = user,
+                errorMsg = null,
+                verificationEmailSent = true,
+                signOutCompleted = false,
+            )
+          }
+        }) { failure ->
+          _uiState.update {
+            it.copy(
+                isLoading = false,
+                user = user,
+                errorMsg = AuthError(R.string.sign_in_error_unexpected, failure.localizedMessage),
+                signOutCompleted = false,
+            )
+          }
+        }
+      }) { failure ->
+        _uiState.update {
+          it.copy(
+              isLoading = false,
+              errorMsg = AuthError(R.string.sign_in_error_unexpected, failure.localizedMessage),
+              user = null,
+          )
+        }
+      }
+    }
+  }
+
+  fun resendEmailVerification() {
+    if (_uiState.value.isLoading) return
+    viewModelScope.launch {
+      _uiState.update { it.copy(isLoading = true, errorMsg = null) }
+      repository.resendEmailVerification().fold({
+        _uiState.update {
+          it.copy(isLoading = false, verificationEmailSent = true, errorMsg = null)
+        }
+      }) { failure ->
+        _uiState.update {
+          it.copy(
+              isLoading = false,
+              errorMsg = AuthError(R.string.sign_in_error_unexpected, failure.localizedMessage),
+          )
+        }
+      }
+    }
+  }
+
+  fun checkEmailVerification(onVerified: () -> Unit) {
+    if (_uiState.value.isLoading) return
+    viewModelScope.launch {
+      _uiState.update { it.copy(isLoading = true, errorMsg = null) }
+      repository.reloadEmailVerificationStatus().fold({ verified ->
+        if (verified) {
+          _uiState.update { it.copy(isLoading = false, verificationEmailSent = false) }
+          onVerified()
+        } else {
+          _uiState.update {
+            it.copy(
+                isLoading = false,
+                errorMsg = AuthError(R.string.email_verification_still_pending),
+            )
+          }
+        }
+      }) { failure ->
+        _uiState.update {
+          it.copy(
+              isLoading = false,
+              errorMsg = AuthError(R.string.sign_in_error_unexpected, failure.localizedMessage),
+          )
+        }
+      }
+    }
+  }
+
+  private fun validateEmailPassword(email: String, password: String): AuthError? {
+    val emailPattern = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+    if (!emailPattern.matches(email.trim())) {
+      return AuthError(R.string.auth_validation_email)
+    }
+    if (password.length < 6) return AuthError(R.string.auth_validation_password)
+    return null
   }
 
   /** Clears the cached user after a successful sign-out. */

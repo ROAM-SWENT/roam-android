@@ -1,5 +1,6 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 // Co-authored-by: Google Antigravity <noreply@google.com>
 package com.github.roamswent.roam.ui.collection
 
@@ -28,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -37,6 +39,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -86,7 +89,9 @@ import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
+import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholderIcon
 import com.github.roamswent.roam.ui.theme.LoadingErrorText
@@ -124,6 +129,9 @@ fun CollectionScreen(
     state: SavedGuidesUiState,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
+    profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    profileAvatarBytes: ByteArray? = null,
+    onProfileClicked: () -> Unit = {},
     onDeleteGuide: (String) -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
@@ -131,6 +139,10 @@ fun CollectionScreen(
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
+    title: String? = null,
+    readOnly: Boolean = false,
+    onBackClick: (() -> Unit)? = null,
+    onRetryGuides: (() -> Unit)? = null,
     onOpenSharing: () -> Unit = {},
     friends: List<CollectionFriend> = emptyList(),
     isLoadingFriends: Boolean = false,
@@ -198,34 +210,69 @@ fun CollectionScreen(
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
   ) { contentPadding ->
     Column(modifier = Modifier.padding(contentPadding).fillMaxSize()) {
-      Text(
-          text = stringResource(R.string.collection_title),
-          style = MaterialTheme.typography.headlineMedium,
-          fontWeight = FontWeight.Bold,
-          color =
-              if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
-              else LoadingTextPrimary,
+      Row(
           modifier =
-              Modifier.padding(horizontal = 20.dp, vertical = 16.dp).semantics {
-                testTag = C.Tag.collection_title
-              },
-      )
+              Modifier.fillMaxWidth()
+                  .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        if (onBackClick != null) {
+          IconButton(
+              onClick = onBackClick,
+              modifier = Modifier.semantics { testTag = C.Tag.collection_back_button },
+          ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.collection_back_description),
+                tint =
+                    if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
+                    else LoadingTextPrimary,
+            )
+          }
+        }
+        Text(
+            text = title ?: stringResource(R.string.collection_title),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color =
+                if (MaterialTheme.isDark) MaterialTheme.colorScheme.onBackground
+                else LoadingTextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier =
+                Modifier.weight(1f).padding(vertical = 8.dp).semantics {
+                  testTag = C.Tag.collection_title
+                },
+        )
+        ProfileBubble(
+            name = profileName,
+            avatarBytes = profileAvatarBytes,
+            onClick = onProfileClicked,
+            testTag = C.Tag.collection_profile_button,
+        )
+      }
+      if (state.guides.isNotEmpty() && state.guidesError != null && onRetryGuides != null) {
+        CollectionRetryError(onRetryGuides, Modifier.padding(horizontal = 20.dp))
+      }
       when {
         state.guides.isNotEmpty() -> {
           CollectionSearchBar(
               query = state.searchQuery,
               onQueryChange = onSearchQueryChange,
+              readOnly = readOnly,
               modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
           )
-          Row(
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
-              verticalAlignment = Alignment.CenterVertically,
-              modifier =
-                  Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
-          ) {
-            CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
-            Spacer(Modifier.weight(1f))
-            CollectionGalleryButton(onPickFromGallery)
+          if (!readOnly) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier =
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+            ) {
+              CollectionFilterChips(state.showFavoritesOnly, onShowFavoritesOnlyChange)
+              Spacer(Modifier.weight(1f))
+              CollectionGalleryButton(onPickFromGallery)
+            }
           }
           val guides = visibleGuides(state.guides, state.showFavoritesOnly, state.searchQuery)
           when {
@@ -242,6 +289,7 @@ fun CollectionScreen(
                   onDeleteGuide = onDeleteGuide,
                   deletingGuideIds = state.deletingGuideIds,
                   onToggleFavorite = toggleFavorite,
+                  readOnly = readOnly,
                   sharingGuideIds = state.sharingGuideIds,
                   friends = friends,
                   isLoadingFriends = isLoadingFriends,
@@ -254,16 +302,21 @@ fun CollectionScreen(
           }
         }
         state.isLoadingGuides -> CollectionLoading()
-        state.guidesError != null -> CollectionMessage(C.Tag.collection_error) { CollectionError() }
+        state.guidesError != null ->
+            CollectionMessage(C.Tag.collection_error) {
+              if (onRetryGuides != null) CollectionRetryError(onRetryGuides) else CollectionError()
+            }
         else -> {
-          Row(
-              modifier =
-                  Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
-              horizontalArrangement = Arrangement.End,
-          ) {
-            CollectionGalleryButton(onPickFromGallery)
+          if (!readOnly) {
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+              CollectionGalleryButton(onPickFromGallery)
+            }
           }
-          CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty() }
+          CollectionMessage(C.Tag.collection_empty_state) { CollectionEmpty(readOnly) }
         }
       }
     }
@@ -274,6 +327,7 @@ fun CollectionScreen(
 private fun CollectionSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    readOnly: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
   val isDark = MaterialTheme.isDark
@@ -289,7 +343,11 @@ private fun CollectionSearchBar(
       textStyle = MaterialTheme.typography.bodyMedium,
       placeholder = {
         Text(
-            text = stringResource(R.string.collection_search_hint),
+            text =
+                stringResource(
+                    if (readOnly) R.string.friend_collection_search_hint
+                    else R.string.collection_search_hint
+                ),
             style = MaterialTheme.typography.bodyMedium,
         )
       },
@@ -434,6 +492,7 @@ private fun GuideGrid(
     onDeleteGuide: (String) -> Unit,
     deletingGuideIds: Set<String>,
     onToggleFavorite: (Guide) -> Unit,
+    readOnly: Boolean,
     sharingGuideIds: Set<String>,
     friends: List<CollectionFriend>,
     isLoadingFriends: Boolean,
@@ -456,6 +515,7 @@ private fun GuideGrid(
           onDelete = { onDeleteGuide(guide.id) },
           isDeleting = guide.id in deletingGuideIds,
           onToggleFavorite = { onToggleFavorite(guide) },
+          readOnly = readOnly,
           isSharing = guide.id in sharingGuideIds,
           friends = friends,
           isLoadingFriends = isLoadingFriends,
@@ -477,6 +537,7 @@ private fun GuideCard(
     onDelete: () -> Unit,
     isDeleting: Boolean,
     onToggleFavorite: () -> Unit,
+    readOnly: Boolean,
     isSharing: Boolean,
     friends: List<CollectionFriend>,
     isLoadingFriends: Boolean,
@@ -494,24 +555,26 @@ private fun GuideCard(
   ) {
     Box {
       GuidePhoto(guide)
-      DeleteButton(
-          onClick = onDelete,
-          enabled = !isDeleting,
-          modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
-      )
-      FavoriteButton(
-          isFavorite = guide.isFavorite,
-          onClick = onToggleFavorite,
-          modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-      )
-      ShareButton(
-          isSharing = isSharing,
-          onClick = {
-            isShareDialogOpen = true
-            onOpenSharing()
-          },
-          modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-      )
+      if (!readOnly) {
+        DeleteButton(
+            onClick = onDelete,
+            enabled = !isDeleting,
+            modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
+        )
+        FavoriteButton(
+            isFavorite = guide.isFavorite,
+            onClick = onToggleFavorite,
+            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+        )
+        ShareButton(
+            isSharing = isSharing,
+            onClick = {
+              isShareDialogOpen = true
+              onOpenSharing()
+            },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+        )
+      }
     }
     Column(modifier = Modifier.padding(12.dp)) {
       Text(
@@ -535,16 +598,18 @@ private fun GuideCard(
                 Modifier.padding(top = 4.dp).semantics { testTag = C.Tag.collection_card_date },
         )
       }
-      Text(
-          text = shareStatusText(guide.shareSettings),
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.secondaryText,
-          modifier =
-              Modifier.padding(top = 4.dp).semantics { testTag = C.Tag.collection_share_status },
-      )
+      if (!readOnly) {
+        Text(
+            text = shareStatusText(guide.shareSettings),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.secondaryText,
+            modifier =
+                Modifier.padding(top = 4.dp).semantics { testTag = C.Tag.collection_share_status },
+        )
+      }
     }
   }
-  if (isShareDialogOpen) {
+  if (!readOnly && isShareDialogOpen) {
     GuideSharingDialog(
         guide = guide,
         friends = friends,
@@ -898,7 +963,7 @@ private fun CollectionMessage(tag: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun CollectionEmpty() {
+private fun CollectionEmpty(readOnly: Boolean = false) {
   Icon(
       imageVector = Icons.Filled.AccountBalance,
       contentDescription = null,
@@ -908,7 +973,11 @@ private fun CollectionEmpty() {
       modifier = Modifier.size(56.dp),
   )
   Text(
-      text = stringResource(R.string.collection_empty_title),
+      text =
+          stringResource(
+              if (readOnly) R.string.friend_collection_empty_title
+              else R.string.collection_empty_title
+          ),
       style = MaterialTheme.typography.titleSmall,
       fontWeight = FontWeight.Bold,
       color =
@@ -916,7 +985,11 @@ private fun CollectionEmpty() {
       modifier = Modifier.padding(top = 16.dp),
   )
   Text(
-      text = stringResource(R.string.collection_empty_subtitle),
+      text =
+          stringResource(
+              if (readOnly) R.string.friend_collection_empty_subtitle
+              else R.string.collection_empty_subtitle
+          ),
       style = MaterialTheme.typography.bodySmall,
       color =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.onSurfaceVariant
@@ -985,13 +1058,29 @@ private fun CollectionSearchNoMatches() {
 }
 
 @Composable
-private fun CollectionError() {
+private fun CollectionError(readOnly: Boolean = false) {
   Text(
-      text = stringResource(R.string.collection_error),
+      text =
+          stringResource(
+              if (readOnly) R.string.friend_collection_error else R.string.collection_error
+          ),
       style = MaterialTheme.typography.bodySmall,
       color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.error else LoadingErrorText,
       textAlign = TextAlign.Center,
   )
+}
+
+@Composable
+private fun CollectionRetryError(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+  Column(
+      modifier = modifier.semantics { testTag = C.Tag.collection_retry_error },
+      horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    CollectionError(readOnly = true)
+    Button(onClick = onRetry, modifier = Modifier.semantics { testTag = C.Tag.collection_retry }) {
+      Text(stringResource(R.string.saved_monument_detail_retry))
+    }
+  }
 }
 
 private val discoveryDateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")

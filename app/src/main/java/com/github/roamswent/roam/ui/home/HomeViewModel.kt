@@ -32,17 +32,34 @@ class HomeViewModel(
 
   private val _userName = MutableStateFlow(DEFAULT_USER_NAME)
   val userName: StateFlow<String> = _userName
+  private val _avatarBytes = MutableStateFlow<ByteArray?>(null)
+  val avatarBytes: StateFlow<ByteArray?> = _avatarBytes
   private var currentUser: FirebaseUser? = repository.currentUser()
   private var profileJob: Job? = null
 
+  private data class CachedPublicProfile(
+      val username: String,
+      val avatarBytes: ByteArray?,
+  )
+
   init {
+    currentUser?.uid?.let { uid ->
+      profileCache[uid]?.let { cached ->
+        _userName.value = cached.username
+        _avatarBytes.value = cached.avatarBytes
+      }
+    }
     refreshUserName(currentUser)
     viewModelScope.launch {
       repository.currentUserFlow().collect { user ->
         val userChanged = currentUser?.uid != user?.uid
+        if (userChanged) {
+          currentUser?.uid?.let { profileCache.remove(it) }
+        }
         currentUser = user
         if (userChanged && publicProfileRepository != null) {
           _userName.value = DEFAULT_USER_NAME
+          _avatarBytes.value = null
         }
         refreshUserName(user)
       }
@@ -59,6 +76,7 @@ class HomeViewModel(
     profileJob?.cancel()
     if (publicProfileRepository == null || user == null) {
       _userName.value = fallbackName
+      _avatarBytes.value = null
       return
     }
 
@@ -73,6 +91,8 @@ class HomeViewModel(
           }
       if (profile != null) {
         _userName.value = profile.username
+        _avatarBytes.value = profile.avatarBytes
+        profileCache[user.uid] = CachedPublicProfile(profile.username, profile.avatarBytes)
       }
     }
   }
@@ -104,5 +124,10 @@ class HomeViewModel(
 
   companion object {
     const val DEFAULT_USER_NAME = ""
+    private val profileCache = mutableMapOf<String, CachedPublicProfile>()
+
+    internal fun clearProfileCacheForTests() {
+      profileCache.clear()
+    }
   }
 }

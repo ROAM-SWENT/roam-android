@@ -9,6 +9,7 @@ import androidx.credentials.CustomCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.channels.awaitClose
@@ -30,6 +31,81 @@ class AuthRepositoryFirebase(
     private val auth: FirebaseAuth = Firebase.auth,
     private val helper: GoogleSignInHelper = DefaultGoogleSignInHelper(),
 ) : AuthRepository {
+
+  override suspend fun signUpWithEmail(email: String, password: String): Result<FirebaseUser> =
+      try {
+        val user =
+            auth.createUserWithEmailAndPassword(email, password).await().user
+                ?: return Result.failure(
+                    IllegalStateException("Sign-up failed: Could not retrieve user information")
+                )
+        Result.success(user)
+      } catch (e: Exception) {
+        Result.failure(mapEmailAuthError("Sign-up", e))
+      }
+
+  override suspend fun signInWithEmail(email: String, password: String): Result<FirebaseUser> =
+      try {
+        val user =
+            auth.signInWithEmailAndPassword(email, password).await().user
+                ?: return Result.failure(
+                    IllegalStateException("Sign-in failed: Could not retrieve user information")
+                )
+        Result.success(user)
+      } catch (e: Exception) {
+        Result.failure(mapEmailAuthError("Sign-in", e))
+      }
+
+  override suspend fun sendEmailVerification(): Result<Unit> =
+      try {
+        val user =
+            auth.currentUser
+                ?: return Result.failure(
+                    IllegalStateException("Email verification failed: No user is signed in")
+                )
+        user.sendEmailVerification().await()
+        Result.success(Unit)
+      } catch (e: Exception) {
+        Result.failure(mapEmailAuthError("Email verification", e))
+      }
+
+  override suspend fun resendEmailVerification(): Result<Unit> = sendEmailVerification()
+
+  override suspend fun reloadEmailVerificationStatus(): Result<Boolean> =
+      try {
+        val user =
+            auth.currentUser
+                ?: return Result.failure(
+                    IllegalStateException("Email verification check failed: No user is signed in")
+                )
+        user.reload().await()
+        Result.success(user.isEmailVerified)
+      } catch (e: Exception) {
+        Result.failure(mapEmailAuthError("Email verification check", e))
+      }
+
+  override fun isEmailVerified(): Boolean = auth.currentUser?.isEmailVerified ?: false
+
+  private fun mapEmailAuthError(operation: String, error: Exception): IllegalStateException {
+    val message =
+        if (error is FirebaseAuthException) {
+          when (error.errorCode) {
+            "ERROR_INVALID_EMAIL" -> "The email address is invalid"
+            "ERROR_EMAIL_ALREADY_IN_USE" -> "An account already exists with this email"
+            "ERROR_WEAK_PASSWORD" -> "The password is too weak"
+            "ERROR_INVALID_CREDENTIAL",
+            "ERROR_USER_NOT_FOUND",
+            "ERROR_WRONG_PASSWORD" -> "The email or password is incorrect"
+            "ERROR_USER_DISABLED" -> "This account has been disabled"
+            "ERROR_TOO_MANY_REQUESTS" -> "Too many attempts; try again later"
+            "ERROR_OPERATION_NOT_ALLOWED" -> "Email/password authentication is not enabled"
+            else -> error.localizedMessage ?: "Unexpected error"
+          }
+        } else {
+          error.localizedMessage ?: "Unexpected error"
+        }
+    return IllegalStateException("$operation failed: $message")
+  }
 
   override suspend fun signInWithGoogle(credential: Credential): Result<FirebaseUser> {
     return try {
