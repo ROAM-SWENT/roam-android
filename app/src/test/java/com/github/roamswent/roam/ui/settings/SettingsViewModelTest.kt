@@ -411,7 +411,7 @@ class SettingsViewModelTest {
   @Test
   fun uploadAvatar_successUpdatesPublicProfileAndStopsLoading() =
       runTest(dispatcher) {
-        val updated = PublicProfile("uid", "traveler", byteArrayOf(1, 2, 3))
+        val updated = PublicProfile("uid", "traveler", avatarBytes = byteArrayOf(1, 2, 3))
         whenever(publicProfileRepository.uploadAvatar(byteArrayOf(1, 2, 3))).thenReturn(updated)
         val viewModel = newViewModel()
 
@@ -491,7 +491,7 @@ class SettingsViewModelTest {
         viewModel.uploadAvatar(byteArrayOf(2))
 
         assertTrue(viewModel.uiState.value.isAvatarSaving)
-        result.complete(PublicProfile("uid", "traveler", byteArrayOf(1)))
+        result.complete(PublicProfile("uid", "traveler", avatarBytes = byteArrayOf(1)))
         advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isAvatarSaving)
       }

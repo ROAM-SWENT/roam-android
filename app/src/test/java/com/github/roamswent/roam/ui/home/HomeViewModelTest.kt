@@ -66,7 +66,7 @@ class HomeViewModelTest {
         val avatarBytes = byteArrayOf(1, 2, 3)
         val publicProfileRepository = mockk<PublicProfileRepository>()
         coEvery { publicProfileRepository.getCurrentProfile() } returns
-            PublicProfile("uid", "app_username", avatarBytes)
+            PublicProfile("uid", "app_username", avatarBytes = avatarBytes)
 
         val viewModel = HomeViewModel(repository, publicProfileRepository)
         advanceUntilIdle()
@@ -84,7 +84,7 @@ class HomeViewModelTest {
         val publicProfileRepository = mockk<PublicProfileRepository>()
         val avatarBytes = byteArrayOf(9, 8, 7)
         coEvery { publicProfileRepository.getCurrentProfile() } returns
-            PublicProfile("uid", "cached_name", avatarBytes)
+            PublicProfile("uid", "cached_name", avatarBytes = avatarBytes)
 
         val first = HomeViewModel(repository, publicProfileRepository)
         advanceUntilIdle()
@@ -109,7 +109,7 @@ class HomeViewModelTest {
         coEvery { publicProfileRepository.getCurrentProfile() } coAnswers
             {
               if (lookupCount++ == 0) {
-                PublicProfile("uid-a", "name-a", byteArrayOf(1))
+                PublicProfile("uid-a", "name-a", avatarBytes = byteArrayOf(1))
               } else {
                 secondLookup.await()
               }
@@ -121,7 +121,7 @@ class HomeViewModelTest {
         assertEquals(HomeViewModel.DEFAULT_USER_NAME, viewModel.userName.value)
         assertEquals(null, viewModel.avatarBytes.value)
 
-        secondLookup.complete(PublicProfile("uid-b", "name-b", byteArrayOf(2)))
+        secondLookup.complete(PublicProfile("uid-b", "name-b", avatarBytes = byteArrayOf(2)))
         advanceUntilIdle()
         assertEquals("name-b", viewModel.userName.value)
         assertEquals(true, viewModel.avatarBytes.value.contentEquals(byteArrayOf(2)))

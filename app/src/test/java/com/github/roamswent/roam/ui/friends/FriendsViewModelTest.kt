@@ -222,9 +222,9 @@ class FriendsViewModelTest {
         coEvery { friendsRepository.getIncomingRequests() } returns emptyList()
         coEvery { friendsRepository.getOutgoingRequests() } returns emptyList()
         coEvery { profilesRepository.getProfile("friend") } returns
-            PublicProfile("friend", "FriendName", avatarBytes)
+            PublicProfile("friend", "FriendName", avatarBytes = avatarBytes)
         coEvery { profilesRepository.searchProfiles("Friend") } returns
-            listOf(PublicProfile("friend", "FriendName", avatarBytes))
+            listOf(PublicProfile("friend", "FriendName", avatarBytes = avatarBytes))
         val viewModel = FriendsViewModel(friendsRepository, profilesRepository)
 
         viewModel.loadFriends()
