@@ -95,6 +95,8 @@ class FriendsRouteTest {
     coVerify { friendsRepository.acceptFriendRequest("request-id") }
     coVerify { friendsRepository.removeFriend("friend") }
     assert(profileClicked)
+    // The Leaderboard segment was never opened, so the leaderboard was never loaded.
+    coVerify(exactly = 0) { leaderboardRepository.getFriendsLeaderboard() }
   }
 
   @Test

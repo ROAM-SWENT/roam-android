@@ -51,7 +51,9 @@ data class FriendSearchResult(
  *   friends and requests stay usable; cleared by the next successful load.
  * @property isLeaderboardLoading Whether a leaderboard load is in progress. Independent of
  *   [isLoading]: friends and requests are published without waiting for the leaderboard.
- * @property hasLoadedLeaderboard Whether a leaderboard load has finished, successfully or not.
+ * @property hasLoadedLeaderboard Whether a leaderboard load has finished, successfully or not. It
+ *   stays `false` until the Leaderboard segment is first shown, as the leaderboard is only loaded
+ *   on demand.
  * @property currentUserUid UID of the signed-in user, used to highlight their leaderboard entry.
  */
 data class FriendsUiState(
@@ -75,10 +77,18 @@ data class FriendsUiState(
 /**
  * Coordinates friends, public-profile and leaderboard repositories for the Friends screen.
  *
- * The leaderboard is reloaded with every friends load, refresh and mutation, since accepting or
- * removing a friend changes who is on it. It loads in its own job: friends, requests and their
- * errors are published as soon as they are ready, whatever the leaderboard is doing. A newer load
- * cancels a pending one, so an older result never overwrites a newer one.
+ * The leaderboard is loaded on demand, only while the Leaderboard segment is shown, as reported by
+ * [setLeaderboardVisible]:
+ * - [loadFriends] loads friends and requests only.
+ * - Showing the leaderboard loads it the first time, and again only once it is stale: after a
+ *   failed load, or after a friend was accepted or removed while it was hidden.
+ * - [refresh] reloads what is shown: the friend lists, or the leaderboard alone.
+ * - Accepting or removing a friend reloads the leaderboard at once if it is shown, otherwise marks
+ *   it stale. Other requests do not change who is on it.
+ *
+ * The leaderboard loads in its own job: friends, requests and their errors are published as soon as
+ * they are ready, whatever the leaderboard is doing. A newer load cancels a pending one, so an
+ * older result never overwrites a newer one.
  */
 class FriendsViewModel(
     private val friendRepository: FriendRepository,
@@ -93,22 +103,35 @@ class FriendsViewModel(
   private var searchJob: Job? = null
   private var loadJob: Job? = null
   private var leaderboardJob: Job? = null
+  private var isLeaderboardVisible = false
+  // Set when a load starts, so a result loaded before a later friend change stays stale.
+  private var isLeaderboardStale = true
   private val profileCache = mutableMapOf<String, CachedProfile>()
 
   fun loadFriends() {
     startLoading(forceRefresh = false)
   }
 
+  /** Reloads what is shown: the leaderboard alone while it is visible, otherwise the friends. */
   fun refresh() {
     if (_uiState.value.isMutating) return
-    startLoading(forceRefresh = true)
+    if (isLeaderboardVisible) startLeaderboardLoad() else startLoading(forceRefresh = true)
+  }
+
+  /**
+   * Called by the screen when the Leaderboard segment is shown or hidden, including when the screen
+   * leaves the composition. Showing it loads the leaderboard if it was never loaded or is stale.
+   */
+  fun setLeaderboardVisible(visible: Boolean) {
+    isLeaderboardVisible = visible
+    if (visible && isLeaderboardStale) startLeaderboardLoad()
   }
 
   private fun startLoading(forceRefresh: Boolean) {
     if (loadJob?.isActive == true || _uiState.value.isLoading) return
     if (forceRefresh) profileCache.clear()
     _uiState.update { it.copy(isLoading = true, error = null) }
-    loadJob = viewModelScope.launch { refreshFriends() }
+    loadJob = viewModelScope.launch { refreshFriendLists() }
   }
 
   fun searchUsers(prefix: String) {
@@ -154,36 +177,51 @@ class FriendsViewModel(
   }
 
   fun sendRequest(user: FriendUser) {
-    mutate("Friend request sent.") { friendRepository.sendFriendRequest(user.id) }
+    mutate("Friend request sent.", changesFriends = false) {
+      friendRepository.sendFriendRequest(user.id)
+    }
   }
 
   fun acceptRequest(request: FriendRequest) {
-    mutate("Friend request accepted.") { friendRepository.acceptFriendRequest(request.id) }
+    mutate("Friend request accepted.", changesFriends = true) {
+      friendRepository.acceptFriendRequest(request.id)
+    }
   }
 
   fun rejectRequest(request: FriendRequest) {
-    mutate("Friend request declined.") { friendRepository.rejectFriendRequest(request.id) }
+    mutate("Friend request declined.", changesFriends = false) {
+      friendRepository.rejectFriendRequest(request.id)
+    }
   }
 
   fun cancelRequest(request: FriendRequest) {
-    mutate("Friend request cancelled.") { friendRepository.cancelFriendRequest(request.id) }
+    mutate("Friend request cancelled.", changesFriends = false) {
+      friendRepository.cancelFriendRequest(request.id)
+    }
   }
 
   fun removeFriend(friend: FriendUser) {
-    mutate("Friend removed.") { friendRepository.removeFriend(friend.id) }
+    mutate("Friend removed.", changesFriends = true) { friendRepository.removeFriend(friend.id) }
   }
 
   fun clearMessage() {
     _uiState.update { it.copy(message = null, error = null) }
   }
 
-  private fun mutate(message: String, operation: suspend () -> Unit) {
+  /**
+   * Runs [operation], then reloads the friend lists. When [changesFriends], who is on the
+   * leaderboard changed: it is reloaded if shown, otherwise marked stale for its next showing.
+   */
+  private fun mutate(message: String, changesFriends: Boolean, operation: suspend () -> Unit) {
     if (_uiState.value.isMutating) return
     _uiState.update { it.copy(isMutating = true, error = null, message = null) }
     viewModelScope.launch {
       try {
         operation()
-        refreshFriends()
+        if (changesFriends) {
+          if (isLeaderboardVisible) startLeaderboardLoad() else isLeaderboardStale = true
+        }
+        refreshFriendLists()
         if (_uiState.value.error == null) {
           _uiState.update { it.copy(message = message) }
         }
@@ -197,18 +235,14 @@ class FriendsViewModel(
     }
   }
 
-  /** Starts a leaderboard load, then loads the friend lists without waiting for it. */
-  private suspend fun refreshFriends() {
-    startLeaderboardLoad()
-    refreshFriendLists()
-  }
-
   /**
    * Loads the leaderboard in its own job, replacing any pending load. A failure keeps the previous
-   * entries and is exposed as [FriendsUiState.leaderboardError]; a cancelled load changes nothing.
+   * entries, is exposed as [FriendsUiState.leaderboardError] and leaves the leaderboard stale so
+   * that it is retried on its next showing; a cancelled load changes nothing.
    */
   private fun startLeaderboardLoad() {
     leaderboardJob?.cancel()
+    isLeaderboardStale = false
     _uiState.update { it.copy(isLeaderboardLoading = true) }
     leaderboardJob = viewModelScope.launch {
       try {
@@ -224,6 +258,7 @@ class FriendsViewModel(
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
+        isLeaderboardStale = true
         _uiState.update {
           it.copy(
               leaderboardError = exception,

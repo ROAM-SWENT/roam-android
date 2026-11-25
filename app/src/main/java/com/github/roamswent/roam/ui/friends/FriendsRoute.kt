@@ -93,5 +93,6 @@ fun FriendsRoute(
       hasLeaderboardError = state.leaderboardError != null,
       isLeaderboardLoading = state.isLeaderboardLoading,
       hasLoadedLeaderboard = state.hasLoadedLeaderboard,
+      onLeaderboardVisibilityChanged = viewModel::setLeaderboardVisible,
   )
 }

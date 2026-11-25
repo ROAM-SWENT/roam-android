@@ -129,7 +129,18 @@ internal fun FriendsContent(
         onProfileClicked = onProfileClicked,
     )
     FriendsTabSelector(selectedTab = selectedTab, onTabSelected = onTabSelected)
-    val isRefreshing = isLoading && hasLoaded
+    // Spinner until the first leaderboard load ends, including the frame before it starts, so the
+    // empty state never shows for a leaderboard that was not loaded yet.
+    val isLeaderboardInitialLoading = !hasLoadedLeaderboard && !hasLeaderboardError
+    // The indicator follows what a pull reloads: the friends, or the leaderboard alone. In the
+    // leaderboard it shows for any load the spinner does not cover, such as a retry after a failed
+    // first load.
+    val isRefreshing =
+        if (selectedTab == FriendsTab.Leaderboard) {
+          isLeaderboardLoading && !isLeaderboardInitialLoading
+        } else {
+          isLoading && hasLoaded
+        }
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
@@ -153,8 +164,7 @@ internal fun FriendsContent(
             entries = leaderboard,
             currentUserUid = currentUserUid,
             hasError = hasLeaderboardError,
-            isInitialLoading =
-                isLeaderboardLoading && !hasLoadedLeaderboard && leaderboard.isEmpty(),
+            isInitialLoading = isLeaderboardInitialLoading,
             onAddFriendsClicked = onAddFriendsClicked,
             modifier = Modifier.matchParentSize(),
         )

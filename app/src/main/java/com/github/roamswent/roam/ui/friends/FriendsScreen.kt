@@ -21,9 +21,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,7 +51,11 @@ import com.github.roamswent.roam.resources.C
  *   only, so the friends list stays usable.
  * @param isLeaderboardLoading Whether a leaderboard load is in progress, independently of
  *   [isLoading].
- * @param hasLoadedLeaderboard Whether a leaderboard load has finished, successfully or not.
+ * @param hasLoadedLeaderboard Whether a leaderboard load has finished, successfully or not. Until
+ *   then, and unless it failed, the leaderboard shows its loading spinner.
+ * @param onLeaderboardVisibilityChanged Called with whether the Leaderboard segment is shown: on
+ *   first composition, on every segment change, and with `false` when the screen leaves the
+ *   composition, so the leaderboard is only loaded while it is shown.
  */
 @Composable
 fun FriendsScreen(
@@ -81,8 +88,15 @@ fun FriendsScreen(
     hasLeaderboardError: Boolean = false,
     isLeaderboardLoading: Boolean = false,
     hasLoadedLeaderboard: Boolean = false,
+    onLeaderboardVisibilityChanged: (Boolean) -> Unit = {},
 ) {
   var selectedTab by rememberSaveable { mutableStateOf(FriendsTab.Friends) }
+  val currentOnLeaderboardVisibilityChanged by rememberUpdatedState(onLeaderboardVisibilityChanged)
+  // Also runs for a segment restored after a configuration change or process death.
+  LaunchedEffect(selectedTab) {
+    currentOnLeaderboardVisibilityChanged(selectedTab == FriendsTab.Leaderboard)
+  }
+  DisposableEffect(Unit) { onDispose { currentOnLeaderboardVisibilityChanged(false) } }
   var friendsQuery by remember { mutableStateOf("") }
   var userQuery by remember { mutableStateOf("") }
   var isAddFriendsOpen by

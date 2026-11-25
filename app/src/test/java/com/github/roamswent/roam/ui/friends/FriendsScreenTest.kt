@@ -364,6 +364,7 @@ class FriendsScreenTest {
             leaderboard = listOf(friend, self),
             currentUserUid = "self",
             hasLoaded = true,
+            hasLoadedLeaderboard = true,
         )
       }
     }
@@ -398,6 +399,7 @@ class FriendsScreenTest {
             leaderboard = listOf(friend, self, tied),
             currentUserUid = "self",
             hasLoaded = true,
+            hasLoadedLeaderboard = true,
         )
       }
     }
@@ -432,6 +434,7 @@ class FriendsScreenTest {
             leaderboard = listOf(namesake, self),
             currentUserUid = "self",
             hasLoaded = true,
+            hasLoadedLeaderboard = true,
         )
       }
     }
@@ -454,7 +457,12 @@ class FriendsScreenTest {
   fun leaderboardWithOnlyCurrentUserShowsEmptyStateAndOwnRow() {
     composeTestRule.setContent {
       SampleAppTheme {
-        FriendsScreen(leaderboard = listOf(self), currentUserUid = "self", hasLoaded = true)
+        FriendsScreen(
+            leaderboard = listOf(self),
+            currentUserUid = "self",
+            hasLoaded = true,
+            hasLoadedLeaderboard = true,
+        )
       }
     }
     openLeaderboard()
@@ -469,7 +477,9 @@ class FriendsScreenTest {
   @Test
   fun emptyLeaderboardShowsEmptyState() {
     composeTestRule.setContent {
-      SampleAppTheme { FriendsScreen(currentUserUid = "self", hasLoaded = true) }
+      SampleAppTheme {
+        FriendsScreen(currentUserUid = "self", hasLoaded = true, hasLoadedLeaderboard = true)
+      }
     }
     openLeaderboard()
 
@@ -481,7 +491,12 @@ class FriendsScreenTest {
   fun emptyStateActionOpensAddFriendsPanel() {
     composeTestRule.setContent {
       SampleAppTheme {
-        FriendsScreen(leaderboard = listOf(self), currentUserUid = "self", hasLoaded = true)
+        FriendsScreen(
+            leaderboard = listOf(self),
+            currentUserUid = "self",
+            hasLoaded = true,
+            hasLoadedLeaderboard = true,
+        )
       }
     }
     openLeaderboard()
@@ -500,6 +515,7 @@ class FriendsScreenTest {
             leaderboard = listOf(friend, self),
             currentUserUid = "self",
             hasLoaded = true,
+            hasLoadedLeaderboard = true,
         )
       }
     }
@@ -512,14 +528,15 @@ class FriendsScreenTest {
   @Test
   fun pullingDownRefreshesInLeaderboardMode() {
     var refreshCount = 0
-    var isLoading by mutableStateOf(false)
+    var isLeaderboardLoading by mutableStateOf(false)
     composeTestRule.setContent {
       SampleAppTheme {
         FriendsScreen(
             leaderboard = listOf(friend, self),
             currentUserUid = "self",
-            isLoading = isLoading,
+            isLeaderboardLoading = isLeaderboardLoading,
             hasLoaded = true,
+            hasLoadedLeaderboard = true,
             onRefresh = { refreshCount++ },
         )
       }
@@ -529,7 +546,7 @@ class FriendsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.friends_leaderboard_list).performTouchInput { swipeDown() }
 
     assertEquals(1, refreshCount)
-    composeTestRule.runOnIdle { isLoading = true }
+    composeTestRule.runOnIdle { isLeaderboardLoading = true }
     composeTestRule.onNodeWithTag(C.Tag.friends_refresh_indicator).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.friends_leaderboard_list).assertIsDisplayed()
   }
@@ -610,5 +627,79 @@ class FriendsScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.friends_initial_loading).assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.friends_leaderboard_empty).assertCountEquals(0)
+  }
+
+  @Test
+  fun leaderboardShowsSpinnerBeforeItsFirstLoadStarts() {
+    // The frame between selecting the segment and the view model starting the load.
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsScreen(
+            hasLoaded = true,
+            isLeaderboardLoading = false,
+            hasLoadedLeaderboard = false,
+            hasLeaderboardError = false,
+        )
+      }
+    }
+    openLeaderboard()
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_initial_loading).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_leaderboard_empty).assertCountEquals(0)
+  }
+
+  @Test
+  fun reportsLeaderboardVisibilityOnOpenAndOnEverySegmentChange() {
+    val visibility = mutableListOf<Boolean>()
+    composeTestRule.setContent {
+      SampleAppTheme { FriendsScreen(onLeaderboardVisibilityChanged = { visibility += it }) }
+    }
+    composeTestRule.runOnIdle { assertEquals(listOf(false), visibility) }
+
+    openLeaderboard()
+    composeTestRule.runOnIdle { assertEquals(listOf(false, true), visibility) }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_tab_friends).performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf(false, true, false), visibility) }
+  }
+
+  @Test
+  fun leavingTheScreenOnTheLeaderboardReportsItHidden() {
+    val visibility = mutableListOf<Boolean>()
+    var isShown by mutableStateOf(true)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        if (isShown) FriendsScreen(onLeaderboardVisibilityChanged = { visibility += it })
+      }
+    }
+    openLeaderboard()
+    composeTestRule.runOnIdle { assertEquals(true, visibility.last()) }
+
+    composeTestRule.runOnIdle { isShown = false }
+
+    composeTestRule.runOnIdle { assertEquals(listOf(false, true, false), visibility) }
+  }
+
+  @Test
+  fun retryAfterAFailedFirstLeaderboardLoadShowsTheRefreshIndicator() {
+    // The first load failed, so the spinner is hidden; the retry must still show progress.
+    var isLeaderboardLoading by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsScreen(
+            hasLoaded = true,
+            isLeaderboardLoading = isLeaderboardLoading,
+            hasLoadedLeaderboard = false,
+            hasLeaderboardError = true,
+        )
+      }
+    }
+    openLeaderboard()
+    composeTestRule.onNodeWithTag(C.Tag.friends_leaderboard_error).assertIsDisplayed()
+
+    composeTestRule.runOnIdle { isLeaderboardLoading = true }
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_refresh_indicator).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_initial_loading).assertCountEquals(0)
   }
 }
