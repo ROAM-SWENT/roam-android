@@ -12,7 +12,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -32,17 +38,43 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.CollectionFriend
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.accentContainer
 import com.github.roamswent.roam.ui.theme.accentIcon
+import com.github.roamswent.roam.ui.theme.guideCalloutContainer
 import com.github.roamswent.roam.ui.theme.guidePanel
+import com.github.roamswent.roam.ui.theme.isDark
+import com.github.roamswent.roam.ui.theme.monumentShareUnavailableIcon
+import com.github.roamswent.roam.ui.theme.monumentShareUnavailableText
+import com.github.roamswent.roam.ui.theme.monumentShareUnavailableTitle
+import com.github.roamswent.roam.ui.theme.offlineNoticeContainer
+import com.github.roamswent.roam.ui.theme.onAccentContainer
 import com.github.roamswent.roam.ui.theme.photoButtonContainer
+import com.github.roamswent.roam.ui.theme.secondaryText
+
+/** Sharing data rendered below a monument guide. */
+data class MonumentDetailSharingState(
+    /** Current audience and selected recipients. */
+    val settings: MonumentShareSettings = MonumentShareSettings(),
+    /** Friends whose names and avatars can be shown in the status panel. */
+    val recipients: List<CollectionFriend> = emptyList(),
+    /** Whether sharing is unavailable because the photo was too far from the monument. */
+    val unavailableBecauseTooFar: Boolean = false,
+    /** Whether a sharing write is currently in progress. */
+    val isSaving: Boolean = false,
+)
 
 /**
  * Shows a scrolling [guide] beneath a fixed [image]. The favourite heart is shown when [isFavorite]
@@ -67,6 +99,12 @@ fun MonumentDetailScreen(
     onShowInExploreChange: (Boolean) -> Unit = {},
     exploreUnavailableReason: ExploreUnavailableReason? = null,
     isGalleryImage: Boolean = false,
+    sharingState: MonumentDetailSharingState = MonumentDetailSharingState(),
+    onShareClick: () -> Unit = {},
+    showSharingError: Boolean = false,
+    onSharingErrorShown: () -> Unit = {},
+    showSharingControls: Boolean = true,
+    showSharingAction: Boolean = true,
 ) {
   val cornerRadius = 24.dp
 
@@ -108,6 +146,7 @@ fun MonumentDetailScreen(
       Column(
           modifier =
               Modifier.widthIn(max = 640.dp)
+                  .weight(1f)
                   .fillMaxWidth()
                   .verticalScroll(state = rememberScrollState(), overscrollEffect = null)
                   .padding(horizontal = 24.dp, vertical = 24.dp)
@@ -121,13 +160,39 @@ fun MonumentDetailScreen(
               onCheckedChange = onShowInExploreChange,
               isGalleryImage = isGalleryImage,
           )
-        } else if (exploreUnavailableReason != null) {
+        } else if (
+            exploreUnavailableReason != null &&
+                !(exploreUnavailableReason == ExploreUnavailableReason.TOO_FAR &&
+                    sharingState.unavailableBecauseTooFar)
+        ) {
           ExploreUnavailableMessage(
               reason = exploreUnavailableReason,
               isGalleryImage = isGalleryImage,
           )
         }
         GuideContent(guide)
+        if (showSharingControls) {
+          MonumentDetailSharingStatus(
+              state = sharingState,
+              monumentName = guide.monumentName,
+          )
+        }
+      }
+      if (showSharingControls && showSharingAction) {
+        MonumentDetailSharingButton(
+            state = sharingState,
+            onBackClick = onBackClick,
+            onShareClick = onShareClick,
+            modifier =
+                Modifier.widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .padding(
+                        start = 24.dp,
+                        top = 8.dp,
+                        end = 24.dp,
+                        bottom = 24.dp,
+                    ),
+        )
       }
     }
 
@@ -146,15 +211,215 @@ fun MonumentDetailScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val favoriteErrorMessage = stringResource(R.string.collection_favorite_error)
+    val sharingErrorMessage = stringResource(R.string.collection_share_error)
     LaunchedEffect(showFavoriteError) {
       if (showFavoriteError) {
         snackbarHostState.showSnackbar(favoriteErrorMessage)
         onFavoriteErrorShown()
       }
     }
+    LaunchedEffect(showSharingError) {
+      if (showSharingError) {
+        snackbarHostState.showSnackbar(sharingErrorMessage)
+        onSharingErrorShown()
+      }
+    }
     SnackbarHost(
         hostState = snackbarHostState,
         modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
+    )
+  }
+}
+
+/** Shows the current sharing audience at the bottom of the scrollable guide content. */
+@Composable
+private fun MonumentDetailSharingStatus(
+    state: MonumentDetailSharingState,
+    monumentName: String,
+    modifier: Modifier = Modifier,
+) {
+  Column(
+      modifier = modifier.fillMaxWidth(),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    if (!state.unavailableBecauseTooFar && state.settings.audience == ShareAudience.NONE) {
+      Spacer(Modifier.height(8.dp))
+    }
+
+    when {
+      state.unavailableBecauseTooFar -> {
+        Row(
+            modifier =
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.offlineNoticeContainer)
+                    .padding(start = 12.dp, top = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .semantics { testTag = C.Tag.monument_detail_share_unavailable },
+            verticalAlignment = Alignment.Top,
+        ) {
+          Icon(
+              imageVector = if (MaterialTheme.isDark) Icons.Filled.Info else Icons.Outlined.Info,
+              contentDescription = null,
+              tint = MaterialTheme.monumentShareUnavailableIcon,
+          )
+          Spacer(Modifier.width(10.dp))
+          Column {
+            Text(
+                text = stringResource(R.string.monument_detail_share_unavailable_title),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.monumentShareUnavailableTitle,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text =
+                    stringResource(
+                        R.string.monument_detail_share_unavailable_message,
+                        monumentName,
+                    ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.monumentShareUnavailableText,
+            )
+          }
+        }
+      }
+      state.settings.audience == ShareAudience.NONE -> {
+        Row(
+            modifier =
+                Modifier.fillMaxWidth().semantics { testTag = C.Tag.monument_detail_share_status },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Icon(
+              imageVector = Icons.Filled.Lock,
+              contentDescription = null,
+              tint = MaterialTheme.secondaryText,
+          )
+          Spacer(Modifier.width(8.dp))
+          Text(
+              text = stringResource(R.string.monument_detail_not_shared),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.secondaryText,
+          )
+        }
+      }
+      else -> {
+        SharedRecipientsStatus(
+            recipients = state.recipients,
+            modifier = Modifier.semantics { testTag = C.Tag.monument_detail_share_status },
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun MonumentDetailSharingButton(
+    state: MonumentDetailSharingState,
+    onBackClick: () -> Unit,
+    onShareClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  Button(
+      onClick = if (state.unavailableBecauseTooFar) onBackClick else onShareClick,
+      enabled = !state.isSaving,
+      modifier =
+          modifier.fillMaxWidth().heightIn(min = 52.dp).semantics {
+            testTag = C.Tag.monument_detail_share_button
+          },
+      colors =
+          ButtonDefaults.buttonColors(
+              containerColor =
+                  if (state.settings.audience == ShareAudience.NONE) {
+                    MaterialTheme.accentContainer
+                  } else {
+                    MaterialTheme.guideCalloutContainer
+                  },
+              contentColor =
+                  if (state.settings.audience == ShareAudience.NONE) {
+                    MaterialTheme.onAccentContainer
+                  } else {
+                    MaterialTheme.accentIcon
+                  },
+          ),
+  ) {
+    if (!state.unavailableBecauseTooFar) {
+      Icon(
+          imageVector = Icons.Filled.Share,
+          contentDescription = null,
+      )
+      Spacer(Modifier.width(16.dp))
+    }
+    Text(
+        text =
+            stringResource(
+                when {
+                  state.unavailableBecauseTooFar -> R.string.monument_detail_continue
+                  state.settings.audience == ShareAudience.NONE ->
+                      R.string.monument_detail_share_with_friends
+                  else -> R.string.monument_detail_manage_sharing
+                }
+            ),
+        style = MaterialTheme.typography.labelLarge,
+    )
+  }
+}
+
+@Composable
+private fun SharedRecipientsStatus(
+    recipients: List<CollectionFriend>,
+    modifier: Modifier = Modifier,
+) {
+  val names = recipients.map { it.username }
+  val text =
+      when (names.size) {
+        0 -> stringResource(R.string.monument_detail_shared_with_friends)
+        1 -> stringResource(R.string.monument_detail_shared_with_one, names[0])
+        2 -> stringResource(R.string.monument_detail_shared_with_two, names[0], names[1])
+        else ->
+            if (names.size == 3) {
+              stringResource(
+                  R.string.monument_detail_shared_with_one_other,
+                  names[0],
+                  names[1],
+              )
+            } else {
+              stringResource(
+                  R.string.monument_detail_shared_with_others,
+                  names[0],
+                  names[1],
+                  names.size - 2,
+              )
+            }
+      }
+  Row(
+      modifier =
+          modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(16.dp))
+              .background(MaterialTheme.guideCalloutContainer)
+              .padding(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Row(modifier = Modifier.widthIn(max = 88.dp)) {
+      recipients.take(2).forEachIndexed { index, friend ->
+        ProfilePicture(
+            name = friend.username,
+            avatarBytes = friend.avatarBytes,
+            modifier =
+                Modifier.offset(x = (-12 * index).dp).size(32.dp).semantics {
+                  testTag = "${C.Tag.monument_detail_share_avatar}_$index"
+                },
+            textStyle = MaterialTheme.typography.labelSmall,
+        )
+      }
+    }
+    Spacer(Modifier.width(8.dp))
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.accentIcon,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.weight(1f),
     )
   }
 }

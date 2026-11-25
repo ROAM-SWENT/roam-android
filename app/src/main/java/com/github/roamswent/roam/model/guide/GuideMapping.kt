@@ -18,6 +18,7 @@ fun MonumentGuide.toSavedGuide(
     photoBytes: ByteArray,
     discoveryDate: Long,
     location: Coordinates?,
+    sharingEligibility: SharingEligibility = SharingEligibility.UNKNOWN,
 ): Guide =
     Guide(
         id = id,
@@ -33,6 +34,7 @@ fun MonumentGuide.toSavedGuide(
         timeline = timeline,
         location = location,
         discoveryDate = discoveryDate,
+        sharingEligibility = sharingEligibility,
     )
 
 /**

@@ -2,9 +2,11 @@
 package com.github.roamswent.roam.ui.guide
 
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -147,6 +149,20 @@ class SavedGuidesViewModelFavoriteTest {
 
         assertTrue(viewModel.uiState.value.guides.single().shareSettings.sharedWithUids.isEmpty())
         assertEquals(error, viewModel.uiState.value.sharingError)
+      }
+
+  @Test
+  fun tooFarGuideIgnoresSharingChanges() =
+      runTest(dispatcher) {
+        snapshots.value = listOf(guide.copy(sharingEligibility = SharingEligibility.TOO_FAR))
+        coEvery { sharing.setShareAudience(any(), any(), any()) } just Runs
+        val viewModel = loadedViewModel()
+
+        viewModel.setShareAudience(guide.id, ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(MonumentShareSettings(), viewModel.uiState.value.guides.single().shareSettings)
+        coVerify(exactly = 0) { sharing.setShareAudience(any(), any(), any()) }
       }
 
   @Test

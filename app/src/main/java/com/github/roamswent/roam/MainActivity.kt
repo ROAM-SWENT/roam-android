@@ -598,6 +598,9 @@ internal fun RoamApp(
               uri,
               testOverrides?.captureSender,
               savedGuideRepository = savedGuideRepository.value,
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
+              monumentSharingProvider = monumentSharingProvider,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
@@ -683,6 +686,9 @@ internal fun RoamApp(
               guideId = guideId,
               repository = savedGuideRepository.value,
               onBackClick = { navController.popBackStack() },
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
+              monumentSharingProvider = monumentSharingProvider,
           )
         }
       }
