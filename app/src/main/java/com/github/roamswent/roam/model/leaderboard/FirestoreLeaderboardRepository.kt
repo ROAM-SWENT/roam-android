@@ -55,7 +55,9 @@ class FirestoreLeaderboardRepository(
   /**
    * Records [monument] for the signed-in user in one transaction that creates its counted-monument
    * document, points the leaderboard state at it and increments the count. Nothing is written when
-   * a monument in its [MonumentKey.neighbourhood] was counted before.
+   * a monument in its [MonumentKey.neighbourhood] was counted before. As touching cells are not
+   * transitive, the count can depend on scan order and both over- and under-count; see
+   * [MonumentKey].
    *
    * @throws LeaderboardException.UnauthenticatedUser if no user is signed in.
    * @throws LeaderboardException.ProfileNotRegistered if the user has no public profile to hold the

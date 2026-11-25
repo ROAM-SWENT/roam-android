@@ -16,9 +16,17 @@ import kotlin.math.roundToInt
  * user stood, or the monument name, which is written in the user's language.
  *
  * Two answers for the same monument can differ by a few metres yet fall on either side of a cell
- * boundary, so two keys are the same monument when their cells touch, see [isSameMonumentAs]. The
- * cost is that distinct monuments whose positions are in touching cells, at most about 220 m apart
- * in latitude, count as one; that under-counts rather than letting a re-scan inflate the count.
+ * boundary, so two keys are the same monument when their cells touch, see [isSameMonumentAs].
+ *
+ * This is an approximate deduplication with known errors in both directions, accepted deliberately:
+ * - Under-counting: distinct monuments whose positions are in touching cells, at most about 220 m
+ *   apart in latitude, count as one.
+ * - Over-counting: touching is not transitive, so the result depends on scan order. For three cells
+ *   in a row A, B, C, scanning B first counts once, as A and C then touch B; scanning A and C first
+ *   counts twice, as they do not touch each other. If the AI places one monument in cells more than
+ *   one cell apart, about 110 m or more, it can be counted twice.
+ *
+ * The same order dependence decides which of several close distinct monuments get counted.
  *
  * Cells are measured in thousandths of a degree. Longitude wraps at the antimeridian, where 180 is
  * stored as -180. The narrowing of longitude cells towards the poles is not corrected for.
@@ -44,7 +52,8 @@ data class MonumentKey(val latitudeE3: Int, val longitudeE3: Int) {
 
   /**
    * Whether [other] identifies the same monument: its cell is this cell or one of the 8 cells
-   * around it. The relation is symmetric.
+   * around it. The relation is symmetric but not transitive: two keys that each touch a third need
+   * not touch each other, so counting can depend on scan order (see the class documentation).
    */
   fun isSameMonumentAs(other: MonumentKey): Boolean =
       abs(latitudeE3 - other.latitudeE3) <= 1 && longitudeDistanceE3(other) <= 1
