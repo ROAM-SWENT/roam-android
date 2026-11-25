@@ -1,5 +1,6 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -48,6 +49,7 @@ android {
 
   buildTypes {
     release {
+      manifestPlaceholders["allowCleartextTraffic"] = "false"
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(
@@ -57,6 +59,7 @@ android {
     }
 
     debug {
+      manifestPlaceholders["allowCleartextTraffic"] = "true"
       enableUnitTestCoverage = true
       enableAndroidTestCoverage = true
       signingConfig = signingConfigs.getByName("debug")
@@ -105,7 +108,12 @@ android {
 }
 
 // With AGP 9+ the JVM target is set outside the Android block.
-kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+kotlin {
+  compilerOptions {
+    jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
+    jvmTarget.set(JvmTarget.JVM_17)
+  }
+}
 
 sonar {
   properties {

@@ -143,6 +143,22 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun profileBubbleAcceptsAvatarBytes() {
+    val bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    bitmap.recycle()
+
+    setScreen(
+        SavedGuidesUiState(),
+        profileName = "Ada Lovelace",
+        profileAvatarBytes = out.toByteArray(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).assertIsDisplayed()
+  }
+
+  @Test
   fun clickingDeleteButtonReportsItsGuideIdWithoutOpeningTheCard() {
     val deleted = mutableListOf<String>()
     val clicked = mutableListOf<String>()
@@ -260,6 +276,39 @@ class CollectionScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_grid).assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card).assertCountEquals(4)
+  }
+
+  @Test
+  fun readOnlyScreenHidesOwnerActionsAndFilters() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            title = "Alice's monuments",
+            readOnly = true,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_title).assertTextEquals("Alice's monuments")
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_delete).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_status, true).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_back_button).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Search their collection").assertIsDisplayed()
+  }
+
+  @Test
+  fun readOnlyEmptyStateExplainsNothingIsShared() {
+    composeTestRule.setContent {
+      SampleAppTheme { CollectionScreen(state = SavedGuidesUiState(), readOnly = true) }
+    }
+
+    composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
   }
 
   @Test
@@ -1011,6 +1060,7 @@ class CollectionScreenTest {
       state: SavedGuidesUiState,
       onGuideClick: (String) -> Unit = {},
       profileName: String = "Traveler",
+      profileAvatarBytes: ByteArray? = null,
       onProfileClicked: () -> Unit = {},
       onDeleteGuide: (String) -> Unit = {},
       onDeleteErrorShown: () -> Unit = {},
@@ -1033,6 +1083,7 @@ class CollectionScreenTest {
         CollectionScreen(
             state = state,
             profileName = profileName,
+            profileAvatarBytes = profileAvatarBytes,
             onProfileClicked = onProfileClicked,
             onGuideClick = onGuideClick,
             onDeleteGuide = onDeleteGuide,
