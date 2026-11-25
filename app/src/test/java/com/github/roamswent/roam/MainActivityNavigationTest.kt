@@ -81,6 +81,9 @@ import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
+import com.github.roamswent.roam.ui.notifications.NotificationNavigation
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationParser
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationRequest
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -88,7 +91,11 @@ import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserInfo
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import io.mockk.verify
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -206,7 +213,11 @@ class MainActivityNavigationTest {
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
-        openFriendsOnLaunch = true,
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.Friends,
+                preserveBackStack = false,
+            ),
     )
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -228,7 +239,11 @@ class MainActivityNavigationTest {
     renderApp(
         authState,
         onNavControllerReady = { navController[0] = it },
-        openFriendsOnLaunch = true,
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.Friends,
+                preserveBackStack = false,
+            ),
     )
 
     waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
@@ -246,7 +261,8 @@ class MainActivityNavigationTest {
   fun notificationTapFromAnotherScreenNavigatesToFriends() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val navController = arrayOfNulls<NavHostController>(1)
-    val notificationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val notificationEvents =
+        MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
@@ -256,16 +272,108 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     navigateToSettings(checkNotNull(navController[0]))
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    composeTestRule.runOnIdle { assertTrue(notificationEvents.tryEmit(Unit)) }
+    composeTestRule.runOnIdle {
+      assertTrue(
+          notificationEvents.tryEmit(
+              NotificationNavigationRequest(
+                  NotificationNavigation.Friends,
+                  preserveBackStack = true,
+              )
+          )
+      )
+    }
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       navController[0]?.currentDestination?.route == Routes.Friends
     }
+
     composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
     assertEquals(
-        listOf(Routes.Home, Routes.Friends),
+        listOf(Routes.Home, Routes.Settings, Routes.Friends),
         backStackRoutes(checkNotNull(navController[0])),
     )
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun sharedMonumentNotificationNavigatesToSharedDetail() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val notificationEvents =
+        MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
+    val guide =
+        Guide(
+            id = "guide-1",
+            photoBytes = ByteArray(0),
+            monumentName = "The Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationEvents = notificationEvents,
+        monumentSharingRepository = FakeMonumentSharingRepository(mapOf("alice" to listOf(guide))),
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    navigateToSettings(checkNotNull(navController[0]))
+    composeTestRule.runOnIdle {
+      assertTrue(
+          notificationEvents.tryEmit(
+              NotificationNavigationRequest(
+                  NotificationNavigation.SharedMonument("alice", "guide-1"),
+                  preserveBackStack = true,
+              )
+          )
+      )
+    }
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.SharedMonumentDetailPattern
+    }
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun sharedMonumentNotificationLaunchNavigatesToSharedDetailAndPopsHome() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val guide =
+        Guide(
+            id = "guide-1",
+            photoBytes = ByteArray(0),
+            monumentName = "The Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.SharedMonument("alice", "guide-1"),
+                preserveBackStack = false,
+            ),
+        monumentSharingRepository = FakeMonumentSharingRepository(mapOf("alice" to listOf(guide))),
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.SharedMonumentDetailPattern
+    }
+    assertEquals(
+        listOf(Routes.Home, Routes.SharedMonumentDetailPattern),
+        backStackRoutes(checkNotNull(navController[0])),
+    )
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(Routes.Home, navController[0]?.currentDestination?.route)
   }
 
   /** Existing server tokens are removed when notification permission is not granted. */
@@ -1553,6 +1661,82 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun mainActivityOnCreate_parsesNotificationIntentOnFreshLaunch() {
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val launchIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+    val controller = Robolectric.buildActivity(MainActivity::class.java, launchIntent)
+
+    try {
+      controller.create().start().resume()
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(any()) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnCreate_doesNotParseNotificationIntentAfterRecreation() {
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val launchIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+    val controller = Robolectric.buildActivity(MainActivity::class.java, launchIntent)
+
+    try {
+      controller.create(android.os.Bundle()).start().resume()
+
+      verify(exactly = 0) { NotificationNavigationParser.parse(any()) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnNewIntent_parsesNotificationNavigation() {
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val notificationIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+
+    try {
+      MainActivity::class
+          .java
+          .getDeclaredMethod("onNewIntent", Intent::class.java)
+          .apply { isAccessible = true }
+          .invoke(controller.get(), notificationIntent)
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(notificationIntent) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnNewIntent_ignoresUnsupportedIntent() {
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns null
+    val unsupportedIntent = Intent("unsupported")
+
+    try {
+      MainActivity::class
+          .java
+          .getDeclaredMethod("onNewIntent", Intent::class.java)
+          .apply { isAccessible = true }
+          .invoke(controller.get(), unsupportedIntent)
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(unsupportedIntent) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
   fun mainActivityOnCreate_populatesEmptyApplicationLocalesImmediately_regressionMissingSnapDefaultLocale() {
     val originalDefault = java.util.Locale.getDefault()
     java.util.Locale.setDefault(java.util.Locale.FRENCH)
@@ -2103,9 +2287,9 @@ class MainActivityNavigationTest {
       publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
       signOutFailure: Throwable? = null,
-      openFriendsOnLaunch: Boolean = false,
+      notificationNavigationOnLaunch: NotificationNavigationRequest? = null,
       notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
-      notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+      notificationNavigationEvents: Flow<NotificationNavigationRequest> = emptyFlow(),
       monumentSharingRepository: MonumentSharingRepository? = null,
       friendRepository: FriendRepository? = null,
       activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
@@ -2157,7 +2341,7 @@ class MainActivityNavigationTest {
                       monumentSharingRepository = monumentSharingRepository,
                       friendRepository = friendRepository,
                   ),
-              openFriendsOnLaunch = openFriendsOnLaunch,
+              notificationNavigationOnLaunch = notificationNavigationOnLaunch,
               notificationNavigationEvents = notificationNavigationEvents,
           )
         }
