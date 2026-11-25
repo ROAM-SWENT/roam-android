@@ -19,6 +19,7 @@ import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
 import com.github.roamswent.roam.resources.C
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -116,6 +117,7 @@ class LoadingRouteTest {
             "en",
             mockk<UserInterestsRepository>(),
             FakeSavedGuideRepository(),
+            mockk<LeaderboardRepository>(),
         )
       }
       LoadingRoute(

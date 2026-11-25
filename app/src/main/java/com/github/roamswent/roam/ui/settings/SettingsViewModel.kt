@@ -42,6 +42,8 @@ data class SettingsUIState(
     val publicProfile: PublicProfile? = null,
     val isPublicProfileLoading: Boolean = false,
     val isUsernameSaving: Boolean = false,
+    val isAvatarSaving: Boolean = false,
+    @param:StringRes val avatarErrorMsg: Int? = null,
     @param:StringRes val usernameErrorMsg: Int? = null,
     val interests: List<String> = emptyList(),
 )
@@ -64,6 +66,15 @@ class SettingsViewModel(
   /** Clears the error message in the UI state. */
   fun clearErrorMsg() {
     _uiState.update { it.copy(errorMsg = null) }
+  }
+
+  fun setAvatarError(exception: Throwable? = null) {
+    _uiState.update {
+      it.copy(
+          isAvatarSaving = false,
+          avatarErrorMsg = R.string.settings_avatar_error_update,
+      )
+    }
   }
 
   /** Updates the camera permission status reported by the UI permission controller. */
@@ -176,6 +187,70 @@ class SettingsViewModel(
               else -> R.string.settings_username_error_update
             }
         _uiState.update { it.copy(isUsernameSaving = false, usernameErrorMsg = errorMessage) }
+      }
+    }
+  }
+
+  fun uploadAvatar(imageBytes: ByteArray) {
+    val repository =
+        publicProfileRepository
+            ?: run {
+              _uiState.update { it.copy(avatarErrorMsg = R.string.settings_avatar_error_update) }
+              return
+            }
+    if (_uiState.value.isAvatarSaving) return
+    _uiState.update { it.copy(isAvatarSaving = true, avatarErrorMsg = null) }
+    viewModelScope.launch {
+      try {
+        val updatedProfile = repository.uploadAvatar(imageBytes)
+        _uiState.update {
+          it.copy(
+              publicProfile = updatedProfile,
+              isAvatarSaving = false,
+              avatarErrorMsg = null,
+          )
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _uiState.update {
+          it.copy(
+              isAvatarSaving = false,
+              avatarErrorMsg = R.string.settings_avatar_error_update,
+          )
+        }
+      }
+    }
+  }
+
+  fun removeAvatar() {
+    val repository =
+        publicProfileRepository
+            ?: run {
+              _uiState.update { it.copy(avatarErrorMsg = R.string.settings_avatar_error_remove) }
+              return
+            }
+    if (_uiState.value.isAvatarSaving) return
+    _uiState.update { it.copy(isAvatarSaving = true, avatarErrorMsg = null) }
+    viewModelScope.launch {
+      try {
+        val updatedProfile = repository.removeAvatar()
+        _uiState.update {
+          it.copy(
+              publicProfile = updatedProfile,
+              isAvatarSaving = false,
+              avatarErrorMsg = null,
+          )
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _uiState.update {
+          it.copy(
+              isAvatarSaving = false,
+              avatarErrorMsg = R.string.settings_avatar_error_remove,
+          )
+        }
       }
     }
   }

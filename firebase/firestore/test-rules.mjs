@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Firestore rules smoke test. Requires Node.js 18+ and the Firebase CLI; no npm packages.
 // Run from the repository root:
 // firebase emulators:exec --project demo-roam-rules --only auth,firestore "node firebase/firestore/test-rules.mjs"
@@ -1304,3 +1305,235 @@ await expectAllowed(
 
 
 
+
+// --- publicProfiles verifiedMonumentCount and users/{uid}/verifiedMonuments rules tests ---
+
+function verifiedMonumentWrite(uid, monumentId, data = {}) {
+  return {
+    update: {
+      name: documentName(`users/${uid}/verifiedMonuments/${monumentId}`),
+      fields: fields(data),
+    },
+  };
+}
+
+function verifiedMonumentCountWrite(uid, count) {
+  return {
+    update: {
+      name: documentName(`publicProfiles/${uid}`),
+      fields: fields({ verifiedMonumentCount: count }),
+    },
+    updateMask: { fieldPaths: ["verifiedMonumentCount"] },
+  };
+}
+
+function leaderboardStateWrite(uid, lastVerifiedMonumentId) {
+  return {
+    update: {
+      name: documentName(`users/${uid}/leaderboard/state`),
+      fields: fields({ lastVerifiedMonumentId }),
+    },
+  };
+}
+
+function usernameOnlyProfileWrite(uid, username) {
+  return {
+    update: {
+      name: documentName(`publicProfiles/${uid}`),
+      fields: fields({ uid, username, usernameLower: username.toLowerCase() }),
+    },
+    updateMask: { fieldPaths: ["uid", "username", "usernameLower"] },
+  };
+}
+
+const counter = await createUser();
+const rival = await createUser();
+const counterMonumentPath = `users/${counter.uid}/verifiedMonuments/48858_2294`;
+const counterStatePath = `users/${counter.uid}/leaderboard/state`;
+
+await expectAllowed(
+  "counter registers a profile",
+  await commit(counter.token, [profileWrite(counter.uid, "Counter"), claimWrite(counter.uid, "Counter")]),
+);
+await expectAllowed(
+  "rival registers a profile",
+  await commit(rival.token, [profileWrite(rival.uid, "Rival"), claimWrite(rival.uid, "Rival")]),
+);
+await expectDenied(
+  "profile cannot be created with a verified monument count",
+  await commit(stranger.token, [
+    {
+      update: {
+        name: documentName(`publicProfiles/${stranger.uid}`),
+        fields: fields({
+          uid: stranger.uid,
+          username: "Stranger",
+          usernameLower: "stranger",
+          verifiedMonumentCount: 100,
+        }),
+      },
+    },
+    claimWrite(stranger.uid, "Stranger"),
+  ]),
+);
+
+await expectAllowed(
+  "first verified monument is recorded with its pointer and an increment to 1",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48858_2294"),
+    leaderboardStateWrite(counter.uid, "48858_2294"),
+    verifiedMonumentCountWrite(counter.uid, 1),
+  ]),
+);
+await expectAllowed(
+  "owner can read their counted monument",
+  await firestoreRequest(counterMonumentPath, counter.token),
+);
+await expectDenied(
+  "another user cannot read a counted monument",
+  await firestoreRequest(counterMonumentPath, rival.token),
+);
+await expectAllowed(
+  "owner can read their leaderboard pointer",
+  await firestoreRequest(counterStatePath, counter.token),
+);
+await expectDenied(
+  "another user cannot read the leaderboard pointer",
+  await firestoreRequest(counterStatePath, rival.token),
+);
+await expectDenied(
+  "a counted monument cannot be recorded again",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48858_2294"),
+    leaderboardStateWrite(counter.uid, "48858_2294"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "a counted monument cannot be created without an increment",
+  await commit(counter.token, [verifiedMonumentWrite(counter.uid, "48874_2295")]),
+);
+await expectDenied(
+  "a counted monument and its pointer cannot be created without an increment",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+  ]),
+);
+await expectDenied(
+  "the count cannot be incremented without a new counted monument",
+  await commit(counter.token, [verifiedMonumentCountWrite(counter.uid, 2)]),
+);
+await expectDenied(
+  "the count and pointer cannot change without the counted monument they name",
+  await commit(counter.token, [
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "a pointer to an already counted monument does not allow another increment",
+  await commit(counter.token, [
+    leaderboardStateWrite(counter.uid, "48858_2294"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "a new counted monument needs the pointer to name it",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "one increment cannot create two counted monuments",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    verifiedMonumentWrite(counter.uid, "48880_2300"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "the pointer cannot be written on its own",
+  await commit(counter.token, [leaderboardStateWrite(counter.uid, "48874_2295")]),
+);
+await expectDenied(
+  "the pointer cannot be deleted",
+  await firestoreRequest(counterStatePath, counter.token, { method: "DELETE" }),
+);
+await expectDenied(
+  "the count cannot jump by more than one",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 3),
+  ]),
+);
+await expectDenied(
+  "a counted monument cannot hold data",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295", { latitude: 48.8738 }),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "a counted monument ID must be a monument key",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "saved-guide-id"),
+    leaderboardStateWrite(counter.uid, "saved-guide-id"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "another user cannot record a monument for the owner",
+  await commit(rival.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "another user cannot change the owner's count",
+  await commit(rival.token, [verifiedMonumentCountWrite(counter.uid, 2)]),
+);
+await expectDenied(
+  "a counted monument cannot be deleted",
+  await firestoreRequest(counterMonumentPath, counter.token, { method: "DELETE" }),
+);
+await expectDenied(
+  "a username change cannot reset the count",
+  await commit(counter.token, [
+    profileWrite(counter.uid, "CounterNew"),
+    claimWrite(counter.uid, "CounterNew"),
+    { delete: documentName("usernameClaims/counter") },
+  ]),
+);
+await expectAllowed(
+  "a username change keeps the count",
+  await commit(counter.token, [
+    usernameOnlyProfileWrite(counter.uid, "CounterNew"),
+    claimWrite(counter.uid, "CounterNew"),
+    { delete: documentName("usernameClaims/counter") },
+  ]),
+);
+await expectAllowed(
+  "a distinct monument with its pointer increments the count to 2",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+const counterProfile = await expectAllowed(
+  "any signed-in user can read the verified monument count on a public profile",
+  await firestoreRequest(`publicProfiles/${counter.uid}`, rival.token),
+);
+if (
+  counterProfile.fields.verifiedMonumentCount.integerValue !== "2" ||
+  counterProfile.fields.username.stringValue !== "CounterNew"
+) {
+  throw new Error(`Unexpected counter profile: ${JSON.stringify(counterProfile.fields)}`);
+}
+console.log("PASS the profile keeps the username and a count of 2");

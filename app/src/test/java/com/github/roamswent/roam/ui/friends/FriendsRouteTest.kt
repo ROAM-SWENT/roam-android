@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.friends
@@ -8,8 +9,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -18,11 +23,15 @@ import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.friend.FriendRequest as RepositoryFriendRequest
 import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.leaderboard.LeaderboardEntry
+import com.github.roamswent.roam.model.leaderboard.LeaderboardException
+import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -43,6 +52,9 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(RobolectricTestRunner::class)
 class FriendsRouteTest {
   @get:Rule val composeTestRule = createComposeRule()
+
+  private val leaderboardRepository =
+      mockk<LeaderboardRepository> { coEvery { getFriendsLeaderboard() } returns emptyList() }
 
   @Test
   fun routeLoadsRepositoriesAndConnectsFriendActions() {
@@ -66,6 +78,7 @@ class FriendsRouteTest {
             onProfileClicked = { profileClicked = true },
             friendRepository = friendsRepository,
             publicProfileRepository = profilesRepository,
+            leaderboardRepository = leaderboardRepository,
         )
       }
     }
@@ -82,6 +95,8 @@ class FriendsRouteTest {
     coVerify { friendsRepository.acceptFriendRequest("request-id") }
     coVerify { friendsRepository.removeFriend("friend") }
     assert(profileClicked)
+    // The Leaderboard segment was never opened, so the leaderboard was never loaded.
+    coVerify(exactly = 0) { leaderboardRepository.getFriendsLeaderboard() }
   }
 
   @Test
@@ -101,6 +116,7 @@ class FriendsRouteTest {
             profileName = profileName,
             friendRepository = friendsRepository,
             publicProfileRepository = profilesRepository,
+            leaderboardRepository = leaderboardRepository,
         )
       }
     }
@@ -138,6 +154,8 @@ class FriendsRouteTest {
           .onNodeWithText("A signed-in user is required for this operation.")
           .assertIsDisplayed()
       composeTestRule.onNodeWithContentDescription("Open profile").performClick()
+      composeTestRule.onNodeWithTag(C.Tag.friends_tab_leaderboard).performClick()
+      composeTestRule.onNodeWithTag(C.Tag.friends_leaderboard_error).assertIsDisplayed()
     } finally {
       unmockkStatic(FirebaseAuth::class)
       unmockkStatic(FirebaseFirestore::class)
@@ -228,6 +246,7 @@ class FriendsRouteTest {
             onProfileClicked = profileClickAction,
             friendRepository = friendRepository,
             publicProfileRepository = profilesRepository,
+            leaderboardRepository = leaderboardRepository,
         )
       }
     }
@@ -264,6 +283,7 @@ class FriendsRouteTest {
             onFriendClicked = {},
             friendRepository = friendsRepository,
             publicProfileRepository = profilesRepository,
+            leaderboardRepository = leaderboardRepository,
         )
       }
     }
@@ -271,5 +291,123 @@ class FriendsRouteTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithContentDescription("Open profile").performClick()
     composeTestRule.onNodeWithTag(C.Tag.friends_friend_row).performClick()
+  }
+
+  private fun friendsWithAda(): Pair<FriendRepository, PublicProfileRepository> {
+    val friendsRepository = mockk<FriendRepository>()
+    val profilesRepository = mockk<PublicProfileRepository>()
+    coEvery { profilesRepository.getCurrentProfile() } returns PublicProfile("self", "Traveler")
+    coEvery { profilesRepository.getProfile("self") } returns
+        PublicProfile("self", "Traveler", verifiedMonumentCount = 2)
+    coEvery { profilesRepository.getProfile("friend") } returns
+        PublicProfile("friend", "Ada", verifiedMonumentCount = 5)
+    coEvery { friendsRepository.getFriends() } returns listOf(Friendship("friendship", "friend"))
+    coEvery { friendsRepository.getIncomingRequests() } returns emptyList()
+    coEvery { friendsRepository.getOutgoingRequests() } returns emptyList()
+    return friendsRepository to profilesRepository
+  }
+
+  @Test
+  fun routePassesInjectedLeaderboardToScreenAndHighlightsCurrentUser() {
+    val (friendsRepository, profilesRepository) = friendsWithAda()
+    coEvery { leaderboardRepository.getFriendsLeaderboard() } returns
+        listOf(
+            LeaderboardEntry("friend", "Ada", verifiedMonumentCount = 5, rank = 1),
+            LeaderboardEntry("self", "Traveler", verifiedMonumentCount = 2, rank = 2),
+        )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsRoute(
+            friendRepository = friendsRepository,
+            publicProfileRepository = profilesRepository,
+            leaderboardRepository = leaderboardRepository,
+        )
+      }
+    }
+
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(C.Tag.friends_tab_leaderboard).performClick()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.friends_leaderboard_row)
+        .assert(hasText("#1"))
+        .assert(hasText("Ada"))
+        .assert(hasText("5 monuments"))
+    composeTestRule
+        .onNodeWithTag(C.Tag.friends_leaderboard_current_user_row)
+        .assert(hasText("#2"))
+        .assert(hasText("Traveler"))
+        .assert(hasText("You"))
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_leaderboard_empty).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_leaderboard_error).assertCountEquals(0)
+    coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
+  }
+
+  @Test
+  fun routeShowsLeaderboardFailureAndKeepsFriendsUsable() {
+    val (friendsRepository, profilesRepository) = friendsWithAda()
+    coEvery { leaderboardRepository.getFriendsLeaderboard() } throws
+        LeaderboardException.FirestoreFailure(IllegalStateException("offline"))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsRoute(
+            friendRepository = friendsRepository,
+            publicProfileRepository = profilesRepository,
+            leaderboardRepository = leaderboardRepository,
+        )
+      }
+    }
+
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(C.Tag.friends_friend_row).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.friends_tab_leaderboard).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_leaderboard_error).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_leaderboard_empty).assertCountEquals(0)
+    composeTestRule.onNodeWithTag(C.Tag.friends_tab_friends).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_friend_row).assertIsDisplayed()
+  }
+
+  @Test
+  fun routeBuildsDefaultLeaderboardFromItsFriendAndProfileRepositories() {
+    val (friendsRepository, profilesRepository) = friendsWithAda()
+    val firestore = mockk<FirebaseFirestore>()
+    val auth = mockk<FirebaseAuth>()
+    val user = mockk<FirebaseUser> { every { uid } returns "self" }
+    mockkStatic(FirebaseFirestore::class)
+    mockkStatic(FirebaseAuth::class)
+    try {
+      every { FirebaseFirestore.getInstance() } returns firestore
+      every { firestore.firestoreSettings = any() } just Runs
+      every { FirebaseAuth.getInstance() } returns auth
+      every { auth.currentUser } returns user
+
+      composeTestRule.setContent {
+        SampleAppTheme {
+          FriendsRoute(
+              friendRepository = friendsRepository,
+              publicProfileRepository = profilesRepository,
+          )
+        }
+      }
+      composeTestRule.waitForIdle()
+      composeTestRule.onNodeWithTag(C.Tag.friends_tab_leaderboard).performClick()
+
+      // Ranked from the injected repositories' data: the default leaderboard reused them.
+      composeTestRule
+          .onNodeWithTag(C.Tag.friends_leaderboard_row)
+          .assert(hasText("#1"))
+          .assert(hasText("Ada"))
+      composeTestRule
+          .onNodeWithTag(C.Tag.friends_leaderboard_current_user_row)
+          .assert(hasText("#2"))
+          .assert(hasText("Traveler"))
+      // Once for the friends list and once for the leaderboard.
+      coVerify(exactly = 2) { friendsRepository.getFriends() }
+      coVerify { profilesRepository.getProfile("self") }
+    } finally {
+      unmockkStatic(FirebaseAuth::class)
+      unmockkStatic(FirebaseFirestore::class)
+    }
   }
 }

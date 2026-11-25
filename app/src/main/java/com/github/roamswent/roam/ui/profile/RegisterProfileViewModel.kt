@@ -6,6 +6,7 @@ package com.github.roamswent.roam.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -30,6 +31,7 @@ data class RegisterProfileUiState(
 
 class RegisterProfileViewModel(
     private val repository: PublicProfileRepository,
+    private val privateProfileRepository: ProfileRepository? = null,
 ) : ViewModel() {
   private var activeProfileJob: Job? = null
   private val _uiState = MutableStateFlow(RegisterProfileUiState())
@@ -45,6 +47,12 @@ class RegisterProfileViewModel(
         it.copy(status = ProfileRegistrationStatus.CHECKING, isLoading = true, errorMessage = null)
       }
       try {
+        privateProfileRepository
+            ?.initializePrivateProfile()
+            ?.fold(
+                onSuccess = {},
+                onFailure = { throw it },
+            )
         val profile = repository.getCurrentProfile()
         _uiState.update {
           it.copy(

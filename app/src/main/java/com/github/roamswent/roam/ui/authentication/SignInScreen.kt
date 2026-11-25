@@ -22,12 +22,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,6 +46,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
@@ -59,11 +64,15 @@ fun SignInScreen(
     authViewModel: SignInViewModel = viewModel(),
     credentialManager: CredentialManager = CredentialManager.create(LocalContext.current),
     onSignedIn: () -> Unit = {},
+    onSignUp: () -> Unit = {},
+    onEmailVerification: () -> Unit = {},
     onSignInClickOverride: ((() -> Unit) -> Unit)? = null,
 ) {
 
   val context = LocalContext.current
   val uiState by authViewModel.uiState.collectAsState()
+  var email by remember { mutableStateOf("") }
+  var password by remember { mutableStateOf("") }
   val signInSuccessMessage = stringResource(R.string.sign_in_success)
   val errorMessage =
       uiState.errorMsg?.let { error ->
@@ -86,6 +95,10 @@ fun SignInScreen(
     if (uiState.isRestoringSession) return@LaunchedEffect
 
     uiState.user?.let {
+      if (isUnverifiedEmailPasswordUser(it)) {
+        onEmailVerification()
+        return@LaunchedEffect
+      }
       if (!isRestoringInitialSession && !isRestoredUser) {
         Toast.makeText(context, signInSuccessMessage, Toast.LENGTH_SHORT).show()
       }
@@ -118,19 +131,55 @@ fun SignInScreen(
                     .padding(top = 8.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+          OutlinedTextField(
+              value = email,
+              onValueChange = { email = it },
+              modifier = Modifier.fillMaxWidth().testTag(C.Tag.sign_in_email),
+              label = { Text(stringResource(R.string.sign_in_email_label)) },
+              singleLine = true,
+              enabled = !uiState.isLoading,
+              keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+          )
+          Spacer(modifier = Modifier.height(8.dp))
+          OutlinedTextField(
+              value = password,
+              onValueChange = { password = it },
+              modifier = Modifier.fillMaxWidth().testTag(C.Tag.sign_in_password),
+              label = { Text(stringResource(R.string.sign_in_password_label)) },
+              singleLine = true,
+              enabled = !uiState.isLoading,
+              visualTransformation = PasswordVisualTransformation(),
+              keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+          )
+          Spacer(modifier = Modifier.height(8.dp))
           Box(
-              modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).height(IntrinsicSize.Min),
+              modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).height(IntrinsicSize.Min),
               contentAlignment = Alignment.Center,
           ) {
             if (uiState.isLoading) {
               CircularProgressIndicator(color = ScanTeal)
             } else {
-              GoogleSignInButton(
-                  onSignInClick =
-                      onSignInClickOverride?.let { signInOverride ->
-                        { signInOverride(onSignedIn) }
-                      } ?: { authViewModel.signIn(context, credentialManager) }
-              )
+              Column(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { authViewModel.signInWithEmail(email, password) },
+                    modifier = Modifier.fillMaxWidth().testTag(C.Tag.sign_in_email_button),
+                ) {
+                  Text(stringResource(R.string.sign_in_email_button))
+                }
+                TextButton(
+                    onClick = onSignUp,
+                    modifier =
+                        Modifier.align(Alignment.CenterHorizontally).testTag(C.Tag.sign_up_button),
+                ) {
+                  Text(stringResource(R.string.sign_up_button))
+                }
+                GoogleSignInButton(
+                    onSignInClick =
+                        onSignInClickOverride?.let { signInOverride ->
+                          { signInOverride(onSignedIn) }
+                        } ?: { authViewModel.signIn(context, credentialManager) }
+                )
+              }
             }
           }
           Spacer(modifier = Modifier.height(16.dp))
@@ -184,7 +233,7 @@ fun SignInScreen(
 fun GoogleSignInButton(onSignInClick: () -> Unit) {
   Button(
       onClick = onSignInClick,
-      modifier = Modifier.fillMaxSize().testTag(C.Tag.sign_in_google_button),
+      modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(C.Tag.sign_in_google_button),
       shape = RoundedCornerShape(20.dp),
       colors =
           ButtonDefaults.buttonColors(
