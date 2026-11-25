@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
@@ -49,10 +50,13 @@ class GuideRepositoryImpl(
         request.location
             ?: if (request.useDeviceLocation) locationProvider.currentCoordinates() else null
     val prompt = PromptBuilder.guidePrompt(request.preferences, location)
-    val guide = withRetries { ResponseParser.parseGuide(geminiClient.generate(prompt, photo)) }
+    val interests = PromptBuilder.sanitizeInterests(request.preferences.interests)
+    val guide = withRetries {
+      ResponseParser.parseGuide(geminiClient.generate(prompt, photo), interests)
+    }
     // Reuse the position and photo prepared here so callers can store them without redoing it.
     return guide.copy(
-        interestCount = PromptBuilder.sanitizedInterestCount(request.preferences.interests),
+        interestCount = interests.size,
         location = location,
         photo = photo,
     )

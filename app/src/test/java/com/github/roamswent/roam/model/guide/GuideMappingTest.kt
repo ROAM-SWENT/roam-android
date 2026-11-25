@@ -1,6 +1,8 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
+import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
@@ -20,6 +22,8 @@ class GuideMappingTest {
           language = "fr",
           sections = listOf(GuideSection("Architecture", "A detailed paragraph.")),
           interestCount = 1,
+          overview = "An iron landmark.",
+          timeline = listOf(GuideMilestone(1889, "Opened.")),
           location = Coordinates(48.85837, 2.29448),
       )
 
@@ -46,6 +50,8 @@ class GuideMappingTest {
             culture = "A symbol of Paris.",
             sections = listOf(GuideSection("Architecture", "A detailed paragraph.")),
             interestCount = 1,
+            overview = "An iron landmark.",
+            timeline = listOf(GuideMilestone(1889, "Opened.")),
             location = null,
             discoveryDate = 1_700_000_000_000L,
             isFavorite = false,

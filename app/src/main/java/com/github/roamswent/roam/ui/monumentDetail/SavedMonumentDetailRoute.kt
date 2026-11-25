@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.annotation.StringRes
@@ -82,12 +83,13 @@ fun SavedMonumentDetailRoute(
 
 /** Centered message with the detail back button, and a retry button when [onRetry] is set. */
 @Composable
-private fun SavedMonumentDetailMessage(
+internal fun SavedMonumentDetailMessage(
     @StringRes messageRes: Int,
     tag: String,
     onBackClick: () -> Unit,
     onRetry: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    retryTag: String = C.Tag.saved_monument_detail_retry,
 ) {
   Box(modifier.fillMaxSize()) {
     Column(
@@ -102,7 +104,7 @@ private fun SavedMonumentDetailMessage(
           modifier = Modifier.testTag(tag),
       )
       if (onRetry != null) {
-        Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.saved_monument_detail_retry)) {
+        Button(onClick = onRetry, modifier = Modifier.testTag(retryTag)) {
           Text(stringResource(R.string.saved_monument_detail_retry))
         }
       }

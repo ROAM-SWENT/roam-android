@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
@@ -21,6 +22,9 @@ data class UserPreferences(val language: String, val interests: List<String> = e
 
 /** A paragraph of guide content targeted at one traveler interest. */
 data class GuideSection(val title: String, val content: String)
+
+/** A dated event in a guide. Negative years represent BCE. */
+data class GuideMilestone(val year: Int, val event: String)
 
 /**
  * Everything one scan needs. [location] is the observed position, or null when it is unknown.
@@ -62,6 +66,8 @@ data class MonumentGuide(
     val location: Coordinates? = null,
     val photo: ImagePayload? = null,
     val monumentLocation: Coordinates? = null,
+    val overview: String? = null,
+    val timeline: List<GuideMilestone> = emptyList(),
 )
 
 /** Result of the cloud pre-screen on the photo. */
