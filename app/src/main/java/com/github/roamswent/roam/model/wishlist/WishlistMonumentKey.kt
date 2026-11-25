@@ -14,13 +14,16 @@ import kotlin.math.roundToInt
  * guide ID.
  */
 object WishlistMonumentKey {
-  /** Maximum length permitted for a wishlist monument key document ID. */
-  const val MAX_KEY_LENGTH: Int = 256
+  /**
+   * Maximum length permitted for a wishlist monument key document ID, accommodating the maximum
+   * `ref_<128>~<128>` fallback key (4 + 128 + 1 + 128 = 261).
+   */
+  const val MAX_KEY_LENGTH: Int = 261
 
   private const val HALF_TURN_E3 = 180_000
   private const val FULL_TURN_E3 = 360_000
   private val SEGMENT_REGEX = Regex("^[A-Za-z0-9_-]{1,128}$")
-  private val VALID_KEY_REGEX = Regex("^[A-Za-z0-9_~-]{1,256}$")
+  private val VALID_KEY_REGEX = Regex("^[A-Za-z0-9_~-]{1,$MAX_KEY_LENGTH}$")
 
   /**
    * Computes a canonical coordinate-based monument key from [location].

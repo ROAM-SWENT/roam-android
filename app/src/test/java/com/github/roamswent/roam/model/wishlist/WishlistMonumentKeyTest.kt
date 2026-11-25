@@ -94,6 +94,17 @@ class WishlistMonumentKeyTest {
   }
 
   @Test
+  fun fromFallback_generatedKeyShouldBeValid() {
+    val ownerUid = "a".repeat(128)
+    val guideId = "b".repeat(128)
+
+    val key = WishlistMonumentKey.fromFallback(ownerUid, guideId)
+
+    assertEquals(WishlistMonumentKey.MAX_KEY_LENGTH, key.length)
+    assertTrue(WishlistMonumentKey.isValidKey(key))
+  }
+
+  @Test
   fun isValidKey_enforcesCharacterSetAndLengthBoundaries() {
     assertTrue(WishlistMonumentKey.isValidKey("48858_2294"))
     assertTrue(WishlistMonumentKey.isValidKey("-33857_151215"))

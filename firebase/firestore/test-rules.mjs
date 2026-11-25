@@ -1808,6 +1808,27 @@ await expectDenied(
   await unauthFirestoreRequest(wlLocPath, { method: "DELETE" }),
 );
 
+// 6. Monument key length boundary (261-char max fallback key allowed; 262-char key denied)
+const wlMaxFallbackKey = `ref_${"a".repeat(128)}~${"b".repeat(128)}`;
+const wlMaxFallbackPath = `users/${wlOwner.uid}/wishlist/${wlMaxFallbackKey}`;
+await expectAllowed(
+  "wishlist owner can create item with 261-char max fallback key",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, wlMaxFallbackKey, wlBaseItem(wlMaxFallbackKey)),
+  ]),
+);
+await expectAllowed(
+  "wishlist owner can delete item with 261-char max fallback key",
+  await firestoreRequest(wlMaxFallbackPath, wlOwner.token, { method: "DELETE" }),
+);
+const wlOverMaxKey = "k".repeat(262);
+await expectDenied(
+  "wishlist rejects 262-char monumentKey exceeding max length",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, wlOverMaxKey, wlBaseItem(wlOverMaxKey)),
+  ]),
+);
+
 
 
 
