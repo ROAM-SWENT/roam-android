@@ -698,7 +698,7 @@ class MonumentDetailScreenTest {
         .assertIsDisplayed()
     composeTestRule
         .onNodeWithText(
-            "This photo was taken too far from the Eiffel Tower. The guide stays in your collection, for you only."
+            "This photo was taken too far from Eiffel Tower. The guide stays in your collection, for you only."
         )
         .assertIsDisplayed()
     assertTrue(backClicked)

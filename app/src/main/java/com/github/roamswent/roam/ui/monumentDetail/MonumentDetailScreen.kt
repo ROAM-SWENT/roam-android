@@ -47,7 +47,7 @@ import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.collection.CollectionFriend
-import com.github.roamswent.roam.ui.components.ProfileBubble
+import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -160,7 +160,11 @@ fun MonumentDetailScreen(
               onCheckedChange = onShowInExploreChange,
               isGalleryImage = isGalleryImage,
           )
-        } else if (exploreUnavailableReason != null) {
+        } else if (
+            exploreUnavailableReason != null &&
+                !(exploreUnavailableReason == ExploreUnavailableReason.TOO_FAR &&
+                    sharingState.unavailableBecauseTooFar)
+        ) {
           ExploreUnavailableMessage(
               reason = exploreUnavailableReason,
               isGalleryImage = isGalleryImage,
@@ -398,13 +402,13 @@ private fun SharedRecipientsStatus(
   ) {
     Row(modifier = Modifier.widthIn(max = 88.dp)) {
       recipients.take(2).forEachIndexed { index, friend ->
-        ProfileBubble(
+        ProfilePicture(
             name = friend.username,
             avatarBytes = friend.avatarBytes,
-            onClick = {},
-            modifier = Modifier.offset(x = (-12 * index).dp),
-            testTag = "${C.Tag.monument_detail_share_avatar}_$index",
-            size = 32.dp,
+            modifier =
+                Modifier.offset(x = (-12 * index).dp).size(32.dp).semantics {
+                  testTag = "${C.Tag.monument_detail_share_avatar}_$index"
+                },
             textStyle = MaterialTheme.typography.labelSmall,
         )
       }

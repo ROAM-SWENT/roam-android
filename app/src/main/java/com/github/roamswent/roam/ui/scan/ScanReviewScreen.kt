@@ -138,6 +138,7 @@ fun ScanReviewScreen(
         },
         showSharingError = showSharingError,
         onSharingErrorShown = onSharingErrorShown,
+        showSharingControls = savedGuideId != null,
     )
     if (isShareDialogOpen && savedGuideId != null) {
       GuideSharingDialog(

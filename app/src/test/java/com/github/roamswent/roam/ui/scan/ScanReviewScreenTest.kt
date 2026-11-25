@@ -670,9 +670,8 @@ class ScanReviewScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
-
-    assertEquals(true, sharingOpened)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_button).assertCountEquals(0)
+    assertEquals(false, sharingOpened)
     composeTestRule.onAllNodesWithTag(C.Tag.collection_share_dialog).assertCountEquals(0)
   }
 
@@ -841,12 +840,14 @@ class ScanReviewScreenTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+    waitAndAssertDisplayed(C.Tag.monument_detail_share_unavailable)
 
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
     composeTestRule
         .onNodeWithText(
-            context.getString(R.string.monument_detail_explore_unavailable_photo_too_far),
+            context.getString(R.string.monument_detail_share_unavailable_message, "Eiffel Tower"),
             useUnmergedTree = true,
         )
         .assertIsDisplayed()
@@ -872,9 +873,11 @@ class ScanReviewScreenTest {
     showReviewRoute(sender, savedGuideRepository = savedGuides)
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+    waitAndAssertDisplayed(C.Tag.monument_detail_share_unavailable)
 
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
     // The guide is still saved to the collection, just not put on Explore.
     assertEquals(null, savedGuides.guides.value.single().location)
     assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
