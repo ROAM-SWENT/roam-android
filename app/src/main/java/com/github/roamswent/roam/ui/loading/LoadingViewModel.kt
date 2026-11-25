@@ -108,8 +108,8 @@ class LoadingViewModel(
     private val language: String,
     private val userInterestsRepository: UserInterestsRepository,
     private val savedGuideRepository: SavedGuideRepository,
-    private val sharingRepository: MonumentSharingRepository? = null,
     private val leaderboardRepository: LeaderboardRepository,
+    private val sharingRepository: MonumentSharingRepository? = null,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newGuideId: () -> String = { UUID.randomUUID().toString() },
 ) : ViewModel() {
@@ -364,7 +364,13 @@ class LoadingViewModel(
             _verifiedMonumentError.value = null
             val photo = checkNotNull(guide.photo) { "The discovery returned no photo to save" }
             savedGuideRepository.addGuide(
-                guide.toSavedGuide(guideId, photo.bytes, discoveryDate, location = null, sharingEligibility = _sharingEligibility.value)
+                guide.toSavedGuide(
+                    guideId,
+                    photo.bytes,
+                    discoveryDate,
+                    location = null,
+                    sharingEligibility = _sharingEligibility.value,
+                )
             )
             true
           } catch (exception: CancellationException) {
@@ -374,7 +380,7 @@ class LoadingViewModel(
             if (activeGuideId == guideId) {
               // Without a saved guide there is nothing to favourite or put on Explore.
               activeGuideId = null
-              _savedGuideId = null
+              _savedGuideId.value = null
               _exploreOptIn.value = null
               _exploreUnavailableReason.value = null
             }

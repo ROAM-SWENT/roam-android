@@ -65,6 +65,15 @@ class CollectionSharingViewModelTest {
       }
 
   @Test
+  fun collectionFriendsCompareAvatarBytesByContent() {
+    val first = CollectionFriend("friend", "Alice", byteArrayOf(1, 2, 3))
+    val second = CollectionFriend("friend", "Alice", byteArrayOf(1, 2, 3))
+
+    assertEquals(first, second)
+    assertEquals(first.hashCode(), second.hashCode())
+  }
+
+  @Test
   fun friendLoadFailureIsExposedAndCanBeRetried() =
       runTest(dispatcher) {
         val failure = IllegalStateException("offline")

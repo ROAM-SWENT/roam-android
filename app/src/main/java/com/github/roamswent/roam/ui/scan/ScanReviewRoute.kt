@@ -127,9 +127,9 @@ fun ScanReviewRoute(
             Locale.getDefault().toLanguageTag(),
             userInterestsRepository,
             savedGuideRepository,
+            leaderboardRepository,
             sharingRepository =
                 (monumentSharingProvider ?: DefaultMonumentSharingProvider()).repository(),
-            leaderboardRepository,
         )
       }
   val resolvedFriendRepository =
