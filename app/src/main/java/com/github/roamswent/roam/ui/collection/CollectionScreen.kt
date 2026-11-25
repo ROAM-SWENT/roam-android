@@ -611,7 +611,9 @@ private fun GuideCard(
   }
   if (!readOnly && isShareDialogOpen) {
     GuideSharingDialog(
-        guide = guide,
+        guideId = guide.id,
+        monumentName = guide.monumentName,
+        shareSettings = guide.shareSettings,
         friends = friends,
         isLoadingFriends = isLoadingFriends,
         friendsError = friendsError,
@@ -661,8 +663,10 @@ private fun ShareButton(isSharing: Boolean, onClick: () -> Unit, modifier: Modif
 }
 
 @Composable
-private fun GuideSharingDialog(
-    guide: Guide,
+internal fun GuideSharingDialog(
+    guideId: String,
+    monumentName: String,
+    shareSettings: MonumentShareSettings,
     friends: List<CollectionFriend>,
     isLoadingFriends: Boolean,
     friendsError: Exception?,
@@ -671,10 +675,10 @@ private fun GuideSharingDialog(
     onDismiss: () -> Unit,
     onConfirm: (ShareAudience, Set<String>) -> Unit,
 ) {
-  var audience by remember(guide.id) { mutableStateOf(guide.shareSettings.audience) }
+  var audience by remember(guideId) { mutableStateOf(shareSettings.audience) }
   val selectedFriendUids =
-      remember(guide.id) {
-        mutableStateSetOf<String>().apply { addAll(guide.shareSettings.sharedWithUids) }
+      remember(guideId) {
+        mutableStateSetOf<String>().apply { addAll(shareSettings.sharedWithUids) }
       }
   val needsFriends = audience == ShareAudience.SELECTED_FRIENDS
   val recipients =
@@ -686,7 +690,7 @@ private fun GuideSharingDialog(
   AlertDialog(
       modifier = Modifier.semantics { testTag = C.Tag.collection_share_dialog },
       onDismissRequest = onDismiss,
-      title = { Text(stringResource(R.string.collection_share_title, guide.monumentName)) },
+      title = { Text(stringResource(R.string.collection_share_title, monumentName)) },
       text = {
         Column {
           Text(
@@ -1199,16 +1203,13 @@ fun PreviewCollectionScreenEmptyDark() {
 fun PreviewCollectionSharingSelection() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide =
-            previewGuides
-                .first()
-                .copy(
-                    shareSettings =
-                        MonumentShareSettings(
-                            audience = ShareAudience.SELECTED_FRIENDS,
-                            sharedWithUids = setOf("preview-alice"),
-                        )
-                ),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings =
+            MonumentShareSettings(
+                audience = ShareAudience.SELECTED_FRIENDS,
+                sharedWithUids = setOf("preview-alice"),
+            ),
         friends = previewSharingFriends,
         isLoadingFriends = false,
         friendsError = null,
@@ -1225,7 +1226,9 @@ fun PreviewCollectionSharingSelection() {
 fun PreviewCollectionSharingLoading() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings = previewSelectedSharing,
         friends = emptyList(),
         isLoadingFriends = true,
         friendsError = null,
@@ -1242,7 +1245,9 @@ fun PreviewCollectionSharingLoading() {
 fun PreviewCollectionSharingFriendsError() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings = previewSelectedSharing,
         friends = emptyList(),
         isLoadingFriends = false,
         friendsError = IllegalStateException(),
@@ -1259,7 +1264,9 @@ fun PreviewCollectionSharingFriendsError() {
 fun PreviewCollectionSharingNoFriends() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings = previewSelectedSharing,
         friends = emptyList(),
         isLoadingFriends = false,
         friendsError = null,
