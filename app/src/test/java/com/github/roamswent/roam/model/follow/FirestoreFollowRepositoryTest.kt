@@ -49,9 +49,11 @@ class FirestoreFollowRepositoryTest {
   fun follow_createsDocumentAndReturnsFollowForPublicTarget() = runTest {
     val followRef = stubFollowRef(TARGET_UID, CURRENT_UID)
     val profileRef = stubProfileRef(TARGET_UID)
+    val blockedRef = stubBlockedUserRef(CURRENT_UID, TARGET_UID)
     val transaction = mockk<Transaction>(relaxed = true)
     every { transaction.get(followRef) } returns existenceSnapshot(false)
     every { transaction.get(profileRef) } returns profileSnapshot(exists = true, isPublic = true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Follow>(transaction)
 
     val result = repository.follow(TARGET_UID)
@@ -69,10 +71,12 @@ class FirestoreFollowRepositoryTest {
   fun follow_returnsExistingFollowIdempotentlyWithoutWriting() = runTest {
     val followRef = stubFollowRef(TARGET_UID, CURRENT_UID)
     val profileRef = stubProfileRef(TARGET_UID)
+    val blockedRef = stubBlockedUserRef(CURRENT_UID, TARGET_UID)
     val transaction = mockk<Transaction>(relaxed = true)
     every { transaction.get(followRef) } returns
         followSnapshot("$TARGET_UID~$CURRENT_UID", TARGET_UID, CURRENT_UID)
     every { transaction.get(profileRef) } returns profileSnapshot(exists = true, isPublic = true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Follow>(transaction)
 
     val result = repository.follow(TARGET_UID)
@@ -82,12 +86,31 @@ class FirestoreFollowRepositoryTest {
   }
 
   @Test
+  fun follow_throwsUserBlockedWhenFollowerHasBlockedTarget() = runTest {
+    val followRef = stubFollowRef(TARGET_UID, CURRENT_UID)
+    val profileRef = stubProfileRef(TARGET_UID)
+    val blockedRef = stubBlockedUserRef(CURRENT_UID, TARGET_UID)
+    val transaction = mockk<Transaction>(relaxed = true)
+    every { transaction.get(followRef) } returns existenceSnapshot(false)
+    every { transaction.get(profileRef) } returns profileSnapshot(exists = true, isPublic = true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(true)
+    runTransactionWith<Follow>(transaction)
+
+    val error = captureFailure { repository.follow(TARGET_UID) }
+
+    assertTrue(error is FollowRepositoryException.UserBlocked)
+    verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
+  }
+
+  @Test
   fun follow_throwsTargetProfileNotFoundWhenProfileMissing() = runTest {
     val followRef = stubFollowRef(TARGET_UID, CURRENT_UID)
     val profileRef = stubProfileRef(TARGET_UID)
+    val blockedRef = stubBlockedUserRef(CURRENT_UID, TARGET_UID)
     val transaction = mockk<Transaction>(relaxed = true)
     every { transaction.get(followRef) } returns existenceSnapshot(false)
     every { transaction.get(profileRef) } returns profileSnapshot(exists = false, isPublic = null)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Follow>(transaction)
 
     val error = captureFailure { repository.follow(TARGET_UID) }
@@ -100,8 +123,10 @@ class FirestoreFollowRepositoryTest {
   fun follow_throwsAccountNotPublicForPrivateAndLegacyProfiles() = runTest {
     val followRef = stubFollowRef(TARGET_UID, CURRENT_UID)
     val profileRef = stubProfileRef(TARGET_UID)
+    val blockedRef = stubBlockedUserRef(CURRENT_UID, TARGET_UID)
     val transaction = mockk<Transaction>(relaxed = true)
     every { transaction.get(followRef) } returns existenceSnapshot(false)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Follow>(transaction)
 
     for (isPublic in listOf(false, null)) {
@@ -157,8 +182,10 @@ class FirestoreFollowRepositoryTest {
   fun follow_wrapsMalformedExistingFollowSnapshotInFirestoreFailure() = runTest {
     val followRef = stubFollowRef(TARGET_UID, CURRENT_UID)
     val profileRef = stubProfileRef(TARGET_UID)
+    val blockedRef = stubBlockedUserRef(CURRENT_UID, TARGET_UID)
     val transaction = mockk<Transaction>(relaxed = true)
     every { transaction.get(profileRef) } returns profileSnapshot(exists = true, isPublic = true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Follow>(transaction)
 
     for ((label, badSnapshot) in malformedFollowSnapshots()) {
