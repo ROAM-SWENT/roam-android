@@ -38,6 +38,9 @@ sealed class FollowRepositoryException(message: String, cause: Throwable? = null
   /** Thrown when the target user has blocked the signed-in user. */
   class BlockedByUser : FollowRepositoryException("You cannot follow this user.")
 
+  /** Thrown when the signed-in user has currently blocked the target user. */
+  class UserBlocked : FollowRepositoryException("Unblock this user before following them.")
+
   /** Thrown when the expected follow relationship document does not exist. */
   class FollowNotFound : FollowRepositoryException("The follow relationship was not found.")
 

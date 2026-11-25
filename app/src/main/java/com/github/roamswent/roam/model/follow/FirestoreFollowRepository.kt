@@ -34,9 +34,11 @@ class FirestoreFollowRepository(
             .runTransaction { transaction ->
               val followSnapshot = transaction.get(followRef)
               val targetProfileSnapshot = transaction.get(targetProfileRef)
+              val blockedSnapshot = transaction.get(blockedUserReference(followerUid, targetUid))
               if (followSnapshot.exists()) {
                 return@runTransaction followSnapshot.toFollow()
               }
+              if (blockedSnapshot.exists()) throw FollowRepositoryException.UserBlocked()
               if (!targetProfileSnapshot.exists()) {
                 throw FollowRepositoryException.TargetProfileNotFound()
               }
