@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.guide
 
@@ -28,6 +29,8 @@ fun MonumentGuide.toSavedGuide(
         culture = culture,
         sections = sections,
         interestCount = interestCount,
+        overview = overview,
+        timeline = timeline,
         location = location,
         discoveryDate = discoveryDate,
     )
@@ -47,5 +50,7 @@ fun Guide.toMonumentGuide(): MonumentGuide =
         language = "",
         sections = sections,
         interestCount = interestCount,
+        overview = overview,
+        timeline = timeline,
         location = location,
     )

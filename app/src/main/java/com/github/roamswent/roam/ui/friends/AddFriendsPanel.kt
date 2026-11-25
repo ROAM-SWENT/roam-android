@@ -164,7 +164,7 @@ private fun AddFriendUserRow(
   ) {
     ProfilePicture(
         name = user.username,
-        avatarUrl = user.avatarUrl,
+        avatarBytes = user.avatarBytes,
         modifier = Modifier.size(44.dp),
     )
     Text(

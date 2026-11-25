@@ -13,4 +13,23 @@ data class PublicProfile(
     val uid: String,
     val username: String,
     val verifiedMonumentCount: Int = 0,
-)
+    val avatarBytes: ByteArray? = null,
+) {
+  override fun equals(other: Any?): Boolean =
+      other is PublicProfile &&
+          uid == other.uid &&
+          username == other.username &&
+          verifiedMonumentCount == other.verifiedMonumentCount &&
+          ((avatarBytes == null && other.avatarBytes == null) ||
+              (avatarBytes != null &&
+                  other.avatarBytes != null &&
+                  avatarBytes.contentEquals(other.avatarBytes)))
+
+  override fun hashCode(): Int {
+    var result = uid.hashCode()
+    result = 31 * result + username.hashCode()
+    result = 31 * result + verifiedMonumentCount
+    result = 31 * result + (avatarBytes?.contentHashCode() ?: 0)
+    return result
+  }
+}

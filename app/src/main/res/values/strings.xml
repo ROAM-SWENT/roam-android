@@ -1,3 +1,5 @@
+<!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
+<!-- Co-authored-by: Codex <codex@openai.com> -->
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">Roam</string>
@@ -7,6 +9,24 @@
     <string name="sign_in_terms">By continuing, you agree to the Terms of Service.</string>
     <string name="sign_in_logo_description">Roam logo</string>
     <string name="sign_in_success">Login successful!</string>
+    <string name="sign_in_email_label">Email</string>
+    <string name="sign_in_password_label">Password</string>
+    <string name="sign_in_email_button">Sign in</string>
+    <string name="sign_up_button">Create account</string>
+    <string name="sign_up_title">Create your account</string>
+    <string name="sign_up_password_confirmation_label">Confirm password</string>
+    <string name="sign_up_submit">Create account</string>
+    <string name="sign_up_back">Back to sign in</string>
+    <string name="email_verification_title">Verify your email</string>
+    <string name="email_verification_message">We sent a verification link to your email. Verify it before continuing.</string>
+    <string name="email_verification_resend">Resend email</string>
+    <string name="email_verification_check">I’ve verified my email</string>
+    <string name="email_verification_back">Use another account</string>
+    <string name="email_verification_sent">Verification email sent.</string>
+    <string name="email_verification_still_pending">Email is still not verified.</string>
+    <string name="auth_validation_email">Enter a valid email address.</string>
+    <string name="auth_validation_password">Password must be at least 6 characters.</string>
+    <string name="auth_validation_password_confirmation">Passwords do not match.</string>
     <string name="register_profile_title">Choose a username</string>
     <string name="register_profile_username_label">Username</string>
     <string name="register_profile_submit">Continue</string>
@@ -49,6 +69,12 @@
     <string name="friends_remove_confirmation_message">Are you sure you want to delete %1$s?</string>
     <string name="friends_cancel_action">Cancel</string>
     <string name="friends_dismiss_action">Dismiss</string>
+    <string name="friends_view_collection_description">View monuments shared by %1$s</string>
+    <string name="friend_collection_title">%1$s\'s monuments</string>
+    <string name="friend_collection_error">Couldn’t load this collection. Please try again.</string>
+    <string name="friend_collection_empty_title">No shared monuments yet</string>
+    <string name="friend_collection_empty_subtitle">This friend has not shared any monument with you.</string>
+    <string name="collection_back_description">Back</string>
     <string name="home_tab_explore">Explore</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>
@@ -117,6 +143,7 @@
     <string name="collection_delete">Delete guide</string>
     <string name="collection_delete_error">Couldn’t delete this guide. Please try again.</string>
     <string name="collection_search_hint">Search your collection</string>
+    <string name="friend_collection_search_hint">Search their collection</string>
     <string name="collection_search_no_matches_title">No matches</string>
     <string name="collection_search_no_matches_subtitle">No monument matches your search.</string>
     <string name="collection_search_clear_description">Clear search</string>
@@ -158,6 +185,10 @@
     <string name="settings_username_error_taken">That username is already taken.</string>
     <string name="settings_username_error_update">Unable to update your username. Please try again.</string>
     <string name="settings_username_error_load">Unable to load your username. Please try again.</string>
+    <string name="settings_avatar_upload">Change profile picture</string>
+    <string name="settings_avatar_remove">Remove profile picture</string>
+    <string name="settings_avatar_error_update">Unable to update your profile picture. Please try again.</string>
+    <string name="settings_avatar_error_remove">Unable to remove your profile picture. Please try again.</string>
     <string name="scan_review_sending_title">Image being treated…</string>
     <string name="scan_review_sending_message">Please wait.</string>
     <string name="scan_close_description">Close</string>
@@ -184,6 +215,7 @@
     <string name="monument_detail_picture_description">Monument picture</string>
     <string name="saved_monument_detail_error">Couldn’t load this monument. Please try again.</string>
     <string name="saved_monument_detail_not_found">This monument is no longer in your collection.</string>
+    <string name="shared_monument_detail_not_found">This monument is no longer shared with you.</string>
     <string name="saved_monument_detail_retry">Retry</string>
     <string name="scan_review_photo_title">Review your photo</string>
     <string name="scan_review_choose_another_photo">Choose another photo</string>
@@ -206,11 +238,13 @@
     <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">App Permissions</string>
     <string name="monument_detail_match_percent">%1$d%% match</string>
-    <string name="monument_detail_fact_bullet">• %1$s</string>
     <string name="monument_detail_ai_guide_label">YOUR AI GUIDE</string>
     <string name="monument_detail_history_title">History</string>
     <string name="monument_detail_culture_title">Local Culture</string>
     <string name="monument_detail_facts_title">Fun Fact</string>
+    <string name="monument_detail_facts_plural_title">Fun Facts</string>
+    <string name="monument_detail_timeline_title">Timeline</string>
+    <string name="monument_detail_year_bce">%1$d BCE</string>
     <string name="monument_detail_show_in_explore">Show in Explore</string>
     <string name="monument_detail_show_in_explore_supporting">Pin this monument on the map where you scanned it.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Pin this monument on the map where the photo was taken.</string>

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
@@ -78,9 +79,11 @@ internal fun FriendsContent(
     friendsQuery: String,
     onFriendsQueryChanged: (String) -> Unit,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
     onFriendClicked: (FriendUser) -> Unit,
+    onFriendCollectionClicked: (FriendUser) -> Unit,
     onRemoveFriend: (FriendUser) -> Unit,
     onAcceptRequest: (FriendRequest) -> Unit,
     onRejectRequest: (FriendRequest) -> Unit,
@@ -100,6 +103,7 @@ internal fun FriendsContent(
         title = stringResource(R.string.friends_title),
         pendingRequestCount = pendingRequestCount,
         profileName = profileName,
+        profileAvatarBytes = profileAvatarBytes,
         onAddFriendsClicked = onAddFriendsClicked,
         onProfileClicked = onProfileClicked,
     )
@@ -160,6 +164,7 @@ internal fun FriendsContent(
               FriendRow(
                   friend = friend,
                   onClick = { onFriendClicked(friend) },
+                  onViewCollection = { onFriendCollectionClicked(friend) },
                   onRemove = { onRemoveFriend(friend) },
                   enabled = !isMutating,
               )
@@ -176,6 +181,7 @@ private fun FriendsHeader(
     title: String,
     pendingRequestCount: Int,
     profileName: String?,
+    profileAvatarBytes: ByteArray?,
     onAddFriendsClicked: () -> Unit,
     onProfileClicked: () -> Unit,
 ) {
@@ -199,6 +205,7 @@ private fun FriendsHeader(
     )
     ProfileBubble(
         name = profileName.orEmpty(),
+        avatarBytes = profileAvatarBytes,
         onClick = onProfileClicked,
         testTag = C.Tag.home_profile_button,
     )
@@ -277,7 +284,7 @@ internal fun FriendRequestCard(
     ) {
       ProfilePicture(
           name = request.user.username,
-          avatarUrl = request.user.avatarUrl,
+          avatarBytes = request.user.avatarBytes,
           modifier = Modifier.size(48.dp),
       )
       Text(
@@ -341,6 +348,7 @@ private fun FriendsSearchField(
 private fun FriendRow(
     friend: FriendUser,
     onClick: () -> Unit,
+    onViewCollection: () -> Unit,
     onRemove: () -> Unit,
     enabled: Boolean,
 ) {
@@ -348,6 +356,8 @@ private fun FriendRow(
   var showRemoveConfirmation by remember { mutableStateOf(false) }
   val moreOptionsDescription =
       stringResource(R.string.friends_more_options_description, friend.username)
+  val viewCollectionDescription =
+      stringResource(R.string.friends_view_collection_description, friend.username)
   val deleteFriendLabel = stringResource(R.string.friends_delete_friend)
   val removeConfirmationTitle = stringResource(R.string.friends_remove_confirmation_title)
   val removeConfirmationMessage =
@@ -368,7 +378,7 @@ private fun FriendRow(
       ) {
         ProfilePicture(
             name = friend.username,
-            avatarUrl = friend.avatarUrl,
+            avatarBytes = friend.avatarBytes,
             modifier = Modifier.size(52.dp),
         )
         Text(
@@ -379,6 +389,20 @@ private fun FriendRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        IconButton(
+            onClick = onViewCollection,
+            modifier =
+                Modifier.semantics {
+                  contentDescription = viewCollectionDescription
+                  testTag = C.Tag.friends_view_collection
+                },
+        ) {
+          Icon(
+              imageVector = Icons.Default.AccountBalance,
+              contentDescription = null,
+              tint = MaterialTheme.accentIcon,
+          )
+        }
         Box {
           IconButton(
               onClick = { isMenuExpanded = true },

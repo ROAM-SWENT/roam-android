@@ -31,10 +31,13 @@ service cloud.firestore {
     function validProfileWrite(uid) {
       return request.resource.data.keys().hasAll(['uid', 'username', 'usernameLower'])
         && request.resource.data.keys()
-          .hasOnly(['uid', 'username', 'usernameLower', 'verifiedMonumentCount'])
+          .hasOnly(['uid', 'username', 'usernameLower', 'verifiedMonumentCount', 'avatar'])
         && request.resource.data.uid == uid
         && validUsername(request.resource.data.username)
         && request.resource.data.usernameLower == request.resource.data.username.lower()
+        && (!('avatar' in request.resource.data)
+          || (request.resource.data.avatar is bytes
+            && request.resource.data.avatar.size() <= 204800))
         && existsAfter(
           /databases/$(database)/documents/usernameClaims/$(request.resource.data.usernameLower)
         )
@@ -147,6 +150,18 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.get('dismissedByUids', [])
         && request.resource.data.get('dismissedByUids', []).toSet() == resource.data.get('dismissedByUids', []).toSet().union([request.auth.uid].toSet())
         && request.resource.data.get('sharedWithUids', []).toSet() == resource.data.get('sharedWithUids', []).toSet().difference([request.auth.uid].toSet());
+    }
+
+    match /users/{ownerUid} {
+      allow read: if request.auth != null && request.auth.uid == ownerUid;
+      allow create: if request.auth != null
+        && request.auth.uid == ownerUid
+        && request.resource.data.keys().hasOnly(['email', 'registrationTimestamp'])
+        && request.resource.data.keys().hasAll(['email', 'registrationTimestamp'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.registrationTimestamp == request.time;
+      allow update: if false;
+      allow delete: if false;
     }
 
     match /publicProfiles/{uid} {

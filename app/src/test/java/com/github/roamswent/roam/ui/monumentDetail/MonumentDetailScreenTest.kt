@@ -1,8 +1,12 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.foundation.OverscrollFactory
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,9 +14,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
@@ -24,9 +32,15 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.location.Coordinates
@@ -34,14 +48,18 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
-import com.github.roamswent.roam.ui.theme.ScreenBackground
+import com.github.roamswent.roam.ui.theme.guideCalloutContainer
+import com.github.roamswent.roam.ui.theme.guideEyebrow
+import com.github.roamswent.roam.ui.theme.guidePanel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -54,9 +72,13 @@ class MonumentDetailScreenTest {
       MonumentGuide(
           monumentName = "Eiffel Tower",
           confidence = 0.92,
-          history = "Built in 1889 as the entrance arch for the World's Fair.",
-          facts = listOf("330 meters tall", "Repainted every seven years"),
-          culture = "The globally recognized symbol of Paris and France.",
+          history =
+              "Built in 1889 as the entrance arch for the World's Fair.\n\n" +
+                  "Its iron framework took just over two years to assemble.",
+          facts = listOf("330 meters tall", "- Repainted every seven years"),
+          culture =
+              "The globally recognized symbol of Paris and France.\n\n" +
+                  "It hosts celebrations that bring Parisians together.",
           language = "en",
       )
 
@@ -92,16 +114,78 @@ class MonumentDetailScreenTest {
         .assertTextEquals(guide.history)
     composeTestRule
         .onNodeWithTag(C.Tag.monument_detail_culture)
+        .performScrollTo()
         .assertIsDisplayed()
         .assertTextEquals(guide.culture)
-    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(1)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(2)
+    composeTestRule.onNodeWithText("330 meters tall").performScrollTo().assertIsDisplayed()
     composeTestRule
-        .onNodeWithText("• 330 meters tall\n• Repainted every seven years")
+        .onNodeWithText("Repainted every seven years")
+        .performScrollTo()
         .assertIsDisplayed()
+  }
 
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_drag_handle).performTouchInput {
-      swipeUp()
-      swipeDown()
+  private data object RejectingOverscrollFactory : OverscrollFactory {
+    override fun createOverscrollEffect() = error("The guide scroll area must disable edge effects")
+  }
+
+  @Test
+  fun swipingScrollsTheGuideInsideAStationaryPanelWithoutOverscroll() {
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalOverscrollFactory provides RejectingOverscrollFactory) {
+        SampleAppTheme {
+          MonumentDetailScreen(
+              image = ColorPainter(Color.LightGray),
+              guide = guide.copy(history = guide.history.repeat(12)),
+              onBackClick = {},
+          )
+        }
+      }
+    }
+
+    val panel = composeTestRule.onNodeWithTag(C.Tag.monument_detail_panel)
+    val picture = composeTestRule.onNodeWithTag(C.Tag.monument_detail_picture)
+    val initialPanel = panel.fetchSemanticsNode().boundsInRoot
+    val initialPicture = picture.fetchSemanticsNode().boundsInRoot
+    val title = composeTestRule.onNodeWithTag(C.Tag.monument_detail_title)
+    val initialTitle = title.fetchSemanticsNode().boundsInRoot
+
+    panel.performTouchInput { swipeDown() }
+    assertEquals(initialTitle, title.fetchSemanticsNode().boundsInRoot)
+
+    panel.performTouchInput { swipeUp() }
+
+    assertEquals(initialPanel, panel.fetchSemanticsNode().boundsInRoot)
+    assertEquals(initialPicture, picture.fetchSemanticsNode().boundsInRoot)
+    title.assertIsNotDisplayed()
+  }
+
+  @Test
+  fun matchBadgeUsesThreeScoreBandsInBothThemes() {
+    var confidence by mutableStateOf(0.49)
+    var dark by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = dark, dynamicColor = false) {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide.copy(confidence = confidence),
+            onBackClick = {},
+        )
+      }
+    }
+
+    val badge = composeTestRule.onNodeWithTag(C.Tag.monument_detail_confidence)
+    for (darkTheme in listOf(false, true)) {
+      composeTestRule.runOnIdle { dark = darkTheme }
+      val colors =
+          listOf(49, 50, 79, 80).map { score ->
+            composeTestRule.runOnIdle { confidence = score / 100.0 }
+            badge.assertTextEquals("$score% match")
+            val bitmap = badge.captureToImage().asAndroidBitmap()
+            bitmap.getPixel(bitmap.width / 2, 1)
+          }
+      assertEquals(colors[1], colors[2])
+      assertEquals(3, colors.toSet().size)
     }
   }
 
@@ -122,13 +206,23 @@ class MonumentDetailScreenTest {
   }
 
   @Test
-  fun interestSectionsUseReadableOrderWithCalloutsAtTheBottom() {
+  fun optionalPrimitivesAppearAlongsideTheCoreGuide() {
     val sectionGuide =
         guide.copy(
+            overview = "An iron landmark.",
+            facts = listOf("The iron expands in summer."),
+            timeline =
+                listOf(
+                    GuideMilestone(1964, "Listed as a historic monument."),
+                    GuideMilestone(1889, "Opened to the public."),
+                    GuideMilestone(1887, "Construction began."),
+                ),
             sections =
                 listOf(
-                    GuideSection("Fun Facts", "A fun fact."),
-                    GuideSection("Architecture", "A detailed description."),
+                    GuideSection(
+                        "Architecture",
+                        "**Look up at the framework.**\n- Iron legs\n* Lattice bracing",
+                    ),
                     GuideSection("Legends & Myths", "A legend."),
                 ),
         )
@@ -143,22 +237,151 @@ class MonumentDetailScreenTest {
       }
     }
 
-    val architectureY =
-        composeTestRule.onNodeWithText("Architecture").fetchSemanticsNode().positionInRoot.y
-    val funFactsY =
-        composeTestRule.onNodeWithText("Fun Facts").fetchSemanticsNode().positionInRoot.y
-    val legendsY =
-        composeTestRule.onNodeWithText("Legends & Myths").fetchSemanticsNode().positionInRoot.y
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_overview)
+        .assertIsDisplayed()
+        .assertTextEquals("An iron landmark.")
+    val milestones = composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_timeline_item)
+    milestones.assertCountEquals(3)
+    milestones[0].onChildren().onFirst().assertTextEquals("1887")
+    milestones[1].onChildren().onFirst().assertTextEquals("1889")
+    milestones[2].onChildren().onFirst().assertTextEquals("1964")
 
-    assertTrue(architectureY < funFactsY)
-    assertTrue(funFactsY < legendsY)
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_history)
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_culture)
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText("Fun Fact").performScrollTo().assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_interest).assertCountEquals(2)
+    composeTestRule
+        .onNodeWithText("Look up at the framework.\n• Iron legs\n• Lattice bracing")
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText("A legend.").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_timeline).performScrollTo()
+    composeTestRule.onNodeWithText("Construction began.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Listed as a historic monument.").assertIsDisplayed()
   }
 
   @Test
-  fun darkThemeUsesThemeTextColorsOnDarkPanelAndKeepsLightPanelUnchanged() {
+  fun aSingleBceMilestoneDrawsAnUnconnectedMarkerOnTheRightInRtl() {
+    var markerColor = 0
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        markerColor = MaterialTheme.guideEyebrow.toArgb()
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+          MonumentDetailScreen(
+              image = ColorPainter(Color.LightGray),
+              guide =
+                  guide.copy(
+                      history = "",
+                      culture = "",
+                      facts = emptyList(),
+                      timeline = listOf(GuideMilestone(-200, "The site was first settled.")),
+                  ),
+              onBackClick = {},
+          )
+        }
+      }
+    }
+
+    val row = composeTestRule.onNodeWithTag(C.Tag.monument_detail_timeline_item).performScrollTo()
+    composeTestRule.onNodeWithText("200 BCE").assertIsDisplayed()
+    val bitmap = row.captureToImage().asAndroidBitmap()
+    val edgeWidth = bitmap.width / 10
+    assertTrue(
+        containsColor(
+            Bitmap.createBitmap(bitmap, bitmap.width - edgeWidth, 0, edgeWidth, bitmap.height / 2),
+            markerColor,
+        )
+    )
+    assertFalse(
+        containsColor(
+            Bitmap.createBitmap(bitmap, 0, bitmap.height / 2, bitmap.width, bitmap.height / 2),
+            markerColor,
+        )
+    )
+  }
+
+  @Test
+  fun absentContentDoesNotCreateEmptySections() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide =
+                guide.copy(
+                    overview = " ",
+                    history = "",
+                    culture = "",
+                    facts = emptyList(),
+                    sections =
+                        listOf(GuideSection("Architecture", ""), GuideSection("", "A note.")),
+                ),
+            onBackClick = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertIsDisplayed()
+    listOf(
+            C.Tag.monument_detail_overview,
+            C.Tag.monument_detail_history,
+            C.Tag.monument_detail_culture,
+            C.Tag.monument_detail_timeline,
+            C.Tag.monument_detail_facts,
+            C.Tag.monument_detail_interest,
+        )
+        .forEach { tag -> composeTestRule.onNodeWithTag(tag).assertDoesNotExist() }
+  }
+
+  @Test
+  @Config(qualifiers = "w320dp-h480dp-port")
+  fun wrapsLongTitlesAndScrollsToTheLastFactAtLargeFontScale() {
+    val longTitle = "The Historic Monument and Gardens of the Northern City"
+    val facts = (1..20).map { "Fact $it about this historic monument." }
+    composeTestRule.setContent {
+      val density = LocalDensity.current
+      CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 1.8f)) {
+        SampleAppTheme {
+          MonumentDetailScreen(
+              image = ColorPainter(Color.LightGray),
+              guide =
+                  guide.copy(
+                      monumentName = longTitle,
+                      history = guide.history.repeat(25),
+                      facts = facts,
+                  ),
+              onBackClick = {},
+          )
+        }
+      }
+    }
+
+    val layouts = mutableListOf<TextLayoutResult>()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_title)
+        .assertTextEquals(longTitle)
+        .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+    assertTrue(layouts.single().lineCount > 1)
+    assertFalse(layouts.single().hasVisualOverflow)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(20)
+    composeTestRule.onNodeWithText(facts.last()).performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun panelAndCalloutsUseTheirThemeColors() {
     val image = ColorPainter(Color.LightGray)
     var darkTheme by mutableStateOf(false)
+    var lightSurface = 0
+    var lightCallout = 0
     var darkSurface = 0
+    var darkCallout = 0
     var darkOnSurface = 0
     var darkOnSurfaceVariant = 0
 
@@ -168,6 +391,10 @@ class MonumentDetailScreenTest {
           darkSurface = MaterialTheme.colorScheme.surface.toArgb()
           darkOnSurface = MaterialTheme.colorScheme.onSurface.toArgb()
           darkOnSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+          darkCallout = MaterialTheme.colorScheme.surfaceVariant.toArgb()
+        } else {
+          lightSurface = MaterialTheme.guidePanel.toArgb()
+          lightCallout = MaterialTheme.guideCalloutContainer.toArgb()
         }
         MonumentDetailScreen(
             image = image,
@@ -182,7 +409,10 @@ class MonumentDetailScreenTest {
             .onNodeWithTag(C.Tag.monument_detail_panel)
             .captureToImage()
             .asAndroidBitmap()
-    assertEquals(ScreenBackground.toArgb(), lightPanel.getPixel(0, lightPanel.height / 2))
+    assertEquals(lightSurface, lightPanel.getPixel(0, lightPanel.height / 2))
+    val callout = composeTestRule.onNodeWithTag(C.Tag.monument_detail_facts)
+    callout.performScrollTo()
+    assertTrue(containsColor(callout.captureToImage().asAndroidBitmap(), lightCallout))
 
     composeTestRule.runOnIdle { darkTheme = true }
 
@@ -195,6 +425,7 @@ class MonumentDetailScreenTest {
     assertNotEquals(Color.White.toArgb(), darkPanel.getPixel(0, darkPanel.height / 2))
     assertTrue(containsColor(darkPanel, darkOnSurface))
     assertTrue(containsColor(darkPanel, darkOnSurfaceVariant))
+    assertTrue(containsColor(callout.captureToImage().asAndroidBitmap(), darkCallout))
   }
 
   @Test

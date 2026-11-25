@@ -4,6 +4,7 @@
 
 package com.github.roamswent.roam.ui.profile
 
+import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import kotlinx.coroutines.CancellationException
@@ -67,6 +68,37 @@ class RegisterProfileViewModelTest {
         advanceUntilIdle()
 
         assertEquals(ProfileRegistrationStatus.REGISTERED, viewModel.uiState.value.status)
+      }
+
+  @Test
+  fun checkCurrentProfile_initializesPrivateProfileBeforePublicLookup() =
+      runTest(dispatcher) {
+        whenever(repository.getCurrentProfile()).thenReturn(null)
+        val privateRepository: ProfileRepository = mock()
+        whenever(privateRepository.initializePrivateProfile()).thenReturn(Result.success(Unit))
+        val viewModel = RegisterProfileViewModel(repository, privateRepository)
+
+        viewModel.checkCurrentProfile()
+        advanceUntilIdle()
+
+        verify(privateRepository).initializePrivateProfile()
+        verify(repository).getCurrentProfile()
+      }
+
+  @Test
+  fun checkCurrentProfile_privateProfileFailureSetsErrorWithoutPublicLookup() =
+      runTest(dispatcher) {
+        val privateRepository: ProfileRepository = mock()
+        val failure = IllegalStateException("Private profile unavailable")
+        whenever(privateRepository.initializePrivateProfile()).thenReturn(Result.failure(failure))
+        val viewModel = RegisterProfileViewModel(repository, privateRepository)
+
+        viewModel.checkCurrentProfile()
+        advanceUntilIdle()
+
+        assertEquals(ProfileRegistrationStatus.ERROR, viewModel.uiState.value.status)
+        assertEquals(failure.localizedMessage, viewModel.uiState.value.errorMessage)
+        verify(repository, never()).getCurrentProfile()
       }
 
   @Test
@@ -253,6 +285,11 @@ class RegisterProfileViewModelTest {
 
     override suspend fun renameUsername(username: String): PublicProfile =
         error("Not used in this test")
+
+    override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+        error("Not used in this test")
+
+    override suspend fun removeAvatar(): PublicProfile = error("Not used in this test")
 
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
   }

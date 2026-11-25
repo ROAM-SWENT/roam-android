@@ -1,3 +1,5 @@
+<!-- Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com> -->
+<!-- Co-authored-by: Codex <codex@openai.com> -->
 <resources>
     <string name="app_name">Roam</string>
     <string name="title_activity_main">Roam</string>
@@ -7,6 +9,24 @@
     <string name="sign_in_terms">En continuant, vous acceptez les Conditions d\'utilisation.</string>
     <string name="sign_in_logo_description">Logo Roam</string>
     <string name="sign_in_success">Connexion réussie !</string>
+    <string name="sign_in_email_label">E-mail</string>
+    <string name="sign_in_password_label">Mot de passe</string>
+    <string name="sign_in_email_button">Se connecter</string>
+    <string name="sign_up_button">Créer un compte</string>
+    <string name="sign_up_title">Créez votre compte</string>
+    <string name="sign_up_password_confirmation_label">Confirmer le mot de passe</string>
+    <string name="sign_up_submit">Créer un compte</string>
+    <string name="sign_up_back">Retour à la connexion</string>
+    <string name="email_verification_title">Vérifiez votre adresse e-mail</string>
+    <string name="email_verification_message">Nous avons envoyé un lien de vérification à votre adresse e-mail. Vérifiez-la avant de continuer.</string>
+    <string name="email_verification_resend">Renvoyer l’e-mail</string>
+    <string name="email_verification_check">J’ai vérifié mon adresse e-mail</string>
+    <string name="email_verification_back">Utiliser un autre compte</string>
+    <string name="email_verification_sent">E-mail de vérification envoyé.</string>
+    <string name="email_verification_still_pending">L’adresse e-mail n’est toujours pas vérifiée.</string>
+    <string name="auth_validation_email">Saisissez une adresse e-mail valide.</string>
+    <string name="auth_validation_password">Le mot de passe doit contenir au moins 6 caractères.</string>
+    <string name="auth_validation_password_confirmation">Les mots de passe ne correspondent pas.</string>
     <string name="register_profile_title">Choisissez un nom d\'utilisateur</string>
     <string name="register_profile_username_label">Nom d\'utilisateur</string>
     <string name="register_profile_submit">Continuer</string>
@@ -49,6 +69,12 @@
     <string name="friends_remove_confirmation_message">Voulez-vous vraiment supprimer %1$s ?</string>
     <string name="friends_cancel_action">Annuler</string>
     <string name="friends_dismiss_action">Fermer</string>
+    <string name="friends_view_collection_description">Voir les monuments partagés par %1$s</string>
+    <string name="friend_collection_title">Monuments de %1$s</string>
+    <string name="friend_collection_error">Impossible de charger cette collection. Veuillez réessayer.</string>
+    <string name="friend_collection_empty_title">Aucun monument partagé</string>
+    <string name="friend_collection_empty_subtitle">Cet ami ne vous a partagé aucun monument.</string>
+    <string name="collection_back_description">Retour</string>
     <string name="home_tab_explore">Explorer</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">Aucun appareil photo détecté sur cet appareil</string>
@@ -190,11 +216,13 @@
     <string name="settings_language_french">Français</string>
     <string name="settings_permissions_section_header">Autorisations de l\'application</string>
     <string name="monument_detail_match_percent">%1$d%% de correspondance</string>
-    <string name="monument_detail_fact_bullet">• %1$s</string>
     <string name="monument_detail_ai_guide_label">VOTRE GUIDE IA</string>
     <string name="monument_detail_history_title">Histoire</string>
     <string name="monument_detail_culture_title">Culture locale</string>
     <string name="monument_detail_facts_title">Le saviez-vous ?</string>
+    <string name="monument_detail_facts_plural_title">Le saviez-vous ?</string>
+    <string name="monument_detail_timeline_title">Chronologie</string>
+    <string name="monument_detail_year_bce">%1$d av. J.-C.</string>
     <string name="monument_detail_show_in_explore">Afficher dans Explorer</string>
     <string name="monument_detail_show_in_explore_supporting">Épinglez ce monument sur la carte à l\'endroit où vous l\'avez scanné.</string>
     <string name="monument_detail_show_in_explore_supporting_photo">Épinglez ce monument sur la carte à l\'endroit où la photo a été prise.</string>
@@ -208,11 +236,13 @@
     <string name="explore_close_monument_description">Fermer les informations sur le monument</string>
     <string name="explore_minimize_monument_description">Réduire les informations sur le monument</string>
     <string name="collection_search_hint">Rechercher dans votre collection</string>
+    <string name="friend_collection_search_hint">Rechercher dans sa collection</string>
     <string name="collection_search_no_matches_title">Aucun résultat</string>
     <string name="collection_search_no_matches_subtitle">Aucun monument ne correspond à votre recherche.</string>
     <string name="collection_search_clear_description">Effacer la recherche</string>
     <string name="saved_monument_detail_error">Impossible de charger ce monument. Veuillez réessayer.</string>
     <string name="saved_monument_detail_not_found">Ce monument n\'est plus dans votre collection.</string>
+    <string name="shared_monument_detail_not_found">Ce monument n\'est plus partagé avec vous.</string>
     <string name="saved_monument_detail_retry">Réessayer</string>
     <string name="settings_username_label">Nom d\'utilisateur</string>
     <string name="settings_username_save">Enregistrer le nom d\'utilisateur</string>
@@ -220,4 +250,8 @@
     <string name="settings_username_error_taken">Ce nom d\'utilisateur est d&#233;j&#224; utilis&#233;.</string>
     <string name="settings_username_error_update">Impossible de modifier votre nom d\'utilisateur. R&#233;essayez.</string>
     <string name="settings_username_error_load">Impossible de charger votre nom d\'utilisateur. R&#233;essayez.</string>
+    <string name="settings_avatar_upload">Modifier la photo de profil</string>
+    <string name="settings_avatar_remove">Supprimer la photo de profil</string>
+    <string name="settings_avatar_error_update">Impossible de modifier votre photo de profil. R&#233;essayez.</string>
+    <string name="settings_avatar_error_remove">Impossible de supprimer votre photo de profil. R&#233;essayez.</string>
 </resources>

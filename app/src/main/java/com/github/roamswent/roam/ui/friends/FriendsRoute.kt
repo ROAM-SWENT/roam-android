@@ -23,8 +23,10 @@ private val NO_FRIEND_CLICK: (FriendUser) -> Unit = {}
 fun FriendsRoute(
     modifier: Modifier = Modifier,
     profileName: String? = null,
+    profileAvatarBytes: ByteArray? = null,
     onProfileClicked: () -> Unit = NO_PROFILE_CLICK,
     onFriendClicked: (FriendUser) -> Unit = NO_FRIEND_CLICK,
+    onFriendCollectionClicked: (FriendUser) -> Unit = NO_FRIEND_CLICK,
     friendRepository: FriendRepository? = null,
     publicProfileRepository: PublicProfileRepository? = null,
 ) {
@@ -47,8 +49,10 @@ fun FriendsRoute(
       friendRequests = state.incomingRequests,
       searchResults = state.searchResults,
       profileName = profileName,
+      profileAvatarBytes = profileAvatarBytes,
       onProfileClicked = onProfileClicked,
       onFriendClicked = onFriendClicked,
+      onFriendCollectionClicked = onFriendCollectionClicked,
       onUserSearchChanged = viewModel::searchUsers,
       onAcceptRequest = viewModel::acceptRequest,
       onRejectRequest = viewModel::rejectRequest,
