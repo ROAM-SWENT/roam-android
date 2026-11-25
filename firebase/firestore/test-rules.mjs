@@ -1067,7 +1067,7 @@ await expectAllowed(
   ]),
 );
 const counterProfile = await expectAllowed(
-  "friends can read the verified monument count",
+  "any signed-in user can read the verified monument count on a public profile",
   await firestoreRequest(`publicProfiles/${counter.uid}`, rival.token),
 );
 if (
