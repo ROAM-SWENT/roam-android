@@ -1,5 +1,6 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  */
 
 package com.github.roamswent.roam.ui.friends
@@ -20,9 +21,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,11 +38,24 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.leaderboard.LeaderboardEntry
 import com.github.roamswent.roam.resources.C
 
 /**
- * Renders friends and requests exposed by [FriendsViewModel]. Screen callbacks keep rendering
- * independently testable and allow navigation to remain owned by the app.
+ * Renders friends, requests and the friends leaderboard exposed by [FriendsViewModel]. Screen
+ * callbacks keep rendering independently testable and allow navigation to remain owned by the app.
+ *
+ * @param leaderboard Entries in the order and with the ranks given by the repository.
+ * @param currentUserUid UID of the signed-in user, whose leaderboard entry is highlighted.
+ * @param hasLeaderboardError Whether the last leaderboard load failed; shown in the leaderboard
+ *   only, so the friends list stays usable.
+ * @param isLeaderboardLoading Whether a leaderboard load is in progress, independently of
+ *   [isLoading].
+ * @param hasLoadedLeaderboard Whether a leaderboard load has finished, successfully or not. Until
+ *   then, and unless it failed, the leaderboard shows its loading spinner.
+ * @param onLeaderboardVisibilityChanged Called with whether the Leaderboard segment is shown: on
+ *   first composition, on every segment change, and with `false` when the screen leaves the
+ *   composition, so the leaderboard is only loaded while it is shown.
  */
 @Composable
 fun FriendsScreen(
@@ -46,6 +64,7 @@ fun FriendsScreen(
     friendRequests: List<FriendRequest> = emptyList(),
     searchResults: List<FriendSearchResult> = emptyList(),
     profileName: String? = null,
+    profileAvatarBytes: ByteArray? = null,
     onProfileClicked: () -> Unit = {},
     onFriendClicked: (FriendUser) -> Unit = {},
     onFriendCollectionClicked: (FriendUser) -> Unit = {},
@@ -64,7 +83,20 @@ fun FriendsScreen(
     message: String? = null,
     onMessageDismiss: () -> Unit = {},
     showAddFriendsInitially: Boolean = false,
+    leaderboard: List<LeaderboardEntry> = emptyList(),
+    currentUserUid: String? = null,
+    hasLeaderboardError: Boolean = false,
+    isLeaderboardLoading: Boolean = false,
+    hasLoadedLeaderboard: Boolean = false,
+    onLeaderboardVisibilityChanged: (Boolean) -> Unit = {},
 ) {
+  var selectedTab by rememberSaveable { mutableStateOf(FriendsTab.Friends) }
+  val currentOnLeaderboardVisibilityChanged by rememberUpdatedState(onLeaderboardVisibilityChanged)
+  // Also runs for a segment restored after a configuration change or process death.
+  LaunchedEffect(selectedTab) {
+    currentOnLeaderboardVisibilityChanged(selectedTab == FriendsTab.Leaderboard)
+  }
+  DisposableEffect(Unit) { onDispose { currentOnLeaderboardVisibilityChanged(false) } }
   var friendsQuery by remember { mutableStateOf("") }
   var userQuery by remember { mutableStateOf("") }
   var isAddFriendsOpen by
@@ -93,6 +125,7 @@ fun FriendsScreen(
         friendsQuery = friendsQuery,
         onFriendsQueryChanged = { friendsQuery = it },
         profileName = profileName,
+        profileAvatarBytes = profileAvatarBytes,
         onAddFriendsClicked = { isAddFriendsOpen = true },
         onProfileClicked = onProfileClicked,
         onFriendClicked = onFriendClicked,
@@ -104,6 +137,13 @@ fun FriendsScreen(
         isLoading = isLoading,
         hasLoaded = hasLoaded,
         onRefresh = onRefresh,
+        selectedTab = selectedTab,
+        onTabSelected = { selectedTab = it },
+        leaderboard = leaderboard,
+        currentUserUid = currentUserUid,
+        hasLeaderboardError = hasLeaderboardError,
+        isLeaderboardLoading = isLeaderboardLoading,
+        hasLoadedLeaderboard = hasLoadedLeaderboard,
         modifier = Modifier.fillMaxSize().blur(if (isAddFriendsOpen) 8.dp else 0.dp),
     )
 

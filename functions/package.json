@@ -7,7 +7,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "npm run build && node --test test/friend-request-message.test.mjs",
+    "test:integration": "npm run build && firebase emulators:exec --config ../firebase.json --project demo-roam-functions --only firestore \"node test/monument-share-emulator.test.mjs\""
   },
   "dependencies": {
     "firebase-admin": "^14.5.1",

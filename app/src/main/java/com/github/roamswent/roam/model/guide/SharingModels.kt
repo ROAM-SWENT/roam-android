@@ -1,4 +1,5 @@
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 
 package com.github.roamswent.roam.model.guide
 
@@ -37,10 +38,19 @@ data class MonumentShareSettings(
   }
 }
 
+/**
+ * Privacy configuration and follow graph snapshot for a user's account.
+ *
+ * @property isPublic Whether the account is public and can be followed unidirectionally.
+ * @property followedUids UIDs of public accounts that this user follows.
+ * @property followerUids UIDs of users following this account.
+ * @property allowFriendRequests Whether other users are permitted to send friend requests.
+ */
 data class AccountPrivacyState(
     val isPublic: Boolean = false,
     val followedUids: Set<String> = emptySet(),
     val followerUids: Set<String> = emptySet(),
+    val allowFriendRequests: Boolean = true,
 ) {
   fun availableAudiences(): List<ShareAudience> =
       if (isPublic) {
