@@ -101,6 +101,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.components.ProfilePicture
@@ -581,14 +582,16 @@ private fun GuideCard(
             onClick = onToggleFavorite,
             modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
         )
-        ShareButton(
-            isSharing = isSharing,
-            onClick = {
-              isShareDialogOpen = true
-              onOpenSharing()
-            },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-        )
+        if (guide.sharingEligibility != SharingEligibility.TOO_FAR) {
+          ShareButton(
+              isSharing = isSharing,
+              onClick = {
+                isShareDialogOpen = true
+                onOpenSharing()
+              },
+              modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+          )
+        }
       }
     }
     Column(modifier = Modifier.padding(12.dp)) {

@@ -44,6 +44,7 @@ import coil.intercept.Interceptor
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -316,6 +317,23 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun tooFarGuideHidesShareAction() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state =
+                SavedGuidesUiState(
+                    guides =
+                        listOf(olderGuide.copy(sharingEligibility = SharingEligibility.TOO_FAR))
+                )
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertDoesNotExist()
   }
 
   @Test
