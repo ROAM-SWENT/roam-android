@@ -299,7 +299,8 @@ service cloud.firestore {
         && get(
           /databases/$(database)/documents/publicProfiles/$(request.resource.data.recipientUid)
         ).data.get('allowFriendRequests', true) == true
-        && !isBlockedBy(request.resource.data.recipientUid, request.auth.uid);
+        && !isBlockedBy(request.resource.data.recipientUid, request.auth.uid)
+        && !isBlockedBy(request.auth.uid, request.resource.data.recipientUid);
       allow update: if request.auth != null
         && validFriendship(resource.data, pairId)
         && validFriendship(request.resource.data, pairId)
@@ -330,7 +331,8 @@ service cloud.firestore {
         && validFollow(request.resource.data, followId)
         && request.resource.data.followerUid == request.auth.uid
         && isPublicAccount(request.resource.data.ownerUid)
-        && !isBlockedBy(request.resource.data.ownerUid, request.auth.uid);
+        && !isBlockedBy(request.resource.data.ownerUid, request.auth.uid)
+        && !isBlockedBy(request.auth.uid, request.resource.data.ownerUid);
       allow update: if false;
       allow delete: if request.auth != null
         && validFollow(resource.data, followId)

@@ -53,6 +53,10 @@ sealed class FriendRepositoryException(message: String, cause: Throwable? = null
   /** Thrown when the recipient has blocked the signed-in user. */
   class BlockedByUser : FriendRepositoryException("You cannot send a friend request to this user.")
 
+  /** Thrown when the signed-in user has currently blocked the recipient. */
+  class UserBlocked :
+      FriendRepositoryException("Unblock this user before sending a friend request.")
+
   class FirestoreFailure(cause: Throwable) :
       FriendRepositoryException("The friend operation failed in Firestore.", cause)
 }

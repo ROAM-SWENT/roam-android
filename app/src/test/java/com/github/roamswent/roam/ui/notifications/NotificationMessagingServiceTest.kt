@@ -30,7 +30,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
-class FriendRequestMessagingServiceTest {
+class NotificationMessagingServiceTest {
   private val auth = mockk<FirebaseAuth>()
   private val user = mockk<FirebaseUser>()
   private val firestore = mockk<FirebaseFirestore>(relaxed = true)
@@ -47,7 +47,7 @@ class FriendRequestMessagingServiceTest {
     every { FirebaseAuth.getInstance() } returns auth
     mockkObject(FriendRequestNotifications)
 
-    FriendRequestMessagingService().onMessageReceived(RemoteMessage.Builder("sender").build())
+    NotificationMessagingService().onMessageReceived(RemoteMessage.Builder("sender").build())
 
     verify(exactly = 0) { FriendRequestNotifications.showFriendRequest(any(), any()) }
   }
@@ -60,7 +60,7 @@ class FriendRequestMessagingServiceTest {
     every { user.uid } returns "user-b"
     mockkObject(FriendRequestNotifications)
 
-    FriendRequestMessagingService()
+    NotificationMessagingService()
         .onMessageReceived(
             RemoteMessage.Builder("sender")
                 .setData(
@@ -79,6 +79,35 @@ class FriendRequestMessagingServiceTest {
   }
 
   @Test
+  fun onMessageReceived_ignoresMonumentShareForAnotherAccountOrWhenSignedOut() {
+    mockkStatic(FirebaseAuth::class)
+    every { FirebaseAuth.getInstance() } returns auth
+    every { auth.currentUser } returns user
+    every { user.uid } returns "user-b"
+    mockkObject(MonumentShareNotifications)
+
+    val message =
+        RemoteMessage.Builder("sender")
+            .setData(
+                mapOf(
+                    "type" to "monument_share",
+                    "guideId" to "guide",
+                    "senderUid" to "user-a",
+                    "senderUsername" to "Alice",
+                    "recipientUid" to "user-c",
+                    "monumentName" to "The Tower",
+                )
+            )
+            .build()
+
+    NotificationMessagingService().onMessageReceived(message)
+    every { auth.currentUser } returns null
+    NotificationMessagingService().onMessageReceived(message)
+
+    verify(exactly = 0) { MonumentShareNotifications.show(any(), any()) }
+  }
+
+  @Test
   fun onMessageReceived_showsPayloadForCurrentAccount() {
     mockkStatic(FirebaseAuth::class)
     every { FirebaseAuth.getInstance() } returns auth
@@ -87,7 +116,7 @@ class FriendRequestMessagingServiceTest {
     mockkObject(FriendRequestNotifications)
     every { FriendRequestNotifications.showFriendRequest(any(), any()) } just Runs
 
-    FriendRequestMessagingService()
+    NotificationMessagingService()
         .onMessageReceived(
             RemoteMessage.Builder("sender")
                 .setData(
@@ -115,7 +144,7 @@ class FriendRequestMessagingServiceTest {
     val manager = context.getSystemService(android.app.NotificationManager::class.java)
     shadowOf(manager).setNotificationsEnabled(false)
 
-    Robolectric.buildService(FriendRequestMessagingService::class.java)
+    Robolectric.buildService(NotificationMessagingService::class.java)
         .create()
         .get()
         .onRegistered("fid-a")
@@ -140,7 +169,7 @@ class FriendRequestMessagingServiceTest {
           .saveInstallationId("fid-a")
     } returns Unit
 
-    Robolectric.buildService(FriendRequestMessagingService::class.java)
+    Robolectric.buildService(NotificationMessagingService::class.java)
         .create()
         .get()
         .onRegistered("fid-a")
@@ -172,7 +201,7 @@ class FriendRequestMessagingServiceTest {
           .saveInstallationId("fid-a")
     } throws IllegalStateException("write failed")
 
-    Robolectric.buildService(FriendRequestMessagingService::class.java)
+    Robolectric.buildService(NotificationMessagingService::class.java)
         .create()
         .get()
         .onRegistered("fid-a")

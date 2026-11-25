@@ -8,6 +8,7 @@
 
 package com.github.roamswent.roam
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -94,7 +95,10 @@ import com.github.roamswent.roam.ui.monumentDetail.SharedMonumentDetailRoute
 import com.github.roamswent.roam.ui.navigation.OfflineAction
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.navigation.rememberOfflineActionGate
-import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
+import com.github.roamswent.roam.ui.notifications.NotificationCleanup
+import com.github.roamswent.roam.ui.notifications.NotificationNavigation
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationParser
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationRequest
 import com.github.roamswent.roam.ui.permission.CameraPermissionDialog
 import com.github.roamswent.roam.ui.permission.CameraPermissionState
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
@@ -134,12 +138,20 @@ private fun NavHostController.clearSavedUserNavigation() {
 private const val TAG = "RoamMainActivity"
 
 class MainActivity : AppCompatActivity() {
-  private val notificationNavigationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-  private val notificationNavigationFlow: Flow<Unit> = notificationNavigationEvents
+  private val notificationNavigationEvents =
+      MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
+  private val notificationNavigationFlow: Flow<NotificationNavigationRequest> =
+      notificationNavigationEvents
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     RoamApplication.snapDefaultLocale()
+    val notificationNavigationOnLaunch =
+        if (savedInstanceState == null)
+            NotificationNavigationParser.parse(intent)?.let {
+              NotificationNavigationRequest(it, preserveBackStack = false)
+            }
+        else null
     setContent {
       val themeRepository = remember { DataStoreThemePreferencesRepository(applicationContext) }
       val themeViewModel: ThemeViewModel =
@@ -159,7 +171,7 @@ class MainActivity : AppCompatActivity() {
             authViewModel = authViewModel,
             themeMode = selectedTheme,
             onThemeModeSelected = themeViewModel::setThemeMode,
-            openFriendsOnLaunch = intent?.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS,
+            notificationNavigationOnLaunch = notificationNavigationOnLaunch,
             notificationNavigationEvents = notificationNavigationFlow,
         )
       }
@@ -175,8 +187,10 @@ class MainActivity : AppCompatActivity() {
   override fun onNewIntent(intent: android.content.Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
-    if (intent.action == FriendRequestNotifications.ACTION_OPEN_FRIENDS) {
-      notificationNavigationEvents.tryEmit(Unit)
+    NotificationNavigationParser.parse(intent)?.let {
+      notificationNavigationEvents.tryEmit(
+          NotificationNavigationRequest(it, preserveBackStack = true)
+      )
     }
   }
 }
@@ -207,8 +221,8 @@ internal fun RoamApp(
     themeMode: ThemeMode = ThemeMode.AUTO,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
     testOverrides: RoamAppTestOverrides? = null,
-    openFriendsOnLaunch: Boolean = false,
-    notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+    notificationNavigationOnLaunch: NotificationNavigationRequest? = null,
+    notificationNavigationEvents: Flow<NotificationNavigationRequest> = emptyFlow(),
 ) {
   val context = LocalContext.current
   val profileCheckErrorMessage = stringResource(R.string.register_profile_check_error)
@@ -231,9 +245,9 @@ internal fun RoamApp(
   }
   val profileUiState by registerProfileViewModel.uiState.collectAsStateWithLifecycle()
   val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
-  var openFriendsAfterAuthentication by remember { mutableStateOf(openFriendsOnLaunch) }
+  var pendingNotificationNavigation by remember { mutableStateOf(notificationNavigationOnLaunch) }
   LaunchedEffect(notificationNavigationEvents) {
-    notificationNavigationEvents.collect { openFriendsAfterAuthentication = true }
+    notificationNavigationEvents.collect { pendingNotificationNavigation = it }
   }
   LaunchedEffect(authUiState.user) {
     if (authUiState.user == null) registerProfileViewModel.reset()
@@ -374,13 +388,12 @@ internal fun RoamApp(
   }
   LaunchedEffect(
       profileUiState.status,
-      openFriendsAfterAuthentication,
+      pendingNotificationNavigation,
       currentBackStackEntry?.destination?.route,
   ) {
     val route = currentBackStackEntry?.destination?.route
     if (
         profileUiState.status == ProfileRegistrationStatus.REGISTERED &&
-            openFriendsAfterAuthentication &&
             route != null &&
             route !in
                 setOf(
@@ -388,16 +401,34 @@ internal fun RoamApp(
                     Routes.SignUp,
                     Routes.EmailVerification,
                     Routes.RegisterProfile,
-                )
+                ) &&
+            pendingNotificationNavigation != null
     ) {
-      if (route != Routes.Friends) {
-        navController.navigate(Routes.Friends) {
-          popUpTo(Routes.Home) { inclusive = false }
-          launchSingleTop = true
-          restoreState = true
+      val notification = checkNotNull(pendingNotificationNavigation)
+      when (val navigation = notification.navigation) {
+        NotificationNavigation.Friends -> {
+          if (route != Routes.Friends) {
+            navController.navigate(Routes.Friends) {
+              if (!notification.preserveBackStack) {
+                popUpTo(Routes.Home) { inclusive = false }
+              }
+              launchSingleTop = true
+              restoreState = true
+            }
+          }
+        }
+        is NotificationNavigation.SharedMonument -> {
+          navController.navigate(
+              Routes.sharedMonumentDetail(navigation.ownerUid, navigation.guideId)
+          ) {
+            if (!notification.preserveBackStack) {
+              popUpTo(Routes.Home) { inclusive = false }
+            }
+            launchSingleTop = true
+          }
         }
       }
-      openFriendsAfterAuthentication = false
+      pendingNotificationNavigation = null
     }
   }
   val currentDestination =
@@ -594,7 +625,7 @@ internal fun RoamApp(
               onThemeModeSelected = onThemeModeSelected,
               onManagePermissionsClick = { permissionController.openAppSettings() },
               onSignedOut = {
-                FriendRequestNotifications.cancelAllFriendRequests(context)
+                NotificationCleanup.cancelAccountNotifications(context)
                 authViewModel.clearSignedInUser()
                 registerProfileViewModel.reset()
                 navController.clearSavedUserNavigation()

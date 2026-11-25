@@ -32,6 +32,7 @@ class FirestoreFriendRepository(
             .runTransaction { transaction ->
               val existingSnapshot = transaction.get(reference)
               val recipientSnapshot = transaction.get(recipientProfile)
+              val blockedSnapshot = transaction.get(blockedUserReference(requesterUid, toUid))
               if (existingSnapshot.exists()) {
                 val existing = existingSnapshot.toFriendRecord()
                 when {
@@ -42,6 +43,7 @@ class FirestoreFriendRepository(
                   else -> throw FriendRepositoryException.IncomingRequestPending()
                 }
               }
+              if (blockedSnapshot.exists()) throw FriendRepositoryException.UserBlocked()
               if (!recipientSnapshot.exists()) {
                 throw FriendRepositoryException.RecipientProfileNotFound()
               }
@@ -112,13 +114,17 @@ class FirestoreFriendRepository(
             }
 
             val followReference = incomingFollowReference(uid, request.requesterUid)
+            val blockedReference = blockedUserReference(uid, request.requesterUid)
             val followSnapshot = transaction.get(followReference)
+            val blockedSnapshot = transaction.get(blockedReference)
 
             transaction.delete(reference)
-            transaction.set(
-                blockedUserReference(uid, request.requesterUid),
-                mapOf(BLOCKED_UID_FIELD to request.requesterUid),
-            )
+            if (!blockedSnapshot.exists()) {
+              transaction.set(
+                  blockedReference,
+                  mapOf(BLOCKED_UID_FIELD to request.requesterUid),
+              )
+            }
             if (followSnapshot.exists()) {
               transaction.delete(followReference)
             }
@@ -173,7 +179,6 @@ class FirestoreFriendRepository(
 
     withFirestoreErrors {
       val reference = friendshipReference(uid, friendUid)
-      val followReference = if (blacklist) incomingFollowReference(uid, friendUid) else null
       firestore
           .runTransaction { transaction ->
             val snapshot = transaction.get(reference)
@@ -187,17 +192,22 @@ class FirestoreFriendRepository(
               throw FriendRepositoryException.FriendshipNotFound()
             }
 
-            val followSnapshot = followReference?.let(transaction::get)
+            if (!blacklist) {
+              transaction.delete(reference)
+              return@runTransaction
+            }
+
+            val followReference = incomingFollowReference(uid, friendUid)
+            val blockedReference = blockedUserReference(uid, friendUid)
+            val followSnapshot = transaction.get(followReference)
+            val blockedSnapshot = transaction.get(blockedReference)
 
             transaction.delete(reference)
-            if (blacklist) {
-              transaction.set(
-                  blockedUserReference(uid, friendUid),
-                  mapOf(BLOCKED_UID_FIELD to friendUid),
-              )
-              if (followSnapshot != null && followSnapshot.exists()) {
-                transaction.delete(followReference)
-              }
+            if (!blockedSnapshot.exists()) {
+              transaction.set(blockedReference, mapOf(BLOCKED_UID_FIELD to friendUid))
+            }
+            if (followSnapshot.exists()) {
+              transaction.delete(followReference)
             }
           }
           .await()
@@ -217,8 +227,11 @@ class FirestoreFriendRepository(
           .runTransaction { transaction ->
             val friendshipSnapshot = transaction.get(friendshipRef)
             val followSnapshot = transaction.get(followRef)
+            val blockedSnapshot = transaction.get(blockedRef)
 
-            transaction.set(blockedRef, mapOf(BLOCKED_UID_FIELD to blockedUid))
+            if (!blockedSnapshot.exists()) {
+              transaction.set(blockedRef, mapOf(BLOCKED_UID_FIELD to blockedUid))
+            }
             if (friendshipSnapshot.exists()) {
               transaction.delete(friendshipRef)
             }
