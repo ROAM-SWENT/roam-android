@@ -102,6 +102,7 @@ class ExploreViewModel(
           .onCompletion { _monumentsLoaded.value = true }
           .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
+  /** Reloads the friendship snapshot whenever Explore resumes collecting. */
   val friendMonuments: StateFlow<List<ExploreFriendMonuments>> = flow {
     val friendUids = friendRepository.getFriends().map { it.friendUid }.distinct()
     if (friendUids.isNotEmpty()) {
@@ -119,7 +120,7 @@ class ExploreViewModel(
       }
       .stateIn(
           viewModelScope,
-          SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS, replayExpirationMillis = 0),
+          SharingStarted.WhileSubscribed(replayExpirationMillis = 0),
           emptyList(),
       )
 

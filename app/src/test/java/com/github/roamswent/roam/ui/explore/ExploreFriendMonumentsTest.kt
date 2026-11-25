@@ -146,6 +146,24 @@ class ExploreFriendMonumentsTest {
       }
 
   @Test
+  fun returningQuicklyReplacesPinsFromRemovedFriendsWithPinsFromNewFriends() =
+      runTest(dispatcher) {
+        val sharing =
+            FakeMonumentSharingRepository(mapOf("alice" to listOf(first), "bob" to listOf(second)))
+        setFriends("alice")
+        val subscription = observe(sharing)
+        assertEquals(listOf(pins("alice", null, first)), viewModel.friendMonuments.value)
+
+        subscription.cancel()
+        advanceTimeBy(1_000)
+        setFriends("bob")
+        backgroundScope.launch { viewModel.friendMonuments.collect {} }
+        runCurrent()
+
+        assertEquals(listOf(pins("bob", null, second)), viewModel.friendMonuments.value)
+      }
+
+  @Test
   fun leavingExploreCancelsPendingProfileAndReturningRefreshesShares() =
       runTest(dispatcher) {
         val sharing = FakeMonumentSharingRepository(mapOf("alice" to listOf(first)))

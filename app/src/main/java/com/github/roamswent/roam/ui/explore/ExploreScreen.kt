@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +68,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
@@ -354,7 +357,10 @@ fun ExploreScreen(
               )
             }
           }
-          val friendMonuments by exploreViewModel.friendMonuments.collectAsState()
+          val friendMonuments by
+              exploreViewModel.friendMonuments.collectAsStateWithLifecycle(
+                  minActiveState = Lifecycle.State.RESUMED
+              )
           friendMonuments.forEach { friend ->
             key(friend.ownerUid) {
               val avatarIcon = rememberFriendMarkerIcon(friend.profile)
@@ -367,6 +373,7 @@ fun ExploreScreen(
                       state = markerState,
                       title = monument.name,
                       icon = avatarIcon,
+                      anchor = Offset(0.5f, 1f),
                       onClick = {
                         selectedMonumentId = null
                         onSharedMonumentClick(friend.ownerUid, monument.guideId)

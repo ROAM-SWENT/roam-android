@@ -14,6 +14,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
@@ -145,7 +146,13 @@ class ExploreMapIntegrationTest {
         .setOnMarkerClickListener(any())
     whenever(map.addMarker(any())).thenAnswer {
       val options = it.getArgument<MarkerOptions>(0)
-      val rendered = RenderedMarker(options.title.orEmpty(), options.position, options.icon)
+      val rendered =
+          RenderedMarker(
+              options.title.orEmpty(),
+              options.position,
+              options.icon,
+              Offset(options.anchorU, options.anchorV),
+          )
       doAnswer { invocation ->
             rendered.icon = invocation.getArgument(0)
             null
@@ -415,6 +422,7 @@ class ExploreMapIntegrationTest {
       )
       assertEquals(4, markers.size)
       assertEquals(marker(first.name).icon, marker(second.name).icon)
+      assertEquals(Offset(0.5f, 1f), marker(first.name).anchor)
       assertHasInitial(bitmap(otherOwner.name))
       assertTrue(clickListener.onMarkerClick(monumentMarker().marker))
     }
@@ -632,6 +640,7 @@ class ExploreMapIntegrationTest {
       val title: String,
       var position: LatLng,
       var icon: BitmapDescriptor?,
+      val anchor: Offset,
   ) {
     val marker = mock<Marker>()
   }
