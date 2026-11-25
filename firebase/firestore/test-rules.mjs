@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 // Firestore rules smoke test. Requires Node.js 18+ and the Firebase CLI; no npm packages.
 // Run from the repository root:
 // firebase emulators:exec --project demo-roam-rules --only auth,firestore "node firebase/firestore/test-rules.mjs"
@@ -105,7 +106,8 @@ async function firestoreRequest(path, token, options = {}) {
   return fetch(url, {
     ...options,
     headers: {
-      Authorization: `Bearer ${token}`,
+      // A null token sends the request unauthenticated.
+      ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...options.headers,
     },
@@ -567,7 +569,7 @@ await expectDenied(
   await firestoreRequest(allFriendsGuidePath, strangerUser.token),
 );
 
-// 5. Legacy/#198 doc (no shareAudience field): allowed to accepted friend; denied to stranger.
+// 5. Legacy/#198 doc (no shareAudience field): private, so readable by the owner only.
 const legacyGuidePath = `users/${guideOwner.uid}/savedGuides/guide-legacy`;
 await expectAllowed(
   "owner can create legacy guide without shareAudience",
@@ -579,7 +581,11 @@ await expectAllowed(
   ]),
 );
 await expectAllowed(
-  "legacy guide allowed to accepted friend",
+  "legacy guide allowed to owner",
+  await firestoreRequest(legacyGuidePath, guideOwner.token),
+);
+await expectDenied(
+  "legacy guide denied to accepted friend",
   await firestoreRequest(legacyGuidePath, friend.token),
 );
 await expectDenied(
@@ -1077,3 +1083,175 @@ if (
   throw new Error(`Unexpected counter profile: ${JSON.stringify(counterProfile.fields)}`);
 }
 console.log("PASS the profile keeps the username and a count of 2");
+
+// --- privacy hardening (#272) ---
+
+await expectDenied(
+  "removed todos collection cannot be written",
+  await commit(guideOwner.token, [
+    {
+      update: {
+        name: documentName("todos/leftover"),
+        fields: fields({ ownerId: guideOwner.uid }),
+      },
+    },
+  ]),
+);
+
+await expectDenied(
+  "stranger cannot list another user's saved guides",
+  await runSavedGuidesQuery(strangerUser.token, guideOwner.uid),
+);
+
+const selectedForFriendFilter = (uid) => ({
+  compositeFilter: {
+    op: "AND",
+    filters: [
+      {
+        fieldFilter: {
+          field: { fieldPath: "shareAudience" },
+          op: "EQUAL",
+          value: { stringValue: "SELECTED_FRIENDS" },
+        },
+      },
+      {
+        fieldFilter: {
+          field: { fieldPath: "sharedWithUids" },
+          op: "ARRAY_CONTAINS",
+          value: { stringValue: uid },
+        },
+      },
+    ],
+  },
+});
+await expectDenied(
+  "non-recipient friend cannot query another recipient's SELECTED_FRIENDS guides",
+  await runSavedGuidesQuery(unlistedFriend.token, guideOwner.uid, selectedForFriendFilter(friend.uid)),
+);
+const ownSelectedBody = await expectAllowed(
+  "friend can query the SELECTED_FRIENDS guides shared with them",
+  await runSavedGuidesQuery(
+    unlistedFriend.token,
+    guideOwner.uid,
+    selectedForFriendFilter(unlistedFriend.uid),
+  ),
+);
+if (ownSelectedBody.some((result) => result.document?.name.endsWith("/guide-selected"))) {
+  throw new Error("A non-recipient friend's query returned a guide not shared with them.");
+}
+console.log("PASS non-recipient friend's query omits the guide not shared with them");
+
+const installationsPath = `notificationInstallations/${guideOwner.uid}/installations`;
+await expectAllowed(
+  "guide owner can register a notification installation",
+  await commit(guideOwner.token, [notificationInstallationWrite(guideOwner.uid, "privacy-fid")]),
+);
+await expectDenied(
+  "owner cannot read their notification installation",
+  await firestoreRequest(`${installationsPath}/privacy-fid`, guideOwner.token),
+);
+await expectDenied(
+  "owner cannot list their notification installations",
+  await firestoreRequest(installationsPath, guideOwner.token),
+);
+await expectDenied(
+  "friend cannot read another user's notification installation",
+  await firestoreRequest(`${installationsPath}/privacy-fid`, friend.token),
+);
+
+// users/{uid} holds the email address. Seed it as admin so the reads target a real document.
+const userDocumentPath = `users/${guideOwner.uid}`;
+await expectAllowed(
+  "admin can seed a user document",
+  await commit("owner", [
+    {
+      update: {
+        name: documentName(userDocumentPath),
+        fields: fields({ email: "owner@example.test" }),
+      },
+    },
+  ]),
+);
+await expectAllowed(
+  "owner can read their user document",
+  await firestoreRequest(userDocumentPath, guideOwner.token),
+);
+await expectDenied(
+  "friend cannot read another user's email",
+  await firestoreRequest(userDocumentPath, friend.token),
+);
+await expectDenied(
+  "stranger cannot read another user's email",
+  await firestoreRequest(userDocumentPath, strangerUser.token),
+);
+
+const guideOwnerClaim = `owner_${guideOwner.uid.slice(0, 8)}`.toLowerCase();
+const unauthenticatedPaths = [
+  `publicProfiles/${guideOwner.uid}`,
+  `usernameClaims/${guideOwnerClaim}`,
+  `friendships/${[guideOwner.uid, friend.uid].sort().join("~")}`,
+  `follows/${guideOwner.uid}~${follower.uid}`,
+  `${installationsPath}/privacy-fid`,
+  userDocumentPath,
+  allFriendsGuidePath,
+  counterMonumentPath,
+  `users/${counter.uid}/leaderboard/state`,
+];
+for (const path of unauthenticatedPaths) {
+  await expectDenied(
+    `unauthenticated client cannot read ${path.split("/")[0]} (${path})`,
+    await firestoreRequest(path, null),
+  );
+}
+for (const collection of ["publicProfiles", "usernameClaims", "friendships"]) {
+  await expectDenied(
+    `unauthenticated client cannot list ${collection}`,
+    await firestoreRequest(collection, null),
+  );
+}
+
+// publicProfiles is readable by every signed-in user, so its fields are locked down.
+const minimal = await createUser();
+const minimalName = `Min_${minimal.uid.slice(0, 8)}`;
+const profileWith = (extra) => ({
+  update: {
+    name: documentName(`publicProfiles/${minimal.uid}`),
+    fields: fields({
+      uid: minimal.uid,
+      username: minimalName,
+      usernameLower: minimalName.toLowerCase(),
+      ...extra,
+    }),
+  },
+});
+for (const field of ["email", "displayName", "location"]) {
+  await expectDenied(
+    `public profile cannot be created with ${field}`,
+    await commit(minimal.token, [
+      profileWith({ [field]: "personal" }),
+      claimWrite(minimal.uid, minimalName),
+    ]),
+  );
+}
+await expectAllowed(
+  "public profile can be created with only the identity fields",
+  await commit(minimal.token, [profileWith({}), claimWrite(minimal.uid, minimalName)]),
+);
+for (const field of ["email", "displayName", "location"]) {
+  await expectDenied(
+    `public profile cannot be updated to add ${field}`,
+    await commit(minimal.token, [profileWith({ [field]: "personal" })]),
+  );
+}
+await expectDenied(
+  "public profile avatar must be bytes",
+  await commit(minimal.token, [profileWith({ avatar: "https://example.test/me.jpg" })]),
+);
+await expectDenied(
+  "public profile avatar cannot exceed 200 KB",
+  await commit(minimal.token, [profileWith({ avatar: Buffer.alloc(204801) })]),
+);
+await expectAllowed(
+  "public profile accepts an avatar of 200 KB",
+  await commit(minimal.token, [profileWith({ avatar: Buffer.alloc(204800) })]),
+);
