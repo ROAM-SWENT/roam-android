@@ -399,5 +399,60 @@ service cloud.firestore {
       allow update: if (request.auth != null && request.auth.uid == ownerUid)
         || isValidRecipientDismissal(ownerUid);
     }
+
+    function validWishlistLocation(loc) {
+      return loc is map
+        && loc.keys().hasAll(['latitude', 'longitude'])
+        && loc.keys().hasOnly(['latitude', 'longitude'])
+        && loc.latitude is number
+        && loc.latitude >= -90
+        && loc.latitude <= 90
+        && loc.longitude is number
+        && loc.longitude >= -180
+        && loc.longitude <= 180;
+    }
+
+    function validWishlistItem(data, monumentKey) {
+      return monumentKey is string
+        && monumentKey.matches('^[A-Za-z0-9_~-]{1,261}$')
+        && data.keys().hasAll([
+          'monumentKey',
+          'sourceOwnerUid',
+          'sourceGuideId',
+          'monumentName',
+          'addedAt'
+        ])
+        && data.keys().hasOnly([
+          'monumentKey',
+          'sourceOwnerUid',
+          'sourceGuideId',
+          'monumentName',
+          'addedAt',
+          'location'
+        ])
+        && data.monumentKey == monumentKey
+        && validFriendUid(data.sourceOwnerUid)
+        && data.sourceGuideId is string
+        && data.sourceGuideId.size() > 0
+        && data.sourceGuideId.size() <= 128
+        && data.monumentName is string
+        && data.monumentName.size() > 0
+        && data.monumentName.size() <= 200
+        && data.addedAt is int
+        && data.addedAt >= 0
+        && (!('location' in data) || validWishlistLocation(data.location));
+    }
+
+    match /users/{ownerUid}/wishlist/{monumentKey} {
+      allow get, list: if request.auth != null
+        && (request.auth.uid == ownerUid
+          || (isAcceptedBidirectionalFriend(ownerUid, request.auth.uid)
+            && !isBlockedBy(ownerUid, request.auth.uid))
+          || isUnidirectionalFollower(ownerUid, request.auth.uid));
+      allow create, update: if request.auth != null
+        && request.auth.uid == ownerUid
+        && validWishlistItem(request.resource.data, monumentKey);
+      allow delete: if request.auth != null && request.auth.uid == ownerUid;
+    }
   }
 }

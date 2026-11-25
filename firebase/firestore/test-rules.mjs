@@ -1349,6 +1349,486 @@ await expectAllowed(
   await commit(alice.token, [followWrite(bob.uid, alice.uid)]),
 );
 
+// --- PR #284: users/{ownerUid}/wishlist/{monumentKey} rules tests ---
+
+function wishlistWrite(ownerUid, monumentKey, data) {
+  return {
+    update: {
+      name: documentName(`users/${ownerUid}/wishlist/${monumentKey}`),
+      fields: fields(data),
+    },
+  };
+}
+
+async function queryWishlist(token, ownerUid) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch(`${firestoreBase}/users/${ownerUid}:runQuery`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "wishlist" }],
+      },
+    }),
+  });
+}
+
+async function unauthFirestoreRequest(path, options = {}) {
+  const url = path.startsWith(":") ? `${firestoreBase}${path}` : `${firestoreBase}/${path}`;
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers,
+    },
+  });
+}
+
+const wlOwner = await createUser();
+const wlFriend = await createUser();
+const wlPending = await createUser();
+const wlFollower = await createUser();
+const wlStranger = await createUser();
+
+const wlOwnerName = `WlOwn_${wlOwner.uid.slice(0, 8)}`;
+const wlFriendName = `WlFrd_${wlFriend.uid.slice(0, 8)}`;
+const wlPendingName = `WlPnd_${wlPending.uid.slice(0, 8)}`;
+const wlFollowerName = `WlFol_${wlFollower.uid.slice(0, 8)}`;
+
+await expectAllowed(
+  "register wlOwner profile as public",
+  await commit(wlOwner.token, [
+    profileWrite(wlOwner.uid, wlOwnerName, { isPublic: true, allowFriendRequests: true }),
+    claimWrite(wlOwner.uid, wlOwnerName),
+  ]),
+);
+await expectAllowed(
+  "register wlFriend profile",
+  await commit(wlFriend.token, [
+    profileWrite(wlFriend.uid, wlFriendName, { isPublic: false, allowFriendRequests: true }),
+    claimWrite(wlFriend.uid, wlFriendName),
+  ]),
+);
+await expectAllowed(
+  "register wlPending profile",
+  await commit(wlPending.token, [
+    profileWrite(wlPending.uid, wlPendingName, { isPublic: false, allowFriendRequests: true }),
+    claimWrite(wlPending.uid, wlPendingName),
+  ]),
+);
+await expectAllowed(
+  "register wlFollower profile",
+  await commit(wlFollower.token, [
+    profileWrite(wlFollower.uid, wlFollowerName, { isPublic: false, allowFriendRequests: true }),
+    claimWrite(wlFollower.uid, wlFollowerName),
+  ]),
+);
+
+// Establish accepted friendship (wlOwner <-> wlFriend), pending request (wlOwner <-> wlPending), and follow (wlFollower -> wlOwner)
+await expectAllowed(
+  "set up wishlist test relationships",
+  await commit("owner", [
+    friendshipWrite(wlOwner.uid, wlFriend.uid, "ACCEPTED"),
+    friendshipWrite(wlPending.uid, wlOwner.uid, "PENDING"),
+  ]),
+);
+await expectAllowed(
+  "wlFollower follows public wlOwner",
+  await commit(wlFollower.token, [followWrite(wlOwner.uid, wlFollower.uid)]),
+);
+
+const wlKeyNoLoc = `ref_${wlFriend.uid}~guide-noloc`;
+const wlKeyLoc = "48858_2294";
+const wlBaseItem = (monumentKey = wlKeyLoc, overrides = {}) => ({
+  monumentKey,
+  sourceOwnerUid: wlFriend.uid,
+  sourceGuideId: "guide-eiffel",
+  monumentName: "Eiffel Tower",
+  addedAt: 1700000000000,
+  ...overrides,
+});
+
+// 1. Owner CRUD
+const wlNoLocPath = `users/${wlOwner.uid}/wishlist/${wlKeyNoLoc}`;
+const wlLocPath = `users/${wlOwner.uid}/wishlist/${wlKeyLoc}`;
+
+await expectAllowed(
+  "wishlist owner can create item without location",
+  await commit(wlOwner.token, [wishlistWrite(wlOwner.uid, wlKeyNoLoc, wlBaseItem(wlKeyNoLoc))]),
+);
+await expectAllowed(
+  "wishlist owner can create item with valid location",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      wlKeyLoc,
+      wlBaseItem(wlKeyLoc, { location: { latitude: 48.8584, longitude: 2.2945 } }),
+    ),
+  ]),
+);
+await expectAllowed(
+  "wishlist owner can update item",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      wlKeyLoc,
+      wlBaseItem(wlKeyLoc, {
+        monumentName: "Tour Eiffel",
+        location: { latitude: 48.8584, longitude: 2.2945 },
+      }),
+    ),
+  ]),
+);
+await expectAllowed(
+  "wishlist owner can get own item",
+  await firestoreRequest(wlLocPath, wlOwner.token),
+);
+await expectAllowed(
+  "wishlist owner can list own wishlist",
+  await queryWishlist(wlOwner.token, wlOwner.uid),
+);
+await expectAllowed(
+  "wishlist owner can delete own item",
+  await firestoreRequest(wlNoLocPath, wlOwner.token, { method: "DELETE" }),
+);
+
+// 2. Schema validation (all denied)
+await expectDenied(
+  "wishlist rejects extra photo bytes field",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-photo",
+      wlBaseItem("schema-photo", { photo: new Uint8Array([1, 2, 3, 4]) }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects extra unknown field (history)",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-history",
+      wlBaseItem("schema-history", { history: "Built in 1889." }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects missing monumentName",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-no-name", {
+      monumentKey: "schema-no-name",
+      sourceOwnerUid: wlFriend.uid,
+      sourceGuideId: "guide-1",
+      addedAt: 1700000000000,
+    }),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects missing addedAt",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-no-time", {
+      monumentKey: "schema-no-time",
+      sourceOwnerUid: wlFriend.uid,
+      sourceGuideId: "guide-1",
+      monumentName: "Louvre",
+    }),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects mismatched monumentKey field vs document ID",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-doc-id", wlBaseItem("different-key")),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects invalid monumentKey document ID with dot",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "invalid.key", wlBaseItem("invalid.key")),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects invalid monumentKey document ID with space",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "invalid key", wlBaseItem("invalid key")),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects empty sourceGuideId",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-empty-gid", wlBaseItem("schema-empty-gid", { sourceGuideId: "" })),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects sourceGuideId > 128 chars",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-long-gid",
+      wlBaseItem("schema-long-gid", { sourceGuideId: "g".repeat(129) }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects empty monumentName",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-empty-name", wlBaseItem("schema-empty-name", { monumentName: "" })),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects monumentName > 200 chars",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-long-name",
+      wlBaseItem("schema-long-name", { monumentName: "M".repeat(201) }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects empty sourceOwnerUid",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-empty-owner", wlBaseItem("schema-empty-owner", { sourceOwnerUid: "" })),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects invalid sourceOwnerUid characters",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-bad-owner",
+      wlBaseItem("schema-bad-owner", { sourceOwnerUid: "bad/owner" }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects negative addedAt",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-neg-time", wlBaseItem("schema-neg-time", { addedAt: -1 })),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects non-integer addedAt",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, "schema-str-time", wlBaseItem("schema-str-time", { addedAt: "1700000" })),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects location with latitude > 90",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-bad-lat",
+      wlBaseItem("schema-bad-lat", { location: { latitude: 95, longitude: 2.0 } }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects location with longitude < -180",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-bad-lng",
+      wlBaseItem("schema-bad-lng", { location: { latitude: 48.0, longitude: -181 } }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects location missing longitude",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-missing-lng",
+      wlBaseItem("schema-missing-lng", { location: { latitude: 48.0 } }),
+    ),
+  ]),
+);
+await expectDenied(
+  "wishlist rejects location with extra key",
+  await commit(wlOwner.token, [
+    wishlistWrite(
+      wlOwner.uid,
+      "schema-extra-loc",
+      wlBaseItem("schema-extra-loc", {
+        location: { latitude: 48.0, longitude: 2.0, altitude: 100 },
+      }),
+    ),
+  ]),
+);
+
+// 3. Friend & Blocklist matrix
+await expectAllowed(
+  "accepted non-blocked friend can get owner wishlist item",
+  await firestoreRequest(wlLocPath, wlFriend.token),
+);
+await expectAllowed(
+  "accepted non-blocked friend can list owner wishlist",
+  await queryWishlist(wlFriend.token, wlOwner.uid),
+);
+await expectDenied(
+  "accepted friend cannot create item in owner wishlist",
+  await commit(wlFriend.token, [wishlistWrite(wlOwner.uid, "friend-create", wlBaseItem("friend-create"))]),
+);
+await expectDenied(
+  "accepted friend cannot update item in owner wishlist",
+  await commit(wlFriend.token, [
+    wishlistWrite(wlOwner.uid, wlKeyLoc, wlBaseItem(wlKeyLoc, { monumentName: "Hijacked" })),
+  ]),
+);
+await expectDenied(
+  "accepted friend cannot delete item in owner wishlist",
+  await firestoreRequest(wlLocPath, wlFriend.token, { method: "DELETE" }),
+);
+
+await expectDenied(
+  "pending friend cannot get owner wishlist item",
+  await firestoreRequest(wlLocPath, wlPending.token),
+);
+await expectDenied(
+  "pending friend cannot list owner wishlist",
+  await queryWishlist(wlPending.token, wlOwner.uid),
+);
+
+// Block accepted friend while friendship document still exists
+await expectAllowed(
+  "wlOwner blocks accepted friend",
+  await commit(wlOwner.token, [blockedUserWrite(wlOwner.uid, wlFriend.uid)]),
+);
+await expectDenied(
+  "blocked accepted friend immediately denied get on owner wishlist",
+  await firestoreRequest(wlLocPath, wlFriend.token),
+);
+await expectDenied(
+  "blocked accepted friend immediately denied list on owner wishlist",
+  await queryWishlist(wlFriend.token, wlOwner.uid),
+);
+
+// 4. Public / Follower / Revocation matrix
+await expectAllowed(
+  "follower of public owner can get wishlist item",
+  await firestoreRequest(wlLocPath, wlFollower.token),
+);
+await expectAllowed(
+  "follower of public owner can list wishlist",
+  await queryWishlist(wlFollower.token, wlOwner.uid),
+);
+await expectDenied(
+  "follower cannot create item in owner wishlist",
+  await commit(wlFollower.token, [
+    wishlistWrite(wlOwner.uid, "follower-create", wlBaseItem("follower-create")),
+  ]),
+);
+await expectDenied(
+  "follower cannot update item in owner wishlist",
+  await commit(wlFollower.token, [
+    wishlistWrite(wlOwner.uid, wlKeyLoc, wlBaseItem(wlKeyLoc, { monumentName: "Hijacked" })),
+  ]),
+);
+await expectDenied(
+  "follower cannot delete item in owner wishlist",
+  await firestoreRequest(wlLocPath, wlFollower.token, { method: "DELETE" }),
+);
+
+// Owner toggles Public -> Private -> immediately revoked
+await expectAllowed(
+  "wlOwner toggles account to private",
+  await commit(wlOwner.token, [
+    profileWrite(wlOwner.uid, wlOwnerName, { isPublic: false, allowFriendRequests: true }),
+  ]),
+);
+await expectDenied(
+  "follower immediately denied get after owner becomes private",
+  await firestoreRequest(wlLocPath, wlFollower.token),
+);
+await expectDenied(
+  "follower immediately denied list after owner becomes private",
+  await queryWishlist(wlFollower.token, wlOwner.uid),
+);
+
+// Owner toggles back to Public, then blocks follower -> immediately denied
+await expectAllowed(
+  "wlOwner toggles account back to public",
+  await commit(wlOwner.token, [
+    profileWrite(wlOwner.uid, wlOwnerName, { isPublic: true, allowFriendRequests: true }),
+  ]),
+);
+await expectAllowed(
+  "wlOwner blocks follower while public",
+  await commit(wlOwner.token, [blockedUserWrite(wlOwner.uid, wlFollower.uid)]),
+);
+await expectDenied(
+  "blocked follower immediately denied get while owner is public",
+  await firestoreRequest(wlLocPath, wlFollower.token),
+);
+await expectDenied(
+  "blocked follower immediately denied list while owner is public",
+  await queryWishlist(wlFollower.token, wlOwner.uid),
+);
+
+// 5. Stranger & unauthenticated
+await expectDenied(
+  "stranger cannot get owner wishlist item",
+  await firestoreRequest(wlLocPath, wlStranger.token),
+);
+await expectDenied(
+  "stranger cannot list owner wishlist",
+  await queryWishlist(wlStranger.token, wlOwner.uid),
+);
+await expectDenied(
+  "stranger cannot create owner wishlist item",
+  await commit(wlStranger.token, [
+    wishlistWrite(wlOwner.uid, "stranger-create", wlBaseItem("stranger-create")),
+  ]),
+);
+await expectDenied(
+  "stranger cannot delete owner wishlist item",
+  await firestoreRequest(wlLocPath, wlStranger.token, { method: "DELETE" }),
+);
+
+await expectDenied(
+  "unauthenticated client cannot get wishlist item",
+  await unauthFirestoreRequest(wlLocPath),
+);
+await expectDenied(
+  "unauthenticated client cannot list wishlist",
+  await queryWishlist(null, wlOwner.uid),
+);
+await expectDenied(
+  "unauthenticated client cannot create wishlist item",
+  await unauthFirestoreRequest(":commit", {
+    method: "POST",
+    body: JSON.stringify({
+      writes: [wishlistWrite(wlOwner.uid, "unauth-create", wlBaseItem("unauth-create"))],
+    }),
+  }),
+);
+await expectDenied(
+  "unauthenticated client cannot delete wishlist item",
+  await unauthFirestoreRequest(wlLocPath, { method: "DELETE" }),
+);
+
+// 6. Monument key length boundary (261-char max fallback key allowed; 262-char key denied)
+const wlMaxFallbackKey = `ref_${"a".repeat(128)}~${"b".repeat(128)}`;
+const wlMaxFallbackPath = `users/${wlOwner.uid}/wishlist/${wlMaxFallbackKey}`;
+await expectAllowed(
+  "wishlist owner can create item with 261-char max fallback key",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, wlMaxFallbackKey, wlBaseItem(wlMaxFallbackKey)),
+  ]),
+);
+await expectAllowed(
+  "wishlist owner can delete item with 261-char max fallback key",
+  await firestoreRequest(wlMaxFallbackPath, wlOwner.token, { method: "DELETE" }),
+);
+const wlOverMaxKey = "k".repeat(262);
+await expectDenied(
+  "wishlist rejects 262-char monumentKey exceeding max length",
+  await commit(wlOwner.token, [
+    wishlistWrite(wlOwner.uid, wlOverMaxKey, wlBaseItem(wlOverMaxKey)),
+  ]),
+);
+
 
 
 
