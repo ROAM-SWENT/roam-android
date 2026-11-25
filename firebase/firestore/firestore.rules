@@ -414,7 +414,7 @@ service cloud.firestore {
 
     function validWishlistItem(data, monumentKey) {
       return monumentKey is string
-        && monumentKey.matches('^[A-Za-z0-9_~-]{1,256}$')
+        && monumentKey.matches('^[A-Za-z0-9_~-]{1,261}$')
         && data.keys().hasAll([
           'monumentKey',
           'sourceOwnerUid',
