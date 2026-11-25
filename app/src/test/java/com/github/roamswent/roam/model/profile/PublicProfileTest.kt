@@ -14,23 +14,23 @@ class PublicProfileTest {
     assertEquals(profile, PublicProfile("uid1", "Alice"))
     assertNotEquals(profile, PublicProfile("uid2", "Alice"))
     assertNotEquals(profile, PublicProfile("uid1", "Bob"))
-    assertNotEquals(profile, PublicProfile("uid1", "Alice", byteArrayOf(1)))
+    assertNotEquals(profile, PublicProfile("uid1", "Alice", avatarBytes = byteArrayOf(1)))
     assertNotEquals(profile, null)
     assertNotEquals(profile, "not a profile")
   }
 
   @Test
   fun equals_comparesAvatarBytesByContent() {
-    val profile = PublicProfile("uid1", "Alice", byteArrayOf(1, 2, 3))
+    val profile = PublicProfile("uid1", "Alice", avatarBytes = byteArrayOf(1, 2, 3))
 
     assertEquals(
         profile,
-        PublicProfile("uid1", "Alice", byteArrayOf(1, 2, 3)),
+        PublicProfile("uid1", "Alice", avatarBytes = byteArrayOf(1, 2, 3)),
     )
 
     assertNotEquals(
         profile,
-        PublicProfile("uid1", "Alice", byteArrayOf(1, 2, 4)),
+        PublicProfile("uid1", "Alice", avatarBytes = byteArrayOf(1, 2, 4)),
     )
 
     assertNotEquals(
@@ -40,18 +40,63 @@ class PublicProfileTest {
   }
 
   @Test
-  fun hashCode_usesAvatarContentAndHandlesNull() {
-    val withoutAvatar = PublicProfile("uid1", "Alice")
-    val withAvatar = PublicProfile("uid1", "Alice", byteArrayOf(1, 2, 3))
-    val sameAvatar = PublicProfile("uid1", "Alice", byteArrayOf(1, 2, 3))
+  fun equals_comparesVerifiedMonumentCount() {
+    val profile = PublicProfile("uid1", "Alice", verifiedMonumentCount = 3)
 
-    val baseHash = 31 * (31 * "uid1".hashCode() + "Alice".hashCode())
+    assertEquals(profile, PublicProfile("uid1", "Alice", verifiedMonumentCount = 3))
+    assertNotEquals(profile, PublicProfile("uid1", "Alice", verifiedMonumentCount = 4))
+    assertNotEquals(profile, PublicProfile("uid1", "Alice"))
+  }
 
-    assertEquals(baseHash, withoutAvatar.hashCode())
-    assertEquals(
-        baseHash + byteArrayOf(1, 2, 3).contentHashCode(),
-        withAvatar.hashCode(),
+  @Test
+  fun hashCode_isEqualForProfilesWithSameContent() {
+    val profile =
+        PublicProfile(
+            "uid1",
+            "Alice",
+            verifiedMonumentCount = 3,
+            avatarBytes = byteArrayOf(1, 2, 3),
+        )
+    val sameContent =
+        PublicProfile(
+            "uid1",
+            "Alice",
+            verifiedMonumentCount = 3,
+            avatarBytes = byteArrayOf(1, 2, 3),
+        )
+
+    assertEquals(profile.hashCode(), sameContent.hashCode())
+  }
+
+  @Test
+  fun hashCode_changesWithAvatarBytes() {
+    val profile = PublicProfile("uid1", "Alice", avatarBytes = byteArrayOf(1, 2, 3))
+
+    assertNotEquals(
+        profile.hashCode(),
+        PublicProfile("uid1", "Alice", avatarBytes = byteArrayOf(1, 2, 4)).hashCode(),
     )
-    assertEquals(withAvatar.hashCode(), sameAvatar.hashCode())
+    assertNotEquals(profile.hashCode(), PublicProfile("uid1", "Alice").hashCode())
+  }
+
+  @Test
+  fun hashCode_changesWithVerifiedMonumentCount() {
+    val profile = PublicProfile("uid1", "Alice", verifiedMonumentCount = 3)
+
+    assertNotEquals(
+        profile.hashCode(),
+        PublicProfile("uid1", "Alice", verifiedMonumentCount = 4).hashCode(),
+    )
+  }
+
+  @Test
+  fun hashCode_handlesNullAvatar() {
+    val withoutAvatar = PublicProfile("uid1", "Alice")
+
+    assertEquals(withoutAvatar.hashCode(), PublicProfile("uid1", "Alice").hashCode())
+    assertEquals(
+        withoutAvatar.hashCode(),
+        PublicProfile("uid1", "Alice", avatarBytes = null).hashCode(),
+    )
   }
 }

@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.profile
 
@@ -272,6 +273,91 @@ class FirestorePublicProfileRepositoryTest {
   }
 
   @Test
+  fun getProfile_readsVerifiedMonumentCount() = runTest {
+    val friendReference = mockk<DocumentReference>()
+    every { profiles.document("friend-id") } returns friendReference
+    every { friendReference.get() } returns
+        Tasks.forResult(
+            profileSnapshot("friend-id", "Friend", "friend", verifiedMonumentCount = 12)
+        )
+
+    assertEquals(
+        PublicProfile("friend-id", "Friend", verifiedMonumentCount = 12),
+        repository.getProfile("friend-id"),
+    )
+  }
+
+  @Test
+  fun getProfile_missingVerifiedMonumentCountIsZero() = runTest {
+    every { profileReference.get() } returns
+        Tasks.forResult(profileSnapshot("user-id", "Traveler", "traveler"))
+
+    assertEquals(0, repository.getCurrentProfile()?.verifiedMonumentCount)
+  }
+
+  @Test
+  fun getProfile_negativeVerifiedMonumentCountIsFirestoreFailure() = runTest {
+    every { profileReference.get() } returns
+        Tasks.forResult(
+            profileSnapshot("user-id", "Traveler", "traveler", verifiedMonumentCount = -1)
+        )
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error.toString(), error is PublicProfileException.FirestoreFailure)
+  }
+
+  @Test
+  fun getProfile_verifiedMonumentCountAboveIntRangeIsFirestoreFailure() = runTest {
+    every { profileReference.get() } returns
+        Tasks.forResult(
+            profileSnapshot(
+                "user-id",
+                "Traveler",
+                "traveler",
+                verifiedMonumentCount = Int.MAX_VALUE.toLong() + 1,
+            )
+        )
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error.toString(), error is PublicProfileException.FirestoreFailure)
+  }
+
+  @Test
+  fun getProfile_nonNumericVerifiedMonumentCountIsFirestoreFailure() = runTest {
+    val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
+    every { snapshot.getLong("verifiedMonumentCount") } throws RuntimeException("Not a number")
+    every { profileReference.get() } returns Tasks.forResult(snapshot)
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error.toString(), error is PublicProfileException.FirestoreFailure)
+  }
+
+  @Test
+  fun renameUsername_keepsVerifiedMonumentCount() = runTest {
+    val oldClaim = mockk<DocumentReference>()
+    val newClaim = mockk<DocumentReference>()
+    val transaction = mockk<Transaction>(relaxed = true)
+    val oldClaimSnapshot = mockk<DocumentSnapshot>()
+    val newClaimSnapshot = mockk<DocumentSnapshot>()
+    every { claims.document("newname") } returns newClaim
+    every { claims.document("oldname") } returns oldClaim
+    every { transaction.get(profileReference) } returns
+        profileSnapshot("user-id", "OldName", "oldname", verifiedMonumentCount = 5)
+    every { transaction.get(newClaim) } returns newClaimSnapshot
+    every { transaction.get(oldClaim) } returns oldClaimSnapshot
+    every { newClaimSnapshot.exists() } returns false
+    every { oldClaimSnapshot.getString("uid") } returns "user-id"
+    runTransactionWith(transaction)
+
+    val result = repository.renameUsername("NewName")
+
+    assertEquals(PublicProfile("user-id", "NewName", verifiedMonumentCount = 5), result)
+  }
+
+  @Test
   fun registerUsername_existingProfileRejectsNewUsername() = runTest {
     val claim = mockk<DocumentReference>()
     val transaction = mockk<Transaction>(relaxed = true)
@@ -541,12 +627,18 @@ class FirestorePublicProfileRepositoryTest {
     assertTrue(error is CancellationException)
   }
 
-  private fun profileSnapshot(uid: String, username: String, usernameLower: String) =
+  private fun profileSnapshot(
+      uid: String,
+      username: String,
+      usernameLower: String,
+      verifiedMonumentCount: Long? = null,
+  ) =
       mockk<DocumentSnapshot> {
         every { exists() } returns true
         every { getString("uid") } returns uid
         every { getString("username") } returns username
         every { getString("usernameLower") } returns usernameLower
+        every { getLong("verifiedMonumentCount") } returns verifiedMonumentCount
         every { getBlob("avatar") } returns null
       }
 
