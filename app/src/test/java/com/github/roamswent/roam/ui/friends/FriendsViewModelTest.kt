@@ -795,18 +795,51 @@ class FriendsViewModelTest {
       }
 
   @Test
-  fun returningToAnUpToDateLeaderboardDoesNotReloadIt() =
+  fun keepingTheLeaderboardShownDoesNotReloadIt() =
       runTest(dispatcher) {
         val viewModel = viewModel()
         viewModel.loadFriends()
         viewModel.setLeaderboardVisible(true)
         advanceUntilIdle()
 
-        viewModel.setLeaderboardVisible(false)
+        // Repeated reports while it stays shown, as after a recomposition, are not a new showing.
         viewModel.setLeaderboardVisible(true)
+        viewModel.setLeaderboardVisible(true)
+        viewModel.loadFriends()
         advanceUntilIdle()
 
         coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
+        assertEquals(listOf(friendEntry, selfEntry), viewModel.uiState.value.leaderboard)
+      }
+
+  @Test
+  fun showingTheLeaderboardAgainReloadsItWithCountsChangedWhileHidden() =
+      runTest(dispatcher) {
+        val viewModel = viewModel()
+        viewModel.loadFriends()
+        viewModel.setLeaderboardVisible(true)
+        advanceUntilIdle()
+        assertEquals(
+            2,
+            viewModel.uiState.value.leaderboard.single { it.uid == "self" }.verifiedMonumentCount,
+        )
+
+        // The user leaves the leaderboard and a verified scan raises their count elsewhere.
+        viewModel.setLeaderboardVisible(false)
+        val afterScan = listOf(selfEntry.copy(verifiedMonumentCount = 7, rank = 1), friendEntry)
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns afterScan
+        advanceUntilIdle()
+        coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
+
+        viewModel.setLeaderboardVisible(true)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(afterScan, state.leaderboard)
+        assertEquals(7, state.leaderboard.single { it.uid == "self" }.verifiedMonumentCount)
+        assertFalse(state.isLeaderboardLoading)
+        assertNull(state.leaderboardError)
+        coVerify(exactly = 2) { leaderboardRepository.getFriendsLeaderboard() }
       }
 
   @Test
@@ -916,7 +949,7 @@ class FriendsViewModelTest {
       }
 
   @Test
-  fun sendingRejectingOrCancellingRequestsKeepsTheLeaderboardUpToDate() =
+  fun sendingRejectingOrCancellingRequestsDoesNotReloadTheLeaderboard() =
       runTest(dispatcher) {
         coEvery { friendsRepository.sendFriendRequest("stranger") } returns
             RepositoryFriendRequest("sent-id", "self", "stranger")
@@ -933,10 +966,13 @@ class FriendsViewModelTest {
         advanceUntilIdle()
         viewModel.cancelRequest(FriendRequest(FriendUser("recipient", "C"), id = "outgoing-id"))
         advanceUntilIdle()
+
+        // None of them changes who is a friend, so the hidden leaderboard is not reloaded.
+        coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
+
+        // Showing it again reloads it, as it does after any time hidden.
         viewModel.setLeaderboardVisible(true)
         advanceUntilIdle()
-
-        // None of them changes who is a friend, so the leaderboard is not reloaded.
-        coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }
+        coVerify(exactly = 2) { leaderboardRepository.getFriendsLeaderboard() }
       }
 }

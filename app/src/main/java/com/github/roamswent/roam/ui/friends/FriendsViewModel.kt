@@ -80,8 +80,9 @@ data class FriendsUiState(
  * The leaderboard is loaded on demand, only while the Leaderboard segment is shown, as reported by
  * [setLeaderboardVisible]:
  * - [loadFriends] loads friends and requests only.
- * - Showing the leaderboard loads it the first time, and again only once it is stale: after a
- *   failed load, or after a friend was accepted or removed while it was hidden.
+ * - Each time the leaderboard goes from hidden to shown it is reloaded, as counts can change
+ *   outside this screen, such as after a verified scan. Staying shown loads nothing more, and a
+ *   load still running when it is shown again is kept unless a friend changed since it started.
  * - [refresh] reloads what is shown: the friend lists, or the leaderboard alone.
  * - Accepting or removing a friend reloads the leaderboard at once if it is shown, otherwise marks
  *   it stale. Other requests do not change who is on it.
@@ -104,7 +105,8 @@ class FriendsViewModel(
   private var loadJob: Job? = null
   private var leaderboardJob: Job? = null
   private var isLeaderboardVisible = false
-  // Set when a load starts, so a result loaded before a later friend change stays stale.
+  // Cleared when a load starts and set by a later friend change or a failure, so a load still
+  // running is only kept when shown again if its result will be up to date.
   private var isLeaderboardStale = true
   private val profileCache = mutableMapOf<String, CachedProfile>()
 
@@ -120,11 +122,16 @@ class FriendsViewModel(
 
   /**
    * Called by the screen when the Leaderboard segment is shown or hidden, including when the screen
-   * leaves the composition. Showing it loads the leaderboard if it was never loaded or is stale.
+   * leaves the composition. Going from hidden to shown reloads the leaderboard, so changes made
+   * while it was hidden, such as a newly verified monument, are shown. A repeated call while it
+   * stays shown does nothing, and neither does showing it during a load that is still up to date.
    */
   fun setLeaderboardVisible(visible: Boolean) {
+    val becameVisible = visible && !isLeaderboardVisible
     isLeaderboardVisible = visible
-    if (visible && isLeaderboardStale) startLeaderboardLoad()
+    if (!becameVisible) return
+    if (leaderboardJob?.isActive == true && !isLeaderboardStale) return
+    startLeaderboardLoad()
   }
 
   private fun startLoading(forceRefresh: Boolean) {
@@ -210,7 +217,8 @@ class FriendsViewModel(
 
   /**
    * Runs [operation], then reloads the friend lists. When [changesFriends], who is on the
-   * leaderboard changed: it is reloaded if shown, otherwise marked stale for its next showing.
+   * leaderboard changed: it is reloaded if shown, otherwise marked stale so that a load still
+   * running is not kept on its next showing.
    */
   private fun mutate(message: String, changesFriends: Boolean, operation: suspend () -> Unit) {
     if (_uiState.value.isMutating) return
@@ -237,8 +245,8 @@ class FriendsViewModel(
 
   /**
    * Loads the leaderboard in its own job, replacing any pending load. A failure keeps the previous
-   * entries, is exposed as [FriendsUiState.leaderboardError] and leaves the leaderboard stale so
-   * that it is retried on its next showing; a cancelled load changes nothing.
+   * entries, is exposed as [FriendsUiState.leaderboardError] and leaves the leaderboard stale; it
+   * is retried on its next showing like any other. A cancelled load changes nothing.
    */
   private fun startLeaderboardLoad() {
     leaderboardJob?.cancel()
