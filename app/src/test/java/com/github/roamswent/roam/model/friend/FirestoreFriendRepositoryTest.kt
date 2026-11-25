@@ -59,12 +59,14 @@ class FirestoreFriendRepositoryTest {
   @Test
   fun sendFriendRequest_requiresRecipientPublicProfile() = runTest {
     val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
     val transaction = mockk<Transaction>(relaxed = true)
     val requestSnapshot = mockk<DocumentSnapshot>()
     val profileSnapshot = mockk<DocumentSnapshot>()
     every { friendships.document("user-a~user-b") } returns requestReference
     every { transaction.get(requestReference) } returns requestSnapshot
     every { transaction.get(recipientProfile) } returns profileSnapshot
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     every { requestSnapshot.exists() } returns false
     every { profileSnapshot.exists() } returns false
     runTransactionWith<FriendRequest>(transaction)
@@ -78,6 +80,7 @@ class FirestoreFriendRepositoryTest {
   @Test
   fun sendFriendRequest_createsPendingPairForRegisteredRecipient() = runTest {
     val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
     val transaction = mockk<Transaction>(relaxed = true)
     val requestSnapshot = mockk<DocumentSnapshot>()
     val profileSnapshot = mockk<DocumentSnapshot>()
@@ -85,6 +88,7 @@ class FirestoreFriendRepositoryTest {
     every { requestReference.id } returns "user-a~user-b"
     every { transaction.get(requestReference) } returns requestSnapshot
     every { transaction.get(recipientProfile) } returns profileSnapshot
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     every { requestSnapshot.exists() } returns false
     every { profileSnapshot.exists() } returns true
     every { profileSnapshot.getBoolean("allowFriendRequests") } returns null
@@ -109,12 +113,14 @@ class FirestoreFriendRepositoryTest {
   @Test
   fun sendFriendRequest_returnsExistingOutgoingRequestWithoutWritingAgain() = runTest {
     val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
     val transaction = mockk<Transaction>(relaxed = true)
     val requestSnapshot = recordSnapshot("user-a~user-b", "user-a", "user-b", "PENDING")
     val profileSnapshot = mockk<DocumentSnapshot>()
     every { friendships.document("user-a~user-b") } returns requestReference
     every { transaction.get(requestReference) } returns requestSnapshot
     every { transaction.get(recipientProfile) } returns profileSnapshot
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     every { profileSnapshot.exists() } returns true
     runTransactionWith<FriendRequest>(transaction)
 
@@ -127,12 +133,14 @@ class FirestoreFriendRepositoryTest {
   @Test
   fun sendFriendRequest_doesNotAutoAcceptReciprocalPendingRequest() = runTest {
     val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
     val transaction = mockk<Transaction>(relaxed = true)
     val requestSnapshot = recordSnapshot("user-a~user-b", "user-b", "user-a", "PENDING")
     val profileSnapshot = mockk<DocumentSnapshot>()
     every { friendships.document("user-a~user-b") } returns requestReference
     every { transaction.get(requestReference) } returns requestSnapshot
     every { transaction.get(recipientProfile) } returns profileSnapshot
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     every { profileSnapshot.exists() } returns true
     runTransactionWith<FriendRequest>(transaction)
 
@@ -299,12 +307,14 @@ class FirestoreFriendRepositoryTest {
   @Test
   fun sendFriendRequest_alreadyFriendsReturnsTypedError() = runTest {
     val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
     val transaction = mockk<Transaction>(relaxed = true)
 
     every { friendships.document("user-a~user-b") } returns requestReference
     every { transaction.get(requestReference) } returns
         recordSnapshot("user-a~user-b", "user-a", "user-b", "ACCEPTED")
     every { transaction.get(recipientProfile) } returns mockk<DocumentSnapshot>()
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
 
     runTransactionWith<FriendRequest>(transaction)
 
@@ -502,13 +512,33 @@ class FirestoreFriendRepositoryTest {
   }
 
   @Test
+  fun sendFriendRequest_throwsUserBlockedWhenRequesterHasBlockedRecipient() = runTest {
+    val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
+    val transaction = mockk<Transaction>(relaxed = true)
+    every { friendships.document("user-a~user-b") } returns requestReference
+    every { transaction.get(requestReference) } returns existenceSnapshot(false)
+    every { transaction.get(recipientProfile) } returns
+        recipientProfileSnapshot(exists = true, allowFriendRequests = true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(true)
+    runTransactionWith<FriendRequest>(transaction)
+
+    val error = captureFailure { repository.sendFriendRequest("user-b") }
+
+    assertTrue(error is FriendRepositoryException.UserBlocked)
+    verify(exactly = 0) { transaction.set(any(), any<Map<String, Any>>()) }
+  }
+
+  @Test
   fun sendFriendRequest_throwsFriendRequestsDisabledWhenRecipientDisablesRequests() = runTest {
     val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
     val transaction = mockk<Transaction>(relaxed = true)
     every { friendships.document("user-a~user-b") } returns requestReference
     every { transaction.get(requestReference) } returns existenceSnapshot(false)
     every { transaction.get(recipientProfile) } returns
         recipientProfileSnapshot(exists = true, allowFriendRequests = false)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<FriendRequest>(transaction)
 
     val error = captureFailure { repository.sendFriendRequest("user-b") }
@@ -520,12 +550,14 @@ class FirestoreFriendRepositoryTest {
   @Test
   fun sendFriendRequest_succeedsWhenRecipientExplicitlyAllowsRequests() = runTest {
     val requestReference = mockk<DocumentReference>()
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
     val transaction = mockk<Transaction>(relaxed = true)
     every { friendships.document("user-a~user-b") } returns requestReference
     every { requestReference.id } returns "user-a~user-b"
     every { transaction.get(requestReference) } returns existenceSnapshot(false)
     every { transaction.get(recipientProfile) } returns
         recipientProfileSnapshot(exists = true, allowFriendRequests = true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<FriendRequest>(transaction)
 
     val result = repository.sendFriendRequest("user-b")
@@ -590,6 +622,7 @@ class FirestoreFriendRepositoryTest {
         every { transaction.get(requestRef) } returns
             recordSnapshot("user-a~user-b", "user-a", "user-b", "PENDING")
         every { transaction.get(followRef) } returns existenceSnapshot(true)
+        every { transaction.get(blockedRef) } returns existenceSnapshot(false)
         runTransactionWith<Unit>(transaction)
 
         repository.rejectFriendRequest("user-a~user-b", blacklist = true)
@@ -610,6 +643,7 @@ class FirestoreFriendRepositoryTest {
     every { transaction.get(requestRef) } returns
         recordSnapshot("user-a~user-b", "user-a", "user-b", "PENDING")
     every { transaction.get(followRef) } returns existenceSnapshot(false)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Unit>(transaction)
 
     repository.rejectFriendRequest("user-a~user-b", blacklist = true)
@@ -617,6 +651,26 @@ class FirestoreFriendRepositoryTest {
     verify { transaction.delete(requestRef) }
     verify { transaction.set(blockedRef, mapOf("blockedUid" to "user-a")) }
     verify(exactly = 0) { transaction.delete(followRef) }
+  }
+
+  @Test
+  fun rejectFriendRequest_withBlacklistTrueDoesNotRewriteExistingBlacklistEntry() = runTest {
+    every { auth.currentUser } returns mockk<FirebaseUser> { every { uid } returns "user-b" }
+    val requestRef = mockk<DocumentReference>()
+    val followRef = stubIncomingFollowRef("user-b", "user-a")
+    val blockedRef = stubBlockedUserRef("user-b", "user-a")
+    val transaction = mockk<Transaction>(relaxed = true)
+    every { friendships.document("user-a~user-b") } returns requestRef
+    every { transaction.get(requestRef) } returns
+        recordSnapshot("user-a~user-b", "user-a", "user-b", "PENDING")
+    every { transaction.get(followRef) } returns existenceSnapshot(false)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(true)
+    runTransactionWith<Unit>(transaction)
+
+    repository.rejectFriendRequest("user-a~user-b", blacklist = true)
+
+    verify(exactly = 1) { transaction.delete(requestRef) }
+    verify(exactly = 0) { transaction.set(blockedRef, any<Map<String, Any>>()) }
   }
 
   @Test
@@ -677,6 +731,7 @@ class FirestoreFriendRepositoryTest {
     every { transaction.get(friendshipRef) } returns
         recordSnapshot("user-a~user-b", "user-a", "user-b", "ACCEPTED")
     every { transaction.get(followRef) } returns existenceSnapshot(true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Unit>(transaction)
 
     repository.removeFriend("user-b", blacklist = true)
@@ -696,6 +751,7 @@ class FirestoreFriendRepositoryTest {
     every { transaction.get(friendshipRef) } returns
         recordSnapshot("user-a~user-b", "user-a", "user-b", "ACCEPTED")
     every { transaction.get(followRef) } returns existenceSnapshot(false)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Unit>(transaction)
 
     repository.removeFriend("user-b", blacklist = true)
@@ -703,6 +759,25 @@ class FirestoreFriendRepositoryTest {
     verify { transaction.delete(friendshipRef) }
     verify { transaction.set(blockedRef, mapOf("blockedUid" to "user-b")) }
     verify(exactly = 0) { transaction.delete(followRef) }
+  }
+
+  @Test
+  fun removeFriend_withBlacklistTrueDoesNotRewriteExistingBlacklistEntry() = runTest {
+    val friendshipRef = mockk<DocumentReference>()
+    val followRef = stubIncomingFollowRef("user-a", "user-b")
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
+    val transaction = mockk<Transaction>(relaxed = true)
+    every { friendships.document("user-a~user-b") } returns friendshipRef
+    every { transaction.get(friendshipRef) } returns
+        recordSnapshot("user-a~user-b", "user-a", "user-b", "ACCEPTED")
+    every { transaction.get(followRef) } returns existenceSnapshot(false)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(true)
+    runTransactionWith<Unit>(transaction)
+
+    repository.removeFriend("user-b", blacklist = true)
+
+    verify(exactly = 1) { transaction.delete(friendshipRef) }
+    verify(exactly = 0) { transaction.set(blockedRef, any<Map<String, Any>>()) }
   }
 
   @Test
@@ -738,6 +813,7 @@ class FirestoreFriendRepositoryTest {
     every { friendships.document("user-a~user-b") } returns friendshipRef
     every { transaction.get(friendshipRef) } returns existenceSnapshot(true)
     every { transaction.get(followRef) } returns existenceSnapshot(true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Unit>(transaction)
 
     repository.blockUser("user-b")
@@ -756,12 +832,32 @@ class FirestoreFriendRepositoryTest {
     every { friendships.document("user-a~user-b") } returns friendshipRef
     every { transaction.get(friendshipRef) } returns existenceSnapshot(false)
     every { transaction.get(followRef) } returns existenceSnapshot(false)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(false)
     runTransactionWith<Unit>(transaction)
 
     repository.blockUser("user-b")
 
     verify { transaction.set(blockedRef, mapOf("blockedUid" to "user-b")) }
     verify(exactly = 0) { transaction.delete(any()) }
+  }
+
+  @Test
+  fun blockUser_doesNotRewriteExistingBlacklistEntry() = runTest {
+    val friendshipRef = mockk<DocumentReference>()
+    val followRef = stubIncomingFollowRef("user-a", "user-b")
+    val blockedRef = stubBlockedUserRef("user-a", "user-b")
+    val transaction = mockk<Transaction>(relaxed = true)
+    every { friendships.document("user-a~user-b") } returns friendshipRef
+    every { transaction.get(friendshipRef) } returns existenceSnapshot(true)
+    every { transaction.get(followRef) } returns existenceSnapshot(true)
+    every { transaction.get(blockedRef) } returns existenceSnapshot(true)
+    runTransactionWith<Unit>(transaction)
+
+    repository.blockUser("user-b")
+
+    verify(exactly = 0) { transaction.set(blockedRef, any<Map<String, Any>>()) }
+    verify(exactly = 1) { transaction.delete(friendshipRef) }
+    verify(exactly = 1) { transaction.delete(followRef) }
   }
 
   @Test

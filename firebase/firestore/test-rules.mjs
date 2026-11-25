@@ -1302,6 +1302,53 @@ await expectAllowed(
   await firestoreRequest(blockPath, privOwner.token, { method: "DELETE" }),
 );
 
+// 6. Blocker-direction rules: blocker cannot send friend request or follow a user they blacklisted
+const alice = await createUser();
+const bob = await createUser();
+const aliceName = `Alce_${alice.uid.slice(0, 8)}`;
+const bobName = `BobU_${bob.uid.slice(0, 8)}`;
+
+await expectAllowed(
+  "register alice profile for blocker-direction tests",
+  await commit(alice.token, [
+    profileWrite(alice.uid, aliceName, { isPublic: false, allowFriendRequests: true }),
+    claimWrite(alice.uid, aliceName),
+  ]),
+);
+await expectAllowed(
+  "register public bob profile for blocker-direction tests",
+  await commit(bob.token, [
+    profileWrite(bob.uid, bobName, { isPublic: true, allowFriendRequests: true }),
+    claimWrite(bob.uid, bobName),
+  ]),
+);
+await expectAllowed(
+  "alice blacklists bob",
+  await commit(alice.token, [blockedUserWrite(alice.uid, bob.uid)]),
+);
+await expectDenied(
+  "blocker alice denied creating friend request to blacklisted bob",
+  await commit(alice.token, [friendshipWrite(alice.uid, bob.uid)]),
+);
+await expectDenied(
+  "blocker alice denied following blacklisted public bob",
+  await commit(alice.token, [followWrite(bob.uid, alice.uid)]),
+);
+await expectAllowed(
+  "alice unblocks bob",
+  await firestoreRequest(`users/${alice.uid}/blockedUsers/${bob.uid}`, alice.token, {
+    method: "DELETE",
+  }),
+);
+await expectAllowed(
+  "alice can send friend request to bob after unblocking",
+  await commit(alice.token, [friendshipWrite(alice.uid, bob.uid)]),
+);
+await expectAllowed(
+  "alice can follow public bob after unblocking",
+  await commit(alice.token, [followWrite(bob.uid, alice.uid)]),
+);
+
 
 
 
