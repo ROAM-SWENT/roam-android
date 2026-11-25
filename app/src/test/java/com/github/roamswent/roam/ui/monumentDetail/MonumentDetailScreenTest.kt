@@ -21,6 +21,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
@@ -641,6 +642,39 @@ class MonumentDetailScreenTest {
         .onNodeWithText("Shared with Ada, Grace and 2 others")
         .performScrollTo()
         .assertIsDisplayed()
+  }
+
+  @Test
+  fun sharingControlsCoverVisibilityAndSavingStates() {
+    var showControls by mutableStateOf(false)
+    var showAction by mutableStateOf(true)
+    var isSaving by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState = MonumentDetailSharingState(isSaving = isSaving),
+            showSharingControls = showControls,
+            showSharingAction = showAction,
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_status).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_button).assertCountEquals(0)
+
+    showControls = true
+    showAction = false
+    composeTestRule.waitForIdle()
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_status).assertCountEquals(1)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_button).assertCountEquals(0)
+
+    showAction = true
+    isSaving = true
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).assertIsNotEnabled()
   }
 
   @Test

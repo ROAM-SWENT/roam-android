@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
@@ -51,6 +52,7 @@ import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.CollectionFriend
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import io.mockk.coEvery
@@ -650,6 +652,107 @@ class ScanReviewScreenTest {
 
     assertEquals(true, sharingOpened)
     composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+  }
+
+  @Test
+  fun sentGuideWithoutSavedIdDoesNotRenderSharingDialog() {
+    var sharingOpened = false
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            onOpenSharing = { sharingOpened = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+
+    assertEquals(true, sharingOpened)
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_dialog).assertCountEquals(0)
+  }
+
+  @Test
+  fun sentGuideSharingConfirmationReportsAudienceAndRecipients() {
+    var selectedAudience: ShareAudience? = null
+    var selectedFriends = emptySet<String>()
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            savedGuideId = "saved-guide",
+            sharingFriends = listOf(CollectionFriend("alice", "Alice")),
+            onOpenSharing = {},
+            onSetShareAudience = { audience, friends ->
+              selectedAudience = audience
+              selectedFriends = friends
+            },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
+    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    assertEquals(ShareAudience.SELECTED_FRIENDS, selectedAudience)
+    assertEquals(setOf("alice"), selectedFriends)
+  }
+
+  @Test
+  fun routeSharingDependenciesCanChangeAcrossRecomposition() {
+    val friendRepository = mutableStateOf<FriendRepository?>(null)
+    val profileRepository = mutableStateOf<PublicProfileRepository?>(null)
+    val sharingProvider = mutableStateOf<MonumentSharingProvider?>(null)
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        val controller = rememberNavController()
+        NavHost(navController = controller, startDestination = Routes.Home) {
+          composable(Routes.Home) {
+            LaunchedEffect(Unit) {
+              controller.navigate("${Routes.ScanReview}?uri=${Uri.encode(uri.toString())}")
+            }
+          }
+          composable("${Routes.ScanReview}?uri={uri}") { entry ->
+            ScanReviewRoute(
+                navController = controller,
+                uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
+                captureSenderOverride = sender,
+                savedGuideRepository = FakeSavedGuideRepository(),
+                friendRepository = friendRepository.value,
+                publicProfileRepository = profileRepository.value,
+                monumentSharingProvider = sharingProvider.value,
+            )
+          }
+        }
+      }
+    }
+
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithTag(C.Tag.scan_review_screen).fetchSemanticsNodes().isNotEmpty()
+    }
+    friendRepository.value = mockk()
+    profileRepository.value = mockk()
+    sharingProvider.value = { FakeMonumentSharingRepository() }
+    composeTestRule.waitForIdle()
+    friendRepository.value = null
+    profileRepository.value = null
+    sharingProvider.value = null
+    composeTestRule.waitForIdle()
   }
 
   /** A gallery photo whose guide carries [photoLocation] and [monumentLocation]. */

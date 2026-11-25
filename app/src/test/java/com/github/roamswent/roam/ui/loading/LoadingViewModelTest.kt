@@ -35,6 +35,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -520,6 +521,35 @@ class LoadingViewModelTest {
         assertFalse(viewModel.isSharing.value)
         viewModel.clearSharingError()
         assertNull(viewModel.sharingError.value)
+      }
+
+  @Test
+  fun sharingCancellationDoesNotBecomeAnError() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        } throws CancellationException("cancelled")
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertNull(viewModel.sharingError.value)
+        assertFalse(viewModel.isSharing.value)
       }
 
   @Test
