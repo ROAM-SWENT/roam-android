@@ -867,6 +867,15 @@ function verifiedMonumentCountWrite(uid, count) {
   };
 }
 
+function leaderboardStateWrite(uid, lastVerifiedMonumentId) {
+  return {
+    update: {
+      name: documentName(`users/${uid}/leaderboard/state`),
+      fields: fields({ lastVerifiedMonumentId }),
+    },
+  };
+}
+
 function usernameOnlyProfileWrite(uid, username) {
   return {
     update: {
@@ -880,6 +889,7 @@ function usernameOnlyProfileWrite(uid, username) {
 const counter = await createUser();
 const rival = await createUser();
 const counterMonumentPath = `users/${counter.uid}/verifiedMonuments/48858_2294`;
+const counterStatePath = `users/${counter.uid}/leaderboard/state`;
 
 await expectAllowed(
   "counter registers a profile",
@@ -908,9 +918,10 @@ await expectDenied(
 );
 
 await expectAllowed(
-  "first verified monument is recorded with an increment to 1",
+  "first verified monument is recorded with its pointer and an increment to 1",
   await commit(counter.token, [
     verifiedMonumentWrite(counter.uid, "48858_2294"),
+    leaderboardStateWrite(counter.uid, "48858_2294"),
     verifiedMonumentCountWrite(counter.uid, 1),
   ]),
 );
@@ -922,10 +933,19 @@ await expectDenied(
   "another user cannot read a counted monument",
   await firestoreRequest(counterMonumentPath, rival.token),
 );
+await expectAllowed(
+  "owner can read their leaderboard pointer",
+  await firestoreRequest(counterStatePath, counter.token),
+);
+await expectDenied(
+  "another user cannot read the leaderboard pointer",
+  await firestoreRequest(counterStatePath, rival.token),
+);
 await expectDenied(
   "a counted monument cannot be recorded again",
   await commit(counter.token, [
     verifiedMonumentWrite(counter.uid, "48858_2294"),
+    leaderboardStateWrite(counter.uid, "48858_2294"),
     verifiedMonumentCountWrite(counter.uid, 2),
   ]),
 );
@@ -934,9 +954,59 @@ await expectDenied(
   await commit(counter.token, [verifiedMonumentWrite(counter.uid, "48874_2295")]),
 );
 await expectDenied(
+  "a counted monument and its pointer cannot be created without an increment",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+  ]),
+);
+await expectDenied(
+  "the count cannot be incremented without a new counted monument",
+  await commit(counter.token, [verifiedMonumentCountWrite(counter.uid, 2)]),
+);
+await expectDenied(
+  "the count and pointer cannot change without the counted monument they name",
+  await commit(counter.token, [
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "a pointer to an already counted monument does not allow another increment",
+  await commit(counter.token, [
+    leaderboardStateWrite(counter.uid, "48858_2294"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "a new counted monument needs the pointer to name it",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "one increment cannot create two counted monuments",
+  await commit(counter.token, [
+    verifiedMonumentWrite(counter.uid, "48874_2295"),
+    verifiedMonumentWrite(counter.uid, "48880_2300"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
+    verifiedMonumentCountWrite(counter.uid, 2),
+  ]),
+);
+await expectDenied(
+  "the pointer cannot be written on its own",
+  await commit(counter.token, [leaderboardStateWrite(counter.uid, "48874_2295")]),
+);
+await expectDenied(
+  "the pointer cannot be deleted",
+  await firestoreRequest(counterStatePath, counter.token, { method: "DELETE" }),
+);
+await expectDenied(
   "the count cannot jump by more than one",
   await commit(counter.token, [
     verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
     verifiedMonumentCountWrite(counter.uid, 3),
   ]),
 );
@@ -944,6 +1014,7 @@ await expectDenied(
   "a counted monument cannot hold data",
   await commit(counter.token, [
     verifiedMonumentWrite(counter.uid, "48874_2295", { latitude: 48.8738 }),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
     verifiedMonumentCountWrite(counter.uid, 2),
   ]),
 );
@@ -951,6 +1022,7 @@ await expectDenied(
   "a counted monument ID must be a monument key",
   await commit(counter.token, [
     verifiedMonumentWrite(counter.uid, "saved-guide-id"),
+    leaderboardStateWrite(counter.uid, "saved-guide-id"),
     verifiedMonumentCountWrite(counter.uid, 2),
   ]),
 );
@@ -958,6 +1030,7 @@ await expectDenied(
   "another user cannot record a monument for the owner",
   await commit(rival.token, [
     verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
     verifiedMonumentCountWrite(counter.uid, 2),
   ]),
 );
@@ -986,9 +1059,10 @@ await expectAllowed(
   ]),
 );
 await expectAllowed(
-  "a distinct monument increments the count to 2",
+  "a distinct monument with its pointer increments the count to 2",
   await commit(counter.token, [
     verifiedMonumentWrite(counter.uid, "48874_2295"),
+    leaderboardStateWrite(counter.uid, "48874_2295"),
     verifiedMonumentCountWrite(counter.uid, 2),
   ]),
 );

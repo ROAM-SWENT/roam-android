@@ -35,6 +35,8 @@ class FirestoreLeaderboardRepositoryTest {
   private val users = mockk<CollectionReference>()
   private val userDocument = mockk<DocumentReference>()
   private val monuments = mockk<CollectionReference>()
+  private val leaderboard = mockk<CollectionReference>()
+  private val stateReference = mockk<DocumentReference>()
   private val profileReference = mockk<DocumentReference>()
   private val transaction = mockk<Transaction>()
   private val friendRepository = mockk<FriendRepository>()
@@ -50,9 +52,11 @@ class FirestoreLeaderboardRepositoryTest {
   private val countedMonumentIds = mutableSetOf<String>()
   private var profileExists = true
   private var storedCount: Long? = null
+  private var storedPointer: String? = null
   private val operations = mutableListOf<String>()
   private val pendingMonumentIds = mutableListOf<String>()
   private var pendingCount: Long? = null
+  private var pendingPointer: String? = null
 
   @Before
   fun setUp() {
@@ -63,12 +67,21 @@ class FirestoreLeaderboardRepositoryTest {
     every { profiles.document("user-id") } returns profileReference
     every { users.document("user-id") } returns userDocument
     every { userDocument.collection("verifiedMonuments") } returns monuments
+    every { userDocument.collection("leaderboard") } returns leaderboard
+    every { leaderboard.document("state") } returns stateReference
     every { monuments.document(any()) } answers
         {
           monumentReferences.getOrPut(firstArg()) { mockk(firstArg()) }
         }
     every { transaction.get(any()) } answers { snapshotOf(firstArg()) }
-    every { transaction.set(any(), any<Map<String, Any>>()) } answers
+    every { transaction.set(stateReference, any<Map<String, Any>>()) } answers
+        {
+          val data = secondArg<Map<String, Any>>()
+          operations += "set state $data"
+          pendingPointer = data["lastVerifiedMonumentId"] as String
+          transaction
+        }
+    every { transaction.set(not(stateReference), any<Map<String, Any>>()) } answers
         {
           val id = monumentIdOf(firstArg())
           operations += "set $id ${secondArg<Map<String, Any>>()}"
@@ -92,6 +105,7 @@ class FirestoreLeaderboardRepositoryTest {
     assertEquals(VerifiedMonumentResult.Counted(1), result)
     assertEquals(1L, storedCount)
     assertEquals(setOf("48858_2294"), countedMonumentIds)
+    assertEquals("48858_2294", storedPointer)
   }
 
   @Test
@@ -100,7 +114,13 @@ class FirestoreLeaderboardRepositoryTest {
 
     val expectedReads = eiffelTower.neighbourhood().map { "get ${it.id}" }.sorted()
     assertEquals(
-        listOf("get profile") + expectedReads + listOf("set 48858_2294 {}", "update count 1"),
+        listOf("get profile") +
+            expectedReads +
+            listOf(
+                "set 48858_2294 {}",
+                "set state {lastVerifiedMonumentId=48858_2294}",
+                "update count 1",
+            ),
         operations,
     )
   }
@@ -137,6 +157,7 @@ class FirestoreLeaderboardRepositoryTest {
     assertEquals(VerifiedMonumentResult.Counted(2), result)
     assertEquals(2L, storedCount)
     assertEquals(setOf("48858_2294", "48874_2295"), countedMonumentIds)
+    assertEquals("48874_2295", storedPointer)
   }
 
   @Test
@@ -413,12 +434,14 @@ class FirestoreLeaderboardRepositoryTest {
   private fun commitPendingWrites() {
     countedMonumentIds += pendingMonumentIds
     pendingCount?.let { storedCount = it }
+    pendingPointer?.let { storedPointer = it }
     discardPendingWrites()
   }
 
   private fun discardPendingWrites() {
     pendingMonumentIds.clear()
     pendingCount = null
+    pendingPointer = null
   }
 
   private fun snapshotOf(reference: DocumentReference): DocumentSnapshot {

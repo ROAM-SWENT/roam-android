@@ -27,15 +27,19 @@ import kotlinx.coroutines.tasks.await
  *   readable only by its owner. It holds no data: its ID, the coarsened cell of the monument's own
  *   position, is all that uniqueness needs. Saved guides are not used, as one monument can have
  *   several of them.
+ * - `users/{uid}/leaderboard/state.lastVerifiedMonumentId`: the ID of the monument counted by the
+ *   latest increment, readable only by its owner. It lets the security rules match each increment
+ *   to the one counted-monument document it creates.
  *
  * Recording runs in a transaction because the check and the increment must be one step: without it,
  * two scans of the same monument, or of neighbouring cells, could both find nothing counted and
  * both increment. The transaction reads the profile and every cell of the neighbourhood, so if
  * another recording changes any of them before the commit, Firestore retries it with the new data.
  *
- * Security rules only let the owner raise the count, by exactly one per write, and only let a
- * counted-monument document be created together with that increment. They cannot prove that the
- * user was at the monument: a modified client can still report fabricated visits.
+ * Security rules only let the owner raise the count, by exactly one per write, and only together
+ * with a new counted-monument document and a pointer naming it; that document can only be created
+ * with both. So the count always equals the number of counted monuments. The rules cannot prove
+ * that the user was at the monument: a modified client can still report fabricated visits.
  *
  * The leaderboard reads no Firestore document itself: accepted friends come from [friendRepository]
  * and usernames and counts from [publicProfileRepository].
@@ -49,8 +53,9 @@ class FirestoreLeaderboardRepository(
 ) : LeaderboardRepository {
 
   /**
-   * Records [monument] for the signed-in user in one transaction. Nothing is written when a
-   * monument in its [MonumentKey.neighbourhood] was counted before.
+   * Records [monument] for the signed-in user in one transaction that creates its counted-monument
+   * document, points the leaderboard state at it and increments the count. Nothing is written when
+   * a monument in its [MonumentKey.neighbourhood] was counted before.
    *
    * @throws LeaderboardException.UnauthenticatedUser if no user is signed in.
    * @throws LeaderboardException.ProfileNotRegistered if the user has no public profile to hold the
@@ -60,11 +65,10 @@ class FirestoreLeaderboardRepository(
   override suspend fun recordVerifiedMonument(monument: MonumentKey): VerifiedMonumentResult {
     val uid = requireCurrentUid()
     val profileReference = firestore.collection(PUBLIC_PROFILES_COLLECTION).document(uid)
-    val monuments =
-        firestore
-            .collection(USERS_COLLECTION)
-            .document(uid)
-            .collection(VERIFIED_MONUMENTS_COLLECTION)
+    val userDocument = firestore.collection(USERS_COLLECTION).document(uid)
+    val monuments = userDocument.collection(VERIFIED_MONUMENTS_COLLECTION)
+    val stateReference =
+        userDocument.collection(LEADERBOARD_COLLECTION).document(LEADERBOARD_STATE_DOCUMENT)
     val neighbourReferences =
         monument.neighbourhood().map { it.id }.sorted().map { monuments.document(it) }
     return withFirestoreErrors {
@@ -78,6 +82,7 @@ class FirestoreLeaderboardRepository(
             if (alreadyCounted) return@runTransaction VerifiedMonumentResult.AlreadyCounted(count)
 
             transaction.set(monuments.document(monument.id), emptyMap<String, Any>())
+            transaction.set(stateReference, mapOf(LAST_VERIFIED_MONUMENT_ID_FIELD to monument.id))
             transaction.update(profileReference, VERIFIED_MONUMENT_COUNT_FIELD, count + 1)
             VerifiedMonumentResult.Counted(count + 1)
           }
@@ -133,5 +138,8 @@ class FirestoreLeaderboardRepository(
     const val USERS_COLLECTION = "users"
     const val VERIFIED_MONUMENTS_COLLECTION = "verifiedMonuments"
     const val VERIFIED_MONUMENT_COUNT_FIELD = "verifiedMonumentCount"
+    const val LEADERBOARD_COLLECTION = "leaderboard"
+    const val LEADERBOARD_STATE_DOCUMENT = "state"
+    const val LAST_VERIFIED_MONUMENT_ID_FIELD = "lastVerifiedMonumentId"
   }
 }

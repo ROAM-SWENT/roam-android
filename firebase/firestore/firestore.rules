@@ -69,6 +69,41 @@ service cloud.firestore {
           == get(profilePath).data.get('verifiedMonumentCount', 0) + 1;
     }
 
+    // The count, the counted monuments and the private pointer users/{uid}/leaderboard/state
+    // change together: each increment names, through the pointer, the one monument document it
+    // creates. Without the pointer, a profile update could not tell which monument is new.
+    function validVerifiedMonumentId(monumentId) {
+      return monumentId is string
+        && monumentId.matches('^-?[0-9]{1,5}_-?[0-9]{1,6}$');
+    }
+
+    function verifiedMonumentPath(uid, monumentId) {
+      return /databases/$(database)/documents/users/$(uid)/verifiedMonuments/$(monumentId);
+    }
+
+    function leaderboardStatePath(uid) {
+      return /databases/$(database)/documents/users/$(uid)/leaderboard/state;
+    }
+
+    function isNewVerifiedMonument(uid, monumentId) {
+      return validVerifiedMonumentId(monumentId)
+        && !exists(verifiedMonumentPath(uid, monumentId))
+        && existsAfter(verifiedMonumentPath(uid, monumentId));
+    }
+
+    function pointerNamesAfter(uid, monumentId) {
+      return existsAfter(leaderboardStatePath(uid))
+        && getAfter(leaderboardStatePath(uid)).data.lastVerifiedMonumentId == monumentId;
+    }
+
+    function pointerNamesNewVerifiedMonumentAfter(uid) {
+      return existsAfter(leaderboardStatePath(uid))
+        && isNewVerifiedMonument(
+          uid,
+          getAfter(leaderboardStatePath(uid)).data.lastVerifiedMonumentId
+        );
+    }
+
     function validFriendUid(uid) {
       return uid is string
         && uid.matches('^[A-Za-z0-9_-]{1,128}$');
@@ -179,7 +214,7 @@ service cloud.firestore {
               || !existsAfter(
                 /databases/$(database)/documents/usernameClaims/$(resource.data.usernameLower)
               )))
-          || isVerifiedMonumentCountIncrement()
+          || (isVerifiedMonumentCountIncrement() && pointerNamesNewVerifiedMonumentAfter(uid))
         );
       allow delete: if false;
     }
@@ -244,15 +279,31 @@ service cloud.firestore {
     }
 
     // One empty document per counted monument, keyed by its coarsened cell. Private to the
-    // owner, never changed or removed, and created only with an increment of the count.
+    // owner, never changed or removed, and created only with an increment of the count and a
+    // pointer naming it, so one increment creates exactly one monument document.
     match /users/{ownerUid}/verifiedMonuments/{monumentId} {
       allow read: if request.auth != null && request.auth.uid == ownerUid;
       allow create: if request.auth != null
         && request.auth.uid == ownerUid
-        && monumentId.matches('^-?[0-9]{1,5}_-?[0-9]{1,6}$')
+        && validVerifiedMonumentId(monumentId)
         && request.resource.data.keys().size() == 0
-        && verifiedMonumentCountIncrementedAfter(ownerUid);
+        && verifiedMonumentCountIncrementedAfter(ownerUid)
+        && pointerNamesAfter(ownerUid, monumentId);
       allow update, delete: if false;
+    }
+
+    // Private pointer to the monument counted by the latest increment. Written only together
+    // with that increment and the new monument document it names.
+    match /users/{ownerUid}/leaderboard/{stateId} {
+      allow read: if request.auth != null && request.auth.uid == ownerUid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == ownerUid
+        && stateId == 'state'
+        && request.resource.data.keys().hasOnly(['lastVerifiedMonumentId'])
+        && request.resource.data.keys().hasAll(['lastVerifiedMonumentId'])
+        && isNewVerifiedMonument(ownerUid, request.resource.data.lastVerifiedMonumentId)
+        && verifiedMonumentCountIncrementedAfter(ownerUid);
+      allow delete: if false;
     }
 
     match /users/{ownerUid}/savedGuides/{guideId} {
