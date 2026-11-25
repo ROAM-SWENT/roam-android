@@ -154,6 +154,15 @@
     <string name="collection_share_cancel">Annuler</string>
     <string name="collection_share_confirm">Enregistrer</string>
     <string name="collection_share_error">Impossible de mettre à jour le partage. Veuillez réessayer.</string>
+    <string name="collection_share_new_title">Partager avec des amis</string>
+    <string name="collection_share_new_message">Ils verront %1$s sur leur carte Explorer et dans Amis. Seule la ville est affichée.</string>
+    <string name="collection_share_new_none">Personne</string>
+    <string name="collection_share_new_all_friends">Tous mes amis</string>
+    <string name="collection_share_new_confirm">Partager</string>
+    <plurals name="collection_share_selected_friends">
+        <item quantity="one">%1$d ami sélectionné</item>
+        <item quantity="other">%1$d amis sélectionnés</item>
+    </plurals>
     <string name="collection_delete">Supprimer le guide</string>
     <string name="collection_delete_error">Impossible de supprimer ce guide. Veuillez réessayer.</string>
     <string name="camera_permission_title">Autorisation de l\'appareil photo requise</string>
