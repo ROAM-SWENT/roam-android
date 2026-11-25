@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 data class WishlistMonument(
     val id: String,
@@ -19,12 +20,15 @@ data class WishlistMonument(
 data class WishlistFriend(val name: String, val avatarUrl: String? = null)
 
 /**
- * [monuments] is a display snapshot: keep removed items in it until an explicit refresh, and
- * increment [refreshVersion] when replacing that snapshot.
+ * [monuments] is a display snapshot: removed items stay in it (with [WishlistMonument.isWishlisted]
+ * false) until an explicit refresh, and [refreshVersion] is incremented when the snapshot is
+ * replaced.
  */
 data class WishlistUiState(
     val monuments: List<WishlistMonument> = emptyList(),
     val refreshVersion: Long = 0,
+    val isLoading: Boolean = false,
+    val error: Exception? = null,
 )
 
 /** Integration points for the future wishlist backend. */
@@ -34,5 +38,37 @@ class WishlistViewModel : ViewModel() {
 
   fun loadWishlist() = Unit
 
-  @Suppress("UNUSED_PARAMETER") fun setWishlisted(monumentId: String, isWishlisted: Boolean) = Unit
+  fun retryLoadingWishlist() = loadWishlist()
+
+  /** Replaces the snapshot, in the default order: alphabetical by name. */
+  internal fun showMonuments(monuments: List<WishlistMonument>) {
+    _uiState.update {
+      it.copy(
+          monuments = monuments.sortedBy { monument -> monument.name.lowercase() },
+          refreshVersion = it.refreshVersion + 1,
+          isLoading = false,
+          error = null,
+      )
+    }
+  }
+
+  internal fun showLoading() {
+    _uiState.update { it.copy(isLoading = true, error = null) }
+  }
+
+  internal fun showError(error: Exception) {
+    _uiState.update { it.copy(isLoading = false, error = error) }
+  }
+
+  /** Updates the item in place so it stays in the list until the next refresh. */
+  fun setWishlisted(monumentId: String, isWishlisted: Boolean) {
+    _uiState.update { state ->
+      state.copy(
+          monuments =
+              state.monuments.map {
+                if (it.id == monumentId) it.copy(isWishlisted = isWishlisted) else it
+              }
+      )
+    }
+  }
 }

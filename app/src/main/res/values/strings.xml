@@ -105,7 +105,11 @@
     <string name="collection_wishlist_add">Add to wishlist</string>
     <string name="collection_wishlist_remove">Remove from wishlist</string>
     <string name="collection_wishlist_scanned_by">Scanned by %1$s</string>
-    <string name="collection_wishlist_scanned_by_friends">Scanned by %1$d friends</string>
+    <string name="collection_wishlist_more_friends">+%1$d</string>
+    <plurals name="collection_wishlist_scanned_by_friends">
+        <item quantity="one">Scanned by %1$d friend</item>
+        <item quantity="other">Scanned by %1$d friends</item>
+    </plurals>
     <string name="collection_favorite_add">Add to favourites</string>
     <string name="collection_favorite_remove">Remove from favourites</string>
     <string name="collection_favorites_empty_title">No favourites yet</string>

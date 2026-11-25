@@ -29,7 +29,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -64,7 +63,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
@@ -78,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -160,12 +159,11 @@ fun CollectionScreen(
     onPickFromGallery: () -> Unit = {},
     wishlistState: WishlistUiState = WishlistUiState(),
     onSetWishlisted: (String, Boolean) -> Unit = { _, _ -> },
+    onRetryWishlist: () -> Unit = {},
     initialShowWishlist: Boolean = false,
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   var showWishlist by rememberSaveable { mutableStateOf(initialShowWishlist) }
-  val wishlistOverrides = remember { mutableStateMapOf<String, Boolean>() }
-  LaunchedEffect(wishlistState.refreshVersion) { wishlistOverrides.clear() }
   val scope = rememberCoroutineScope()
   val removedMessage = stringResource(R.string.collection_favorite_removed)
   val undoLabel = stringResource(R.string.collection_favorite_undo)
@@ -295,13 +293,10 @@ fun CollectionScreen(
       when {
         !readOnly && showWishlist -> {
           WishlistContent(
-              monuments = wishlistState.monuments,
+              wishlistState = wishlistState,
               query = state.searchQuery,
-              overrides = wishlistOverrides,
-              onSetWishlisted = { id, selected ->
-                wishlistOverrides[id] = selected
-                onSetWishlisted(id, selected)
-              },
+              onSetWishlisted = onSetWishlisted,
+              onRetry = onRetryWishlist,
           )
         }
         state.guides.isNotEmpty() -> {
@@ -525,14 +520,14 @@ private fun CollectionFilterChip(
 
 @Composable
 private fun WishlistContent(
-    monuments: List<WishlistMonument>,
+    wishlistState: WishlistUiState,
     query: String,
-    overrides: Map<String, Boolean>,
     onSetWishlisted: (String, Boolean) -> Unit,
+    onRetry: () -> Unit,
 ) {
+  val monuments = wishlistState.monuments
   val matches = monuments.filter { monument ->
-    query.isBlank() ||
-        listOf(monument.name, monument.locationLabel()).any { it.contains(query.trim(), true) }
+    matchesText(listOf(monument.name, monument.locationLabel()).joinToString(" "), query)
   }
   Column {
     Row(
@@ -557,7 +552,11 @@ private fun WishlistContent(
           color = MaterialTheme.secondaryText,
       )
     }
-    if (matches.isEmpty()) {
+    if (monuments.isEmpty() && wishlistState.isLoading) {
+      CollectionLoading()
+    } else if (monuments.isEmpty() && wishlistState.error != null) {
+      CollectionMessage(C.Tag.collection_error) { CollectionRetryError(onRetry) }
+    } else if (matches.isEmpty()) {
       CollectionMessage(
           if (query.isNotBlank()) C.Tag.collection_search_no_matches
           else C.Tag.collection_wishlist_empty
@@ -578,8 +577,9 @@ private fun WishlistContent(
           verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
         items(matches, key = { it.id }) { monument ->
-          val isWishlisted = overrides[monument.id] ?: monument.isWishlisted
-          WishlistCard(monument, isWishlisted) { onSetWishlisted(monument.id, !isWishlisted) }
+          WishlistCard(monument, monument.isWishlisted) {
+            onSetWishlisted(monument.id, !monument.isWishlisted)
+          }
         }
       }
     }
@@ -609,10 +609,12 @@ private fun WishlistCard(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
         val location = monument.locationLabel()
         if (location.isNotEmpty()) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
+          Row(verticalAlignment = Alignment.Top) {
             Icon(
                 imageVector = Icons.Outlined.LocationOn,
                 contentDescription = null,
@@ -623,6 +625,8 @@ private fun WishlistCard(
                 text = location,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.secondaryText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
           }
         }
@@ -634,13 +638,14 @@ private fun WishlistCard(
                     monument.scannedBy.first().name,
                 )
               } else {
-                stringResource(
-                    R.string.collection_wishlist_scanned_by_friends,
+                pluralStringResource(
+                    R.plurals.collection_wishlist_scanned_by_friends,
+                    monument.scannedBy.size,
                     monument.scannedBy.size,
                 )
               }
           Row(
-              modifier = Modifier.padding(top = 8.dp),
+              modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {},
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(4.dp),
           ) {
@@ -658,20 +663,24 @@ private fun WishlistCard(
               }
             }
             if (monument.scannedBy.size > 3) {
-              Icon(
-                  imageVector = Icons.Default.Add,
-                  contentDescription = null,
-                  tint = MaterialTheme.accentIcon,
+              Text(
+                  text =
+                      stringResource(
+                          R.string.collection_wishlist_more_friends,
+                          monument.scannedBy.size - 3,
+                      ),
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.accentIcon,
                   modifier =
-                      Modifier.size(16.dp).semantics {
-                        testTag = C.Tag.collection_wishlist_more_friends
-                      },
+                      Modifier.semantics { testTag = C.Tag.collection_wishlist_more_friends },
               )
             }
             Text(
                 text = scannedBy,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.secondaryText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
           }
         }
@@ -1365,14 +1374,16 @@ private fun guideSearchableText(guide: Guide): String {
       .joinToString(" ")
 }
 
-private fun matchesGuide(guide: Guide, query: String): Boolean {
+/** Whether [text] contains [query], or a word of it is within typo distance of [query]. */
+internal fun matchesText(text: String, query: String): Boolean {
   if (query.isBlank()) return true
-  val searchableText = guideSearchableText(guide)
   val trimmedQuery = query.trim()
-  if (searchableText.contains(trimmedQuery, ignoreCase = true)) return true
-  val words = searchableText.split("\\s+".toRegex())
-  return words.any { matchesTier2Word(trimmedQuery, it) }
+  if (text.contains(trimmedQuery, ignoreCase = true)) return true
+  return text.split("\\s+".toRegex()).any { matchesTier2Word(trimmedQuery, it) }
 }
+
+private fun matchesGuide(guide: Guide, query: String): Boolean =
+    matchesText(guideSearchableText(guide), query)
 
 /** The guides to show: only favourites when [favoritesOnly], newest first. */
 internal fun visibleGuides(

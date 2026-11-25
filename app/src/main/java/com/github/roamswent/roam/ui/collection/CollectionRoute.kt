@@ -82,5 +82,6 @@ fun CollectionRoute(
       onPickFromGallery = onPickFromGallery,
       wishlistState = wishlistState,
       onSetWishlisted = wishlistViewModel::setWishlisted,
+      onRetryWishlist = wishlistViewModel::retryLoadingWishlist,
   )
 }

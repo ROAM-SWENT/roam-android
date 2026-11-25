@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
@@ -128,11 +129,18 @@ class WishlistScreenTest {
   fun wishlistMonumentsOnlyAppearInWishlistAndRemainAfterRemoval() {
     val changes = mutableListOf<Pair<String, Boolean>>()
     composeTestRule.setContent {
+      var wishlist by remember { mutableStateOf(WishlistUiState(listOf(monument))) }
       SampleAppTheme {
         CollectionScreen(
             state = SavedGuidesUiState(),
-            wishlistState = WishlistUiState(listOf(monument)),
-            onSetWishlisted = { id, selected -> changes += id to selected },
+            wishlistState = wishlist,
+            onSetWishlisted = { id, selected ->
+              changes += id to selected
+              wishlist =
+                  wishlist.copy(
+                      monuments = wishlist.monuments.map { it.copy(isWishlisted = selected) }
+                  )
+            },
         )
       }
     }
@@ -152,6 +160,52 @@ class WishlistScreenTest {
         .assertContentDescriptionEquals("Add to wishlist")
         .performClick()
     assertEquals(listOf("shared" to false, "shared" to true), changes)
+  }
+
+  @Test
+  fun wishlistSearchToleratesTypos() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(searchQuery = "Barcelone"),
+            wishlistState = WishlistUiState(listOf(monument)),
+            initialShowWishlist = true,
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertIsDisplayed()
+  }
+
+  @Test
+  fun wishlistShowsLoadingInsteadOfEmptyMessage() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = WishlistUiState(isLoading = true),
+            initialShowWishlist = true,
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun wishlistErrorOffersRetry() {
+    var retries = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = WishlistUiState(error = Exception("boom")),
+            onRetryWishlist = { retries++ },
+            initialShowWishlist = true,
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_empty).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_retry).performClick()
+    assertEquals(1, retries)
   }
 
   @Test
@@ -431,7 +485,18 @@ class WishlistScreenTest {
   fun removalIsRetainedAcrossFiltersUntilTheSnapshotIsRefreshed() {
     var wishlist by mutableStateOf(WishlistUiState(listOf(monument)))
     composeTestRule.setContent {
-      SampleAppTheme { CollectionScreen(state = SavedGuidesUiState(), wishlistState = wishlist) }
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = wishlist,
+            onSetWishlisted = { _, selected ->
+              wishlist =
+                  wishlist.copy(
+                      monuments = wishlist.monuments.map { it.copy(isWishlisted = selected) }
+                  )
+            },
+        )
+      }
     }
     selectWishlist()
     composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_button).performClick()
@@ -450,6 +515,7 @@ class WishlistScreenTest {
     val viewModel = WishlistViewModel()
     viewModel.loadWishlist()
     viewModel.setWishlisted("shared", true)
+    viewModel.retryLoadingWishlist()
     assertEquals(WishlistUiState(), viewModel.uiState.value)
   }
 
