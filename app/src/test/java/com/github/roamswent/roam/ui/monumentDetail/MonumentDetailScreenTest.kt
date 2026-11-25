@@ -594,6 +594,35 @@ class MonumentDetailScreenTest {
   }
 
   @Test
+  fun sharedGuideFormatsMoreThanThreeRecipients() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState =
+                MonumentDetailSharingState(
+                    settings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+                    recipients =
+                        listOf(
+                            CollectionFriend("alice", "Ada"),
+                            CollectionFriend("grace", "Grace"),
+                            CollectionFriend("sam", "Sam"),
+                            CollectionFriend("lee", "Lee"),
+                        ),
+                ),
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithText("Shared with Ada, Grace and 2 others")
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
   fun tooFarGuideShowsContinueAndUnavailableMessage() {
     var backClicked = false
     composeTestRule.setContent {

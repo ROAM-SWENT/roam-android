@@ -552,6 +552,29 @@ class ScanReviewScreenTest {
     assertEquals(1, favouriteClicks)
   }
 
+  @Test
+  fun sentGuideOpensSharingDialogWhenItWasSaved() {
+    var sharingOpened = false
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            savedGuideId = "saved-guide",
+            onOpenSharing = { sharingOpened = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+
+    assertEquals(true, sharingOpened)
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+  }
+
   /** A gallery photo whose guide carries [photoLocation] and [monumentLocation]. */
   private fun galleryGuideSender(
       photoLocation: Coordinates?,

@@ -7,18 +7,28 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.guide.SharingEligibility
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -138,6 +148,36 @@ class SavedMonumentDetailRouteTest {
   }
 
   @Test
+  fun sharedSavedGuideShowsRecipientsAndOpensSharingDialog() {
+    val sharedGuide =
+        eiffelTower.copy(
+            shareSettings =
+                MonumentShareSettings(
+                    audience = ShareAudience.SELECTED_FRIENDS,
+                    sharedWithUids = setOf("alice"),
+                )
+        )
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+
+    setRoute(
+        repository = FakeSavedGuideRepository(listOf(sharedGuide)),
+        guideId = "eiffel",
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+    )
+
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithText("Shared with Alice").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+  }
+
+  @Test
   fun backButtonOnTheErrorMessageCallsOnBackClick() {
     var backClicks = 0
     setRoute(FakeSavedGuideRepository(), guideId = "missing", onBackClick = { backClicks++ })
@@ -151,6 +191,8 @@ class SavedMonumentDetailRouteTest {
       repository: SavedGuideRepository,
       guideId: String,
       onBackClick: () -> Unit = {},
+      friendRepository: FriendRepository? = null,
+      publicProfileRepository: PublicProfileRepository? = null,
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -158,6 +200,9 @@ class SavedMonumentDetailRouteTest {
             guideId = guideId,
             repository = repository,
             onBackClick = onBackClick,
+            friendRepository = friendRepository,
+            publicProfileRepository = publicProfileRepository,
+            monumentSharingProvider = { FakeMonumentSharingRepository() },
         )
       }
     }
