@@ -156,10 +156,7 @@ internal object FriendRequestNotifications {
 
   /** Dismisses visible friend-request notifications when the account signs out. */
   fun cancelAllFriendRequests(context: Context) {
-    val manager = NotificationManagerCompat.from(context)
-    manager.activeNotifications
-        .filter { it.notification.channelId == CHANNEL_ID }
-        .forEach { manager.cancel(it.tag, it.id) }
+    NotificationCleanup.cancelChannels(context, setOf(CHANNEL_ID))
   }
 
   /** Replaces a failed action notification with an explanation and a Friends screen shortcut. */
