@@ -10,7 +10,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
-import com.github.roamswent.roam.ui.wishlist.WishlistViewModel
 
 /** Shows the monuments [ownerUid] shares with the user, in a read-only [CollectionScreen]. */
 @Composable
@@ -21,15 +20,14 @@ fun FriendCollectionRoute(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
-    wishlistViewModel: WishlistViewModel = viewModel(),
 ) {
   val viewModel: FriendCollectionViewModel =
       viewModel(key = ownerUid) { FriendCollectionViewModel(repository, ownerUid) }
   val state by viewModel.uiState.collectAsState()
-  val wishlistedIds by wishlistViewModel.wishlistedIds.collectAsState()
 
   LaunchedEffect(viewModel) { viewModel.load() }
 
+  // Leave the wishlist handler unset until a persistent, shared repository is available.
   CollectionScreen(
       state = state,
       modifier = modifier,
@@ -38,8 +36,6 @@ fun FriendCollectionRoute(
       title = stringResource(R.string.friend_collection_title, ownerName),
       profileName = ownerName,
       readOnly = true,
-      wishlistedGuideIds = wishlistedIds,
-      onToggleWishlist = wishlistViewModel::toggleWishlist,
       onBackClick = onBackClick,
       onRetryGuides = viewModel::load,
   )

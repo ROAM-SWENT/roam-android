@@ -141,8 +141,8 @@ fun CollectionScreen(
     onDeleteGuide: (String) -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
-    wishlistedGuideIds: Set<String> = emptySet(),
-    onToggleWishlist: ((String) -> Unit)? = null,
+    isGuideWishlisted: (Guide) -> Boolean = { false },
+    onToggleWishlist: ((Guide) -> Unit)? = null,
     onRestoreFavorite: (String) -> Unit = {},
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
@@ -321,7 +321,7 @@ fun CollectionScreen(
                   deletingGuideIds = state.deletingGuideIds,
                   onToggleFavorite = toggleFavorite,
                   readOnly = readOnly,
-                  wishlistedGuideIds = wishlistedGuideIds,
+                  isGuideWishlisted = isGuideWishlisted,
                   onToggleWishlist = onToggleWishlist,
                   sharingGuideIds = state.sharingGuideIds,
                   friends = friends,
@@ -741,10 +741,11 @@ private fun WishlistButton(
     isWishlisted: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tag: String = C.Tag.collection_wishlist_button,
 ) {
   IconButton(
       onClick = onClick,
-      modifier = modifier.size(36.dp).semantics { testTag = C.Tag.collection_wishlist_button },
+      modifier = modifier.size(36.dp).semantics { testTag = tag },
   ) {
     Icon(
         imageVector = if (isWishlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
@@ -767,8 +768,8 @@ private fun GuideGrid(
     deletingGuideIds: Set<String>,
     onToggleFavorite: (Guide) -> Unit,
     readOnly: Boolean,
-    wishlistedGuideIds: Set<String>,
-    onToggleWishlist: ((String) -> Unit)?,
+    isGuideWishlisted: (Guide) -> Boolean,
+    onToggleWishlist: ((Guide) -> Unit)?,
     sharingGuideIds: Set<String>,
     friends: List<CollectionFriend>,
     isLoadingFriends: Boolean,
@@ -792,8 +793,8 @@ private fun GuideGrid(
           isDeleting = guide.id in deletingGuideIds,
           onToggleFavorite = { onToggleFavorite(guide) },
           readOnly = readOnly,
-          isWishlisted = guide.id in wishlistedGuideIds,
-          onToggleWishlist = onToggleWishlist?.let { toggle -> { toggle(guide.id) } },
+          isWishlisted = isGuideWishlisted(guide),
+          onToggleWishlist = onToggleWishlist?.let { toggle -> { toggle(guide) } },
           isSharing = guide.id in sharingGuideIds,
           friends = friends,
           isLoadingFriends = isLoadingFriends,
@@ -839,7 +840,11 @@ private fun GuideCard(
         WishlistButton(
             isWishlisted = isWishlisted,
             onClick = onToggleWishlist,
-            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+            modifier =
+                Modifier.align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .background(MaterialTheme.photoButtonContainer, CircleShape),
+            tag = C.Tag.collection_card_wishlist,
         )
       }
       if (!readOnly) {
@@ -1195,30 +1200,6 @@ private fun FavoriteButton(isFavorite: Boolean, onClick: () -> Unit, modifier: M
             stringResource(
                 if (isFavorite) R.string.collection_favorite_remove
                 else R.string.collection_favorite_add
-            ),
-        tint = MaterialTheme.accentIcon,
-        modifier = Modifier.size(20.dp),
-    )
-  }
-}
-
-/** Bookmark over the card photo: filled when [isWishlisted], outlined otherwise. */
-@Composable
-private fun WishlistButton(isWishlisted: Boolean, onClick: () -> Unit, modifier: Modifier) {
-  IconButton(
-      onClick = onClick,
-      modifier =
-          modifier
-              .size(36.dp)
-              .background(MaterialTheme.photoButtonContainer, CircleShape)
-              .semantics { testTag = C.Tag.collection_card_wishlist },
-  ) {
-    Icon(
-        imageVector = if (isWishlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-        contentDescription =
-            stringResource(
-                if (isWishlisted) R.string.collection_wishlist_remove
-                else R.string.collection_wishlist_add
             ),
         tint = MaterialTheme.accentIcon,
         modifier = Modifier.size(20.dp),

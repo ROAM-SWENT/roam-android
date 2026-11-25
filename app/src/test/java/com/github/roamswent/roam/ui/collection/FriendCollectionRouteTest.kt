@@ -50,6 +50,7 @@ class FriendCollectionRouteTest {
     composeTestRule.onNodeWithTag(C.Tag.collection_card_delete).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
   }
 

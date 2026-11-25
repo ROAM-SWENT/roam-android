@@ -314,15 +314,17 @@ class CollectionScreenTest {
 
   @Test
   fun wishlistButtonTogglesGuideAndReflectsState() {
-    var wishlisted by mutableStateOf(emptySet<String>())
+    var wishlisted by mutableStateOf(false)
+    val toggledGuides = mutableListOf<Guide>()
     composeTestRule.setContent {
       SampleAppTheme {
         CollectionScreen(
             state = SavedGuidesUiState(guides = listOf(olderGuide)),
             readOnly = true,
-            wishlistedGuideIds = wishlisted,
-            onToggleWishlist = { id ->
-              wishlisted = if (id in wishlisted) wishlisted - id else wishlisted + id
+            isGuideWishlisted = { wishlisted },
+            onToggleWishlist = { guide ->
+              toggledGuides.add(guide)
+              wishlisted = !wishlisted
             },
         )
       }
@@ -330,10 +332,33 @@ class CollectionScreenTest {
     val button = composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist)
     button.assertContentDescriptionEquals("Add to wishlist")
     button.performClick()
-    assertEquals(setOf(olderGuide.id), wishlisted)
+    assertEquals(listOf(olderGuide), toggledGuides)
     button.assertContentDescriptionEquals("Remove from wishlist")
     button.performClick()
-    assertTrue(wishlisted.isEmpty())
+    assertEquals(listOf(olderGuide, olderGuide), toggledGuides)
+    assertFalse(wishlisted)
+  }
+
+  @Test
+  fun wishlistStateCanMatchGuidesWithDifferentOwnerIds() {
+    val otherOwnersGuide = olderGuide.copy(id = "another-owner")
+    var wishlistedName by mutableStateOf<String?>(null)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide, otherOwnersGuide)),
+            readOnly = true,
+            isGuideWishlisted = { it.monumentName == wishlistedName },
+            onToggleWishlist = { wishlistedName = it.monumentName },
+        )
+      }
+    }
+
+    val buttons = composeTestRule.onAllNodesWithTag(C.Tag.collection_card_wishlist)
+    buttons.assertCountEquals(2)
+    buttons[0].performClick()
+    buttons[0].assertContentDescriptionEquals("Remove from wishlist")
+    buttons[1].assertContentDescriptionEquals("Remove from wishlist")
   }
 
   @Test
