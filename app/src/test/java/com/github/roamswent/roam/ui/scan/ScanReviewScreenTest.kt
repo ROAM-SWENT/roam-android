@@ -26,6 +26,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -36,15 +37,24 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.model.location.Coordinates
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import io.mockk.coEvery
+import io.mockk.mockk
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -476,6 +486,73 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteSharingAllFriendsUpdatesRecipients() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val sharing = FakeMonumentSharingRepository()
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+    showReviewRoute(
+        captureSender = sender,
+        savedGuideRepository = FakeSavedGuideRepository(),
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+        monumentSharingProvider = { sharing },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_all_friends).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    composeTestRule.waitUntil {
+      sharing.shareSettings.value.values.any { it.audience == ShareAudience.ALL_FRIENDS }
+    }
+    composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun reviewRouteSharingSelectedFriendUpdatesRecipients() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val sharing = FakeMonumentSharingRepository()
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+    showReviewRoute(
+        captureSender = sender,
+        savedGuideRepository = FakeSavedGuideRepository(),
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+        monumentSharingProvider = { sharing },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
+    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    composeTestRule.waitUntil {
+      sharing.shareSettings.value.values.any {
+        it.audience == ShareAudience.SELECTED_FRIENDS && it.sharedWithUids == setOf("alice")
+      }
+    }
+    composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
   fun reviewRouteSuccessSavesDiscoveryToCollection() {
     // The pipeline returns the downscaled photo it sent to the AI along with the guide.
     val photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg")
@@ -804,6 +881,9 @@ class ScanReviewScreenTest {
       isGalleryImage: Boolean = false,
       fromCollection: Boolean = false,
       savedGuideRepository: SavedGuideRepository = FakeSavedGuideRepository(),
+      friendRepository: FriendRepository? = null,
+      publicProfileRepository: PublicProfileRepository? = null,
+      monumentSharingProvider: MonumentSharingProvider? = null,
   ) {
     val photo =
         File.createTempFile(
@@ -850,6 +930,9 @@ class ScanReviewScreenTest {
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
                 savedGuideRepository = savedGuideRepository,
+                friendRepository = friendRepository,
+                publicProfileRepository = publicProfileRepository,
+                monumentSharingProvider = monumentSharingProvider,
                 isGalleryImage = entry.arguments?.getBoolean("gallery") ?: false,
                 fromCollection = entry.arguments?.getBoolean("fromCollection") ?: false,
             )

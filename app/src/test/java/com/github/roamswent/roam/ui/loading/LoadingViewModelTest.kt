@@ -23,6 +23,7 @@ import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
@@ -453,6 +454,211 @@ class LoadingViewModelTest {
             savedGuides.guides.value.single().sharingEligibility,
         )
         coVerify(exactly = 0) { sharingRepository.setShareAudience(any(), any(), any()) }
+      }
+
+  @Test
+  fun sharingGeneratedGuideWithSelectedFriendsUpdatesAudience() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(
+              GUIDE_ID,
+              ShareAudience.SELECTED_FRIENDS,
+              setOf("friend-a"),
+          )
+        } returns Unit
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        advanceUntilIdle()
+
+        assertEquals(ShareAudience.SELECTED_FRIENDS, viewModel.shareSettings.value.audience)
+        assertEquals(setOf("friend-a"), viewModel.shareSettings.value.sharedWithUids)
+        assertFalse(viewModel.isSharing.value)
+      }
+
+  @Test
+  fun sharingFailureIsExposedAndCanBeCleared() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("offline")
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        } throws failure
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(failure, viewModel.sharingError.value)
+        assertFalse(viewModel.isSharing.value)
+        viewModel.clearSharingError()
+        assertNull(viewModel.sharingError.value)
+      }
+
+  @Test
+  fun sharingDoesNothingBeforeAGuideIsSaved() =
+      runTest(dispatcher) {
+        val viewModel = newViewModel(userInterestsRepository)
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(MonumentShareSettings(), viewModel.shareSettings.value)
+        coVerify(exactly = 0) { sharingRepository.setShareAudience(any(), any(), any()) }
+      }
+
+  @Test
+  fun sharingCompletionFromPreviousGuideDoesNotUpdateTheCurrentGuide() =
+      runTest(dispatcher) {
+        val savedRepository = mockk<SavedGuideRepository>(relaxed = true)
+        val sharing = mockk<MonumentSharingRepository>()
+        val firstSharingWrite = CompletableDeferred<Unit>()
+        val failure = IllegalStateException("stale sharing failure")
+        val guideIds = listOf("first-guide", "second-guide").iterator()
+        coEvery { repository.guideFor(request) } returns guide() andThen guide()
+        coEvery { savedRepository.addGuide(any()) } coAnswers
+            { call ->
+              call.invocation.args[0] as Guide
+            }
+        coEvery { sharing.setShareAudience(any(), any(), any()) } coAnswers
+            {
+              firstSharingWrite.await()
+              throw failure
+            }
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedRepository,
+                sharingRepository = sharing,
+                clock = { discoveryDate },
+                newGuideId = { guideIds.next() },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        runCurrent()
+        viewModel.startDiscovery()
+        runCurrent()
+        assertEquals(null, viewModel.sharingError.value)
+
+        firstSharingWrite.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(null, viewModel.sharingError.value)
+      }
+
+  @Test
+  fun favoriteCompletionFromPreviousGuideDoesNotUpdateTheCurrentGuide() =
+      runTest(dispatcher) {
+        val savedRepository = mockk<SavedGuideRepository>(relaxed = true)
+        val firstFavoriteWrite = CompletableDeferred<Unit>()
+        val guideIds = listOf("first-guide", "second-guide").iterator()
+        coEvery { repository.guideFor(request) } returns guide() andThen guide()
+        coEvery { savedRepository.addGuide(any()) } coAnswers
+            { call ->
+              call.invocation.args[0] as Guide
+            }
+        coEvery { savedRepository.setFavorite(any(), true) } coAnswers
+            {
+              firstFavoriteWrite.await()
+            }
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedRepository,
+                clock = { discoveryDate },
+                newGuideId = { guideIds.next() },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        runCurrent()
+        viewModel.startDiscovery()
+        runCurrent()
+
+        firstFavoriteWrite.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isFavorite.value)
+        assertNull(viewModel.favoriteError.value)
+      }
+
+  @Test
+  fun favoriteFailureFromPreviousGuideDoesNotReportForTheCurrentGuide() =
+      runTest(dispatcher) {
+        val savedRepository = mockk<SavedGuideRepository>(relaxed = true)
+        val firstFavoriteWrite = CompletableDeferred<Unit>()
+        val failure = IllegalStateException("stale favorite failure")
+        val guideIds = listOf("first-guide", "second-guide").iterator()
+        coEvery { repository.guideFor(request) } returns guide() andThen guide()
+        coEvery { savedRepository.addGuide(any()) } coAnswers
+            { call ->
+              call.invocation.args[0] as Guide
+            }
+        coEvery { savedRepository.setFavorite(any(), true) } coAnswers
+            {
+              firstFavoriteWrite.await()
+              throw failure
+            }
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedRepository,
+                clock = { discoveryDate },
+                newGuideId = { guideIds.next() },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        runCurrent()
+        viewModel.startDiscovery()
+        runCurrent()
+        firstFavoriteWrite.complete(Unit)
+        advanceUntilIdle()
+
+        assertNull(viewModel.favoriteError.value)
       }
 
   @Test

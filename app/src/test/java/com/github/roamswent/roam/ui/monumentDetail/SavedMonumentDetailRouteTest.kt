@@ -20,6 +20,7 @@ import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.guide.SharingEligibility
@@ -178,6 +179,30 @@ class SavedMonumentDetailRouteTest {
   }
 
   @Test
+  fun sharingFailureShowsErrorSnackbarAfterConfirmingAllFriends() {
+    val failure = IllegalStateException("offline")
+    val sharing = FakeMonumentSharingRepository().apply { updateError = failure }
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+
+    setRoute(
+        repository = FakeSavedGuideRepository(listOf(eiffelTower)),
+        guideId = "eiffel",
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+        monumentSharingProvider = { sharing },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_all_friends).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    composeTestRule.onNodeWithText("Couldn’t update sharing. Please try again.").assertIsDisplayed()
+  }
+
+  @Test
   fun backButtonOnTheErrorMessageCallsOnBackClick() {
     var backClicks = 0
     setRoute(FakeSavedGuideRepository(), guideId = "missing", onBackClick = { backClicks++ })
@@ -193,6 +218,7 @@ class SavedMonumentDetailRouteTest {
       onBackClick: () -> Unit = {},
       friendRepository: FriendRepository? = null,
       publicProfileRepository: PublicProfileRepository? = null,
+      monumentSharingProvider: MonumentSharingProvider? = null,
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -202,7 +228,7 @@ class SavedMonumentDetailRouteTest {
             onBackClick = onBackClick,
             friendRepository = friendRepository,
             publicProfileRepository = publicProfileRepository,
-            monumentSharingProvider = { FakeMonumentSharingRepository() },
+            monumentSharingProvider = monumentSharingProvider,
         )
       }
     }

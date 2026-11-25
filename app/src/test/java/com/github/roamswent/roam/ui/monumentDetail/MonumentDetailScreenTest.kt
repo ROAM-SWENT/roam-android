@@ -505,6 +505,27 @@ class MonumentDetailScreenTest {
   }
 
   @Test
+  fun sharingErrorShowsSnackbarAndReportsItShown() {
+    var errorShown = false
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            showSharingError = true,
+            onSharingErrorShown = { errorShown = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Couldn’t update sharing. Please try again.").assertIsDisplayed()
+    composeTestRule.mainClock.advanceTimeBy(10_000)
+    composeTestRule.waitForIdle()
+    assertTrue(errorShown)
+  }
+
+  @Test
   fun privateGuideShowsShareActionAndPrivateStatus() {
     var clicked = false
     composeTestRule.setContent {
@@ -647,6 +668,25 @@ class MonumentDetailScreenTest {
         )
         .assertIsDisplayed()
     assertTrue(backClicked)
+  }
+
+  @Test
+  fun tooFarGuideUsesDarkThemeUnavailableColors() {
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState = MonumentDetailSharingState(unavailableBecauseTooFar = true),
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_share_unavailable)
+        .performScrollTo()
+        .assertIsDisplayed()
   }
 
   private fun containsColor(bitmap: Bitmap, color: Int): Boolean {
