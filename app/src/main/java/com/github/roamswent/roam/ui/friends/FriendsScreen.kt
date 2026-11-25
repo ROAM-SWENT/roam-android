@@ -46,6 +46,9 @@ import com.github.roamswent.roam.resources.C
  * @param currentUserUid UID of the signed-in user, whose leaderboard entry is highlighted.
  * @param hasLeaderboardError Whether the last leaderboard load failed; shown in the leaderboard
  *   only, so the friends list stays usable.
+ * @param isLeaderboardLoading Whether a leaderboard load is in progress, independently of
+ *   [isLoading].
+ * @param hasLoadedLeaderboard Whether a leaderboard load has finished, successfully or not.
  */
 @Composable
 fun FriendsScreen(
@@ -76,6 +79,8 @@ fun FriendsScreen(
     leaderboard: List<LeaderboardEntry> = emptyList(),
     currentUserUid: String? = null,
     hasLeaderboardError: Boolean = false,
+    isLeaderboardLoading: Boolean = false,
+    hasLoadedLeaderboard: Boolean = false,
 ) {
   var selectedTab by rememberSaveable { mutableStateOf(FriendsTab.Friends) }
   var friendsQuery by remember { mutableStateOf("") }
@@ -123,6 +128,8 @@ fun FriendsScreen(
         leaderboard = leaderboard,
         currentUserUid = currentUserUid,
         hasLeaderboardError = hasLeaderboardError,
+        isLeaderboardLoading = isLeaderboardLoading,
+        hasLoadedLeaderboard = hasLoadedLeaderboard,
         modifier = Modifier.fillMaxSize().blur(if (isAddFriendsOpen) 8.dp else 0.dp),
     )
 

@@ -578,7 +578,33 @@ class FriendsScreenTest {
   @Test
   fun leaderboardShowsSpinnerOnInitialLoad() {
     composeTestRule.setContent {
-      SampleAppTheme { FriendsScreen(isLoading = true, hasLoaded = false) }
+      SampleAppTheme {
+        FriendsScreen(
+            isLoading = true,
+            hasLoaded = false,
+            isLeaderboardLoading = true,
+            hasLoadedLeaderboard = false,
+        )
+      }
+    }
+    openLeaderboard()
+
+    composeTestRule.onNodeWithTag(C.Tag.friends_initial_loading).assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.friends_leaderboard_empty).assertCountEquals(0)
+  }
+
+  @Test
+  fun leaderboardKeepsItsSpinnerAfterFriendsHaveLoaded() {
+    // Friends answered first; the leaderboard is still loading and must not look empty.
+    composeTestRule.setContent {
+      SampleAppTheme {
+        FriendsScreen(
+            isLoading = false,
+            hasLoaded = true,
+            isLeaderboardLoading = true,
+            hasLoadedLeaderboard = false,
+        )
+      }
     }
     openLeaderboard()
 

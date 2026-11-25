@@ -110,6 +110,8 @@ internal fun FriendsContent(
     leaderboard: List<LeaderboardEntry>,
     currentUserUid: String?,
     hasLeaderboardError: Boolean,
+    isLeaderboardLoading: Boolean,
+    hasLoadedLeaderboard: Boolean,
     modifier: Modifier = Modifier,
 ) {
   val listState = rememberLazyListState()
@@ -151,7 +153,8 @@ internal fun FriendsContent(
             entries = leaderboard,
             currentUserUid = currentUserUid,
             hasError = hasLeaderboardError,
-            isInitialLoading = isLoading && !hasLoaded && leaderboard.isEmpty(),
+            isInitialLoading =
+                isLeaderboardLoading && !hasLoadedLeaderboard && leaderboard.isEmpty(),
             onAddFriendsClicked = onAddFriendsClicked,
             modifier = Modifier.matchParentSize(),
         )

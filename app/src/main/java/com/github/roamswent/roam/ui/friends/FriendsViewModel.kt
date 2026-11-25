@@ -13,7 +13,6 @@ import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -50,6 +49,9 @@ data class FriendSearchResult(
  *   later load fails.
  * @property leaderboardError Failure of the last leaderboard load, separate from [error] so that
  *   friends and requests stay usable; cleared by the next successful load.
+ * @property isLeaderboardLoading Whether a leaderboard load is in progress. Independent of
+ *   [isLoading]: friends and requests are published without waiting for the leaderboard.
+ * @property hasLoadedLeaderboard Whether a leaderboard load has finished, successfully or not.
  * @property currentUserUid UID of the signed-in user, used to highlight their leaderboard entry.
  */
 data class FriendsUiState(
@@ -65,6 +67,8 @@ data class FriendsUiState(
     val message: String? = null,
     val leaderboard: List<LeaderboardEntry> = emptyList(),
     val leaderboardError: Exception? = null,
+    val isLeaderboardLoading: Boolean = false,
+    val hasLoadedLeaderboard: Boolean = false,
     val currentUserUid: String? = null,
 )
 
@@ -72,7 +76,9 @@ data class FriendsUiState(
  * Coordinates friends, public-profile and leaderboard repositories for the Friends screen.
  *
  * The leaderboard is reloaded with every friends load, refresh and mutation, since accepting or
- * removing a friend changes who is on it.
+ * removing a friend changes who is on it. It loads in its own job: friends, requests and their
+ * errors are published as soon as they are ready, whatever the leaderboard is doing. A newer load
+ * cancels a pending one, so an older result never overwrites a newer one.
  */
 class FriendsViewModel(
     private val friendRepository: FriendRepository,
@@ -86,6 +92,7 @@ class FriendsViewModel(
   private var selfUid: String? = null
   private var searchJob: Job? = null
   private var loadJob: Job? = null
+  private var leaderboardJob: Job? = null
   private val profileCache = mutableMapOf<String, CachedProfile>()
 
   fun loadFriends() {
@@ -190,15 +197,45 @@ class FriendsViewModel(
     }
   }
 
-  private suspend fun refreshFriends() =
-      kotlinx.coroutines.coroutineScope {
-        // Runs alongside the friend lists; its failure is caught inside, so it never cancels them.
-        refreshFriendLists(async { loadLeaderboard() })
-      }
+  /** Starts a leaderboard load, then loads the friend lists without waiting for it. */
+  private suspend fun refreshFriends() {
+    startLeaderboardLoad()
+    refreshFriendLists()
+  }
 
-  private suspend fun refreshFriendLists(
-      leaderboardDeferred: Deferred<Result<List<LeaderboardEntry>>>
-  ) {
+  /**
+   * Loads the leaderboard in its own job, replacing any pending load. A failure keeps the previous
+   * entries and is exposed as [FriendsUiState.leaderboardError]; a cancelled load changes nothing.
+   */
+  private fun startLeaderboardLoad() {
+    leaderboardJob?.cancel()
+    _uiState.update { it.copy(isLeaderboardLoading = true) }
+    leaderboardJob = viewModelScope.launch {
+      try {
+        val entries = leaderboardRepository.getFriendsLeaderboard()
+        _uiState.update {
+          it.copy(
+              leaderboard = entries,
+              leaderboardError = null,
+              isLeaderboardLoading = false,
+              hasLoadedLeaderboard = true,
+          )
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        _uiState.update {
+          it.copy(
+              leaderboardError = exception,
+              isLeaderboardLoading = false,
+              hasLoadedLeaderboard = true,
+          )
+        }
+      }
+    }
+  }
+
+  private suspend fun refreshFriendLists() {
     try {
       val currentProfile = publicProfileRepository.getCurrentProfile()
       selfUid = currentProfile?.uid
@@ -233,7 +270,6 @@ class FriendsViewModel(
                 .map { it.await() }
                 .toMap()
           }
-      val leaderboardResult = leaderboardDeferred.await()
 
       val mappedFriends = friendships.mapNotNull { usersByUid[it.friendUid] }
       val mappedIncoming = incoming.mapNotNull { request ->
@@ -250,55 +286,32 @@ class FriendsViewModel(
         val friendIds = mappedFriends.mapTo(mutableSetOf(), FriendUser::id)
         val outgoingByUid = mappedOutgoing.associateBy { it.user.id }
         val incomingByUid = mappedIncoming.associateBy { it.user.id }
-        current
-            .withLeaderboard(leaderboardResult)
-            .copy(
-                friends = mappedFriends,
-                incomingRequests = mappedIncoming,
-                outgoingRequests = mappedOutgoing,
-                searchResults =
-                    current.searchResults.map { result ->
-                      result.copy(
-                          outgoingRequestId = outgoingByUid[result.user.id]?.id,
-                          incomingRequestId = incomingByUid[result.user.id]?.id,
-                          isFriend = result.user.id in friendIds,
-                      )
-                    },
-                isLoading = false,
-                hasLoaded = true,
-                error = null,
-                currentUserUid = selfUid,
-            )
+        current.copy(
+            friends = mappedFriends,
+            incomingRequests = mappedIncoming,
+            outgoingRequests = mappedOutgoing,
+            searchResults =
+                current.searchResults.map { result ->
+                  result.copy(
+                      outgoingRequestId = outgoingByUid[result.user.id]?.id,
+                      incomingRequestId = incomingByUid[result.user.id]?.id,
+                      isFriend = result.user.id in friendIds,
+                  )
+                },
+            isLoading = false,
+            hasLoaded = true,
+            error = null,
+            currentUserUid = selfUid,
+        )
       }
     } catch (exception: CancellationException) {
       throw exception
     } catch (exception: Exception) {
-      val leaderboardResult = leaderboardDeferred.await()
       _uiState.update {
-        it.withLeaderboard(leaderboardResult)
-            .copy(isLoading = false, hasLoaded = true, error = exception, currentUserUid = selfUid)
+        it.copy(isLoading = false, hasLoaded = true, error = exception, currentUserUid = selfUid)
       }
     }
   }
-
-  /** Loads the leaderboard. A failure is returned, never thrown, so it cannot cancel the lists. */
-  private suspend fun loadLeaderboard(): Result<List<LeaderboardEntry>> =
-      try {
-        Result.success(leaderboardRepository.getFriendsLeaderboard())
-      } catch (exception: CancellationException) {
-        throw exception
-      } catch (exception: Exception) {
-        Result.failure(exception)
-      }
-
-  /** Applies a leaderboard load; a failure keeps the previous entries and exposes the error. */
-  private fun FriendsUiState.withLeaderboard(
-      result: Result<List<LeaderboardEntry>>
-  ): FriendsUiState =
-      result.fold(
-          onSuccess = { copy(leaderboard = it, leaderboardError = null) },
-          onFailure = { copy(leaderboardError = it as Exception) },
-      )
 
   private suspend fun getCachedProfile(uid: String, nowMillis: Long): PublicProfile? {
     val cached = profileCache[uid]

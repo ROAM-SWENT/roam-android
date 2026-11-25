@@ -479,26 +479,113 @@ class FriendsViewModelTest {
       }
 
   @Test
-  fun leaderboardIsNotPublishedBeforeLoadCompletes() =
+  fun friendsAndRequestsArePublishedWhileTheLeaderboardIsStillLoading() =
       runTest(dispatcher) {
         val leaderboardResult = CompletableDeferred<List<LeaderboardEntry>>()
         coEvery { leaderboardRepository.getFriendsLeaderboard() } coAnswers
             {
               leaderboardResult.await()
             }
+        coEvery { friendsRepository.getFriends() } returns
+            listOf(Friendship("friendship", "friend"))
+        coEvery { friendsRepository.getIncomingRequests() } returns
+            listOf(RepositoryFriendRequest("incoming-id", "requester", "self"))
+        coEvery { friendsRepository.getOutgoingRequests() } returns
+            listOf(RepositoryFriendRequest("outgoing-id", "self", "recipient"))
         val viewModel = viewModel()
 
         viewModel.loadFriends()
-        runCurrent()
+        advanceUntilIdle()
 
-        assertTrue(viewModel.uiState.value.isLoading)
-        assertFalse(viewModel.uiState.value.hasLoaded)
+        // The leaderboard has not answered, yet the Friends view is complete and usable.
+        val state = viewModel.uiState.value
+        assertEquals(listOf(FriendUser("friend", "name-friend")), state.friends)
+        assertEquals(
+            listOf(FriendRequest(FriendUser("requester", "name-requester"), id = "incoming-id")),
+            state.incomingRequests,
+        )
+        assertEquals(
+            listOf(FriendRequest(FriendUser("recipient", "name-recipient"), id = "outgoing-id")),
+            state.outgoingRequests,
+        )
+        assertFalse(state.isLoading)
+        assertTrue(state.hasLoaded)
+        assertTrue(state.isLeaderboardLoading)
+        assertFalse(state.hasLoadedLeaderboard)
+        assertTrue(state.leaderboard.isEmpty())
 
         leaderboardResult.complete(listOf(selfEntry))
         advanceUntilIdle()
 
         assertEquals(listOf(selfEntry), viewModel.uiState.value.leaderboard)
+        assertFalse(viewModel.uiState.value.isLeaderboardLoading)
+        assertTrue(viewModel.uiState.value.hasLoadedLeaderboard)
+      }
+
+  @Test
+  fun friendsErrorIsPublishedWhileTheLeaderboardIsStillLoading() =
+      runTest(dispatcher) {
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } coAnswers
+            {
+              CompletableDeferred<List<LeaderboardEntry>>().await()
+            }
+        val error = IllegalStateException("friend list failed")
+        coEvery { friendsRepository.getFriends() } throws error
+        val viewModel = viewModel()
+
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        assertEquals(error.message, viewModel.uiState.value.error?.message)
         assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.hasLoaded)
+        assertTrue(viewModel.uiState.value.isLeaderboardLoading)
+      }
+
+  @Test
+  fun mutationFinishesWithoutWaitingForTheLeaderboard() =
+      runTest(dispatcher) {
+        coEvery { friendsRepository.removeFriend("friend") } returns Unit
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } coAnswers
+            {
+              CompletableDeferred<List<LeaderboardEntry>>().await()
+            }
+        val viewModel = viewModel()
+
+        viewModel.removeFriend(FriendUser("friend", "Friend"))
+        advanceUntilIdle()
+
+        assertEquals("Friend removed.", viewModel.uiState.value.message)
+        assertFalse(viewModel.uiState.value.isMutating)
+        assertTrue(viewModel.uiState.value.isLeaderboardLoading)
+      }
+
+  @Test
+  fun refreshDuringAPendingLeaderboardLoadPublishesOnlyTheNewerResult() =
+      runTest(dispatcher) {
+        val first = CompletableDeferred<List<LeaderboardEntry>>()
+        val second = CompletableDeferred<List<LeaderboardEntry>>()
+        val results = ArrayDeque(listOf(first, second))
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } coAnswers
+            {
+              results.removeFirst().await()
+            }
+        val viewModel = viewModel()
+        viewModel.loadFriends()
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        // The first load was cancelled by the refresh: its late answer must not be applied.
+        first.complete(listOf(friendEntry, selfEntry))
+        second.complete(listOf(selfEntry))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(selfEntry), state.leaderboard)
+        assertNull(state.leaderboardError)
+        assertFalse(state.isLeaderboardLoading)
+        coVerify(exactly = 2) { leaderboardRepository.getFriendsLeaderboard() }
       }
 
   @Test
@@ -631,18 +718,17 @@ class FriendsViewModelTest {
   @Test
   fun concurrentLoadAndRefreshStartOnlyOneLeaderboardLoad() =
       runTest(dispatcher) {
-        val leaderboardResult = CompletableDeferred<List<LeaderboardEntry>>()
-        coEvery { leaderboardRepository.getFriendsLeaderboard() } coAnswers
-            {
-              leaderboardResult.await()
-            }
+        // The friends load is still running, so the extra load and refresh are ignored.
+        val friendsResult = CompletableDeferred<List<Friendship>>()
+        coEvery { friendsRepository.getFriends() } coAnswers { friendsResult.await() }
+        coEvery { leaderboardRepository.getFriendsLeaderboard() } returns listOf(selfEntry)
         val viewModel = viewModel()
 
         viewModel.loadFriends()
         runCurrent()
         viewModel.loadFriends()
         viewModel.refresh()
-        leaderboardResult.complete(listOf(selfEntry))
+        friendsResult.complete(emptyList())
         advanceUntilIdle()
 
         coVerify(exactly = 1) { leaderboardRepository.getFriendsLeaderboard() }

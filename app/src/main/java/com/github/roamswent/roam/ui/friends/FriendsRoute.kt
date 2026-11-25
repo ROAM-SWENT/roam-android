@@ -91,5 +91,7 @@ fun FriendsRoute(
       leaderboard = state.leaderboard,
       currentUserUid = state.currentUserUid,
       hasLeaderboardError = state.leaderboardError != null,
+      isLeaderboardLoading = state.isLeaderboardLoading,
+      hasLoadedLeaderboard = state.hasLoadedLeaderboard,
   )
 }
