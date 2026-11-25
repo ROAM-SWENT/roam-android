@@ -319,6 +319,19 @@ class FirestoreMonumentSharingRepositoryTest {
   }
 
   @Test
+  fun setShareAudienceAllowsUnsharingTooFarGuides() = runTest {
+    val slot = setupTransaction(existingEligibility = SharingEligibility.TOO_FAR.name)
+
+    repository.setShareAudience(guideId, ShareAudience.NONE)
+
+    assertEquals(ShareAudience.NONE.name, slot.captured[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD])
+    assertEquals(
+        FieldValue.delete(),
+        slot.captured[GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD],
+    )
+  }
+
+  @Test
   fun grantAccessRejectsTooFarGuides() = runTest {
     setupTransaction(
         existingAudience = ShareAudience.NONE.name,

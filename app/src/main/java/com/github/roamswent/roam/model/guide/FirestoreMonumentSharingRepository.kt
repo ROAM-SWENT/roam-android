@@ -44,8 +44,9 @@ class FirestoreMonumentSharingRepository(
             val snapshot = transaction.get(guideRef)
             if (!snapshot.exists()) throw MonumentSharingException.GuideNotFound()
             if (
-                snapshot.getString(GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD) ==
-                    SharingEligibility.TOO_FAR.name
+                audience != ShareAudience.NONE &&
+                    snapshot.getString(GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD) ==
+                        SharingEligibility.TOO_FAR.name
             ) {
               throw MonumentSharingException.GuideTooFar()
             }
