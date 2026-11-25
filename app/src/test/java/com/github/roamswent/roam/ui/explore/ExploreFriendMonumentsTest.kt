@@ -60,7 +60,7 @@ class ExploreFriendMonumentsTest {
   @Test
   fun showsLocatedSharesPerOwnerAndKeepsProfilesWhenSharesChange() =
       runTest(dispatcher) {
-        val alice = PublicProfile("alice", "Alice", byteArrayOf(1))
+        val alice = PublicProfile("alice", "Alice", avatarBytes = byteArrayOf(1))
         val sharing =
             FakeMonumentSharingRepository(
                 mapOf("alice" to listOf(first, guide("unlocated", null)), "bob" to listOf(first))

@@ -393,7 +393,7 @@ class ExploreMapIntegrationTest {
         ByteArrayOutputStream()
             .apply { photo.compress(Bitmap.CompressFormat.PNG, 100, this) }
             .toByteArray()
-    val alice = PublicProfile("alice", "Alice", avatar)
+    val alice = PublicProfile("alice", "Alice", avatarBytes = avatar)
     val first = monument.copy(name = "Shared Eiffel Tower")
     val second = ExploreMonument("arc", "Arc de Triomphe", Coordinates(48.874, 2.295))
     val otherOwner = first.copy(name = "Another Eiffel Tower")
@@ -455,8 +455,8 @@ class ExploreMapIntegrationTest {
     val profiles =
         mapOf(
             "none" to PublicProfile("none", "Alice"),
-            "empty" to PublicProfile("empty", "Alice", byteArrayOf()),
-            "corrupt" to PublicProfile("corrupt", "Alice", byteArrayOf(1, 2, 3)),
+            "empty" to PublicProfile("empty", "Alice", avatarBytes = byteArrayOf()),
+            "corrupt" to PublicProfile("corrupt", "Alice", avatarBytes = byteArrayOf(1, 2, 3)),
             "unknown" to null,
         )
     val shares =
@@ -494,7 +494,7 @@ class ExploreMapIntegrationTest {
     val loader = mock<ImageLoader>()
     runBlocking { whenever(loader.execute(any())).thenThrow(failure) }
     Coil.setImageLoader(loader)
-    val profile = PublicProfile("alice", "Alice", byteArrayOf(1))
+    val profile = PublicProfile("alice", "Alice", avatarBytes = byteArrayOf(1))
     val shared = monument.copy(name = "Shared monument")
     val shares = MutableStateFlow(listOf(ExploreFriendMonuments("alice", profile, listOf(shared))))
     val opened = mutableListOf<Pair<String, String>>()
@@ -548,7 +548,7 @@ class ExploreMapIntegrationTest {
             .build()
     Coil.setImageLoader(loader)
     val shared = monument.copy(name = "Shared monument")
-    val profile = PublicProfile("alice", "Alice", byteArrayOf(1))
+    val profile = PublicProfile("alice", "Alice", avatarBytes = byteArrayOf(1))
     val shares = MutableStateFlow(listOf(ExploreFriendMonuments("alice", profile, listOf(shared))))
     showExplore(monument, friendPins = shares)
     composeTestRule.waitUntil(5_000) { started.isCompleted }
