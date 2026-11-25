@@ -29,6 +29,9 @@ class ImagePreparer(
     const val MIN_SIDE = 64
     const val MAX_SIDE = 8000
     const val DEFAULT_MAX_SIDE = 1024
+    const val PROFILE_PICTURE_SIZE = 512
+    const val PROFILE_PICTURE_MAX_BYTES = 200 * 1024
+    val PROFILE_PICTURE_QUALITY_STEPS = listOf(90, 82, 74, 66, 58, 50, 42, 34)
   }
 
   /** @throws RejectedImageException when the image fails any check, including the validator's. */
@@ -42,6 +45,83 @@ class ImagePreparer(
 
     val bitmap = applyExifOrientation(raw, decodeScaled(raw, width, height))
     return ImagePayload(encodeJpeg(bitmap), "image/jpeg")
+  }
+
+  /**
+   * Creates a centered 512 x 512 JPEG for a profile picture. Existing [prepare] behavior and limits
+   * are intentionally unchanged.
+   */
+  fun prepareProfilePicture(raw: ByteArray): ByteArray {
+    ImageValidator.validate(raw)
+    val (width, height) = readDimensions(raw)
+    if (min(width, height) < 16 || max(width, height) > MAX_SIDE) {
+      throw RejectedImageException(RejectionReason.DimensionsOutOfRange)
+    }
+    if (isAnimated(raw)) throw RejectedImageException(RejectionReason.Animated)
+
+    val bitmap = applyExifOrientation(raw, decodeProfilePicture(raw, width, height))
+    val side = min(bitmap.width, bitmap.height)
+    val left = (bitmap.width - side) / 2
+    val top = (bitmap.height - side) / 2
+    val square = Bitmap.createBitmap(bitmap, left, top, side, side)
+    if (square !== bitmap) bitmap.recycle()
+    val resized =
+        if (square.width == PROFILE_PICTURE_SIZE && square.height == PROFILE_PICTURE_SIZE) {
+          square
+        } else {
+          Bitmap.createScaledBitmap(
+                  square,
+                  PROFILE_PICTURE_SIZE,
+                  PROFILE_PICTURE_SIZE,
+                  true,
+              )
+              .also { square.recycle() }
+        }
+    try {
+      return encodeProfilePictureJpeg(resized)
+    } finally {
+      resized.recycle()
+    }
+  }
+
+  private fun decodeProfilePicture(raw: ByteArray, width: Int, height: Int): Bitmap {
+    val sample = Integer.highestOneBit(max(1, max(width, height) / PROFILE_PICTURE_SIZE))
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val decoded =
+        decodeBytes(raw, options) ?: throw RejectedImageException(RejectionReason.Undecodable)
+    val longSide = max(decoded.width, decoded.height)
+    if (longSide <= PROFILE_PICTURE_SIZE) return decoded
+    val scale = PROFILE_PICTURE_SIZE.toFloat() / longSide
+    val scaled =
+        Bitmap.createScaledBitmap(
+            decoded,
+            max(1, (decoded.width * scale).roundToInt()),
+            max(1, (decoded.height * scale).roundToInt()),
+            true,
+        )
+    decoded.recycle()
+    return scaled
+  }
+
+  private fun encodeProfilePictureJpeg(bitmap: Bitmap): ByteArray {
+    val flattened = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+    Canvas(flattened).apply {
+      drawColor(Color.WHITE)
+      drawBitmap(bitmap, 0f, 0f, null)
+    }
+    try {
+      for (quality in PROFILE_PICTURE_QUALITY_STEPS) {
+        val out = ByteArrayOutputStream()
+        if (!flattened.compress(Bitmap.CompressFormat.JPEG, quality, out)) {
+          throw RejectedImageException(RejectionReason.Undecodable)
+        }
+        val bytes = out.toByteArray()
+        if (bytes.size <= PROFILE_PICTURE_MAX_BYTES) return bytes
+      }
+      throw RejectedImageException(RejectionReason.Oversized)
+    } finally {
+      flattened.recycle()
+    }
   }
 
   /** Reads the size from the header only. Nothing is allocated for the pixels. */

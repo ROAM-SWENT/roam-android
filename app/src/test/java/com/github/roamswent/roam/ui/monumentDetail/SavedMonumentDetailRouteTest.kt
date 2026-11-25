@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
@@ -8,6 +9,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import com.github.roamswent.roam.model.ai.GuideMilestone
+import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
@@ -33,6 +36,9 @@ class SavedMonumentDetailRouteTest {
           history = "Built in 1889.",
           facts = listOf("330 meters tall.", "Repainted every seven years."),
           culture = "A symbol of Paris.",
+          overview = "An iron landmark.",
+          timeline = listOf(GuideMilestone(1889, "Opened.")),
+          sections = listOf(GuideSection("Architecture", "An exposed iron framework.")),
       )
 
   @Test
@@ -43,7 +49,12 @@ class SavedMonumentDetailRouteTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Eiffel Tower")
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_confidence).assertTextEquals("92% match")
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_history).assertTextEquals("Built in 1889.")
-    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(1)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_fact_item).assertCountEquals(2)
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_overview)
+        .assertTextEquals("An iron landmark.")
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_timeline_item).assertCountEquals(1)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_interest).assertCountEquals(1)
     composeTestRule
         .onNodeWithTag(C.Tag.monument_detail_culture)
         .assertTextEquals("A symbol of Paris.")

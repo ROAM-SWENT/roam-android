@@ -1,3 +1,4 @@
+// Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.model.ai
 
@@ -41,21 +42,36 @@ class ResponseParserTest {
   }
 
   @Test
-  fun parseGuideMapsInterestSections() {
+  fun parseGuideMapsOnlySelectedInterestSectionsInPreferenceOrder() {
     val json =
-        validGuide.replace(
-            "\"language\":\"fr\"}",
-            "\"language\":\"fr\",\"sections\":[" +
-                "{\"title\":\"Architecture\",\"content\":\"**Three domes** frame the entrance.\"}," +
-                "{\"title\":\"Fun Facts\",\"content\":\"A short fact.\"}]}",
+        guideWithContent(
+            """
+            "sections":[
+              {"topic":"Fun Facts","title":"Anecdotes","content":"Un fait."},
+              {"topic":"Nature","title":"Nature","content":"Unselected."},
+              {"topic":"Architecture","title":"  Architecture  ","content":"  Trois **dômes**. "},
+              {"topic":"Architecture","title":"Architecture","content":"Duplicate."},
+              {"topic":"History","title":"Histoire","content":" "},
+              {"topic":"Art","title":" ","content":"Missing title."},
+              {"topic":7,"title":"Unknown","content":"Invalid topic."},
+              {"title":"Unknown","content":"Missing topic."}
+            ]
+            """
+                .trimIndent()
         )
 
     assertEquals(
         listOf(
-            GuideSection("Architecture", "**Three domes** frame the entrance."),
-            GuideSection("Fun Facts", "A short fact."),
+            GuideSection("Architecture", "Trois **dômes**."),
+            GuideSection("Anecdotes", "Un fait."),
         ),
-        ResponseParser.parseGuide(json).sections,
+        ResponseParser.parseGuide(json, listOf("Architecture", "Fun Facts", "History", "Art"))
+            .sections,
+    )
+    assertTrue(ResponseParser.parseGuide(json).sections.isEmpty())
+    assertEquals(
+        listOf(GuideSection("Nature", "Unselected.")),
+        ResponseParser.parseGuide(json, listOf("Nature")).sections,
     )
   }
 
@@ -74,31 +90,68 @@ class ResponseParserTest {
   }
 
   @Test
-  fun parseGuideTrimsAndDropsEmptyInterestSections() {
+  fun parsesOptionalOverviewAndValidTimelineRowsFromEarliestToLatest() {
     val json =
-        validGuide.replace(
-            "\"language\":\"fr\"}",
-            "\"language\":\"fr\",\"sections\":[" +
-                "{\"title\":\"  Architecture  \",\"content\":\"  A detailed paragraph.  \"}," +
-                "{\"title\":\" \",\"content\":\"Ignored.\"}," +
-                "{\"title\":\"Ignored\",\"content\":\" \"}]}",
+        guideWithContent(
+            """
+            "overview":"  An iron landmark.  ",
+            "timeline":[
+              {"year":2024,"event":"Restored."},
+              {"year":-200,"event":"  Earliest event.  "},
+              {"year":1889,"event":"Opened."},
+              {"year":"2019","event":"Invalid."},
+              {"year":2024,"event":"Restored."},
+              {"year":0,"event":"Invalid."},
+              {"year":-2147483648,"event":"Outside the supported range."},
+              {"year":{},"event":"Invalid date type."},
+              {"year":1901,"event":" "},
+              {"year":1902,"event":123},
+              null
+            ]
+            """
+                .trimIndent()
         )
 
+    val guide = ResponseParser.parseGuide(json)
+    assertEquals("An iron landmark.", guide.overview)
     assertEquals(
-        listOf(GuideSection("Architecture", "A detailed paragraph.")),
-        ResponseParser.parseGuide(json).sections,
+        listOf(
+            GuideMilestone(-200, "Earliest event."),
+            GuideMilestone(1889, "Opened."),
+            GuideMilestone(2024, "Restored."),
+        ),
+        guide.timeline,
     )
   }
 
   @Test
-  fun parseGuideCapsInterestSections() {
-    val sections = (1..15).joinToString(",") { """{"title":"Topic $it","content":"Content $it"}""" }
-    val json =
-        validGuide.replace("\"language\":\"fr\"", "\"language\":\"fr\",\"sections\":[$sections]")
+  fun timelineKeepsTheEightEarliestEventsAndCapsGeneratedText() {
+    val rows =
+        (1..12).joinToString(",") { year -> """{"year":$year,"event":"${"x".repeat(301)}"}""" }
+    val guide =
+        ResponseParser.parseGuide(
+            guideWithContent(""""overview":"${"x".repeat(501)}","timeline":[$rows]""")
+        )
 
-    assertEquals(10, ResponseParser.parseGuide(json).sections.size)
-    assertEquals("Topic 10", ResponseParser.parseGuide(json).sections.last().title)
+    assertEquals(500, guide.overview?.length)
+    assertEquals((1..8).toList(), guide.timeline.map { it.year })
+    assertTrue(guide.timeline.all { it.event.length == 300 })
   }
+
+  @Test
+  fun missingOrUnusableOptionalContentLeavesTheCoreGuideAvailable() {
+    val original = ResponseParser.parseGuide(validGuide)
+    assertNull(original.overview)
+    assertTrue(original.timeline.isEmpty())
+
+    val unusable =
+        ResponseParser.parseGuide(
+            guideWithContent(""""overview":" ","timeline":"undated","sections":null""")
+        )
+    assertEquals(original, unusable)
+  }
+
+  private fun guideWithContent(fields: String): String = validGuide.dropLast(1) + "," + fields + "}"
 
   @Test
   fun parseGuideThrowsNotIdentifiedWhenNameIsNull() {
