@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
@@ -10,18 +11,26 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.roamswent.roam.model.basemap.BaseMapPolygon
 import com.github.roamswent.roam.model.basemap.OfflineBaseMapRepository
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
@@ -38,6 +47,13 @@ sealed interface ExploreUiState {
   data class LocationAvailable(val coordinates: Coordinates) : ExploreUiState
 }
 
+/** The map shares one avatar icon across the independent pins from this owner. */
+data class ExploreFriendMonuments(
+    val ownerUid: String,
+    val profile: PublicProfile?,
+    val monuments: List<ExploreMonument>,
+)
+
 /**
  * Loads the user's current coordinates and exposes permission and retrieval state to the UI through
  * [uiState], the saved monuments to pin on the map through [monuments], and the world map drawn
@@ -47,6 +63,9 @@ class ExploreViewModel(
     private val locationProvider: LocationProvider,
     savedGuideRepository: SavedGuideRepository,
     private val offlineBaseMapRepository: OfflineBaseMapRepository,
+    friendRepository: FriendRepository,
+    private val publicProfileRepository: PublicProfileRepository,
+    private val monumentSharingRepository: MonumentSharingRepository,
 ) : ViewModel() {
   private val _uiState =
       MutableStateFlow<ExploreUiState>(
@@ -82,6 +101,60 @@ class ExploreViewModel(
           }
           .onCompletion { _monumentsLoaded.value = true }
           .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+  val friendMonuments: StateFlow<List<ExploreFriendMonuments>> = flow {
+    val friendUids = friendRepository.getFriends().map { it.friendUid }.distinct()
+    if (friendUids.isNotEmpty()) {
+      emitAll(
+          combine(friendUids.map(::observeFriendMonuments)) { friends ->
+            friends.filter { it.monuments.isNotEmpty() }
+          }
+      )
+    }
+  }
+      .catch { exception ->
+        if (exception is CancellationException) throw exception
+        Log.w(TAG, "Failed to load friends for Explore", exception)
+        emit(emptyList())
+      }
+      .stateIn(
+          viewModelScope,
+          SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS, replayExpirationMillis = 0),
+          emptyList(),
+      )
+
+  private fun observeFriendMonuments(ownerUid: String): Flow<ExploreFriendMonuments> = flow {
+    emit(ExploreFriendMonuments(ownerUid, null, emptyList()))
+    var profile: PublicProfile? = null
+    var profileLoaded = false
+    monumentSharingRepository
+        .observeSharedGuidesFrom(ownerUid)
+        .map { it.toExploreMonuments() }
+        .distinctUntilChanged()
+        .collect { monuments ->
+          emit(ExploreFriendMonuments(ownerUid, profile, monuments))
+          if (!profileLoaded && monuments.isNotEmpty()) {
+            profileLoaded = true
+            profile = loadFriendProfile(ownerUid)
+            emit(ExploreFriendMonuments(ownerUid, profile, monuments))
+          }
+        }
+  }
+      .catch { exception ->
+        if (exception is CancellationException) throw exception
+        Log.w(TAG, "Failed to observe shared monuments from $ownerUid", exception)
+        emit(ExploreFriendMonuments(ownerUid, null, emptyList()))
+      }
+
+  private suspend fun loadFriendProfile(ownerUid: String): PublicProfile? =
+      try {
+        publicProfileRepository.getProfile(ownerUid)
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.w(TAG, "Failed to load Explore avatar for $ownerUid", exception)
+        null
+      }
 
   private val _offlineBaseMap = MutableStateFlow<List<BaseMapPolygon>>(emptyList())
 

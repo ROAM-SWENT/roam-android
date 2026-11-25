@@ -96,6 +96,7 @@ import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.rememberCameraPositionState
@@ -250,6 +251,7 @@ fun ExploreScreen(
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,
+    onSharedMonumentClick: (ownerUid: String, guideId: String) -> Unit = { _, _ -> },
 ) {
   val uiState by exploreViewModel.uiState.collectAsState()
   val offlineBaseMap by exploreViewModel.offlineBaseMap.collectAsState()
@@ -350,6 +352,29 @@ fun ExploreScreen(
                     true
                   },
               )
+            }
+          }
+          val friendMonuments by exploreViewModel.friendMonuments.collectAsState()
+          friendMonuments.forEach { friend ->
+            key(friend.ownerUid) {
+              val avatarIcon = rememberFriendMarkerIcon(friend.profile)
+              friend.monuments.forEach { monument ->
+                key(monument.guideId) {
+                  val position = remember(monument.coordinates) { monument.coordinates.toLatLng() }
+                  val markerState = remember { MarkerState(position = position) }
+                  markerState.position = position
+                  Marker(
+                      state = markerState,
+                      title = monument.name,
+                      icon = avatarIcon,
+                      onClick = {
+                        selectedMonumentId = null
+                        onSharedMonumentClick(friend.ownerUid, monument.guideId)
+                        true
+                      },
+                  )
+                }
+              }
             }
           }
         }
