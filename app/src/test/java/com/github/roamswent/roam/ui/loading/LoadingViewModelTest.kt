@@ -1216,6 +1216,76 @@ class LoadingViewModelTest {
       }
 
   @Test
+  fun leavingTheScreenBeforeTheSaveIsConfirmedNeitherFailsNorRecords() =
+      runTest(dispatcher) {
+        // The save never confirms, as when offline, so it is still pending when the user leaves.
+        val pendingRepository =
+            mockk<SavedGuideRepository>().also { pending ->
+              coEvery { pending.addGuide(any()) } coAnswers { awaitCancellation() }
+            }
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val store = ViewModelStore()
+        val viewModel = storedViewModel(store, pendingRepository)
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { pendingRepository.addGuide(any()) }
+
+        store.clear()
+        advanceUntilIdle()
+
+        // Cancellation is neither a save failure nor a confirmed save: nothing is recorded.
+        assertNull(viewModel.saveError.value)
+        assertTrue(leaderboard.recorded.isEmpty())
+        assertNull(viewModel.verifiedMonumentError.value)
+      }
+
+  @Test
+  fun leavingTheScreenWhileRecordingIsPendingIsNotALeaderboardFailure() =
+      runTest(dispatcher) {
+        leaderboard.suspendRecording = true
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val store = ViewModelStore()
+        val viewModel = storedViewModel(store, savedGuides)
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        assertEquals(listOf(MonumentKey.of(monumentLocation)), leaderboard.recorded)
+
+        store.clear()
+        advanceUntilIdle()
+
+        assertNull(viewModel.verifiedMonumentError.value)
+        assertNull(viewModel.saveError.value)
+        assertEquals(GUIDE_ID, savedGuides.guides.value.single().id)
+      }
+
+  /**
+   * A ViewModel held by [store], so that clearing the store clears it as leaving the screen does.
+   */
+  private fun storedViewModel(
+      store: ViewModelStore,
+      savedGuideRepository: SavedGuideRepository,
+  ): LoadingViewModel =
+      ViewModelProvider(
+          store,
+          object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                LoadingViewModel(
+                    repository,
+                    readImage,
+                    uri,
+                    "fr-FR",
+                    userInterestsRepository,
+                    savedGuideRepository,
+                    leaderboard,
+                    clock = { discoveryDate },
+                    newGuideId = { GUIDE_ID },
+                )
+                    as T
+          },
+      )[LoadingViewModel::class.java]
+
+  @Test
   fun leaderboardFailureKeepsTheSaveExploreAndNavigation() =
       runTest(dispatcher) {
         val failure = LeaderboardException.FirestoreFailure(IllegalStateException("offline"))
@@ -1243,14 +1313,19 @@ class LoadingViewModelTest {
         assertTrue(viewModel.isFavorite.value)
       }
 
-  /** Records every verified monument; [error], when set, makes recording fail after the call. */
+  /**
+   * Records every verified monument; [error], when set, makes recording fail after the call, and
+   * [suspendRecording] makes it wait until cancelled.
+   */
   private class FakeLeaderboardRepository : LeaderboardRepository {
     val recorded = mutableListOf<MonumentKey>()
     var result: VerifiedMonumentResult = VerifiedMonumentResult.Counted(1)
     var error: Exception? = null
+    var suspendRecording = false
 
     override suspend fun recordVerifiedMonument(monument: MonumentKey): VerifiedMonumentResult {
       recorded += monument
+      if (suspendRecording) awaitCancellation()
       error?.let { throw it }
       return result
     }

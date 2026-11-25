@@ -308,6 +308,23 @@ class FirestorePublicProfileRepositoryTest {
   }
 
   @Test
+  fun getProfile_verifiedMonumentCountAboveIntRangeIsFirestoreFailure() = runTest {
+    every { profileReference.get() } returns
+        Tasks.forResult(
+            profileSnapshot(
+                "user-id",
+                "Traveler",
+                "traveler",
+                verifiedMonumentCount = Int.MAX_VALUE.toLong() + 1,
+            )
+        )
+
+    val error = captureFailure { repository.getCurrentProfile() }
+
+    assertTrue(error.toString(), error is PublicProfileException.FirestoreFailure)
+  }
+
+  @Test
   fun getProfile_nonNumericVerifiedMonumentCountIsFirestoreFailure() = runTest {
     val snapshot = profileSnapshot("user-id", "Traveler", "traveler")
     every { snapshot.getLong("verifiedMonumentCount") } throws RuntimeException("Not a number")

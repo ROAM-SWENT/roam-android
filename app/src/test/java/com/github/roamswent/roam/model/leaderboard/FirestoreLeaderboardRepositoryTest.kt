@@ -21,6 +21,7 @@ import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -256,6 +257,16 @@ class FirestoreLeaderboardRepositoryTest {
   }
 
   @Test
+  fun cancelledTransactionIsPropagatedNotWrapped() = runTest {
+    every { firestore.runTransaction<VerifiedMonumentResult>(any()) } returns Tasks.forCanceled()
+
+    val error = captureFailure { repository.recordVerifiedMonument(eiffelTower) }
+
+    assertTrue(error.toString(), error is CancellationException)
+    assertEquals(null, storedCount)
+  }
+
+  @Test
   fun writeFailureInsideTheTransactionIsWrappedAsFirestoreFailure() = runTest {
     val failure = IllegalStateException("Write rejected")
     every { transaction.set(any(), any<Map<String, Any>>()) } throws failure
@@ -390,6 +401,18 @@ class FirestoreLeaderboardRepositoryTest {
 
     assertTrue(error.toString(), error is LeaderboardException.FirestoreFailure)
     assertTrue(error.cause === failure)
+  }
+
+  @Test
+  fun signOutWhileLoadingProfilesIsUnauthenticated() = runTest {
+    givenFriends("ann")
+    coEvery { publicProfileRepository.getProfile("user-id") } returns PublicProfile("user-id", "Me")
+    coEvery { publicProfileRepository.getProfile("ann") } throws
+        PublicProfileException.UnauthenticatedUser()
+
+    val error = captureFailure { repository.getFriendsLeaderboard() }
+
+    assertTrue(error.toString(), error is LeaderboardException.UnauthenticatedUser)
   }
 
   @Test
