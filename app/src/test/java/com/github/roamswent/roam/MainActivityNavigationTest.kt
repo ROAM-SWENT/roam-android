@@ -4,6 +4,7 @@
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  * Co-authored-by: Codex <codex@openai.com>
  * Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+ * Co-authored-by: Gemini 4 Neon <noreply@google.com>
  */
 
 package com.github.roamswent.roam
@@ -43,13 +44,18 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.authentication.AuthRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.friend.Friendship
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
@@ -64,26 +70,40 @@ import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
+import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.profile.UserProfile
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotifications
+import com.github.roamswent.roam.ui.notifications.NotificationNavigation
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationParser
+import com.github.roamswent.roam.ui.notifications.NotificationNavigationRequest
 import com.github.roamswent.roam.ui.settings.SettingsUIState
 import com.github.roamswent.roam.ui.settings.SettingsViewModel
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserInfo
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import io.mockk.verify
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -154,6 +174,38 @@ class MainActivityNavigationTest {
     waitForGone(C.Tag.scan_camera_screen)
   }
 
+  @Test
+  fun signUpButtonNavigatesToSignUpScreen() {
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState()),
+        onNavControllerReady = { navController[0] = it },
+    )
+
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_button).performClick()
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      navController[0]?.currentDestination?.route == Routes.SignUp
+    }
+    composeTestRule.onNodeWithTag(C.Tag.sign_up_screen_container).assertIsDisplayed()
+  }
+
+  @Test
+  fun unverifiedEmailUserIsBlockedAtEmailVerification() {
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mockEmailUser())),
+        onNavControllerReady = { navController[0] = it },
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      navController[0]?.currentDestination?.route == Routes.EmailVerification
+    }
+    composeTestRule.onNodeWithTag(C.Tag.email_verification_screen_container).assertIsDisplayed()
+    waitForGone(C.Tag.home_screen_container)
+  }
+
   /** Notification deep links wait for authentication, then open the Friends tab. */
   @Test
   fun notificationLaunchOpensFriendsAfterAuthentication() {
@@ -162,7 +214,11 @@ class MainActivityNavigationTest {
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
-        openFriendsOnLaunch = true,
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.Friends,
+                preserveBackStack = false,
+            ),
     )
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -184,7 +240,11 @@ class MainActivityNavigationTest {
     renderApp(
         authState,
         onNavControllerReady = { navController[0] = it },
-        openFriendsOnLaunch = true,
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.Friends,
+                preserveBackStack = false,
+            ),
     )
 
     waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
@@ -202,7 +262,8 @@ class MainActivityNavigationTest {
   fun notificationTapFromAnotherScreenNavigatesToFriends() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val navController = arrayOfNulls<NavHostController>(1)
-    val notificationEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val notificationEvents =
+        MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
     renderApp(
         MutableStateFlow(AuthUIState(user = mock())),
         onNavControllerReady = { navController[0] = it },
@@ -212,16 +273,108 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.home_screen_container)
     navigateToSettings(checkNotNull(navController[0]))
     waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
-    composeTestRule.runOnIdle { assertTrue(notificationEvents.tryEmit(Unit)) }
+    composeTestRule.runOnIdle {
+      assertTrue(
+          notificationEvents.tryEmit(
+              NotificationNavigationRequest(
+                  NotificationNavigation.Friends,
+                  preserveBackStack = true,
+              )
+          )
+      )
+    }
 
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       navController[0]?.currentDestination?.route == Routes.Friends
     }
+
     composeTestRule.onNodeWithTag(C.Tag.friends_title).assertIsDisplayed()
     assertEquals(
-        listOf(Routes.Home, Routes.Friends),
+        listOf(Routes.Home, Routes.Settings, Routes.Friends),
         backStackRoutes(checkNotNull(navController[0])),
     )
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun sharedMonumentNotificationNavigatesToSharedDetail() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val notificationEvents =
+        MutableSharedFlow<NotificationNavigationRequest>(extraBufferCapacity = 1)
+    val guide =
+        Guide(
+            id = "guide-1",
+            photoBytes = ByteArray(0),
+            monumentName = "The Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationEvents = notificationEvents,
+        monumentSharingRepository = FakeMonumentSharingRepository(mapOf("alice" to listOf(guide))),
+    )
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    navigateToSettings(checkNotNull(navController[0]))
+    composeTestRule.runOnIdle {
+      assertTrue(
+          notificationEvents.tryEmit(
+              NotificationNavigationRequest(
+                  NotificationNavigation.SharedMonument("alice", "guide-1"),
+                  preserveBackStack = true,
+              )
+          )
+      )
+    }
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.SharedMonumentDetailPattern
+    }
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun sharedMonumentNotificationLaunchNavigatesToSharedDetailAndPopsHome() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val navController = arrayOfNulls<NavHostController>(1)
+    val guide =
+        Guide(
+            id = "guide-1",
+            photoBytes = ByteArray(0),
+            monumentName = "The Tower",
+            confidence = 0.9,
+            history = "History",
+            facts = emptyList(),
+            culture = "Culture",
+        )
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        notificationNavigationOnLaunch =
+            NotificationNavigationRequest(
+                NotificationNavigation.SharedMonument("alice", "guide-1"),
+                preserveBackStack = false,
+            ),
+        monumentSharingRepository = FakeMonumentSharingRepository(mapOf("alice" to listOf(guide))),
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      navController[0]?.currentDestination?.route == Routes.SharedMonumentDetailPattern
+    }
+    assertEquals(
+        listOf(Routes.Home, Routes.SharedMonumentDetailPattern),
+        backStackRoutes(checkNotNull(navController[0])),
+    )
+    composeTestRule.runOnIdle { navController[0]?.popBackStack() }
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    assertEquals(Routes.Home, navController[0]?.currentDestination?.route)
   }
 
   /** Existing server tokens are removed when notification permission is not granted. */
@@ -1446,7 +1599,8 @@ class MainActivityNavigationTest {
   fun scanReviewWithUriDisplaysReviewScreen() {
     locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
     val authViewModel = mock<SignInViewModel>()
-    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = mock())))
+    val user = mock<FirebaseUser>()
+    whenever(authViewModel.uiState).thenReturn(MutableStateFlow(AuthUIState(user = user)))
 
     lateinit var navController: NavHostController
 
@@ -1508,6 +1662,82 @@ class MainActivityNavigationTest {
   }
 
   @Test
+  fun mainActivityOnCreate_parsesNotificationIntentOnFreshLaunch() {
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val launchIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+    val controller = Robolectric.buildActivity(MainActivity::class.java, launchIntent)
+
+    try {
+      controller.create().start().resume()
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(any()) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnCreate_doesNotParseNotificationIntentAfterRecreation() {
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val launchIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+    val controller = Robolectric.buildActivity(MainActivity::class.java, launchIntent)
+
+    try {
+      controller.create(android.os.Bundle()).start().resume()
+
+      verify(exactly = 0) { NotificationNavigationParser.parse(any()) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnNewIntent_parsesNotificationNavigation() {
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns NotificationNavigation.Friends
+    val notificationIntent = Intent(FriendRequestNotifications.ACTION_OPEN_FRIENDS)
+
+    try {
+      MainActivity::class
+          .java
+          .getDeclaredMethod("onNewIntent", Intent::class.java)
+          .apply { isAccessible = true }
+          .invoke(controller.get(), notificationIntent)
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(notificationIntent) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
+  fun mainActivityOnNewIntent_ignoresUnsupportedIntent() {
+    val controller = Robolectric.buildActivity(MainActivity::class.java).create()
+    mockkObject(NotificationNavigationParser)
+    every { NotificationNavigationParser.parse(any()) } returns null
+    val unsupportedIntent = Intent("unsupported")
+
+    try {
+      MainActivity::class
+          .java
+          .getDeclaredMethod("onNewIntent", Intent::class.java)
+          .apply { isAccessible = true }
+          .invoke(controller.get(), unsupportedIntent)
+
+      verify(exactly = 1) { NotificationNavigationParser.parse(unsupportedIntent) }
+    } finally {
+      controller.destroy()
+      unmockkObject(NotificationNavigationParser)
+    }
+  }
+
+  @Test
   fun mainActivityOnCreate_populatesEmptyApplicationLocalesImmediately_regressionMissingSnapDefaultLocale() {
     val originalDefault = java.util.Locale.getDefault()
     java.util.Locale.setDefault(java.util.Locale.FRENCH)
@@ -1544,6 +1774,199 @@ class MainActivityNavigationTest {
     composeTestRule.waitUntil { repository.registeredUsername != null }
 
     assertEquals("Michael_Jordan", repository.registeredUsername)
+  }
+
+  @Test
+  fun switchingTabsFromProfileDoesNotRestoreProfileLater() {
+    val navController = showAuthenticatedHomeWithNavController()
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_friends).performClick()
+    waitAndAssertDisplayed(C.Tag.friends_screen_container)
+
+    assertEquals(
+        listOf(Routes.Home, Routes.Friends),
+        backStackRoutes(navController),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_collection).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+
+    assertEquals(
+        listOf(Routes.Home, Routes.Collection),
+        backStackRoutes(navController),
+    )
+
+    waitForGone(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun collectionDockTabFromProfileReturnsToCollection() {
+    assertDockTabReturnsFromProfile(
+        C.Tag.dock_tab_collection,
+        C.Tag.collection_screen,
+        C.Tag.collection_profile_button,
+        Routes.Collection,
+    )
+  }
+
+  @Test
+  fun friendsDockTabFromProfileReturnsToFriends() {
+    assertDockTabReturnsFromProfile(
+        C.Tag.dock_tab_friends,
+        C.Tag.friends_screen_container,
+        C.Tag.home_profile_button,
+        Routes.Friends,
+    )
+  }
+
+  @Test
+  fun exploreDockTabFromProfileReturnsToExplore() {
+    assertDockTabReturnsFromProfile(
+        C.Tag.dock_tab_explore,
+        C.Tag.explore_screen_container,
+        C.Tag.explore_profile_button,
+        Routes.Explore,
+    )
+  }
+
+  @Test
+  fun homeDockTabFromProfileReturnsToHome() {
+    val navController = showAuthenticatedHomeWithNavController()
+
+    composeTestRule.onNodeWithTag(C.Tag.home_profile_button).performClick()
+
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.dock_tab_home).performClick()
+
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+
+    assertEquals(
+        listOf(Routes.Home),
+        backStackRoutes(navController),
+    )
+  }
+
+  private fun assertDockTabReturnsFromProfile(
+      tabTag: String,
+      screenTag: String,
+      profileTag: String,
+      route: String,
+  ) {
+    val navController = showAuthenticatedHomeWithNavController()
+
+    composeTestRule.onNodeWithTag(tabTag).performClick()
+    waitAndAssertDisplayed(screenTag)
+
+    composeTestRule.onNodeWithTag(profileTag).performClick()
+    waitAndAssertDisplayed(C.Tag.settings_manage_permissions_button)
+
+    assertEquals(
+        listOf(Routes.Home, route, Routes.Settings),
+        backStackRoutes(navController),
+    )
+
+    composeTestRule.onNodeWithTag(tabTag).performClick()
+    waitAndAssertDisplayed(screenTag)
+
+    assertEquals(
+        listOf(Routes.Home, route),
+        backStackRoutes(navController),
+    )
+
+    waitForGone(C.Tag.settings_manage_permissions_button)
+  }
+
+  @Test
+  fun profileAvatarIsRefreshedOnResume() {
+    assertAvatarRefreshOnResume(
+        initialAvatar = byteArrayOf(1, 2, 3),
+        updatedAvatar = byteArrayOf(4, 5, 6),
+    )
+  }
+
+  @Test
+  fun removedProfileAvatarIsRefreshedOnResume() {
+    assertAvatarRefreshOnResume(
+        initialAvatar = byteArrayOf(1, 2, 3),
+        updatedAvatar = null,
+    )
+  }
+
+  @Test
+  fun newProfileAvatarIsRefreshedOnResume() {
+    assertAvatarRefreshOnResume(
+        initialAvatar = null,
+        updatedAvatar = byteArrayOf(4, 5, 6),
+    )
+  }
+
+  private fun assertAvatarRefreshOnResume(
+      initialAvatar: ByteArray?,
+      updatedAvatar: ByteArray?,
+  ) {
+    val repository =
+        TestPublicProfileRepository(
+            initialProfile =
+                PublicProfile(
+                    "test-user",
+                    "test_user",
+                    avatarBytes = initialAvatar,
+                )
+        )
+
+    val user = mock<FirebaseUser>()
+    whenever(user.uid).thenReturn("test-user")
+
+    val authRepository = mock<AuthRepository>()
+    whenever(authRepository.currentUser()).thenReturn(user)
+    whenever(authRepository.currentUserFlow()).thenReturn(emptyFlow())
+
+    lateinit var viewModel: HomeViewModel
+    lateinit var lifecycle: LifecycleRegistry
+
+    composeTestRule.runOnUiThread {
+      HomeViewModel.clearProfileCacheForTests()
+
+      viewModel = HomeViewModel(authRepository, repository)
+
+      val owner =
+          object : LifecycleOwner {
+            override val lifecycle = LifecycleRegistry(this)
+          }
+
+      lifecycle = owner.lifecycle
+      lifecycle.currentState = Lifecycle.State.STARTED
+
+      composeTestRule.activity.setContent {
+        CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+          RefreshProfileOnResume(viewModel)
+        }
+      }
+    }
+
+    composeTestRule.waitForIdle()
+
+    assertArrayEquals(initialAvatar, viewModel.avatarBytes.value)
+
+    composeTestRule.runOnIdle {
+      repository.setAvatar(updatedAvatar)
+
+      // The avatar must remain unchanged before ON_RESUME.
+      assertArrayEquals(initialAvatar, viewModel.avatarBytes.value)
+
+      lifecycle.currentState = Lifecycle.State.RESUMED
+    }
+
+    composeTestRule.waitUntil { viewModel.avatarBytes.value.contentEquals(updatedAvatar) }
+
+    assertArrayEquals(updatedAvatar, viewModel.avatarBytes.value)
   }
 
   private fun permissionRequest(): org.robolectric.shadows.ShadowActivity.PermissionsRequest {
@@ -1865,15 +2288,22 @@ class MainActivityNavigationTest {
       publicProfileRepositoryOverride: TestPublicProfileRepository = TestPublicProfileRepository(),
       captureSender: CaptureSender? = null,
       signOutFailure: Throwable? = null,
-      openFriendsOnLaunch: Boolean = false,
+      notificationNavigationOnLaunch: NotificationNavigationRequest? = null,
       notificationInstallationRepositoryOverride: NotificationInstallationRepository? = null,
-      notificationNavigationEvents: Flow<Unit> = emptyFlow(),
+      notificationNavigationEvents: Flow<NotificationNavigationRequest> = emptyFlow(),
       monumentSharingRepository: MonumentSharingRepository? = null,
       friendRepository: FriendRepository? = null,
       activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
+    val privateProfileRepository =
+        object : ProfileRepository {
+          override suspend fun initializePrivateProfile(): Result<Unit> = Result.success(Unit)
+
+          override suspend fun loadProfile(): Result<UserProfile> =
+              Result.success(UserProfile("", "", "Account"))
+        }
     doAnswer {
           authState.value = AuthUIState(signOutCompleted = true)
           Unit
@@ -1906,12 +2336,13 @@ class MainActivityNavigationTest {
                       savedGuideRepository = savedGuideRepository,
                       isOnline = isOnlineOverride,
                       publicProfileRepository = publicProfileRepositoryOverride,
+                      privateProfileRepository = privateProfileRepository,
                       notificationInstallationRepository =
                           notificationInstallationRepositoryOverride,
                       monumentSharingRepository = monumentSharingRepository,
                       friendRepository = friendRepository,
                   ),
-              openFriendsOnLaunch = openFriendsOnLaunch,
+              notificationNavigationOnLaunch = notificationNavigationOnLaunch,
               notificationNavigationEvents = notificationNavigationEvents,
           )
         }
@@ -1925,6 +2356,52 @@ class MainActivityNavigationTest {
           appContent()
         }
       }
+    }
+  }
+
+  @Test
+  fun signUpWithUnverifiedEmailNavigatesToEmailVerification() {
+    val authState = MutableStateFlow(AuthUIState())
+    lateinit var navController: NavHostController
+
+    renderApp(
+        authState,
+        onNavControllerReady = { navController = it },
+    )
+
+    waitAndAssertDisplayed(C.Tag.sign_in_screen_container)
+
+    composeTestRule.runOnIdle { navController.navigate(Routes.SignUp) }
+
+    waitAndAssertDisplayed(C.Tag.sign_up_screen_container)
+
+    val provider = mock<UserInfo>()
+    whenever(provider.providerId).thenReturn("password")
+
+    val user = mock<FirebaseUser>()
+    whenever(user.isEmailVerified).thenReturn(false)
+    whenever(user.providerData).thenReturn(listOf(provider))
+    whenever(user.email).thenReturn("roam@example.com")
+
+    composeTestRule.runOnIdle { authState.value = AuthUIState(user = user) }
+
+    waitAndAssertDisplayed(C.Tag.email_verification_screen_container)
+
+    composeTestRule.runOnIdle {
+      assertEquals(
+          Routes.EmailVerification,
+          navController.currentDestination?.route,
+      )
+    }
+  }
+
+  private fun mockEmailUser(): FirebaseUser {
+    val provider = mock<UserInfo>()
+    whenever(provider.providerId).thenReturn(EmailAuthProvider.PROVIDER_ID)
+    return mock<FirebaseUser>().also { user ->
+      whenever(user.uid).thenReturn("test-user")
+      whenever(user.isEmailVerified).thenReturn(false)
+      whenever(user.providerData).thenReturn(listOf(provider))
     }
   }
 
@@ -1971,10 +2448,24 @@ class MainActivityNavigationTest {
       return PublicProfile("test-user", username).also { profile = it }
     }
 
+    fun setAvatar(avatarBytes: ByteArray?) {
+      profile = checkNotNull(profile).copy(avatarBytes = avatarBytes)
+    }
+
     override suspend fun renameUsername(username: String): PublicProfile =
         error("Not used in navigation tests")
 
+    override suspend fun uploadAvatar(imageBytes: ByteArray): PublicProfile =
+        error("Not used in navigation tests")
+
+    override suspend fun removeAvatar(): PublicProfile = error("Not used in navigation tests")
+
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
+
+    override suspend fun updatePrivacySettings(
+        isPublic: Boolean,
+        allowFriendRequests: Boolean,
+    ): PublicProfile = error("Not used in navigation tests")
   }
 
   private fun dispatchCameraPermissionResult() = dispatchCameraPermissionResult(permissionRequest())

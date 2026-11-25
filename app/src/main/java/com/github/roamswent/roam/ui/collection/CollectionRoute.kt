@@ -32,6 +32,7 @@ fun CollectionRoute(
     publicProfileRepository: PublicProfileRepository? = null,
     monumentSharingProvider: MonumentSharingProvider? = null,
     profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    profileAvatarBytes: ByteArray? = null,
     onProfileClicked: () -> Unit = {},
     onPickFromGallery: () -> Unit = {},
 ) {
@@ -78,6 +79,7 @@ fun CollectionRoute(
       onSetShareAudience = viewModel::setShareAudience,
       onSharingErrorShown = viewModel::clearSharingError,
       profileName = profileName,
+      profileAvatarBytes = profileAvatarBytes,
       onProfileClicked = onProfileClicked,
       onPickFromGallery = onPickFromGallery,
       wishlistState = wishlistState,

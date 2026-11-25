@@ -1,5 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Google Antigravity <noreply@google.com>
 package com.github.roamswent.roam.ui.collection
 
 import android.graphics.Bitmap
@@ -11,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.DeviceConfigurationOverride
+import androidx.compose.ui.test.WindowInsets
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -22,6 +26,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -30,6 +35,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
 import coil.ImageLoader
@@ -140,6 +147,22 @@ class CollectionScreenTest {
         .performClick()
 
     assertTrue(clicked)
+  }
+
+  @Test
+  fun profileBubbleAcceptsAvatarBytes() {
+    val bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    bitmap.recycle()
+
+    setScreen(
+        SavedGuidesUiState(),
+        profileName = "Ada Lovelace",
+        profileAvatarBytes = out.toByteArray(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).assertIsDisplayed()
   }
 
   @Test
@@ -436,6 +459,44 @@ class CollectionScreenTest {
     composeTestRule.setContent { PreviewCollectionScreenEmptyDark() }
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertIsDisplayed()
+  }
+
+  @Test
+  fun collectionGridExtendsToBottomWithoutConsumingBottomNavigationBarsInset() {
+    val statusBarTopPx = 72
+    val navBarBottomPx = 144
+    val windowInsets =
+        WindowInsetsCompat.Builder()
+            .setInsets(
+                WindowInsetsCompat.Type.statusBars(),
+                Insets.of(0, statusBarTopPx, 0, 0),
+            )
+            .setInsets(
+                WindowInsetsCompat.Type.navigationBars(),
+                Insets.of(0, 0, 0, navBarBottomPx),
+            )
+            .build()
+
+    composeTestRule.setContent {
+      DeviceConfigurationOverride(DeviceConfigurationOverride.WindowInsets(windowInsets)) {
+        SampleAppTheme {
+          CollectionScreen(
+              state = SavedGuidesUiState(guides = listOf(olderGuide, newerGuide)),
+          )
+        }
+      }
+    }
+
+    val screenBounds = composeTestRule.onNodeWithTag(C.Tag.collection_screen).getBoundsInRoot()
+    val gridBounds = composeTestRule.onNodeWithTag(C.Tag.collection_grid).getBoundsInRoot()
+    val titleBounds = composeTestRule.onNodeWithTag(C.Tag.collection_title).getBoundsInRoot()
+
+    val expectedStatusBarTop = with(composeTestRule.density) { statusBarTopPx.toDp() }
+    assertTrue(
+        "collection_title top (${titleBounds.top}) must reflect status bar inset ($expectedStatusBarTop)",
+        titleBounds.top >= expectedStatusBarTop,
+    )
+    assertEquals(screenBounds.bottom, gridBounds.bottom)
   }
 
   @Test
@@ -1173,6 +1234,7 @@ class CollectionScreenTest {
       state: SavedGuidesUiState,
       onGuideClick: (String) -> Unit = {},
       profileName: String = "Traveler",
+      profileAvatarBytes: ByteArray? = null,
       onProfileClicked: () -> Unit = {},
       onDeleteGuide: (String) -> Unit = {},
       onDeleteErrorShown: () -> Unit = {},
@@ -1195,6 +1257,7 @@ class CollectionScreenTest {
         CollectionScreen(
             state = state,
             profileName = profileName,
+            profileAvatarBytes = profileAvatarBytes,
             onProfileClicked = onProfileClicked,
             onGuideClick = onGuideClick,
             onDeleteGuide = onDeleteGuide,

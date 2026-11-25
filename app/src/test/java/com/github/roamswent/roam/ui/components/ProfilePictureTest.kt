@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import java.io.ByteArrayOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -44,14 +45,19 @@ class ProfilePictureTest {
   }
 
   @Test
-  fun profilePicture_withAvatarUrl_isClickable() {
+  fun profilePicture_withAvatarBytes_isClickable() {
     var clicked = false
+    val bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    bitmap.recycle()
+    val avatarBytes = out.toByteArray()
 
     composeTestRule.setContent {
       SampleAppTheme {
         ProfilePicture(
             name = "Alice",
-            avatarUrl = "https://example.com/avatar.png",
+            avatarBytes = avatarBytes,
             modifier = Modifier.testTag("profile-picture"),
             onClick = { clicked = true },
         )

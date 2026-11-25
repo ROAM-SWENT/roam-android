@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 
 package com.github.roamswent.roam.model.friend
 
@@ -8,6 +9,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.tasks.await
 
@@ -25,29 +27,39 @@ class FirestoreFriendRepository(
     return withFirestoreErrors {
       val reference = friendshipReference(requesterUid, toUid)
       val recipientProfile = firestore.collection(PUBLIC_PROFILES_COLLECTION).document(toUid)
-      firestore
-          .runTransaction { transaction ->
-            val existingSnapshot = transaction.get(reference)
-            val recipientSnapshot = transaction.get(recipientProfile)
-            if (existingSnapshot.exists()) {
-              val existing = existingSnapshot.toFriendRecord()
-              when {
-                existing.status == STATUS_ACCEPTED ->
-                    throw FriendRepositoryException.AlreadyFriends()
-                existing.requesterUid == requesterUid ->
-                    return@runTransaction existing.toFriendRequest()
-                else -> throw FriendRepositoryException.IncomingRequestPending()
+      try {
+        firestore
+            .runTransaction { transaction ->
+              val existingSnapshot = transaction.get(reference)
+              val recipientSnapshot = transaction.get(recipientProfile)
+              if (existingSnapshot.exists()) {
+                val existing = existingSnapshot.toFriendRecord()
+                when {
+                  existing.status == STATUS_ACCEPTED ->
+                      throw FriendRepositoryException.AlreadyFriends()
+                  existing.requesterUid == requesterUid ->
+                      return@runTransaction existing.toFriendRequest()
+                  else -> throw FriendRepositoryException.IncomingRequestPending()
+                }
               }
-            }
-            if (!recipientSnapshot.exists()) {
-              throw FriendRepositoryException.RecipientProfileNotFound()
-            }
+              if (!recipientSnapshot.exists()) {
+                throw FriendRepositoryException.RecipientProfileNotFound()
+              }
+              if (recipientSnapshot.getBoolean(ALLOW_FRIEND_REQUESTS_FIELD) == false) {
+                throw FriendRepositoryException.FriendRequestsDisabled()
+              }
 
-            val record = FriendRecord(reference.id, requesterUid, toUid, STATUS_PENDING)
-            transaction.set(reference, record.toFields())
-            record.toFriendRequest()
-          }
-          .await()
+              val record = FriendRecord(reference.id, requesterUid, toUid, STATUS_PENDING)
+              transaction.set(reference, record.toFields())
+              record.toFriendRequest()
+            }
+            .await()
+      } catch (exception: FirebaseFirestoreException) {
+        if (exception.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+          throw FriendRepositoryException.BlockedByUser()
+        }
+        throw exception
+      }
     }
   }
 
@@ -75,9 +87,43 @@ class FirestoreFriendRepository(
     }
   }
 
-  override suspend fun rejectFriendRequest(requestId: String) {
-    deletePendingRequest(requestId) { uid, request ->
-      if (request.recipientUid != uid) throw FriendRepositoryException.NotRequestRecipient()
+  override suspend fun rejectFriendRequest(requestId: String, blacklist: Boolean) {
+    if (!blacklist) {
+      deletePendingRequest(requestId) { uid, request ->
+        if (request.recipientUid != uid) throw FriendRepositoryException.NotRequestRecipient()
+      }
+      return
+    }
+
+    val uid = requireCurrentUid()
+    withFirestoreErrors {
+      val reference = friendshipReference(requestId)
+      firestore
+          .runTransaction { transaction ->
+            val snapshot = transaction.get(reference)
+            if (!snapshot.exists()) throw FriendRepositoryException.RequestNotFound()
+
+            val request = snapshot.toFriendRecord()
+            if (request.status != STATUS_PENDING) {
+              throw FriendRepositoryException.RequestNotPending()
+            }
+            if (request.recipientUid != uid) {
+              throw FriendRepositoryException.NotRequestRecipient()
+            }
+
+            val followReference = incomingFollowReference(uid, request.requesterUid)
+            val followSnapshot = transaction.get(followReference)
+
+            transaction.delete(reference)
+            transaction.set(
+                blockedUserReference(uid, request.requesterUid),
+                mapOf(BLOCKED_UID_FIELD to request.requesterUid),
+            )
+            if (followSnapshot.exists()) {
+              transaction.delete(followReference)
+            }
+          }
+          .await()
     }
   }
 
@@ -120,13 +166,14 @@ class FirestoreFriendRepository(
     }
   }
 
-  override suspend fun removeFriend(friendUid: String) {
+  override suspend fun removeFriend(friendUid: String, blacklist: Boolean) {
     val uid = requireCurrentUid()
     validateUid(friendUid)
     if (uid == friendUid) throw FriendRepositoryException.SelfFriendRequest()
 
     withFirestoreErrors {
       val reference = friendshipReference(uid, friendUid)
+      val followReference = if (blacklist) incomingFollowReference(uid, friendUid) else null
       firestore
           .runTransaction { transaction ->
             val snapshot = transaction.get(reference)
@@ -140,9 +187,68 @@ class FirestoreFriendRepository(
               throw FriendRepositoryException.FriendshipNotFound()
             }
 
+            val followSnapshot = followReference?.let(transaction::get)
+
             transaction.delete(reference)
+            if (blacklist) {
+              transaction.set(
+                  blockedUserReference(uid, friendUid),
+                  mapOf(BLOCKED_UID_FIELD to friendUid),
+              )
+              if (followSnapshot != null && followSnapshot.exists()) {
+                transaction.delete(followReference)
+              }
+            }
           }
           .await()
+    }
+  }
+
+  override suspend fun blockUser(blockedUid: String) {
+    val uid = requireCurrentUid()
+    validateUid(blockedUid)
+    if (uid == blockedUid) throw FriendRepositoryException.SelfFriendRequest()
+
+    withFirestoreErrors {
+      val friendshipRef = friendshipReference(uid, blockedUid)
+      val followRef = incomingFollowReference(uid, blockedUid)
+      val blockedRef = blockedUserReference(uid, blockedUid)
+      firestore
+          .runTransaction { transaction ->
+            val friendshipSnapshot = transaction.get(friendshipRef)
+            val followSnapshot = transaction.get(followRef)
+
+            transaction.set(blockedRef, mapOf(BLOCKED_UID_FIELD to blockedUid))
+            if (friendshipSnapshot.exists()) {
+              transaction.delete(friendshipRef)
+            }
+            if (followSnapshot.exists()) {
+              transaction.delete(followRef)
+            }
+          }
+          .await()
+    }
+  }
+
+  override suspend fun unblockUser(blockedUid: String) {
+    val uid = requireCurrentUid()
+    validateUid(blockedUid)
+    if (uid == blockedUid) throw FriendRepositoryException.SelfFriendRequest()
+
+    withFirestoreErrors { blockedUserReference(uid, blockedUid).delete().await() }
+  }
+
+  override suspend fun getBlockedUids(): Set<String> {
+    val uid = requireCurrentUid()
+    return withFirestoreErrors {
+      firestore
+          .collection(USERS_COLLECTION)
+          .document(uid)
+          .collection(BLOCKED_USERS_SUBCOLLECTION)
+          .get()
+          .await()
+          .documents
+          .mapTo(mutableSetOf()) { it.id }
     }
   }
 
@@ -188,6 +294,16 @@ class FirestoreFriendRepository(
 
   private fun friendshipReference(uid1: String, uid2: String) =
       firestore.collection(FRIENDSHIPS_COLLECTION).document(friendshipId(uid1, uid2))
+
+  private fun blockedUserReference(blockerUid: String, blockedUid: String): DocumentReference =
+      firestore
+          .collection(USERS_COLLECTION)
+          .document(blockerUid)
+          .collection(BLOCKED_USERS_SUBCOLLECTION)
+          .document(blockedUid)
+
+  private fun incomingFollowReference(ownerUid: String, followerUid: String): DocumentReference =
+      firestore.collection(FOLLOWS_COLLECTION).document("$ownerUid$PAIR_SEPARATOR$followerUid")
 
   private fun friendshipReference(requestId: String): DocumentReference {
     val uids = requestId.split(PAIR_SEPARATOR)
@@ -269,6 +385,11 @@ class FirestoreFriendRepository(
   private companion object {
     const val PUBLIC_PROFILES_COLLECTION = "publicProfiles"
     const val FRIENDSHIPS_COLLECTION = "friendships"
+    const val USERS_COLLECTION = "users"
+    const val BLOCKED_USERS_SUBCOLLECTION = "blockedUsers"
+    const val FOLLOWS_COLLECTION = "follows"
+    const val ALLOW_FRIEND_REQUESTS_FIELD = "allowFriendRequests"
+    const val BLOCKED_UID_FIELD = "blockedUid"
     const val PARTICIPANTS_FIELD = "participantUids"
     const val REQUESTER_UID_FIELD = "requesterUid"
     const val RECIPIENT_UID_FIELD = "recipientUid"

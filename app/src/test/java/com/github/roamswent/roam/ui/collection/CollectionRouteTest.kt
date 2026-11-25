@@ -2,6 +2,7 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.collection
 
+import android.graphics.Bitmap
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -24,6 +25,7 @@ import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import java.io.ByteArrayOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -38,6 +40,22 @@ class CollectionRouteTest {
   // Noon UTC, so the formatted day is the same in any time zone the tests run in.
   private val colosseum = guide("colosseum", "Colosseum", discoveryDate = 1_791_720_000_000)
   private val eiffelTower = guide("eiffel", "Eiffel Tower", discoveryDate = 1_791_806_400_000)
+
+  @Test
+  fun profileBubbleReceivesAvatarBytes() {
+    val bitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    bitmap.recycle()
+
+    setRoute(
+        FakeSavedGuideRepository(),
+        profileName = "Ada",
+        profileAvatarBytes = out.toByteArray(),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).assertIsDisplayed()
+  }
 
   @Test
   fun showsGuidesFromRepositoryNewestFirst() {
@@ -258,12 +276,18 @@ class CollectionRouteTest {
     }
   }
 
-  private fun setRoute(repository: FakeSavedGuideRepository) {
+  private fun setRoute(
+      repository: FakeSavedGuideRepository,
+      profileName: String = "Traveler",
+      profileAvatarBytes: ByteArray? = null,
+  ) {
     composeTestRule.setContent {
       SampleAppTheme {
         CollectionRoute(
             repository = repository,
             monumentSharingProvider = { FakeMonumentSharingRepository() },
+            profileName = profileName,
+            profileAvatarBytes = profileAvatarBytes,
         )
       }
     }

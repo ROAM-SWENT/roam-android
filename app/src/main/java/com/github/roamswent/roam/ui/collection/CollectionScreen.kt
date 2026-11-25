@@ -1,5 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Google Antigravity <noreply@google.com>
 package com.github.roamswent.roam.ui.collection
 
 import androidx.compose.foundation.background
@@ -9,10 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,6 +58,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -137,6 +143,7 @@ fun CollectionScreen(
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
     profileName: String = HomeViewModel.DEFAULT_USER_NAME,
+    profileAvatarBytes: ByteArray? = null,
     onProfileClicked: () -> Unit = {},
     onDeleteGuide: (String) -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
@@ -214,6 +221,10 @@ fun CollectionScreen(
 
   Scaffold(
       modifier = modifier.fillMaxSize().semantics { testTag = C.Tag.collection_screen },
+      contentWindowInsets =
+          ScaffoldDefaults.contentWindowInsets.only(
+              WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+          ),
       snackbarHost = { SnackbarHost(snackbarHostState) },
       containerColor =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
@@ -255,6 +266,7 @@ fun CollectionScreen(
         )
         ProfileBubble(
             name = profileName,
+            avatarBytes = profileAvatarBytes,
             onClick = onProfileClicked,
             testTag = C.Tag.collection_profile_button,
         )
