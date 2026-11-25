@@ -1,5 +1,7 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 rules_version = '2';
 
 service cloud.firestore {
@@ -29,19 +31,88 @@ service cloud.firestore {
 
     function validProfileWrite(uid) {
       return request.resource.data.keys().hasAll(['uid', 'username', 'usernameLower'])
-        && request.resource.data.keys().hasOnly(['uid', 'username', 'usernameLower', 'avatar'])
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'username',
+          'usernameLower',
+          'verifiedMonumentCount',
+          'avatar',
+          'isPublic',
+          'allowFriendRequests'
+        ])
         && request.resource.data.uid == uid
         && validUsername(request.resource.data.username)
         && request.resource.data.usernameLower == request.resource.data.username.lower()
         && (!('avatar' in request.resource.data)
           || (request.resource.data.avatar is bytes
             && request.resource.data.avatar.size() <= 204800))
+        && (!('isPublic' in request.resource.data) || request.resource.data.isPublic is bool)
+        && (!('allowFriendRequests' in request.resource.data)
+          || request.resource.data.allowFriendRequests is bool)
         && existsAfter(
           /databases/$(database)/documents/usernameClaims/$(request.resource.data.usernameLower)
         )
         && getAfter(
           /databases/$(database)/documents/usernameClaims/$(request.resource.data.usernameLower)
         ).data.uid == uid;
+    }
+
+    // The verified monument count can only change by one, alone, in its own write. Rules cannot
+    // prove the visit was genuine: they only stop jumps, edits by others and username writes
+    // that change the count.
+    function verifiedMonumentCountUnchanged() {
+      return request.resource.data.get('verifiedMonumentCount', 0)
+        == resource.data.get('verifiedMonumentCount', 0);
+    }
+
+    function isVerifiedMonumentCountIncrement() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['verifiedMonumentCount'])
+        && request.resource.data.verifiedMonumentCount is int
+        && request.resource.data.verifiedMonumentCount
+          == resource.data.get('verifiedMonumentCount', 0) + 1;
+    }
+
+    function verifiedMonumentCountIncrementedAfter(uid) {
+      let profilePath = /databases/$(database)/documents/publicProfiles/$(uid);
+      return exists(profilePath)
+        && getAfter(profilePath).data.get('verifiedMonumentCount', 0)
+          == get(profilePath).data.get('verifiedMonumentCount', 0) + 1;
+    }
+
+    // The count, the counted monuments and the private pointer users/{uid}/leaderboard/state
+    // change together: each increment names, through the pointer, the one monument document it
+    // creates. Without the pointer, a profile update could not tell which monument is new.
+    function validVerifiedMonumentId(monumentId) {
+      return monumentId is string
+        && monumentId.matches('^-?[0-9]{1,5}_-?[0-9]{1,6}$');
+    }
+
+    function verifiedMonumentPath(uid, monumentId) {
+      return /databases/$(database)/documents/users/$(uid)/verifiedMonuments/$(monumentId);
+    }
+
+    function leaderboardStatePath(uid) {
+      return /databases/$(database)/documents/users/$(uid)/leaderboard/state;
+    }
+
+    function isNewVerifiedMonument(uid, monumentId) {
+      return validVerifiedMonumentId(monumentId)
+        && !exists(verifiedMonumentPath(uid, monumentId))
+        && existsAfter(verifiedMonumentPath(uid, monumentId));
+    }
+
+    function pointerNamesAfter(uid, monumentId) {
+      return existsAfter(leaderboardStatePath(uid))
+        && getAfter(leaderboardStatePath(uid)).data.lastVerifiedMonumentId == monumentId;
+    }
+
+    function pointerNamesNewVerifiedMonumentAfter(uid) {
+      return existsAfter(leaderboardStatePath(uid))
+        && isNewVerifiedMonument(
+          uid,
+          getAfter(leaderboardStatePath(uid)).data.lastVerifiedMonumentId
+        );
     }
 
     function validFriendUid(uid) {
@@ -77,15 +148,49 @@ service cloud.firestore {
       return uidA < uidB ? uidA + '~' + uidB : uidB + '~' + uidA;
     }
 
+    function isPublicAccount(uid) {
+      return validFriendUid(uid)
+        && exists(/databases/$(database)/documents/publicProfiles/$(uid))
+        && get(/databases/$(database)/documents/publicProfiles/$(uid)).data.get('isPublic', false) == true;
+    }
+
+    function isBlockedBy(ownerUid, actorUid) {
+      return validFriendUid(ownerUid)
+        && validFriendUid(actorUid)
+        && exists(/databases/$(database)/documents/users/$(ownerUid)/blockedUsers/$(actorUid));
+    }
+
+    function followPairIncludesUid(followId, uid) {
+      return validFriendUid(uid)
+        && (
+          followId.matches('^' + uid + '~[A-Za-z0-9_-]{1,128}$')
+          || followId.matches('^[A-Za-z0-9_-]{1,128}~' + uid + '$')
+        );
+    }
+
+    function validFollow(data, followId) {
+      return data.keys().hasAll(['ownerUid', 'followerUid'])
+        && data.keys().hasOnly(['ownerUid', 'followerUid'])
+        && validFriendUid(data.ownerUid)
+        && validFriendUid(data.followerUid)
+        && data.ownerUid != data.followerUid
+        && followId == data.ownerUid + '~' + data.followerUid;
+    }
+
     function isAcceptedBidirectionalFriend(ownerUid, viewerUid) {
       return validFriendUid(ownerUid)
         && validFriendUid(viewerUid)
+        && !isBlockedBy(ownerUid, viewerUid)
         && exists(/databases/$(database)/documents/friendships/$(friendPairId(ownerUid, viewerUid)))
         && get(/databases/$(database)/documents/friendships/$(friendPairId(ownerUid, viewerUid))).data.status == 'ACCEPTED';
     }
 
     function isUnidirectionalFollower(ownerUid, viewerUid) {
-      return exists(/databases/$(database)/documents/follows/$(ownerUid + '~' + viewerUid));
+      return validFriendUid(ownerUid)
+        && validFriendUid(viewerUid)
+        && isPublicAccount(ownerUid)
+        && !isBlockedBy(ownerUid, viewerUid)
+        && exists(/databases/$(database)/documents/follows/$(ownerUid + '~' + viewerUid));
     }
 
     function canReadSharedGuide(ownerUid) {
@@ -143,14 +248,19 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && uid == request.auth.uid
-        && validProfileWrite(uid);
+        && validProfileWrite(uid)
+        && !('verifiedMonumentCount' in request.resource.data);
       allow update: if request.auth != null
         && uid == request.auth.uid
-        && validProfileWrite(uid)
-        && (request.resource.data.usernameLower == resource.data.usernameLower
-          || !existsAfter(
-            /databases/$(database)/documents/usernameClaims/$(resource.data.usernameLower)
-          ));
+        && (
+          (validProfileWrite(uid)
+            && verifiedMonumentCountUnchanged()
+            && (request.resource.data.usernameLower == resource.data.usernameLower
+              || !existsAfter(
+                /databases/$(database)/documents/usernameClaims/$(resource.data.usernameLower)
+              )))
+          || (isVerifiedMonumentCountIncrement() && pointerNamesNewVerifiedMonumentAfter(uid))
+        );
       allow delete: if false;
     }
 
@@ -185,7 +295,12 @@ service cloud.firestore {
         && request.resource.data.requesterUid == request.auth.uid
         && exists(
           /databases/$(database)/documents/publicProfiles/$(request.resource.data.recipientUid)
-        );
+        )
+        && get(
+          /databases/$(database)/documents/publicProfiles/$(request.resource.data.recipientUid)
+        ).data.get('allowFriendRequests', true) == true
+        && !isBlockedBy(request.resource.data.recipientUid, request.auth.uid)
+        && !isBlockedBy(request.auth.uid, request.resource.data.recipientUid);
       allow update: if request.auth != null
         && validFriendship(resource.data, pairId)
         && validFriendship(request.resource.data, pairId)
@@ -203,6 +318,40 @@ service cloud.firestore {
         );
     }
 
+    match /follows/{followId} {
+      allow get: if request.auth != null
+        && ((!exists(/databases/$(database)/documents/follows/$(followId))
+            && followPairIncludesUid(followId, request.auth.uid))
+          || resource.data.ownerUid == request.auth.uid
+          || resource.data.followerUid == request.auth.uid);
+      allow list: if request.auth != null
+        && (resource.data.ownerUid == request.auth.uid
+          || resource.data.followerUid == request.auth.uid);
+      allow create: if request.auth != null
+        && validFollow(request.resource.data, followId)
+        && request.resource.data.followerUid == request.auth.uid
+        && isPublicAccount(request.resource.data.ownerUid)
+        && !isBlockedBy(request.resource.data.ownerUid, request.auth.uid)
+        && !isBlockedBy(request.auth.uid, request.resource.data.ownerUid);
+      allow update: if false;
+      allow delete: if request.auth != null
+        && validFollow(resource.data, followId)
+        && request.auth.uid in [resource.data.followerUid, resource.data.ownerUid];
+    }
+
+    match /users/{blockerUid}/blockedUsers/{blockedUid} {
+      allow get, list: if request.auth != null && request.auth.uid == blockerUid;
+      allow create: if request.auth != null
+        && request.auth.uid == blockerUid
+        && validFriendUid(blockedUid)
+        && blockerUid != blockedUid
+        && request.resource.data.keys().hasAll(['blockedUid'])
+        && request.resource.data.keys().hasOnly(['blockedUid'])
+        && request.resource.data.blockedUid == blockedUid;
+      allow update: if false;
+      allow delete: if request.auth != null && request.auth.uid == blockerUid;
+    }
+
     match /notificationInstallations/{uid}/installations/{fid} {
       allow read: if false;
       allow create, update: if request.auth != null
@@ -213,6 +362,34 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
+    // One empty document per counted monument, keyed by its coarsened cell. Private to the
+    // owner, never changed or removed, and created only with an increment of the count and a
+    // pointer naming it, so one increment creates exactly one monument document.
+    match /users/{ownerUid}/verifiedMonuments/{monumentId} {
+      allow read: if request.auth != null && request.auth.uid == ownerUid;
+      allow create: if request.auth != null
+        && request.auth.uid == ownerUid
+        && validVerifiedMonumentId(monumentId)
+        && request.resource.data.keys().size() == 0
+        && verifiedMonumentCountIncrementedAfter(ownerUid)
+        && pointerNamesAfter(ownerUid, monumentId);
+      allow update, delete: if false;
+    }
+
+    // Private pointer to the monument counted by the latest increment. Written only together
+    // with that increment and the new monument document it names.
+    match /users/{ownerUid}/leaderboard/{stateId} {
+      allow read: if request.auth != null && request.auth.uid == ownerUid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == ownerUid
+        && stateId == 'state'
+        && request.resource.data.keys().hasOnly(['lastVerifiedMonumentId'])
+        && request.resource.data.keys().hasAll(['lastVerifiedMonumentId'])
+        && isNewVerifiedMonument(ownerUid, request.resource.data.lastVerifiedMonumentId)
+        && verifiedMonumentCountIncrementedAfter(ownerUid);
+      allow delete: if false;
+    }
+
     match /users/{ownerUid}/savedGuides/{guideId} {
       allow get: if request.auth != null
         && (request.auth.uid == ownerUid || canReadSharedGuide(ownerUid));
@@ -221,6 +398,61 @@ service cloud.firestore {
       allow create, delete: if request.auth != null && request.auth.uid == ownerUid;
       allow update: if (request.auth != null && request.auth.uid == ownerUid)
         || isValidRecipientDismissal(ownerUid);
+    }
+
+    function validWishlistLocation(loc) {
+      return loc is map
+        && loc.keys().hasAll(['latitude', 'longitude'])
+        && loc.keys().hasOnly(['latitude', 'longitude'])
+        && loc.latitude is number
+        && loc.latitude >= -90
+        && loc.latitude <= 90
+        && loc.longitude is number
+        && loc.longitude >= -180
+        && loc.longitude <= 180;
+    }
+
+    function validWishlistItem(data, monumentKey) {
+      return monumentKey is string
+        && monumentKey.matches('^[A-Za-z0-9_~-]{1,261}$')
+        && data.keys().hasAll([
+          'monumentKey',
+          'sourceOwnerUid',
+          'sourceGuideId',
+          'monumentName',
+          'addedAt'
+        ])
+        && data.keys().hasOnly([
+          'monumentKey',
+          'sourceOwnerUid',
+          'sourceGuideId',
+          'monumentName',
+          'addedAt',
+          'location'
+        ])
+        && data.monumentKey == monumentKey
+        && validFriendUid(data.sourceOwnerUid)
+        && data.sourceGuideId is string
+        && data.sourceGuideId.size() > 0
+        && data.sourceGuideId.size() <= 128
+        && data.monumentName is string
+        && data.monumentName.size() > 0
+        && data.monumentName.size() <= 200
+        && data.addedAt is int
+        && data.addedAt >= 0
+        && (!('location' in data) || validWishlistLocation(data.location));
+    }
+
+    match /users/{ownerUid}/wishlist/{monumentKey} {
+      allow get, list: if request.auth != null
+        && (request.auth.uid == ownerUid
+          || (isAcceptedBidirectionalFriend(ownerUid, request.auth.uid)
+            && !isBlockedBy(ownerUid, request.auth.uid))
+          || isUnidirectionalFollower(ownerUid, request.auth.uid));
+      allow create, update: if request.auth != null
+        && request.auth.uid == ownerUid
+        && validWishlistItem(request.resource.data, monumentKey);
+      allow delete: if request.auth != null && request.auth.uid == ownerUid;
     }
   }
 }

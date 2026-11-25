@@ -75,6 +75,19 @@
     <string name="friend_collection_empty_title">No shared monuments yet</string>
     <string name="friend_collection_empty_subtitle">This friend has not shared any monument with you.</string>
     <string name="collection_back_description">Back</string>
+    <string name="friends_tab_friends">Friends</string>
+    <string name="friends_tab_leaderboard">Leaderboard</string>
+    <string name="friends_leaderboard_rank">#%1$d</string>
+    <string name="friends_leaderboard_rank_description">Rank %1$d</string>
+    <plurals name="friends_leaderboard_monument_count">
+        <item quantity="one">%1$d monument</item>
+        <item quantity="other">%1$d monuments</item>
+    </plurals>
+    <string name="friends_leaderboard_you">You</string>
+    <string name="friends_leaderboard_empty_title">Explore together</string>
+    <string name="friends_leaderboard_empty_message">Add friends to see who has verified the most monuments.</string>
+    <string name="friends_leaderboard_add_friends_action">Add friends</string>
+    <string name="friends_leaderboard_error">Couldn’t load the leaderboard. Pull down to try again.</string>
     <string name="home_tab_explore">Explore</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>
@@ -83,11 +96,14 @@
     <string name="settings_title">Profile</string>
     <string name="settings_notification_permission">Notification permission</string>
     <string name="notification_friend_requests_channel">Friend requests</string>
+    <string name="notification_monument_shares_channel">Shared monuments</string>
     <string name="notification_friend_request_title">New friend request</string>
     <string name="notification_friend_request_body">%1$s wants to be your friend.</string>
     <string name="notification_friend_request_accept">Accept</string>
     <string name="notification_friend_request_decline">Decline</string>
     <string name="notification_friend_request_action_failed">Couldn’t update the request. Open Roam to try again.</string>
+    <string name="notification_monument_share_title">Monument shared with you</string>
+    <string name="notification_monument_share_body">%1$s shared %2$s with you.</string>
     <string name="home_greeting_format">Hello %s,</string>
     <string name="home_greeting_no_name">Hello,</string>
     <string name="home_greeting_title">Ready to explore?</string>

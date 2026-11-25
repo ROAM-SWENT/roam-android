@@ -201,5 +201,13 @@ object C {
     const val friends_cancel_request = "friends_cancel_request"
     const val friends_view_collection = "friends_view_collection"
     const val collection_back_button = "collection_back_button"
+    const val friends_tab_friends = "friends_tab_friends"
+    const val friends_tab_leaderboard = "friends_tab_leaderboard"
+    const val friends_leaderboard_list = "friends_leaderboard_list"
+    const val friends_leaderboard_row = "friends_leaderboard_row"
+    const val friends_leaderboard_current_user_row = "friends_leaderboard_current_user_row"
+    const val friends_leaderboard_empty = "friends_leaderboard_empty"
+    const val friends_leaderboard_add_friends = "friends_leaderboard_add_friends"
+    const val friends_leaderboard_error = "friends_leaderboard_error"
   }
 }

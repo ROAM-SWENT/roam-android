@@ -1,6 +1,7 @@
 /*
  * Portions of this code were generated with the help of GitHub Copilot.
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+ * Co-authored-by: Gemini 4 Neon <noreply@google.com>
  */
 
 package com.github.roamswent.roam.ui.settings
@@ -411,7 +412,7 @@ class SettingsViewModelTest {
   @Test
   fun uploadAvatar_successUpdatesPublicProfileAndStopsLoading() =
       runTest(dispatcher) {
-        val updated = PublicProfile("uid", "traveler", byteArrayOf(1, 2, 3))
+        val updated = PublicProfile("uid", "traveler", avatarBytes = byteArrayOf(1, 2, 3))
         whenever(publicProfileRepository.uploadAvatar(byteArrayOf(1, 2, 3))).thenReturn(updated)
         val viewModel = newViewModel()
 
@@ -491,7 +492,7 @@ class SettingsViewModelTest {
         viewModel.uploadAvatar(byteArrayOf(2))
 
         assertTrue(viewModel.uiState.value.isAvatarSaving)
-        result.complete(PublicProfile("uid", "traveler", byteArrayOf(1)))
+        result.complete(PublicProfile("uid", "traveler", avatarBytes = byteArrayOf(1)))
         advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isAvatarSaving)
       }
@@ -795,6 +796,11 @@ class SettingsViewModelTest {
     override suspend fun removeAvatar(): PublicProfile = error("Not used in this test")
 
     override suspend fun searchProfiles(prefix: String): List<PublicProfile> = emptyList()
+
+    override suspend fun updatePrivacySettings(
+        isPublic: Boolean,
+        allowFriendRequests: Boolean,
+    ): PublicProfile = error("Privacy settings are not used in this test.")
   }
 
   private class FakeUserInterestsRepository(

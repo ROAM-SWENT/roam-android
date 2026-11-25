@@ -31,6 +31,11 @@ import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.leaderboard.FirestoreLeaderboardRepository
+import com.github.roamswent.roam.model.leaderboard.LeaderboardEntry
+import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
+import com.github.roamswent.roam.model.leaderboard.MonumentKey
+import com.github.roamswent.roam.model.leaderboard.VerifiedMonumentResult
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
@@ -50,6 +55,7 @@ fun ScanReviewRoute(
     captureSenderOverride: CaptureSender? = null,
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
     savedGuideRepository: SavedGuideRepository,
+    leaderboardRepositoryOverride: LeaderboardRepository? = null,
     isGalleryImage: Boolean = false,
     fromCollection: Boolean = false,
     friendRepository: FriendRepository? = null,
@@ -96,6 +102,22 @@ fun ScanReviewRoute(
               captureSender.send(uri).getOrThrow()
         }
       }
+  val leaderboardRepository: LeaderboardRepository =
+      remember(leaderboardRepositoryOverride) {
+        leaderboardRepositoryOverride
+            ?: run {
+              // Created on the first verified visit, not with the screen, which often records none.
+              val firestoreRepository by lazy { FirestoreLeaderboardRepository() }
+              object : LeaderboardRepository {
+                override suspend fun recordVerifiedMonument(
+                    monument: MonumentKey
+                ): VerifiedMonumentResult = firestoreRepository.recordVerifiedMonument(monument)
+
+                override suspend fun getFriendsLeaderboard(): List<LeaderboardEntry> =
+                    firestoreRepository.getFriendsLeaderboard()
+              }
+            }
+      }
   val loadingViewModel: LoadingViewModel =
       viewModel(key = uri.toString()) {
         LoadingViewModel(
@@ -107,6 +129,7 @@ fun ScanReviewRoute(
             savedGuideRepository,
             sharingRepository =
                 (monumentSharingProvider ?: DefaultMonumentSharingProvider()).repository(),
+            leaderboardRepository,
         )
       }
   val resolvedFriendRepository =
