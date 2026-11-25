@@ -264,8 +264,10 @@ class LoadingViewModel(
    * before the save is confirmed, which only happens once back online.
    *
    * A verified visit is recorded only after the save is confirmed, in the same coroutine, so a
-   * failed save never counts. Offline, the save, and so the recording, waits for the connection; if
-   * the user leaves the screen first, the guide is still saved but the visit is not counted.
+   * failed save never counts. If the user leaves the screen before that confirmation, the guide is
+   * still saved but the visit is not counted: briefly online, while Firestore acknowledges the
+   * write, and for as long as the device stays offline, as the confirmation waits for the
+   * connection.
    */
   private fun saveToCollection(guide: MonumentGuide) {
     val discoveryDate = clock()
