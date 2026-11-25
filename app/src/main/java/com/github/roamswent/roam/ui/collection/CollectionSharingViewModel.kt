@@ -15,7 +15,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class CollectionFriend(val uid: String, val username: String)
+data class CollectionFriend(
+    val uid: String,
+    val username: String,
+    val avatarBytes: ByteArray? = null,
+)
 
 data class CollectionSharingUiState(
     val friends: List<CollectionFriend> = emptyList(),
@@ -46,6 +50,7 @@ class CollectionSharingViewModel(
                   CollectionFriend(
                       uid = friendship.friendUid,
                       username = profile?.username ?: friendship.friendUid,
+                      avatarBytes = profile?.avatarBytes,
                   )
                 }
               }
