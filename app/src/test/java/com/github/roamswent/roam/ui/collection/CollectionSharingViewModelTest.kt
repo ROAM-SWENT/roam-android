@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -68,9 +69,14 @@ class CollectionSharingViewModelTest {
   fun collectionFriendsCompareAvatarBytesByContent() {
     val first = CollectionFriend("friend", "Alice", byteArrayOf(1, 2, 3))
     val second = CollectionFriend("friend", "Alice", byteArrayOf(1, 2, 3))
+    val withoutAvatar = CollectionFriend("friend", "Alice")
+    val anotherWithoutAvatar = CollectionFriend("friend", "Alice")
 
     assertEquals(first, second)
     assertEquals(first.hashCode(), second.hashCode())
+    assertNotEquals(first, withoutAvatar)
+    assertEquals(withoutAvatar, anotherWithoutAvatar)
+    assertEquals(withoutAvatar.hashCode(), anotherWithoutAvatar.hashCode())
   }
 
   @Test
