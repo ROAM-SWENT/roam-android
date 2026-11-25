@@ -650,17 +650,7 @@ private fun WishlistCard(
               horizontalArrangement = Arrangement.spacedBy(4.dp),
           ) {
             Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
-              monument.scannedBy.take(3).forEach { friend ->
-                ProfilePicture(
-                    name = friend.name,
-                    avatarUrl = friend.avatarUrl,
-                    modifier =
-                        Modifier.size(24.dp).semantics {
-                          testTag = C.Tag.collection_wishlist_avatar
-                        },
-                    textStyle = MaterialTheme.typography.labelSmall,
-                )
-              }
+              monument.scannedBy.take(3).forEach { friend -> WishlistFriendAvatar(friend) }
             }
             if (monument.scannedBy.size > 3) {
               Text(
@@ -686,6 +676,25 @@ private fun WishlistCard(
         }
       }
       WishlistButton(isWishlisted, onToggleWishlist, Modifier)
+    }
+  }
+}
+
+@Composable
+private fun WishlistFriendAvatar(friend: WishlistFriend) {
+  Box(modifier = Modifier.size(24.dp).semantics { testTag = C.Tag.collection_wishlist_avatar }) {
+    ProfilePicture(
+        name = friend.name,
+        modifier = Modifier.fillMaxSize(),
+        textStyle = MaterialTheme.typography.labelSmall,
+    )
+    if (friend.avatarUrl != null) {
+      AsyncImage(
+          model = friend.avatarUrl,
+          contentDescription = null,
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.matchParentSize().clip(CircleShape),
+      )
     }
   }
 }

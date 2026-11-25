@@ -275,6 +275,42 @@ class WishlistScreenTest {
   }
 
   @Test
+  fun unavailableFriendAvatarFallsBackToInitial() {
+    val requests = AtomicInteger()
+    Coil.setImageLoader(
+        ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components {
+              add(
+                  Interceptor { chain ->
+                    requests.incrementAndGet()
+                    ErrorResult(null, chain.request, IllegalStateException("image unavailable"))
+                  }
+              )
+            }
+            .build()
+    )
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(
+                            scannedBy = listOf(WishlistFriend("Ada", "https://example.com/avatar"))
+                        )
+                    )
+                ),
+            initialShowWishlist = true,
+        )
+      }
+    }
+
+    composeTestRule.waitUntil(5_000) { requests.get() > 0 }
+    composeTestRule.onNodeWithText("A", useUnmergedTree = true).assertIsDisplayed()
+  }
+
+  @Test
   fun threeFriendsHaveNoOverflowIcon() {
     val friends = listOf("Ada", "Grace", "Katherine").map { WishlistFriend(it) }
     composeTestRule.setContent {
