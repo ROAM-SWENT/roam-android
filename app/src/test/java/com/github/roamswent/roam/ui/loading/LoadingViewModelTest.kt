@@ -23,7 +23,10 @@ import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.model.location.Coordinates
@@ -68,6 +71,7 @@ class LoadingViewModelTest {
   private val request = DiscoveryRequest(image, null, UserPreferences("fr-FR"))
   private var imageReads = 0
   private val savedGuides = FakeSavedGuideRepository()
+  private val sharingRepository = mockk<MonumentSharingRepository>()
   private val preparedPhoto = ImagePayload(byteArrayOf(9, 8, 7), "image/jpeg")
   private val discoveryDate = 1_700_000_000_000L
   private val readImage: suspend (Uri) -> ImagePayload = {
@@ -417,6 +421,69 @@ class LoadingViewModelTest {
         assertNull(viewModel.saveError.value)
         assertEquals(ExploreOptInUiState(scanLocation = scanLocation), viewModel.exploreOptIn.value)
         assertNull(viewModel.exploreUnavailableReason.value)
+      }
+
+  @Test
+  fun savedGuideNearTheMonumentIsShareable() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+
+        viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            SharingEligibility.ALLOWED,
+            savedGuides.guides.value.single().sharingEligibility,
+        )
+      }
+
+  @Test
+  fun savedGuideTooFarFromTheMonumentCannotBeShared() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = farMonumentLocation)
+
+        val viewModel = viewModel()
+        advanceUntilIdle()
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(
+            SharingEligibility.TOO_FAR,
+            savedGuides.guides.value.single().sharingEligibility,
+        )
+        coVerify(exactly = 0) { sharingRepository.setShareAudience(any(), any(), any()) }
+      }
+
+  @Test
+  fun sharingGeneratedGuideUpdatesAudience() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        } returns Unit
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(ShareAudience.ALL_FRIENDS, viewModel.shareSettings.value.audience)
+        coVerify(exactly = 1) {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        }
       }
 
   @Test

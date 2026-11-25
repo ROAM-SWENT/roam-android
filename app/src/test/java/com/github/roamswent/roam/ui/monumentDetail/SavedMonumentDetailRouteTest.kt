@@ -8,12 +8,15 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -119,6 +122,19 @@ class SavedMonumentDetailRouteTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
 
     assertEquals(1, backClicks)
+  }
+
+  @Test
+  fun tooFarSavedGuideShowsContinueAction() {
+    val tooFarGuide = eiffelTower.copy(sharingEligibility = SharingEligibility.TOO_FAR)
+    setRoute(FakeSavedGuideRepository(listOf(tooFarGuide)), guideId = "eiffel")
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Continue").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_share_unavailable)
+        .performScrollTo()
+        .assertIsDisplayed()
   }
 
   @Test

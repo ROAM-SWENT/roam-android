@@ -9,6 +9,18 @@ enum class ShareAudience {
   ALL_FOLLOWERS,
 }
 
+/** Whether a saved guide may be shared with friends. */
+enum class SharingEligibility {
+  /** The discovery was close enough to the monument to permit sharing. */
+  ALLOWED,
+
+  /** The discovery was too far from the monument to permit sharing. */
+  TOO_FAR,
+
+  /** Eligibility is unavailable, as for guides saved before this field existed. */
+  UNKNOWN,
+}
+
 enum class RelationshipKind {
   BIDIRECTIONAL_FRIEND,
   UNIDIRECTIONAL_FOLLOWER,
@@ -73,6 +85,11 @@ sealed class MonumentSharingException(message: String, cause: Throwable? = null)
 
   class GuideNotFound(
       message: String = "The guide was not found.",
+      cause: Throwable? = null,
+  ) : MonumentSharingException(message, cause)
+
+  class GuideTooFar(
+      message: String = "This guide cannot be shared because it was discovered too far away.",
       cause: Throwable? = null,
   ) : MonumentSharingException(message, cause)
 
