@@ -199,6 +199,22 @@ class GuideFirestoreMapperTest {
   }
 
   @Test
+  fun fromFieldsFallsBackToUnknownForUnrecognizedOrInvalidEligibilityType() {
+    val unknownFields = GuideFirestoreMapper.toFields(guide).toMutableMap()
+    unknownFields[GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD] =
+        "FUTURE_UNRECOGNIZED_ELIGIBILITY"
+
+    val restoredUnknown = GuideFirestoreMapper.fromFields(guide.id, unknownFields)
+    assertEquals(SharingEligibility.UNKNOWN, restoredUnknown.sharingEligibility)
+
+    val invalidTypeFields = GuideFirestoreMapper.toFields(guide).toMutableMap()
+    invalidTypeFields[GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD] = 12345
+
+    val restoredInvalidType = GuideFirestoreMapper.fromFields(guide.id, invalidTypeFields)
+    assertEquals(SharingEligibility.UNKNOWN, restoredInvalidType.sharingEligibility)
+  }
+
+  @Test
   fun fromFieldsFallsBackToNoneForUnrecognizedOrInvalidAudienceType() {
     val unknownFields = GuideFirestoreMapper.toFields(guide).toMutableMap()
     unknownFields[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD] = "FUTURE_UNRECOGNIZED_AUDIENCE"

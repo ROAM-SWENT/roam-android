@@ -307,14 +307,26 @@ class FirestoreMonumentSharingRepositoryTest {
     assertThrowsSuspending<MonumentSharingException.GuideNotFound> {
       repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
     }
+  }
 
-    @Test
-    fun setShareAudienceRejectsTooFarGuides() = runTest {
-      setupTransaction(existingEligibility = SharingEligibility.TOO_FAR.name)
+  @Test
+  fun setShareAudienceRejectsTooFarGuides() = runTest {
+    setupTransaction(existingEligibility = SharingEligibility.TOO_FAR.name)
 
-      assertThrowsSuspending<MonumentSharingException.GuideTooFar> {
-        repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
-      }
+    assertThrowsSuspending<MonumentSharingException.GuideTooFar> {
+      repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
+    }
+  }
+
+  @Test
+  fun grantAccessRejectsTooFarGuides() = runTest {
+    setupTransaction(
+        existingAudience = ShareAudience.NONE.name,
+        existingEligibility = SharingEligibility.TOO_FAR.name,
+    )
+
+    assertThrowsSuspending<MonumentSharingException.GuideTooFar> {
+      repository.grantAccess(guideId, setOf("recipient-uid"))
     }
   }
 
