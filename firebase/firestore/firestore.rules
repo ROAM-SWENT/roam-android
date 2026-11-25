@@ -1,20 +1,11 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /todos/{todo} {
-      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
-      allow create: if request.auth != null
-        && request.resource.data.ownerId == request.auth.uid;
-      allow update: if request.auth != null
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
-    }
-
     function validUsername(username) {
       return username is string
         && username.matches('^[A-Za-z0-9_]{3,20}$');
@@ -148,13 +139,12 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/follows/$(ownerUid + '~' + viewerUid));
     }
 
+    // A guide without a shareAudience field is private, like NONE.
     function canReadSharedGuide(ownerUid) {
       return request.auth != null
         && !(request.auth.uid in resource.data.get('dismissedByUids', []))
         && (
-          (!('shareAudience' in resource.data)
-            && isAcceptedBidirectionalFriend(ownerUid, request.auth.uid))
-          || (resource.data.get('shareAudience', '') == 'ALL_FRIENDS'
+          (resource.data.get('shareAudience', '') == 'ALL_FRIENDS'
             && isAcceptedBidirectionalFriend(ownerUid, request.auth.uid))
           || (resource.data.get('shareAudience', '') == 'SELECTED_FRIENDS'
             && request.auth.uid in resource.data.get('sharedWithUids', [])

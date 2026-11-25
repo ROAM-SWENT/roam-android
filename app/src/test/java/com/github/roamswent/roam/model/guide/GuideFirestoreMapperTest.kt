@@ -2,6 +2,8 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
+
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.ai.GuideMilestone
@@ -157,12 +159,12 @@ class GuideFirestoreMapperTest {
   }
 
   @Test
-  fun fromFieldsTreatsLegacyDocumentWithoutAudienceAsAllFriends() {
+  fun fromFieldsTreatsLegacyDocumentWithoutAudienceAsPrivate() {
     val fields = GuideFirestoreMapper.toFields(guide).toMutableMap()
     fields.remove(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD)
 
     val restored = GuideFirestoreMapper.fromFields(guide.id, fields)
-    assertEquals(ShareAudience.ALL_FRIENDS, restored.shareSettings.audience)
+    assertEquals(ShareAudience.NONE, restored.shareSettings.audience)
   }
 
   @Test

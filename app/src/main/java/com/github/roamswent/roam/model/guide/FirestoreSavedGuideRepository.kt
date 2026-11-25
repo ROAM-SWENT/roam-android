@@ -2,6 +2,8 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
+
 package com.github.roamswent.roam.model.guide
 
 import com.github.roamswent.roam.model.ai.GuideMilestone
@@ -161,7 +163,8 @@ internal object GuideFirestoreMapper {
     val rawAudience = fields[SHARE_AUDIENCE_FIELD]
     val audience =
         when (rawAudience) {
-          null -> ShareAudience.ALL_FRIENDS
+          // Same as the Firestore rules: a guide without the field is private.
+          null -> DEFAULT_SHARE_AUDIENCE
           is String ->
               ShareAudience.entries.firstOrNull { it.name == rawAudience } ?: ShareAudience.NONE
           else -> ShareAudience.NONE

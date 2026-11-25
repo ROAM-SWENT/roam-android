@@ -1,4 +1,5 @@
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.guide
 
@@ -14,6 +15,7 @@ enum class RelationshipKind {
   UNIDIRECTIONAL_FOLLOWER,
 }
 
+/** A guide is private until its owner picks an audience. */
 val DEFAULT_SHARE_AUDIENCE = ShareAudience.NONE
 
 data class MonumentShareSettings(
