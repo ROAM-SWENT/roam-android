@@ -2317,8 +2317,8 @@ await expectListed(
   true,
 );
 
-// KNOWN LIMIT (see canListSharedGuides): these audiences are still listed after dismissal.
-// These checks record current behaviour. Flip them if lists ever enforce dismissal.
+// KNOWN LIMIT, tracked in #305 (see canListSharedGuides): these audiences are still listed after
+// dismissal. These checks record current behaviour. Replace them when lists enforce dismissal.
 for (const [audience, recipient] of [
   ["ALL_FRIENDS", friend],
   ["ALL_FOLLOWERS", follower],
