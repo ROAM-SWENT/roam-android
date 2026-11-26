@@ -570,6 +570,8 @@ class ExploreMapIntegrationTest {
     val second = first.copy(name = "shared tower", coordinates = Coordinates(48.85850, 2.29448))
     val alice = ExploreFriendMonuments("alice", null, listOf(first))
     val bob = ExploreFriendMonuments("bob", PublicProfile("bob", ""), listOf(second))
+    val moved = second.copy(coordinates = Coordinates(48.85825, 2.29448))
+    val movedBob = bob.copy(monuments = listOf(moved))
     val bridge = first.copy(name = "Old bridge", coordinates = Coordinates(48.85, 2.31))
     val otherGroup =
         listOf("cora", "dora").map { owner -> ExploreFriendMonuments(owner, null, listOf(bridge)) }
@@ -591,12 +593,22 @@ class ExploreMapIntegrationTest {
     composeTestRule.runOnIdle {
       assertTrue(opened.isEmpty())
       assertTrue(clickListener.onMarkerClick(marker(" Shared Tower  (2 shared guides)").marker))
-      shares.value = otherGroup + listOf(bob, alice.copy(profile = PublicProfile("alice", "Alice")))
+      shares.value =
+          otherGroup + listOf(movedBob, alice.copy(profile = PublicProfile("alice", "Alice")))
     }
     expandFriendPreview(second.name)
     composeTestRule.onNodeWithText("Alice").performScrollTo().assertIsDisplayed()
     composeTestRule.runOnIdle { shares.value = otherGroup + bob }
     composeTestRule.onNodeWithText("Scanned by 2 friends").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Alice").assertIsDisplayed()
+    composeTestRule.runOnIdle {
+      assertEquals(
+          LatLng(moved.coordinates.latitude, moved.coordinates.longitude),
+          marker("shared tower (2 shared guides)").position,
+      )
+      shares.value = otherGroup + movedBob
+    }
+    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
     composeTestRule.runOnIdle {
       assertEquals(
           setOf(monument.name, second.name, "Old bridge (2 shared guides)"),
