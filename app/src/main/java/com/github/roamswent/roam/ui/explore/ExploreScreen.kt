@@ -20,9 +20,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -31,6 +34,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,12 +44,15 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -61,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -330,6 +338,21 @@ fun ExploreScreen(
       // Wait for the saved monuments (a few frames at most) so the first frame is already framed
       // on them rather than on the world view.
       if (shouldShowExploreMap(userLocation, monumentsLoaded)) {
+        val friendMonuments by
+            exploreViewModel.friendMonuments.collectAsStateWithLifecycle(
+                minActiveState = Lifecycle.State.RESUMED
+            )
+        val friendGroups = remember(friendMonuments) { friendMonuments.groupFriendPins() }
+        val visibleOwners =
+            remember(friendGroups) {
+              buildSet { friendGroups.forEach { addAll(it.visibleOwnerUids) } }
+            }
+        var selectedFriendGroup by remember { mutableStateOf<Pair<String, String>?>(null) }
+        val openSharedPin: (ExploreSharedPin) -> Unit = { pin ->
+          selectedFriendGroup = null
+          selectedMonumentId = null
+          onSharedMonumentClick(pin.ownerUid, pin.monument.guideId)
+        }
         GoogleMap(
             modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
             cameraPositionState = cameraPositionState,
@@ -357,32 +380,67 @@ fun ExploreScreen(
               )
             }
           }
-          val friendMonuments by
-              exploreViewModel.friendMonuments.collectAsStateWithLifecycle(
-                  minActiveState = Lifecycle.State.RESUMED
-              )
+          val artwork = mutableMapOf<String, FriendMarkerArtwork>()
           friendMonuments.forEach { friend ->
-            key(friend.ownerUid) {
-              val avatarIcon = rememberFriendMarkerIcon(friend.profile)
-              friend.monuments.forEach { monument ->
-                key(monument.guideId) {
-                  val position = remember(monument.coordinates) { monument.coordinates.toLatLng() }
-                  val markerState = remember { MarkerState(position = position) }
-                  markerState.position = position
-                  Marker(
-                      state = markerState,
-                      title = monument.name,
-                      icon = avatarIcon,
-                      anchor = Offset(0.5f, 1f),
-                      onClick = {
-                        selectedMonumentId = null
-                        onSharedMonumentClick(friend.ownerUid, monument.guideId)
-                        true
-                      },
-                  )
-                }
+            if (friend.ownerUid in visibleOwners) {
+              key(friend.ownerUid) {
+                artwork[friend.ownerUid] = rememberFriendMarkerArtwork(friend.profile)
               }
             }
+          }
+          friendGroups.forEach { group ->
+            val first = group.first
+            val groupId = first.key
+            key(groupId) {
+              val position =
+                  remember(first.monument.coordinates) { first.monument.coordinates.toLatLng() }
+              val markerState = remember { MarkerState(position = position) }
+              SideEffect { markerState.position = position }
+              val icon =
+                  if (group.ownerUids.size == 1) artwork.getValue(first.ownerUid).icon
+                  else
+                      rememberFriendGroupIcon(
+                          group.visibleOwnerUids.map(artwork::getValue),
+                          group.additionalOwnerCount,
+                      )
+              Marker(
+                  state = markerState,
+                  title =
+                      if (group.pins.size == 1) first.monument.name
+                      else
+                          stringResource(
+                              R.string.explore_friend_pin_group_marker,
+                              first.monument.name,
+                              group.pins.size,
+                          ),
+                  icon = icon,
+                  anchor = Offset(0.5f, 1f),
+                  onClick = {
+                    if (group.pins.size == 1) {
+                      openSharedPin(first)
+                    } else {
+                      selectedMonumentId = null
+                      selectedFriendGroup = groupId
+                    }
+                    true
+                  },
+              )
+            }
+          }
+        }
+        selectedFriendGroup?.let { selectedId ->
+          val group = friendGroups.firstOrNull {
+            it.pins.size > 1 && it.pins.any { pin -> pin.key == selectedId }
+          }
+          if (group == null) {
+            LaunchedEffect(selectedId) { selectedFriendGroup = null }
+          } else {
+            FriendGroupDialog(
+                group = group,
+                friends = friendMonuments,
+                onDismiss = { selectedFriendGroup = null },
+                onClick = openSharedPin,
+            )
           }
         }
       }
@@ -405,6 +463,46 @@ fun ExploreScreen(
     }
   }
 }
+
+@Composable
+private fun FriendGroupDialog(
+    group: ExploreFriendPinGroup,
+    friends: List<ExploreFriendMonuments>,
+    onDismiss: () -> Unit,
+    onClick: (ExploreSharedPin) -> Unit,
+) {
+  val names = remember(friends) { friends.associate { it.ownerUid to it.profile?.username } }
+  val owners =
+      remember(group) { group.ownerUids.withIndex().associate { it.value to it.index + 1 } }
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(stringResource(R.string.explore_friend_pin_group_title)) },
+      text = {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().heightIn(max = FRIEND_GROUP_LIST_MAX_HEIGHT)
+        ) {
+          items(group.pins, key = { it.key }) { pin ->
+            val name =
+                names[pin.ownerUid]?.takeIf { it.isNotBlank() }
+                    ?: stringResource(
+                        R.string.explore_friend_pin_unknown_owner,
+                        owners.getValue(pin.ownerUid),
+                    )
+            ListItem(
+                headlineContent = { Text(pin.monument.name) },
+                supportingContent = { Text(name) },
+                modifier = Modifier.clickable(role = Role.Button) { onClick(pin) },
+            )
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = onDismiss) { Text(stringResource(R.string.explore_friend_pin_done)) }
+      },
+  )
+}
+
+private val FRIEND_GROUP_LIST_MAX_HEIGHT = 360.dp
 
 /** Draws the bundled world map, sea then land, with theme colors. Markers stay on top of it. */
 @Composable
