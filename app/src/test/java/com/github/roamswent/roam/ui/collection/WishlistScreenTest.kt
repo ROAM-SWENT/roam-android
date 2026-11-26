@@ -84,6 +84,26 @@ class WishlistScreenTest {
   }
 
   @Test
+  fun changingInitialWishlistVisibilityDoesNotResetSelectedFilter() {
+    var initialShowWishlist by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            initialShowWishlist = initialShowWishlist,
+        )
+      }
+    }
+
+    selectWishlist()
+    composeTestRule.runOnIdle { initialShowWishlist = true }
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).assertIsSelected()
+    composeTestRule.runOnIdle { initialShowWishlist = false }
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_empty).assertIsDisplayed()
+  }
+
+  @Test
   fun readOnlyCollectionDoesNotExposeWishlistOrOwnerActions() {
     composeTestRule.setContent {
       SampleAppTheme {
