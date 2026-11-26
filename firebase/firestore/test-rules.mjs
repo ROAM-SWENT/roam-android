@@ -2180,6 +2180,8 @@ const unauthenticatedPaths = [
   `follows/${guideOwner.uid}~${follower.uid}`,
   `${installationsPath}/privacy-fid`,
   userDocumentPath,
+  `users/${guideOwner.uid}/blockedUsers/${strangerUser.uid}`,
+  `users/${guideOwner.uid}/wishlist/48858_2294`,
   allFriendsGuidePath,
   counterMonumentPath,
   `users/${counter.uid}/leaderboard/state`,
@@ -2242,3 +2244,115 @@ await expectAllowed(
   "public profile accepts an avatar of 200 KB",
   await commit(minimal.token, [profileWith({ avatar: Buffer.alloc(204800) })]),
 );
+
+// --- list access after a recipient dismissal ---
+
+// Writes only the two fields the recipient dismissal rule allows.
+function dismissalWrite(ownerUid, guideId, sharedWithUids, dismissedByUids) {
+  return {
+    update: {
+      name: documentName(`users/${ownerUid}/savedGuides/${guideId}`),
+      fields: fields({ sharedWithUids, dismissedByUids }),
+    },
+    updateMask: { fieldPaths: ["sharedWithUids", "dismissedByUids"] },
+  };
+}
+
+async function expectListed(label, response, guideId, listed) {
+  const body = await expectAllowed(`${label}: query allowed`, response);
+  const found = body.some((result) => result.document?.name.endsWith(`/savedGuides/${guideId}`));
+  if (found !== listed) throw new Error(`${label}: expected listed=${listed}, got ${found}.`);
+  console.log(`PASS ${label}`);
+}
+
+// SELECTED_FRIENDS: dismissal removes the UID from sharedWithUids, so lists enforce it.
+await expectAllowed(
+  "owner can share a guide with two selected friends",
+  await commit(guideOwner.token, [
+    savedGuideWrite(guideOwner.uid, "list-dismiss-selected", {
+      monumentName: "Dismissed Selected Monument",
+      shareAudience: "SELECTED_FRIENDS",
+      sharedWithUids: [friend.uid, unlistedFriend.uid],
+    }),
+  ]),
+);
+await expectAllowed(
+  "selected friend can dismiss the guide",
+  await commit(friend.token, [
+    dismissalWrite(guideOwner.uid, "list-dismiss-selected", [unlistedFriend.uid], [friend.uid]),
+  ]),
+);
+await expectListed(
+  "dismissed SELECTED_FRIENDS guide is not listed for the dismisser",
+  await runSavedGuidesQuery(friend.token, guideOwner.uid, selectedForFriendFilter(friend.uid)),
+  "list-dismiss-selected",
+  false,
+);
+await expectDenied(
+  "dismisser cannot list through another recipient's filter",
+  await runSavedGuidesQuery(
+    friend.token,
+    guideOwner.uid,
+    selectedForFriendFilter(unlistedFriend.uid),
+  ),
+);
+await expectDenied(
+  "dismisser cannot list by dropping the recipient filter",
+  await runSavedGuidesQuery(friend.token, guideOwner.uid, {
+    fieldFilter: {
+      field: { fieldPath: "shareAudience" },
+      op: "EQUAL",
+      value: { stringValue: "SELECTED_FRIENDS" },
+    },
+  }),
+);
+await expectListed(
+  "dismissed SELECTED_FRIENDS guide is still listed for the other recipient",
+  await runSavedGuidesQuery(
+    unlistedFriend.token,
+    guideOwner.uid,
+    selectedForFriendFilter(unlistedFriend.uid),
+  ),
+  "list-dismiss-selected",
+  true,
+);
+
+// KNOWN LIMIT (see canListSharedGuides): these audiences are still listed after dismissal.
+// These checks record current behaviour. Flip them if lists ever enforce dismissal.
+for (const [audience, recipient] of [
+  ["ALL_FRIENDS", friend],
+  ["ALL_FOLLOWERS", follower],
+]) {
+  const guideId = `list-dismiss-${audience.toLowerCase()}`;
+  await expectAllowed(
+    `owner can create a ${audience} guide to dismiss`,
+    await commit(guideOwner.token, [
+      savedGuideWrite(guideOwner.uid, guideId, {
+        monumentName: "Dismissed Broadcast Monument",
+        shareAudience: audience,
+      }),
+    ]),
+  );
+  await expectAllowed(
+    `${audience} recipient can dismiss the guide`,
+    await commit(recipient.token, [
+      dismissalWrite(guideOwner.uid, guideId, [], [recipient.uid]),
+    ]),
+  );
+  await expectDenied(
+    `dismissed ${audience} guide is denied on direct read`,
+    await firestoreRequest(`users/${guideOwner.uid}/savedGuides/${guideId}`, recipient.token),
+  );
+  await expectListed(
+    `KNOWN LIMIT: dismissed ${audience} guide is still listed`,
+    await runSavedGuidesQuery(recipient.token, guideOwner.uid, {
+      fieldFilter: {
+        field: { fieldPath: "shareAudience" },
+        op: "EQUAL",
+        value: { stringValue: audience },
+      },
+    }),
+    guideId,
+    true,
+  );
+}

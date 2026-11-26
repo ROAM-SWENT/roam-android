@@ -200,6 +200,12 @@ service cloud.firestore {
         );
     }
 
+    // Known limit: lists do not enforce dismissedByUids, only direct reads do. Rules are not
+    // filters, and a query cannot ask for arrays that exclude a UID, so a recipient can still
+    // list a dismissed ALL_FRIENDS or ALL_FOLLOWERS guide. The app hides it. Do not add the
+    // check here: in the emulator, reading the field with get() leaves the guide listed, and
+    // reading it directly also denies other friends' queries. A dismissed SELECTED_FRIENDS
+    // guide stays unlisted because dismissal removes the UID from sharedWithUids.
     function canListSharedGuides(ownerUid) {
       return request.auth != null && (
         (resource.data.shareAudience in ['ALL_FRIENDS', 'ALL_FOLLOWERS']
