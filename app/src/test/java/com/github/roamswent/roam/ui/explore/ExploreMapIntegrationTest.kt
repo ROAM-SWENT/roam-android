@@ -165,6 +165,12 @@ class ExploreMapIntegrationTest {
           }
           .whenever(rendered.marker)
           .setPosition(any())
+      doAnswer { invocation ->
+            rendered.title = invocation.getArgument(0)
+            null
+          }
+          .whenever(rendered.marker)
+          .setTitle(any())
       doAnswer {
             markers.remove(rendered)
             null
@@ -450,6 +456,124 @@ class ExploreMapIntegrationTest {
   }
 
   @Test
+  fun addingFourthFriendShowsOverflowAndTheirGuideRemainsSelectable() {
+    val colors =
+        listOf(0xffbb4422.toInt(), 0xff227799.toInt(), 0xff8866bb.toInt(), 0xff519143.toInt())
+    val friends =
+        listOf("Alice", "Bob", "Cora", "Dora").mapIndexed { index, name ->
+          val photo = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+          photo.eraseColor(colors[index])
+          val avatar =
+              ByteArrayOutputStream()
+                  .apply { photo.compress(Bitmap.CompressFormat.PNG, 100, this) }
+                  .toByteArray()
+          val shared = monument.copy(name = "Shared tower")
+          ExploreFriendMonuments(
+              name,
+              PublicProfile(name, name, avatarBytes = avatar),
+              listOf(shared),
+          )
+        }
+    val shares = MutableStateFlow(friends.take(3))
+    val opened = mutableListOf<Pair<String, String>>()
+    showExplore(monument, friendPins = shares) { owner, guide -> opened += owner to guide }
+    val trioTitle = "Shared tower (3 shared guides)"
+    val overflowTitle = "Shared tower (4 shared guides)"
+    val avatarCenters = listOf(24, 50, 76)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.runOnIdle {
+        val icon = markers.firstOrNull { it.title == trioTitle }?.icon
+        val image = ExploreBitmapDescriptorShadow.bitmaps[icon]
+        image != null && avatarCenters.map { image.getPixel(it, 28) } == colors.take(3)
+      }
+    }
+    val trioWidth = composeTestRule.runOnIdle {
+      assertEquals(setOf(monument.name, trioTitle), markers.map { it.title }.toSet())
+      assertEquals(2, markers.size)
+      assertEquals(Offset(0.5f, 1f), marker(trioTitle).anchor)
+      shares.value = friends
+      bitmap(trioTitle).width
+    }
+    composeTestRule.runOnIdle {
+      assertEquals(2, markers.size)
+      val overflow = bitmap(overflowTitle)
+      assertTrue(overflow.width > trioWidth)
+      assertNotEquals(0, overflow.getPixel(overflow.width - 4, 28))
+      assertEquals(colors.take(3), avatarCenters.map { overflow.getPixel(it, 28) })
+      assertEquals(List(3) { Size(48, 48) }, requestedPhotoSizes.toList())
+      assertEquals(Color.White.toArgb(), overflow.getPixel(1, 28))
+      darkTheme.value = true
+    }
+    composeTestRule.runOnIdle {
+      assertEquals(darkColorScheme().outline.toArgb(), bitmap(overflowTitle).getPixel(1, 28))
+      assertTrue(clickListener.onMarkerClick(marker(overflowTitle).marker))
+      assertTrue(opened.isEmpty())
+    }
+    composeTestRule.onNodeWithText("Shared monuments").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Dora").performClick()
+    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
+    composeTestRule.runOnIdle { assertEquals(listOf("Dora" to monument.guideId), opened) }
+  }
+
+  @Test
+  fun groupChooserSurvivesAnchorChangeAndClosesWhenSharesAreRemoved() {
+    val first = monument.copy(name = " Shared Tower ")
+    val second = first.copy(name = "shared tower", coordinates = Coordinates(48.85850, 2.29448))
+    val alice = ExploreFriendMonuments("alice", null, listOf(first))
+    val bob = ExploreFriendMonuments("bob", PublicProfile("bob", ""), listOf(second))
+    val bridge = first.copy(name = "Old bridge", coordinates = Coordinates(48.85, 2.31))
+    val otherGroup =
+        listOf("cora", "dora").map { owner -> ExploreFriendMonuments(owner, null, listOf(bridge)) }
+    val shares = MutableStateFlow(otherGroup + listOf(alice, bob))
+    val opened = mutableListOf<Pair<String, String>>()
+    showExplore(monument, friendPins = shares) { owner, guide -> opened += owner to guide }
+    composeTestRule.runOnIdle {
+      assertTrue(clickListener.onMarkerClick(marker(" Shared Tower  (2 shared guides)").marker))
+    }
+    composeTestRule.onNodeWithText("Friend 1").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Friend 2").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Done").performClick()
+    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
+    composeTestRule.runOnIdle {
+      assertTrue(opened.isEmpty())
+      assertTrue(clickListener.onMarkerClick(marker(" Shared Tower  (2 shared guides)").marker))
+      shares.value = otherGroup + listOf(bob, alice.copy(profile = PublicProfile("alice", "Alice")))
+    }
+    composeTestRule.onNodeWithText("Alice").assertIsDisplayed()
+    composeTestRule.runOnIdle { shares.value = otherGroup + bob }
+    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
+    composeTestRule.runOnIdle {
+      assertEquals(
+          setOf(monument.name, second.name, "Old bridge (2 shared guides)"),
+          markers.map { it.title }.toSet(),
+      )
+      assertTrue(clickListener.onMarkerClick(marker(second.name).marker))
+      assertEquals(listOf("bob" to second.guideId), opened)
+    }
+  }
+
+  @Test
+  fun groupWithoutCustomMarkerStillOpensTheSelectedGuide() {
+    ExploreBitmapDescriptorShadow.failDescriptorCreation = true
+    val shared = monument.copy(name = "Shared tower")
+    val friends =
+        listOf("Alice", "Bob").map { owner ->
+          ExploreFriendMonuments(owner, PublicProfile(owner, owner), listOf(shared))
+        }
+    val opened = mutableListOf<Pair<String, String>>()
+    showExplore(monument, friendPins = MutableStateFlow(friends)) { owner, guide ->
+      opened += owner to guide
+    }
+    composeTestRule.runOnIdle {
+      val group = marker("Shared tower (2 shared guides)")
+      assertNull(group.icon)
+      assertTrue(clickListener.onMarkerClick(group.marker))
+    }
+    composeTestRule.onNodeWithText("Bob").performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf("Bob" to shared.guideId), opened) }
+  }
+
+  @Test
   fun missingAndUnreadableAvatarsDisplayAnInitialInBothThemes() {
     val imageLoadFailed = AtomicBoolean()
     val loader = mock<ImageLoader>()
@@ -637,7 +761,7 @@ class ExploreMapIntegrationTest {
   }
 
   private class RenderedMarker(
-      val title: String,
+      var title: String,
       var position: LatLng,
       var icon: BitmapDescriptor?,
       val anchor: Offset,
