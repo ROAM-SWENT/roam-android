@@ -1019,15 +1019,6 @@ private fun UnavailableShareButton(modifier: Modifier = Modifier) {
               tint = MaterialTheme.accentIcon.copy(alpha = 0.45f),
               modifier = Modifier.size(20.dp),
           )
-          val slashColor = MaterialTheme.accentIcon
-          androidx.compose.foundation.Canvas(modifier = Modifier.size(20.dp)) {
-            drawLine(
-                color = slashColor,
-                start = Offset(0.dp.toPx(), 0.dp.toPx()),
-                end = Offset(20.dp.toPx(), 20.dp.toPx()),
-                strokeWidth = 3.dp.toPx(),
-            )
-          }
         }
       }
     }
