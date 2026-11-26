@@ -20,12 +20,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,7 +31,6 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -44,12 +40,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -68,7 +62,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
@@ -353,6 +346,14 @@ fun ExploreScreen(
           selectedMonumentId = null
           onSharedMonumentClick(pin.ownerUid, pin.monument.guideId)
         }
+        val artwork = mutableMapOf<String, FriendMarkerArtwork>()
+        friendMonuments.forEach { friend ->
+          if (friend.ownerUid in visibleOwners) {
+            key(friend.ownerUid) {
+              artwork[friend.ownerUid] = rememberFriendMarkerArtwork(friend.profile)
+            }
+          }
+        }
         GoogleMap(
             modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.explore_map },
             cameraPositionState = cameraPositionState,
@@ -374,18 +375,11 @@ fun ExploreScreen(
                   state = remember(position) { MarkerState(position = position) },
                   isSelected = selectedMonumentId == monument.guideId,
                   onClick = {
+                    selectedFriendGroup = null
                     selectedMonumentId = monument.guideId
                     true
                   },
               )
-            }
-          }
-          val artwork = mutableMapOf<String, FriendMarkerArtwork>()
-          friendMonuments.forEach { friend ->
-            if (friend.ownerUid in visibleOwners) {
-              key(friend.ownerUid) {
-                artwork[friend.ownerUid] = rememberFriendMarkerArtwork(friend.profile)
-              }
             }
           }
           friendGroups.forEach { group ->
@@ -416,12 +410,8 @@ fun ExploreScreen(
                   icon = icon,
                   anchor = Offset(0.5f, 1f),
                   onClick = {
-                    if (group.pins.size == 1) {
-                      openSharedPin(first)
-                    } else {
-                      selectedMonumentId = null
-                      selectedFriendGroup = groupId
-                    }
+                    selectedMonumentId = null
+                    selectedFriendGroup = groupId
                     true
                   },
               )
@@ -429,18 +419,21 @@ fun ExploreScreen(
           }
         }
         selectedFriendGroup?.let { selectedId ->
-          val group = friendGroups.firstOrNull {
-            it.pins.size > 1 && it.pins.any { pin -> pin.key == selectedId }
-          }
+          val group = friendGroups.firstOrNull { it.pins.any { pin -> pin.key == selectedId } }
           if (group == null) {
             LaunchedEffect(selectedId) { selectedFriendGroup = null }
           } else {
-            FriendGroupDialog(
-                group = group,
-                friends = friendMonuments,
-                onDismiss = { selectedFriendGroup = null },
-                onClick = openSharedPin,
-            )
+            key(selectedId) {
+              ExploreFriendPreview(
+                  group = group,
+                  friends = friendMonuments,
+                  mapArtwork = artwork,
+                  viewModel = exploreViewModel,
+                  onDismiss = { selectedFriendGroup = null },
+                  onGuideClick = openSharedPin,
+                  modifier = Modifier.align(Alignment.BottomCenter),
+              )
+            }
           }
         }
       }
@@ -457,52 +450,16 @@ fun ExploreScreen(
             onExpand = { isMonumentExpanded = true },
             onMinimize = { isMonumentExpanded = false },
             // The Scan halo rises 36 dp above the dock body reserved by the route.
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
+            modifier =
+                Modifier.align(Alignment.BottomCenter)
+                    .padding(bottom = EXPLORE_CARD_DOCK_CLEARANCE),
         )
       }
     }
   }
 }
 
-@Composable
-private fun FriendGroupDialog(
-    group: ExploreFriendPinGroup,
-    friends: List<ExploreFriendMonuments>,
-    onDismiss: () -> Unit,
-    onClick: (ExploreSharedPin) -> Unit,
-) {
-  val names = remember(friends) { friends.associate { it.ownerUid to it.profile?.username } }
-  val owners =
-      remember(group) { group.ownerUids.withIndex().associate { it.value to it.index + 1 } }
-  AlertDialog(
-      onDismissRequest = onDismiss,
-      title = { Text(stringResource(R.string.explore_friend_pin_group_title)) },
-      text = {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().heightIn(max = FRIEND_GROUP_LIST_MAX_HEIGHT)
-        ) {
-          items(group.pins, key = { it.key }) { pin ->
-            val name =
-                names[pin.ownerUid]?.takeIf { it.isNotBlank() }
-                    ?: stringResource(
-                        R.string.explore_friend_pin_unknown_owner,
-                        owners.getValue(pin.ownerUid),
-                    )
-            ListItem(
-                headlineContent = { Text(pin.monument.name) },
-                supportingContent = { Text(name) },
-                modifier = Modifier.clickable(role = Role.Button) { onClick(pin) },
-            )
-          }
-        }
-      },
-      confirmButton = {
-        TextButton(onClick = onDismiss) { Text(stringResource(R.string.explore_friend_pin_done)) }
-      },
-  )
-}
-
-private val FRIEND_GROUP_LIST_MAX_HEIGHT = 360.dp
+internal val EXPLORE_CARD_DOCK_CLEARANCE = 36.dp
 
 /** Draws the bundled world map, sea then land, with theme colors. Markers stay on top of it. */
 @Composable
@@ -567,16 +524,7 @@ internal fun ExploreMonumentCard(
     onExpand: () -> Unit = {},
     onMinimize: () -> Unit = {},
 ) {
-  Card(
-      modifier =
-          modifier
-              .fillMaxWidth()
-              .then(if (isExpanded) Modifier.fillMaxHeight(0.75f) else Modifier)
-              .padding(16.dp)
-              .then(if (isExpanded) Modifier else Modifier.clickable(onClick = onExpand)),
-      shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
-  ) {
+  ExplorePreviewSurface(modifier, isExpanded, onExpand) {
     if (isExpanded) {
       Column(
           modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
@@ -601,7 +549,8 @@ internal fun ExploreMonumentCard(
         }
         ExploreMonumentPhoto(
             monument = monument,
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(220.dp),
+            modifier =
+                Modifier.fillMaxWidth().padding(top = 12.dp).height(EXPLORE_PREVIEW_PHOTO_HEIGHT),
         )
         Text(
             text = monument.description,
@@ -615,7 +564,7 @@ internal fun ExploreMonumentCard(
           modifier = Modifier.fillMaxWidth().padding(16.dp),
           verticalAlignment = Alignment.Top,
       ) {
-        ExploreMonumentPhoto(monument)
+        ExploreMonumentPhoto(monument, Modifier.size(EXPLORE_PREVIEW_THUMBNAIL_SIZE))
         Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
           Text(
               text = monument.name,
@@ -643,9 +592,37 @@ internal fun ExploreMonumentCard(
 }
 
 @Composable
-private fun ExploreMonumentPhoto(
+internal fun ExplorePreviewSurface(
+    modifier: Modifier,
+    isExpanded: Boolean,
+    onExpand: () -> Unit,
+    expandedHeightFraction: Float = EXPANDED_PREVIEW_HEIGHT_FRACTION,
+    content: @Composable () -> Unit,
+) {
+  Card(
+      modifier =
+          modifier
+              .fillMaxWidth()
+              .then(if (isExpanded) Modifier.fillMaxHeight(expandedHeightFraction) else Modifier)
+              .padding(EXPLORE_PREVIEW_PADDING)
+              .then(if (isExpanded) Modifier else Modifier.clickable(onClick = onExpand)),
+      shape = RoundedCornerShape(EXPLORE_PREVIEW_RADIUS),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
+  ) {
+    content()
+  }
+}
+
+internal val EXPLORE_PREVIEW_PADDING = 16.dp
+internal val EXPLORE_PREVIEW_PHOTO_HEIGHT = 220.dp
+internal val EXPLORE_PREVIEW_THUMBNAIL_SIZE = 96.dp
+private val EXPLORE_PREVIEW_RADIUS = 20.dp
+private const val EXPANDED_PREVIEW_HEIGHT_FRACTION = 0.75f
+
+@Composable
+internal fun ExploreMonumentPhoto(
     monument: ExploreMonument,
-    modifier: Modifier = Modifier.size(96.dp),
+    modifier: Modifier = Modifier,
 ) {
   val photoModifier = modifier.clip(RoundedCornerShape(12.dp))
   if (monument.photoBytes.isEmpty()) {

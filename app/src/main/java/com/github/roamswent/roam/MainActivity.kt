@@ -73,6 +73,8 @@ import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
+import com.github.roamswent.roam.model.wishlist.FirestoreWishlistRepository
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.EmailVerificationScreen
@@ -209,6 +211,7 @@ internal data class RoamAppTestOverrides(
     val friendRepository: FriendRepository? = null,
     val monumentSharingRepository: MonumentSharingRepository? = null,
     val monumentSharingProvider: MonumentSharingProvider? = null,
+    val wishlistRepository: WishlistRepository? = null,
     val exploreLocationProvider: LocationProvider? = null,
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
@@ -789,6 +792,12 @@ internal fun RoamApp(
               testOverrides?.friendRepository ?: FirestoreFriendRepository(),
               publicProfileRepository,
               monumentSharingRepository,
+              wishlistRepository =
+                  if (testOverrides == null)
+                      FirestoreWishlistRepository(
+                          publicProfileRepository = publicProfileRepository,
+                      )
+                  else testOverrides.wishlistRepository,
           )
         }
         val explorePermissionController =

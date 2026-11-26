@@ -40,4 +40,4 @@ internal fun List<ExploreFriendMonuments>.groupFriendPins(): List<ExploreFriendP
 }
 
 private const val SAME_MONUMENT_METRES = 50.0
-private const val MAX_STACKED_AVATARS = 3
+internal const val MAX_STACKED_AVATARS = 3

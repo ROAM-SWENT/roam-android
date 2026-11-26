@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.withClip
@@ -213,6 +214,16 @@ internal fun rememberFriendGroupIcon(
     avatars: List<FriendMarkerArtwork>,
     extra: Int,
 ): BitmapDescriptor? {
+  val bitmap = rememberFriendAvatarStack(avatars, extra)
+  return remember(bitmap) { bitmap?.let { friendBitmapDescriptor { it } } }
+}
+
+@Composable
+internal fun rememberFriendAvatarStack(
+    avatars: List<FriendMarkerArtwork>,
+    extra: Int,
+    size: Dp? = null,
+): Bitmap? {
   val badge = if (extra > 0) stringResource(R.string.explore_friend_pin_overflow, extra) else ""
   val density = LocalDensity.current
   val badgeColor = MaterialTheme.onAccentContainer.toArgb()
@@ -229,12 +240,14 @@ internal fun rememberFriendGroupIcon(
       borderColor,
       textSize,
       initialSize,
+      size,
   ) {
-    friendBitmapDescriptor {
-      val scale = density.density
+    tryFriendArtwork {
+      val scale =
+          if (size == null) density.density else density.density * size.value / AVATAR_DIAMETER_DP
       val diameter = AVATAR_DIAMETER_DP * scale
       val radius = diameter / 2
-      val top = AVATAR_TOP_DP * scale
+      val top = if (size == null) AVATAR_TOP_DP * scale else 0f
       val step = STACK_STEP_DP * scale
       val avatarsWidth = diameter + step * (avatars.size - 1)
       val textPaint =
@@ -248,13 +261,16 @@ internal fun rememberFriendGroupIcon(
           maxOf(diameter / 2, textPaint.measureText(badge) + BADGE_PADDING_DP * scale * 2)
       val badgeLeft = avatarsWidth - BADGE_OVERLAP_DP * scale
       val width = if (badge.isEmpty()) avatarsWidth else badgeLeft + badgeWidth
-      val bitmap = createBitmap(ceil(width).toInt(), (MARKER_HEIGHT_DP * scale).toInt())
+      val height = if (size == null) MARKER_HEIGHT_DP * scale else diameter
+      val bitmapHeight = if (size == null) height.toInt() else ceil(height).toInt()
+      val bitmap = createBitmap(ceil(width).toInt(), bitmapHeight)
       val canvas = Canvas(bitmap)
       val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
       val centerX = bitmap.width / 2f
       val centerY = top + radius
       paint.color = pinColor
-      canvas.drawPath(monumentPinPath(centerX, bitmap.height.toFloat(), scale), paint)
+      if (size == null)
+          canvas.drawPath(monumentPinPath(centerX, bitmap.height.toFloat(), scale), paint)
       val bottom = top + diameter
       val borderWidth = MARKER_BORDER_DP * scale
       val inset = borderWidth / 2
@@ -312,8 +328,13 @@ internal fun rememberFriendGroupIcon(
 }
 
 private inline fun friendBitmapDescriptor(render: () -> Bitmap): BitmapDescriptor? =
-    try {
+    tryFriendArtwork {
       BitmapDescriptorFactory.fromBitmap(render())
+    }
+
+private inline fun <T> tryFriendArtwork(render: () -> T): T? =
+    try {
+      render()
     } catch (exception: RuntimeException) {
       Log.e(TAG, "Failed to create Explore avatar marker", exception)
       null

@@ -19,6 +19,9 @@ import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.wishlist.WishlistItem
+import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +40,14 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+internal data class ExploreWishlistWrite(val key: String, val status: Status) {
+  enum class Status {
+    PENDING,
+    SAVED,
+    FAILED,
+  }
+}
+
 sealed interface ExploreUiState {
   data class PermissionRequired(val decision: LocationPermissionDecision) : ExploreUiState
 
@@ -52,6 +63,7 @@ data class ExploreFriendMonuments(
     val ownerUid: String,
     val profile: PublicProfile?,
     val monuments: List<ExploreMonument>,
+    val scanDates: Map<String, Long> = emptyMap(),
 )
 
 /**
@@ -66,6 +78,7 @@ class ExploreViewModel(
     friendRepository: FriendRepository,
     private val publicProfileRepository: PublicProfileRepository,
     private val monumentSharingRepository: MonumentSharingRepository,
+    private val wishlistRepository: WishlistRepository? = null,
 ) : ViewModel() {
   private val _uiState =
       MutableStateFlow<ExploreUiState>(
@@ -128,23 +141,80 @@ class ExploreViewModel(
     emit(ExploreFriendMonuments(ownerUid, null, emptyList()))
     var profile: PublicProfile? = null
     var profileLoaded = false
-    monumentSharingRepository
-        .observeSharedGuidesFrom(ownerUid)
-        .map { it.toExploreMonuments() }
-        .distinctUntilChanged()
-        .collect { monuments ->
-          emit(ExploreFriendMonuments(ownerUid, profile, monuments))
-          if (!profileLoaded && monuments.isNotEmpty()) {
-            profileLoaded = true
-            profile = loadFriendProfile(ownerUid)
-            emit(ExploreFriendMonuments(ownerUid, profile, monuments))
-          }
+    monumentSharingRepository.observeSharedGuidesFrom(ownerUid).collect { guides ->
+      val monuments = guides.toExploreMonuments()
+      val scanDates = buildMap {
+        for (guide in guides) {
+          val date = guide.discoveryDate
+          if (guide.location != null && date != null) put(guide.id, date)
         }
+      }
+      emit(ExploreFriendMonuments(ownerUid, profile, monuments, scanDates))
+      if (!profileLoaded && monuments.isNotEmpty()) {
+        profileLoaded = true
+        profile = loadFriendProfile(ownerUid)
+        emit(ExploreFriendMonuments(ownerUid, profile, monuments, scanDates))
+      }
+    }
   }
       .catch { exception ->
         if (exception is CancellationException) throw exception
         Log.w(TAG, "Failed to observe shared monuments from $ownerUid", exception)
         emit(ExploreFriendMonuments(ownerUid, null, emptyList()))
+      }
+
+  internal suspend fun isWishlisted(key: String): Boolean? =
+      try {
+        wishlistRepository?.isWishlisted(key)
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.w(TAG, "Failed to check Explore wishlist", exception)
+        null
+      }
+
+  private val _wishlistWrite = MutableStateFlow<ExploreWishlistWrite?>(null)
+  internal val wishlistWrite = _wishlistWrite.asStateFlow()
+
+  internal fun addToWishlist(pin: ExploreSharedPin) {
+    val repository = wishlistRepository ?: return
+    val key = WishlistMonumentKey.fromCoordinates(pin.monument.coordinates)
+    val previous = _wishlistWrite.value
+    if (
+        previous?.status == ExploreWishlistWrite.Status.PENDING ||
+            previous == ExploreWishlistWrite(key, ExploreWishlistWrite.Status.SAVED)
+    )
+        return
+    _wishlistWrite.value = ExploreWishlistWrite(key, ExploreWishlistWrite.Status.PENDING)
+    viewModelScope.launch {
+      try {
+        repository.addToWishlist(
+            WishlistItem(
+                monumentKey = key,
+                sourceOwnerUid = pin.ownerUid,
+                sourceGuideId = pin.monument.guideId,
+                monumentName = pin.monument.name,
+                addedAt = System.currentTimeMillis(),
+            )
+        )
+        _wishlistWrite.value = ExploreWishlistWrite(key, ExploreWishlistWrite.Status.SAVED)
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.w(TAG, "Failed to add Explore monument to wishlist", exception)
+        _wishlistWrite.value = ExploreWishlistWrite(key, ExploreWishlistWrite.Status.FAILED)
+      }
+    }
+  }
+
+  internal suspend fun friendsWhoWishlisted(key: String): List<PublicProfile> =
+      try {
+        wishlistRepository?.getFriendsWhoWishlisted(key).orEmpty()
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        Log.w(TAG, "Failed to load friend wishlist information", exception)
+        emptyList()
       }
 
   private suspend fun loadFriendProfile(ownerUid: String): PublicProfile? =
