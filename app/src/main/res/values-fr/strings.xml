@@ -151,6 +151,8 @@
     <string name="collection_favorite_undo">Annuler</string>
     <string name="collection_favorite_error">Impossible de mettre à jour les favoris. Veuillez réessayer.</string>
     <string name="collection_share_button">Gérer le partage</string>
+    <string name="collection_share_unavailable_button">Partage indisponible</string>
+    <string name="collection_share_unavailable_message">Ce guide ne peut pas être partagé, car il a été découvert trop loin du monument.</string>
     <string name="collection_share_private">Non partagé</string>
     <string name="collection_share_status">Partagé avec %1$d amis</string>
     <string name="collection_share_title">Partager %1$s</string>

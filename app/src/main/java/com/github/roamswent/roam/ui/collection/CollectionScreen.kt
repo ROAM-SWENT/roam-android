@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,8 +35,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
@@ -60,6 +61,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
@@ -71,7 +73,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,14 +89,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -884,7 +889,11 @@ private fun GuideCard(
             onClick = onToggleFavorite,
             modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
         )
-        if (guide.sharingEligibility != SharingEligibility.TOO_FAR) {
+        if (guide.sharingEligibility == SharingEligibility.TOO_FAR) {
+          UnavailableShareButton(
+              modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+          )
+        } else {
           ShareButton(
               isSharing = isSharing,
               onClick = {
@@ -978,6 +987,49 @@ private fun ShareButton(isSharing: Boolean, onClick: () -> Unit, modifier: Modif
           tint = MaterialTheme.accentIcon,
           modifier = Modifier.size(20.dp),
       )
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UnavailableShareButton(modifier: Modifier = Modifier) {
+  val tooltipState = rememberTooltipState()
+  val scope = rememberCoroutineScope()
+  Box(modifier = modifier) {
+    TooltipBox(
+        positionProvider =
+            TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+          PlainTooltip { Text(stringResource(R.string.collection_share_unavailable_message)) }
+        },
+        state = tooltipState,
+    ) {
+      IconButton(
+          onClick = { scope.launch { tooltipState.show() } },
+          modifier =
+              Modifier.size(36.dp)
+                  .background(MaterialTheme.photoButtonContainer, CircleShape)
+                  .semantics { testTag = C.Tag.collection_card_share },
+      ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(20.dp)) {
+          Icon(
+              imageVector = Icons.Filled.Share,
+              contentDescription = stringResource(R.string.collection_share_unavailable_button),
+              tint = MaterialTheme.accentIcon.copy(alpha = 0.45f),
+              modifier = Modifier.size(20.dp),
+          )
+          val slashColor = MaterialTheme.accentIcon
+          androidx.compose.foundation.Canvas(modifier = Modifier.size(20.dp)) {
+            drawLine(
+                color = slashColor,
+                start = Offset(0.dp.toPx(), 0.dp.toPx()),
+                end = Offset(20.dp.toPx(), 20.dp.toPx()),
+                strokeWidth = 3.dp.toPx(),
+            )
+          }
+        }
+      }
     }
   }
 }
@@ -1131,7 +1183,7 @@ internal fun GuideSharingDialog(
                         selectedFriendUids.addAll(friends.map(CollectionFriend::uid))
                       }
                       selectedFriendUids.remove(friend.uid)
-                      if (selectedFriendUids.isEmpty()) {
+                      if (selectedFriendUids.none { uid -> friends.any { it.uid == uid } }) {
                         audience = ShareAudience.NONE
                       } else {
                         audience = ShareAudience.SELECTED_FRIENDS

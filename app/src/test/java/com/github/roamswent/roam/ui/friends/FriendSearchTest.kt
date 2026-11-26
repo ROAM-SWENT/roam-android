@@ -24,4 +24,16 @@ class FriendSearchTest {
   fun queryMatchesPartialUsernames() {
     assertEquals(listOf("Bob"), filterByUsernameQuery(users, "o") { it })
   }
+
+  @Test
+  fun typoMatchesUsernameWhenSubstringMatchingFindsNothing() {
+    assertEquals(listOf("Alice"), filterByUsernameQuery(users, "Alicee") { it })
+  }
+
+  @Test
+  fun typoMatchingAllowsDigitsInUsernames() {
+    val numberedUsers = listOf("Alex42", "Bob7")
+
+    assertEquals(listOf("Alex42"), filterByUsernameQuery(numberedUsers, "Alex43") { it })
+  }
 }

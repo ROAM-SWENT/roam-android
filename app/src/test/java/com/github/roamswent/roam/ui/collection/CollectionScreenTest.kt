@@ -398,7 +398,7 @@ class CollectionScreenTest {
   }
 
   @Test
-  fun tooFarGuideHidesShareAction() {
+  fun tooFarGuideShowsUnavailableShareActionAndExplanation() {
     composeTestRule.setContent {
       SampleAppTheme {
         CollectionScreen(
@@ -411,8 +411,18 @@ class CollectionScreenTest {
       }
     }
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertDoesNotExist()
-    
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_share)
+        .assertIsDisplayed()
+        .assertContentDescriptionEquals("Sharing unavailable")
+        .performClick()
+    composeTestRule
+        .onNodeWithText(
+            "This guide cannot be shared because it was discovered too far from the monument."
+        )
+        .assertIsDisplayed()
+  }
+
   @Test
   fun emptyFavoritesAndReadOnlyCollectionUseTheirOwnEmptyStatesInDarkTheme() {
     var readOnly by mutableStateOf(false)

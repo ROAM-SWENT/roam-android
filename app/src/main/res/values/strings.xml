@@ -152,6 +152,8 @@
     <string name="collection_favorite_undo">Undo</string>
     <string name="collection_favorite_error">Couldn’t update favourites. Please try again.</string>
     <string name="collection_share_button">Manage sharing</string>
+    <string name="collection_share_unavailable_button">Sharing unavailable</string>
+    <string name="collection_share_unavailable_message">This guide cannot be shared because it was discovered too far from the monument.</string>
     <string name="collection_share_private">Not shared</string>
     <string name="collection_share_status">Shared with %1$d friends</string>
     <string name="collection_share_title">Share %1$s</string>
