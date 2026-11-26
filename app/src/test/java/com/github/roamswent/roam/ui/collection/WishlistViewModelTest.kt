@@ -213,6 +213,28 @@ class WishlistViewModelTest {
       }
 
   @Test
+  fun unknownWishlistItemIsReportedAsAnError() =
+      runTest(dispatcher) {
+        val viewModel = WishlistViewModel(repository)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.setWishlisted("missing", true)
+        assertNotNull(viewModel.uiState.value.mutationError)
+      }
+
+  @Test
+  fun invalidGuideIdentityIsReportedAsAnError() =
+      runTest(dispatcher) {
+        val viewModel = WishlistViewModel(repository)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("bad/owner", guide)
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.mutationError)
+        assertTrue(repository.items.value.isEmpty())
+      }
+
+  @Test
   fun writeFailureIsReportedWithoutChangingMembership() =
       runTest(dispatcher) {
         repository.items.value = listOf(item)

@@ -195,6 +195,65 @@ class MonumentDetailScreenTest {
   }
 
   @Test
+  fun wishlistButtonReflectsStateAndInvokesCallback() {
+    var wishlisted by mutableStateOf(false)
+    var enabled by mutableStateOf(true)
+    var clicks = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            isWishlisted = wishlisted,
+            isWishlistEnabled = enabled,
+            onWishlistClick = { clicks++ },
+        )
+      }
+    }
+    val button = composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button)
+    button.assertContentDescriptionEquals("Add to wishlist").performClick()
+    assertEquals(1, clicks)
+    composeTestRule.runOnIdle { wishlisted = true }
+    button.assertContentDescriptionEquals("Remove from wishlist")
+    composeTestRule.runOnIdle { enabled = false }
+    button.assertIsNotEnabled()
+  }
+
+  @Test
+  fun wishlistButtonIsAbsentWithoutWishlistState() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun wishlistErrorShowsMessageOnceAndIsAcknowledged() {
+    var shown = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            isWishlisted = false,
+            showWishlistError = true,
+            onWishlistErrorShown = { shown++ },
+        )
+      }
+    }
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { shown == 1 }
+    assertEquals(1, shown)
+  }
+
+  @Test
   fun backButtonInvokesCallback() {
     var backClicked = false
     composeTestRule.setContent {

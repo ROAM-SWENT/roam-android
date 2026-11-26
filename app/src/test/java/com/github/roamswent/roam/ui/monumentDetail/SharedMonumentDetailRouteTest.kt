@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
@@ -19,6 +20,7 @@ import com.github.roamswent.roam.ui.collection.FakeWishlistRepository
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -103,6 +105,27 @@ class SharedMonumentDetailRouteTest {
 
     button.performClick()
     composeTestRule.waitUntil(timeoutMillis = 5_000) { wishlist.items.value.isEmpty() }
+    button.assertContentDescriptionEquals("Add to wishlist")
+  }
+
+  @Test
+  fun wishlistFailureKeepsTheButtonStateAndStaysUsable() {
+    val wishlist = FakeWishlistRepository()
+    wishlist.writeError = IllegalStateException("offline")
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        wishlist = wishlist,
+    )
+    val button = composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button)
+    button.performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithText("Couldn’t update your wishlist. Please try again.")
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    assertTrue(wishlist.items.value.isEmpty())
     button.assertContentDescriptionEquals("Add to wishlist")
   }
 

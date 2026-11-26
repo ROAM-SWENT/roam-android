@@ -359,6 +359,21 @@ class WishlistScreenTest {
   }
 
   @Test
+  fun singleFriendWithoutProfileShowsGenericName() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(listOf(monument.copy(scannedBy = listOf(WishlistFriend(""))))),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule.onNodeWithText("Scanned by Friend").assertIsDisplayed()
+  }
+
+  @Test
   fun unavailableFriendAvatarFallsBackToInitial() {
     val requests = AtomicInteger()
     Coil.setImageLoader(
