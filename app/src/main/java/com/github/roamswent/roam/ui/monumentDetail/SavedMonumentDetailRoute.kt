@@ -13,9 +13,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -25,9 +28,19 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.friend.FirestoreFriendRepository
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.model.guide.toMonumentGuide
+import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.CollectionSharingViewModel
+import com.github.roamswent.roam.ui.collection.GuideSharingDialog
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 
 /**
@@ -41,22 +54,83 @@ fun SavedMonumentDetailRoute(
     repository: SavedGuideRepository,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    friendRepository: FriendRepository? = null,
+    publicProfileRepository: PublicProfileRepository? = null,
+    monumentSharingProvider: MonumentSharingProvider? = null,
 ) {
+  val resolvedFriendRepository =
+      remember(friendRepository) { friendRepository ?: FirestoreFriendRepository() }
+  val resolvedProfileRepository =
+      remember(publicProfileRepository) {
+        publicProfileRepository ?: FirestorePublicProfileRepository()
+      }
+  val sharingRepository =
+      remember(monumentSharingProvider) {
+        (monumentSharingProvider ?: DefaultMonumentSharingProvider()).repository()
+      }
   val viewModel: SavedGuidesViewModel = viewModel {
-    SavedGuidesViewModel(repository).also { it.loadGuide(guideId) }
+    SavedGuidesViewModel(repository, sharingRepository).also { it.loadGuide(guideId) }
+  }
+  val sharingViewModel: CollectionSharingViewModel = viewModel {
+    CollectionSharingViewModel(resolvedFriendRepository, resolvedProfileRepository)
   }
   val state by viewModel.uiState.collectAsState()
+  val sharingState by sharingViewModel.uiState.collectAsState()
+  var isShareDialogOpen by remember { mutableStateOf(false) }
   val guide = state.guide
 
   when {
     guide != null -> {
+      LaunchedEffect(guide.id, guide.shareSettings) {
+        if (guide.shareSettings.audience != ShareAudience.NONE) {
+          sharingViewModel.loadFriends()
+        }
+      }
       val monumentGuide = remember(guide) { guide.toMonumentGuide() }
+      val recipients =
+          when (guide.shareSettings.audience) {
+            ShareAudience.ALL_FRIENDS,
+            ShareAudience.ALL_FOLLOWERS -> sharingState.friends
+            ShareAudience.SELECTED_FRIENDS ->
+                sharingState.friends.filter { it.uid in guide.shareSettings.sharedWithUids }
+            ShareAudience.NONE -> emptyList()
+          }
       MonumentDetailScreen(
           image = rememberAsyncImagePainter(guide.photoBytes),
           guide = monumentGuide,
           onBackClick = onBackClick,
           modifier = modifier,
+          sharingState =
+              MonumentDetailSharingState(
+                  settings = guide.shareSettings,
+                  recipients = recipients,
+                  unavailableBecauseTooFar = guide.sharingEligibility == SharingEligibility.TOO_FAR,
+                  isSaving = guide.id in state.sharingGuideIds,
+              ),
+          onShareClick = {
+            isShareDialogOpen = true
+            sharingViewModel.loadFriends()
+          },
+          showSharingError = state.sharingError != null,
+          onSharingErrorShown = viewModel::clearSharingError,
       )
+      if (isShareDialogOpen) {
+        GuideSharingDialog(
+            guideId = guide.id,
+            monumentName = guide.monumentName,
+            shareSettings = guide.shareSettings,
+            friends = sharingState.friends,
+            isLoadingFriends = sharingState.isLoadingFriends,
+            friendsError = sharingState.friendsError,
+            isSaving = guide.id in state.sharingGuideIds,
+            onRetryLoadingFriends = sharingViewModel::retryLoadingFriends,
+            onDismiss = { isShareDialogOpen = false },
+            onConfirm = { audience, friendUids ->
+              viewModel.setShareAudience(guide.id, audience, friendUids)
+              isShareDialogOpen = false
+            },
+        )
+      }
     }
     state.isLoadingGuide ->
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

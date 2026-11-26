@@ -44,6 +44,13 @@ class FirestoreMonumentSharingRepository(
           .runTransaction { transaction ->
             val snapshot = transaction.get(guideRef)
             if (!snapshot.exists()) throw MonumentSharingException.GuideNotFound()
+            if (
+                audience != ShareAudience.NONE &&
+                    snapshot.getString(GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD) ==
+                        SharingEligibility.TOO_FAR.name
+            ) {
+              throw MonumentSharingException.GuideTooFar()
+            }
 
             val updates =
                 mutableMapOf<String, Any>(
@@ -82,6 +89,12 @@ class FirestoreMonumentSharingRepository(
           .runTransaction { transaction ->
             val snapshot = transaction.get(guideRef)
             if (!snapshot.exists()) throw MonumentSharingException.GuideNotFound()
+            if (
+                snapshot.getString(GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD) ==
+                    SharingEligibility.TOO_FAR.name
+            ) {
+              throw MonumentSharingException.GuideTooFar()
+            }
 
             val rawAudience = snapshot.getString(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD)
             val updates = mutableMapOf<String, Any>()

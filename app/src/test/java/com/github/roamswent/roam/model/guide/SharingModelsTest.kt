@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 
 package com.github.roamswent.roam.model.guide
 
@@ -127,6 +128,23 @@ class SharingModelsTest {
     assertFalse(state.isPublic)
     assertTrue(state.followedUids.isEmpty())
     assertTrue(state.followerUids.isEmpty())
+    assertTrue(state.allowFriendRequests)
+  }
+
+  @Test
+  fun accountPrivacyStateExplicitAllowFriendRequestsAndCopy() {
+    val state = AccountPrivacyState(isPublic = true, allowFriendRequests = false)
+
+    assertTrue(state.isPublic)
+    assertFalse(state.allowFriendRequests)
+
+    val copiedPublic = state.copy(isPublic = false)
+    assertFalse(copiedPublic.isPublic)
+    assertFalse(copiedPublic.allowFriendRequests)
+
+    val copiedAllow = state.copy(allowFriendRequests = true)
+    assertTrue(copiedAllow.isPublic)
+    assertTrue(copiedAllow.allowFriendRequests)
   }
 
   @Test
@@ -207,6 +225,17 @@ class SharingModelsTest {
     val notFoundCustom = MonumentSharingException.GuideNotFound("Custom not found", cause)
     assertEquals("Custom not found", notFoundCustom.message)
     assertSame(cause, notFoundCustom.cause)
+
+    val tooFarDefault = MonumentSharingException.GuideTooFar()
+    assertEquals(
+        "This guide cannot be shared because it was discovered too far away.",
+        tooFarDefault.message,
+    )
+    assertNull(tooFarDefault.cause)
+
+    val tooFarCustom = MonumentSharingException.GuideTooFar("Custom too far", cause)
+    assertEquals("Custom too far", tooFarCustom.message)
+    assertSame(cause, tooFarCustom.cause)
 
     val notOwnerDefault = MonumentSharingException.NotGuideOwner()
     assertEquals("Only the guide owner can perform this operation.", notOwnerDefault.message)

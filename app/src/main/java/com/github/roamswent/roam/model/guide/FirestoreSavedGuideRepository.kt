@@ -130,6 +130,7 @@ internal object GuideFirestoreMapper {
   const val SHARE_AUDIENCE_FIELD = "shareAudience"
   const val SHARED_WITH_UIDS_FIELD = "sharedWithUids"
   const val DISMISSED_BY_UIDS_FIELD = "dismissedByUids"
+  const val SHARING_ELIGIBILITY_FIELD = "sharingEligibility"
 
   fun locationFields(location: Coordinates): Map<String, Double> =
       mapOf("latitude" to location.latitude, "longitude" to location.longitude)
@@ -151,6 +152,7 @@ internal object GuideFirestoreMapper {
     guide.discoveryDate?.let { put("discoveryDate", it) }
     put(FAVORITE_FIELD, guide.isFavorite)
     put(SHARE_AUDIENCE_FIELD, guide.shareSettings.audience.name)
+    put(SHARING_ELIGIBILITY_FIELD, guide.sharingEligibility.name)
     if (guide.shareSettings.sharedWithUids.isNotEmpty()) {
       put(SHARED_WITH_UIDS_FIELD, guide.shareSettings.sharedWithUids.sorted())
     }
@@ -168,6 +170,17 @@ internal object GuideFirestoreMapper {
           is String ->
               ShareAudience.entries.firstOrNull { it.name == rawAudience } ?: ShareAudience.NONE
           else -> ShareAudience.NONE
+        }
+    val rawEligibility = fields[SHARING_ELIGIBILITY_FIELD]
+    val sharingEligibility =
+        when (rawEligibility) {
+          is String ->
+              SharingEligibility.entries.firstOrNull { it.name == rawEligibility }
+                  ?: SharingEligibility.UNKNOWN
+          null ->
+              if (fields[LOCATION_FIELD] != null) SharingEligibility.ALLOWED
+              else SharingEligibility.UNKNOWN
+          else -> SharingEligibility.UNKNOWN
         }
     return Guide(
         id = id,
@@ -191,6 +204,7 @@ internal object GuideFirestoreMapper {
                 sharedWithUids = optionalStringSet(fields, SHARED_WITH_UIDS_FIELD),
                 dismissedByUids = optionalStringSet(fields, DISMISSED_BY_UIDS_FIELD),
             ),
+        sharingEligibility = sharingEligibility,
     )
   }
 

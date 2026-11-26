@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
@@ -26,6 +27,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -36,15 +38,25 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.ai.ImagePayload
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
 import com.github.roamswent.roam.model.location.Coordinates
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.CollectionFriend
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import io.mockk.coEvery
+import io.mockk.mockk
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -476,6 +488,73 @@ class ScanReviewScreenTest {
   }
 
   @Test
+  fun reviewRouteSharingAllFriendsUpdatesRecipients() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val sharing = FakeMonumentSharingRepository()
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+    showReviewRoute(
+        captureSender = sender,
+        savedGuideRepository = FakeSavedGuideRepository(),
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+        monumentSharingProvider = { sharing },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_all_friends).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    composeTestRule.waitUntil {
+      sharing.shareSettings.value.values.any { it.audience == ShareAudience.ALL_FRIENDS }
+    }
+    composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun reviewRouteSharingSelectedFriendUpdatesRecipients() {
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> =
+              Result.success(guide.copy(photo = ImagePayload(byteArrayOf(1), "image/jpeg")))
+        }
+    val sharing = FakeMonumentSharingRepository()
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+    showReviewRoute(
+        captureSender = sender,
+        savedGuideRepository = FakeSavedGuideRepository(),
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+        monumentSharingProvider = { sharing },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_screen_container)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
+    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    composeTestRule.waitUntil {
+      sharing.shareSettings.value.values.any {
+        it.audience == ShareAudience.SELECTED_FRIENDS && it.sharedWithUids == setOf("alice")
+      }
+    }
+    composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
   fun reviewRouteSuccessSavesDiscoveryToCollection() {
     // The pipeline returns the downscaled photo it sent to the AI along with the guide.
     val photo = ImagePayload(byteArrayOf(4, 5, 6), "image/jpeg")
@@ -550,6 +629,129 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_favorite_button).performClick()
 
     assertEquals(1, favouriteClicks)
+  }
+
+  @Test
+  fun sentGuideOpensSharingDialogWhenItWasSaved() {
+    var sharingOpened = false
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            savedGuideId = "saved-guide",
+            onOpenSharing = { sharingOpened = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+
+    assertEquals(true, sharingOpened)
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+  }
+
+  @Test
+  fun sentGuideWithoutSavedIdDoesNotRenderSharingDialog() {
+    var sharingOpened = false
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            onOpenSharing = { sharingOpened = true },
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_button).assertCountEquals(0)
+    assertEquals(false, sharingOpened)
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_dialog).assertCountEquals(0)
+  }
+
+  @Test
+  fun sentGuideSharingConfirmationReportsAudienceAndRecipients() {
+    var selectedAudience: ShareAudience? = null
+    var selectedFriends = emptySet<String>()
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        ScanReviewScreen(
+            state = ScanReviewUiState.Sent(uri, guide),
+            onRetake = {},
+            onRetakeConfirm = {},
+            onRetakeCancel = {},
+            onSend = {},
+            savedGuideId = "saved-guide",
+            sharingFriends = listOf(CollectionFriend("alice", "Alice")),
+            onOpenSharing = {},
+            onSetShareAudience = { audience, friends ->
+              selectedAudience = audience
+              selectedFriends = friends
+            },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
+    composeTestRule.onNodeWithText("Alice").performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    assertEquals(ShareAudience.SELECTED_FRIENDS, selectedAudience)
+    assertEquals(setOf("alice"), selectedFriends)
+  }
+
+  @Test
+  fun routeSharingDependenciesCanChangeAcrossRecomposition() {
+    val friendRepository = mutableStateOf<FriendRepository?>(null)
+    val profileRepository = mutableStateOf<PublicProfileRepository?>(null)
+    val sharingProvider = mutableStateOf<MonumentSharingProvider?>(null)
+    val sender =
+        object : CaptureSender {
+          override suspend fun send(uri: Uri): Result<MonumentGuide> = Result.success(guide)
+        }
+
+    composeTestRule.activity.setContent {
+      SampleAppTheme {
+        val controller = rememberNavController()
+        NavHost(navController = controller, startDestination = Routes.Home) {
+          composable(Routes.Home) {
+            LaunchedEffect(Unit) {
+              controller.navigate("${Routes.ScanReview}?uri=${Uri.encode(uri.toString())}")
+            }
+          }
+          composable("${Routes.ScanReview}?uri={uri}") { entry ->
+            ScanReviewRoute(
+                navController = controller,
+                uri = Uri.parse(checkNotNull(entry.arguments?.getString("uri"))),
+                captureSenderOverride = sender,
+                savedGuideRepository = FakeSavedGuideRepository(),
+                friendRepository = friendRepository.value,
+                publicProfileRepository = profileRepository.value,
+                monumentSharingProvider = sharingProvider.value,
+            )
+          }
+        }
+      }
+    }
+
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithTag(C.Tag.scan_review_screen).fetchSemanticsNodes().isNotEmpty()
+    }
+    friendRepository.value = mockk()
+    profileRepository.value = mockk()
+    sharingProvider.value = { FakeMonumentSharingRepository() }
+    composeTestRule.waitForIdle()
+    friendRepository.value = null
+    profileRepository.value = null
+    sharingProvider.value = null
+    composeTestRule.waitForIdle()
   }
 
   /** A gallery photo whose guide carries [photoLocation] and [monumentLocation]. */
@@ -638,12 +840,14 @@ class ScanReviewScreenTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+    waitAndAssertDisplayed(C.Tag.monument_detail_share_unavailable)
 
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
     composeTestRule
         .onNodeWithText(
-            context.getString(R.string.monument_detail_explore_unavailable_photo_too_far),
+            context.getString(R.string.monument_detail_share_unavailable_message, "Eiffel Tower"),
             useUnmergedTree = true,
         )
         .assertIsDisplayed()
@@ -669,9 +873,11 @@ class ScanReviewScreenTest {
     showReviewRoute(sender, savedGuideRepository = savedGuides)
 
     composeTestRule.onNodeWithTag(C.Tag.scan_validate_button).performClick()
-    waitAndAssertDisplayed(C.Tag.monument_detail_explore_unavailable)
+    waitAndAssertDisplayed(C.Tag.monument_detail_share_unavailable)
 
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_show_in_explore).assertDoesNotExist()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_explore_unavailable)
+        .assertCountEquals(0)
     // The guide is still saved to the collection, just not put on Explore.
     assertEquals(null, savedGuides.guides.value.single().location)
     assertEquals(emptyList<Any>(), savedGuides.locationUpdates)
@@ -781,6 +987,9 @@ class ScanReviewScreenTest {
       isGalleryImage: Boolean = false,
       fromCollection: Boolean = false,
       savedGuideRepository: SavedGuideRepository = FakeSavedGuideRepository(),
+      friendRepository: FriendRepository? = null,
+      publicProfileRepository: PublicProfileRepository? = null,
+      monumentSharingProvider: MonumentSharingProvider? = null,
   ) {
     val photo =
         File.createTempFile(
@@ -827,6 +1036,9 @@ class ScanReviewScreenTest {
                 captureSenderOverride = captureSender,
                 userInterestsRepositoryOverride = userInterestsRepository,
                 savedGuideRepository = savedGuideRepository,
+                friendRepository = friendRepository,
+                publicProfileRepository = publicProfileRepository,
+                monumentSharingProvider = monumentSharingProvider,
                 isGalleryImage = entry.arguments?.getBoolean("gallery") ?: false,
                 fromCollection = entry.arguments?.getBoolean("fromCollection") ?: false,
             )

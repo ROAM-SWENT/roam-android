@@ -1,6 +1,7 @@
 /*
  * Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+ * Co-authored-by: Codex <codex@openai.com>
  */
 
 package com.github.roamswent.roam.ui.explore
@@ -27,10 +28,21 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.mock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ExploreViewModelTest {
   private val dispatcher = StandardTestDispatcher()
+
+  private fun createViewModel(provider: LocationProvider) =
+      ExploreViewModel(
+          provider,
+          FakeSavedGuideRepository(),
+          FakeOfflineBaseMapRepository(),
+          friendRepository = mock(),
+          publicProfileRepository = mock(),
+          monumentSharingRepository = mock(),
+      )
 
   @Before
   fun setMainDispatcher() {
@@ -47,8 +59,7 @@ class ExploreViewModelTest {
   fun initialStateRequiresPermissionNotYetAsked() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
 
         assertEquals(
             ExploreUiState.PermissionRequired(LocationPermissionDecision.NOT_ASKED),
@@ -61,12 +72,7 @@ class ExploreViewModelTest {
   @Test
   fun notAskedPermissionSnapshotRequiresPermission() =
       runTest(dispatcher) {
-        val viewModel =
-            ExploreViewModel(
-                FakeLocationProvider { null },
-                FakeSavedGuideRepository(),
-                FakeOfflineBaseMapRepository(),
-            )
+        val viewModel = createViewModel(FakeLocationProvider { null })
 
         viewModel.onPermissionStateChanged(
             isGranted = false,
@@ -92,12 +98,7 @@ class ExploreViewModelTest {
   @Test
   fun deniedPermissionSnapshotRequiresPermission() =
       runTest(dispatcher) {
-        val viewModel =
-            ExploreViewModel(
-                FakeLocationProvider { null },
-                FakeSavedGuideRepository(),
-                FakeOfflineBaseMapRepository(),
-            )
+        val viewModel = createViewModel(FakeLocationProvider { null })
 
         viewModel.onPermissionStateChanged(
             isGranted = false,
@@ -117,8 +118,7 @@ class ExploreViewModelTest {
         val coordinates = Coordinates(48.85837, 2.29448)
         val result = CompletableDeferred<Coordinates?>()
         val provider = FakeLocationProvider { result.await() }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -138,8 +138,7 @@ class ExploreViewModelTest {
       runTest(dispatcher) {
         val result = CompletableDeferred<Coordinates?>()
         val provider = FakeLocationProvider { result.await() }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -156,8 +155,7 @@ class ExploreViewModelTest {
   fun transitionFromNotGrantedToGrantedStartsRetrieval() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
         viewModel.onPermissionStateChanged(false, LocationPermissionDecision.NOT_ASKED)
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
@@ -173,8 +171,7 @@ class ExploreViewModelTest {
       runTest(dispatcher) {
         val result = CompletableDeferred<Coordinates?>()
         val provider = FakeLocationProvider { result.await() }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -199,8 +196,7 @@ class ExploreViewModelTest {
                 return suspendCoroutine { continuation -> pendingContinuations += continuation }
               }
             }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
         val coordinatesA = Coordinates(48.85837, 2.29448)
         val coordinatesB = Coordinates(40.68925, -74.0445)
 
@@ -237,8 +233,7 @@ class ExploreViewModelTest {
                 return suspendCoroutine { continuation -> pendingContinuation = continuation }
               }
             }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
 
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         runCurrent()
@@ -265,8 +260,7 @@ class ExploreViewModelTest {
   fun retryAfterUnavailableStartsAnotherRetrieval() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
         viewModel.onPermissionStateChanged(true, LocationPermissionDecision.GRANTED)
         advanceUntilIdle()
         assertEquals(ExploreUiState.LocationUnavailable, viewModel.uiState.value)
@@ -283,8 +277,7 @@ class ExploreViewModelTest {
   fun retryDoesNothingWhenPermissionIsNotGranted() =
       runTest(dispatcher) {
         val provider = FakeLocationProvider { null }
-        val viewModel =
-            ExploreViewModel(provider, FakeSavedGuideRepository(), FakeOfflineBaseMapRepository())
+        val viewModel = createViewModel(provider)
         viewModel.onPermissionStateChanged(false, LocationPermissionDecision.DENIED)
 
         viewModel.retryLocation()

@@ -9,6 +9,7 @@ import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -377,6 +378,7 @@ class SavedGuidesViewModel(
   ) {
     val sharing = sharingRepository ?: return
     val current = displayedGuide(guideId) ?: return
+    if (current.sharingEligibility == SharingEligibility.TOO_FAR) return
     val recipients = if (audience == ShareAudience.SELECTED_FRIENDS) friendUids else emptySet()
     val requested = current.shareSettings.copy(audience = audience, sharedWithUids = recipients)
     if (current.shareSettings == requested) return

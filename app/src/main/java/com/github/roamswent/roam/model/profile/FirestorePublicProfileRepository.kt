@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.profile
@@ -51,9 +52,18 @@ class FirestorePublicProfileRepository(
             }
             if (claimSnapshot.exists()) throw PublicProfileException.UsernameTaken()
 
-            transaction.set(profileReference, profileFields(uid, username, usernameLower))
+            transaction.set(
+                profileReference,
+                profileFields(
+                    uid,
+                    username,
+                    usernameLower,
+                    isPublic = false,
+                    allowFriendRequests = true,
+                ),
+            )
             transaction.set(claimReference, mapOf(UID_FIELD to uid))
-            PublicProfile(uid, username)
+            PublicProfile(uid, username, isPublic = false, allowFriendRequests = true)
           }
           .await()
     }
@@ -92,7 +102,13 @@ class FirestorePublicProfileRepository(
             transaction.set(newClaimReference, mapOf(UID_FIELD to uid))
             transaction.update(
                 profileReference,
-                profileFields(uid, username, usernameLower),
+                profileFields(
+                    uid,
+                    username,
+                    usernameLower,
+                    isPublic = currentProfile.isPublic,
+                    allowFriendRequests = currentProfile.allowFriendRequests,
+                ),
             )
             // The update keeps the other fields, so the returned profile keeps them too.
             currentProfile.copy(username = username)
@@ -135,6 +151,35 @@ class FirestorePublicProfileRepository(
         .await()
         .documents
         .map { it.toPublicProfile() }
+  }
+
+  override suspend fun updatePrivacySettings(
+      isPublic: Boolean,
+      allowFriendRequests: Boolean,
+  ): PublicProfile = withFirestoreErrors {
+    val uid = requireCurrentUid()
+    val profileReference = publicProfiles().document(uid)
+    firestore
+        .runTransaction { transaction ->
+          val profileSnapshot = transaction.get(profileReference)
+          if (!profileSnapshot.exists()) {
+            throw PublicProfileException.ProfileNotRegistered()
+          }
+
+          val currentProfile = profileSnapshot.toPublicProfile()
+          transaction.update(
+              profileReference,
+              mapOf(
+                  IS_PUBLIC_FIELD to isPublic,
+                  ALLOW_FRIEND_REQUESTS_FIELD to allowFriendRequests,
+              ),
+          )
+          currentProfile.copy(
+              isPublic = isPublic,
+              allowFriendRequests = allowFriendRequests,
+          )
+        }
+        .await()
   }
 
   private fun requireCurrentUid(): String =
@@ -184,19 +229,31 @@ class FirestorePublicProfileRepository(
       "Public profile contains an invalid verified monument count."
     }
     val avatarBytes = getBlob(AVATAR_FIELD)?.toBytes()
+    val isPublic = getBoolean(IS_PUBLIC_FIELD) ?: false
+    val allowFriendRequests = getBoolean(ALLOW_FRIEND_REQUESTS_FIELD) ?: true
     return PublicProfile(
         uid = uid,
         username = username,
         verifiedMonumentCount = verifiedMonumentCount.toInt(),
         avatarBytes = avatarBytes,
+        isPublic = isPublic,
+        allowFriendRequests = allowFriendRequests,
     )
   }
 
-  private fun profileFields(uid: String, username: String, usernameLower: String) =
+  private fun profileFields(
+      uid: String,
+      username: String,
+      usernameLower: String,
+      isPublic: Boolean = false,
+      allowFriendRequests: Boolean = true,
+  ) =
       mapOf(
           UID_FIELD to uid,
           USERNAME_FIELD to username,
           USERNAME_LOWER_FIELD to usernameLower,
+          IS_PUBLIC_FIELD to isPublic,
+          ALLOW_FRIEND_REQUESTS_FIELD to allowFriendRequests,
       )
 
   private fun normalizedUsername(username: String): String {
@@ -224,6 +281,8 @@ class FirestorePublicProfileRepository(
     const val USERNAME_LOWER_FIELD = "usernameLower"
     const val VERIFIED_MONUMENT_COUNT_FIELD = "verifiedMonumentCount"
     const val AVATAR_FIELD = "avatar"
+    const val IS_PUBLIC_FIELD = "isPublic"
+    const val ALLOW_FRIEND_REQUESTS_FIELD = "allowFriendRequests"
     const val MAX_USERNAME_LENGTH = 20
     const val MAX_SEARCH_RESULTS = 20
     val USERNAME_PATTERN = Regex("[A-Za-z0-9_]{3,20}")

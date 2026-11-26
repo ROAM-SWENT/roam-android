@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 rules_version = '2';
@@ -21,14 +22,24 @@ service cloud.firestore {
 
     function validProfileWrite(uid) {
       return request.resource.data.keys().hasAll(['uid', 'username', 'usernameLower'])
-        && request.resource.data.keys()
-          .hasOnly(['uid', 'username', 'usernameLower', 'verifiedMonumentCount', 'avatar'])
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'username',
+          'usernameLower',
+          'verifiedMonumentCount',
+          'avatar',
+          'isPublic',
+          'allowFriendRequests'
+        ])
         && request.resource.data.uid == uid
         && validUsername(request.resource.data.username)
         && request.resource.data.usernameLower == request.resource.data.username.lower()
         && (!('avatar' in request.resource.data)
           || (request.resource.data.avatar is bytes
             && request.resource.data.avatar.size() <= 204800))
+        && (!('isPublic' in request.resource.data) || request.resource.data.isPublic is bool)
+        && (!('allowFriendRequests' in request.resource.data)
+          || request.resource.data.allowFriendRequests is bool)
         && existsAfter(
           /databases/$(database)/documents/usernameClaims/$(request.resource.data.usernameLower)
         )
@@ -128,15 +139,49 @@ service cloud.firestore {
       return uidA < uidB ? uidA + '~' + uidB : uidB + '~' + uidA;
     }
 
+    function isPublicAccount(uid) {
+      return validFriendUid(uid)
+        && exists(/databases/$(database)/documents/publicProfiles/$(uid))
+        && get(/databases/$(database)/documents/publicProfiles/$(uid)).data.get('isPublic', false) == true;
+    }
+
+    function isBlockedBy(ownerUid, actorUid) {
+      return validFriendUid(ownerUid)
+        && validFriendUid(actorUid)
+        && exists(/databases/$(database)/documents/users/$(ownerUid)/blockedUsers/$(actorUid));
+    }
+
+    function followPairIncludesUid(followId, uid) {
+      return validFriendUid(uid)
+        && (
+          followId.matches('^' + uid + '~[A-Za-z0-9_-]{1,128}$')
+          || followId.matches('^[A-Za-z0-9_-]{1,128}~' + uid + '$')
+        );
+    }
+
+    function validFollow(data, followId) {
+      return data.keys().hasAll(['ownerUid', 'followerUid'])
+        && data.keys().hasOnly(['ownerUid', 'followerUid'])
+        && validFriendUid(data.ownerUid)
+        && validFriendUid(data.followerUid)
+        && data.ownerUid != data.followerUid
+        && followId == data.ownerUid + '~' + data.followerUid;
+    }
+
     function isAcceptedBidirectionalFriend(ownerUid, viewerUid) {
       return validFriendUid(ownerUid)
         && validFriendUid(viewerUid)
+        && !isBlockedBy(ownerUid, viewerUid)
         && exists(/databases/$(database)/documents/friendships/$(friendPairId(ownerUid, viewerUid)))
         && get(/databases/$(database)/documents/friendships/$(friendPairId(ownerUid, viewerUid))).data.status == 'ACCEPTED';
     }
 
     function isUnidirectionalFollower(ownerUid, viewerUid) {
-      return exists(/databases/$(database)/documents/follows/$(ownerUid + '~' + viewerUid));
+      return validFriendUid(ownerUid)
+        && validFriendUid(viewerUid)
+        && isPublicAccount(ownerUid)
+        && !isBlockedBy(ownerUid, viewerUid)
+        && exists(/databases/$(database)/documents/follows/$(ownerUid + '~' + viewerUid));
     }
 
     // A guide without a shareAudience field is private, like NONE.
@@ -240,7 +285,12 @@ service cloud.firestore {
         && request.resource.data.requesterUid == request.auth.uid
         && exists(
           /databases/$(database)/documents/publicProfiles/$(request.resource.data.recipientUid)
-        );
+        )
+        && get(
+          /databases/$(database)/documents/publicProfiles/$(request.resource.data.recipientUid)
+        ).data.get('allowFriendRequests', true) == true
+        && !isBlockedBy(request.resource.data.recipientUid, request.auth.uid)
+        && !isBlockedBy(request.auth.uid, request.resource.data.recipientUid);
       allow update: if request.auth != null
         && validFriendship(resource.data, pairId)
         && validFriendship(request.resource.data, pairId)
@@ -256,6 +306,40 @@ service cloud.firestore {
           || (resource.data.status == 'ACCEPTED'
             && request.auth.uid in resource.data.participantUids)
         );
+    }
+
+    match /follows/{followId} {
+      allow get: if request.auth != null
+        && ((!exists(/databases/$(database)/documents/follows/$(followId))
+            && followPairIncludesUid(followId, request.auth.uid))
+          || resource.data.ownerUid == request.auth.uid
+          || resource.data.followerUid == request.auth.uid);
+      allow list: if request.auth != null
+        && (resource.data.ownerUid == request.auth.uid
+          || resource.data.followerUid == request.auth.uid);
+      allow create: if request.auth != null
+        && validFollow(request.resource.data, followId)
+        && request.resource.data.followerUid == request.auth.uid
+        && isPublicAccount(request.resource.data.ownerUid)
+        && !isBlockedBy(request.resource.data.ownerUid, request.auth.uid)
+        && !isBlockedBy(request.auth.uid, request.resource.data.ownerUid);
+      allow update: if false;
+      allow delete: if request.auth != null
+        && validFollow(resource.data, followId)
+        && request.auth.uid in [resource.data.followerUid, resource.data.ownerUid];
+    }
+
+    match /users/{blockerUid}/blockedUsers/{blockedUid} {
+      allow get, list: if request.auth != null && request.auth.uid == blockerUid;
+      allow create: if request.auth != null
+        && request.auth.uid == blockerUid
+        && validFriendUid(blockedUid)
+        && blockerUid != blockedUid
+        && request.resource.data.keys().hasAll(['blockedUid'])
+        && request.resource.data.keys().hasOnly(['blockedUid'])
+        && request.resource.data.blockedUid == blockedUid;
+      allow update: if false;
+      allow delete: if request.auth != null && request.auth.uid == blockerUid;
     }
 
     match /notificationInstallations/{uid}/installations/{fid} {
@@ -304,6 +388,61 @@ service cloud.firestore {
       allow create, delete: if request.auth != null && request.auth.uid == ownerUid;
       allow update: if (request.auth != null && request.auth.uid == ownerUid)
         || isValidRecipientDismissal(ownerUid);
+    }
+
+    function validWishlistLocation(loc) {
+      return loc is map
+        && loc.keys().hasAll(['latitude', 'longitude'])
+        && loc.keys().hasOnly(['latitude', 'longitude'])
+        && loc.latitude is number
+        && loc.latitude >= -90
+        && loc.latitude <= 90
+        && loc.longitude is number
+        && loc.longitude >= -180
+        && loc.longitude <= 180;
+    }
+
+    function validWishlistItem(data, monumentKey) {
+      return monumentKey is string
+        && monumentKey.matches('^[A-Za-z0-9_~-]{1,261}$')
+        && data.keys().hasAll([
+          'monumentKey',
+          'sourceOwnerUid',
+          'sourceGuideId',
+          'monumentName',
+          'addedAt'
+        ])
+        && data.keys().hasOnly([
+          'monumentKey',
+          'sourceOwnerUid',
+          'sourceGuideId',
+          'monumentName',
+          'addedAt',
+          'location'
+        ])
+        && data.monumentKey == monumentKey
+        && validFriendUid(data.sourceOwnerUid)
+        && data.sourceGuideId is string
+        && data.sourceGuideId.size() > 0
+        && data.sourceGuideId.size() <= 128
+        && data.monumentName is string
+        && data.monumentName.size() > 0
+        && data.monumentName.size() <= 200
+        && data.addedAt is int
+        && data.addedAt >= 0
+        && (!('location' in data) || validWishlistLocation(data.location));
+    }
+
+    match /users/{ownerUid}/wishlist/{monumentKey} {
+      allow get, list: if request.auth != null
+        && (request.auth.uid == ownerUid
+          || (isAcceptedBidirectionalFriend(ownerUid, request.auth.uid)
+            && !isBlockedBy(ownerUid, request.auth.uid))
+          || isUnidirectionalFollower(ownerUid, request.auth.uid));
+      allow create, update: if request.auth != null
+        && request.auth.uid == ownerUid
+        && validWishlistItem(request.resource.data, monumentKey);
+      allow delete: if request.auth != null && request.auth.uid == ownerUid;
     }
   }
 }

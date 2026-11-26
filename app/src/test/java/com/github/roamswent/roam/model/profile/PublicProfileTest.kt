@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 package com.github.roamswent.roam.model.profile
 
 import org.junit.Assert.assertEquals
@@ -97,6 +98,38 @@ class PublicProfileTest {
     assertEquals(
         withoutAvatar.hashCode(),
         PublicProfile("uid1", "Alice", avatarBytes = null).hashCode(),
+    )
+  }
+
+  @Test
+  fun equals_comparesPrivacySettings() {
+    val profile = PublicProfile("uid1", "Alice", isPublic = true, allowFriendRequests = false)
+
+    assertEquals(
+        profile,
+        PublicProfile("uid1", "Alice", isPublic = true, allowFriendRequests = false),
+    )
+    assertNotEquals(
+        profile,
+        PublicProfile("uid1", "Alice", isPublic = false, allowFriendRequests = false),
+    )
+    assertNotEquals(
+        profile,
+        PublicProfile("uid1", "Alice", isPublic = true, allowFriendRequests = true),
+    )
+  }
+
+  @Test
+  fun hashCode_changesWithPrivacySettings() {
+    val profile = PublicProfile("uid1", "Alice", isPublic = false, allowFriendRequests = true)
+
+    assertNotEquals(
+        profile.hashCode(),
+        PublicProfile("uid1", "Alice", isPublic = true, allowFriendRequests = true).hashCode(),
+    )
+    assertNotEquals(
+        profile.hashCode(),
+        PublicProfile("uid1", "Alice", isPublic = false, allowFriendRequests = false).hashCode(),
     )
   }
 }

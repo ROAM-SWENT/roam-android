@@ -75,6 +75,19 @@
     <string name="friend_collection_empty_title">No shared monuments yet</string>
     <string name="friend_collection_empty_subtitle">This friend has not shared any monument with you.</string>
     <string name="collection_back_description">Back</string>
+    <string name="friends_tab_friends">Friends</string>
+    <string name="friends_tab_leaderboard">Leaderboard</string>
+    <string name="friends_leaderboard_rank">#%1$d</string>
+    <string name="friends_leaderboard_rank_description">Rank %1$d</string>
+    <plurals name="friends_leaderboard_monument_count">
+        <item quantity="one">%1$d monument</item>
+        <item quantity="other">%1$d monuments</item>
+    </plurals>
+    <string name="friends_leaderboard_you">You</string>
+    <string name="friends_leaderboard_empty_title">Explore together</string>
+    <string name="friends_leaderboard_empty_message">Add friends to see who has verified the most monuments.</string>
+    <string name="friends_leaderboard_add_friends_action">Add friends</string>
+    <string name="friends_leaderboard_error">Couldn’t load the leaderboard. Pull down to try again.</string>
     <string name="home_tab_explore">Explore</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">No camera detected on this device</string>
@@ -83,11 +96,14 @@
     <string name="settings_title">Profile</string>
     <string name="settings_notification_permission">Notification permission</string>
     <string name="notification_friend_requests_channel">Friend requests</string>
+    <string name="notification_monument_shares_channel">Shared monuments</string>
     <string name="notification_friend_request_title">New friend request</string>
     <string name="notification_friend_request_body">%1$s wants to be your friend.</string>
     <string name="notification_friend_request_accept">Accept</string>
     <string name="notification_friend_request_decline">Decline</string>
     <string name="notification_friend_request_action_failed">Couldn’t update the request. Open Roam to try again.</string>
+    <string name="notification_monument_share_title">Monument shared with you</string>
+    <string name="notification_monument_share_body">%1$s shared %2$s with you.</string>
     <string name="home_greeting_format">Hello %s,</string>
     <string name="home_greeting_no_name">Hello,</string>
     <string name="home_greeting_title">Ready to explore?</string>
@@ -254,4 +270,15 @@
     <string name="monument_detail_explore_unavailable_no_photo_location">This photo has no location data, so this monument can\'t be added to Explore.</string>
     <string name="monument_detail_explore_unavailable_photo_too_far">This photo doesn\'t seem to have been taken near this monument, so it can\'t be added to Explore.</string>
     <string name="monument_detail_explore_unavailable_too_far">You don\'t seem to be near this monument, so it can\'t be added to Explore.</string>
+    <string name="monument_detail_continue">Continue</string>
+    <string name="monument_detail_share_with_friends">Share with friends</string>
+    <string name="monument_detail_manage_sharing">Manage sharing</string>
+    <string name="monument_detail_not_shared">Not shared yet. Only you can see this monument.</string>
+    <string name="monument_detail_shared_with_friends">Shared with your friends</string>
+    <string name="monument_detail_shared_with_one">Shared with %1$s</string>
+    <string name="monument_detail_shared_with_two">Shared with %1$s and %2$s</string>
+    <string name="monument_detail_shared_with_one_other">Shared with %1$s, %2$s and 1 other</string>
+    <string name="monument_detail_shared_with_others">Shared with %1$s, %2$s and %3$d others</string>
+    <string name="monument_detail_share_unavailable_title">Can\'t be added to Explore or shared</string>
+    <string name="monument_detail_share_unavailable_message">This photo was taken too far from %1$s. The guide stays in your collection, for you only.</string>
 </resources>

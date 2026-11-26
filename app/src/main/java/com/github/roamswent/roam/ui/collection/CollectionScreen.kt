@@ -1,5 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Google Antigravity <noreply@google.com>
 package com.github.roamswent.roam.ui.collection
 
 import androidx.compose.foundation.background
@@ -9,10 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -47,6 +51,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -196,6 +201,10 @@ fun CollectionScreen(
 
   Scaffold(
       modifier = modifier.fillMaxSize().semantics { testTag = C.Tag.collection_screen },
+      contentWindowInsets =
+          ScaffoldDefaults.contentWindowInsets.only(
+              WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+          ),
       snackbarHost = { SnackbarHost(snackbarHostState) },
       containerColor =
           if (MaterialTheme.isDark) MaterialTheme.colorScheme.background else ScreenBackground,
@@ -602,7 +611,9 @@ private fun GuideCard(
   }
   if (!readOnly && isShareDialogOpen) {
     GuideSharingDialog(
-        guide = guide,
+        guideId = guide.id,
+        monumentName = guide.monumentName,
+        shareSettings = guide.shareSettings,
         friends = friends,
         isLoadingFriends = isLoadingFriends,
         friendsError = friendsError,
@@ -652,8 +663,10 @@ private fun ShareButton(isSharing: Boolean, onClick: () -> Unit, modifier: Modif
 }
 
 @Composable
-private fun GuideSharingDialog(
-    guide: Guide,
+internal fun GuideSharingDialog(
+    guideId: String,
+    monumentName: String,
+    shareSettings: MonumentShareSettings,
     friends: List<CollectionFriend>,
     isLoadingFriends: Boolean,
     friendsError: Exception?,
@@ -662,10 +675,10 @@ private fun GuideSharingDialog(
     onDismiss: () -> Unit,
     onConfirm: (ShareAudience, Set<String>) -> Unit,
 ) {
-  var audience by remember(guide.id) { mutableStateOf(guide.shareSettings.audience) }
+  var audience by remember(guideId) { mutableStateOf(shareSettings.audience) }
   val selectedFriendUids =
-      remember(guide.id) {
-        mutableStateSetOf<String>().apply { addAll(guide.shareSettings.sharedWithUids) }
+      remember(guideId) {
+        mutableStateSetOf<String>().apply { addAll(shareSettings.sharedWithUids) }
       }
   val needsFriends = audience == ShareAudience.SELECTED_FRIENDS
   val recipients =
@@ -677,7 +690,7 @@ private fun GuideSharingDialog(
   AlertDialog(
       modifier = Modifier.semantics { testTag = C.Tag.collection_share_dialog },
       onDismissRequest = onDismiss,
-      title = { Text(stringResource(R.string.collection_share_title, guide.monumentName)) },
+      title = { Text(stringResource(R.string.collection_share_title, monumentName)) },
       text = {
         Column {
           Text(
@@ -1190,16 +1203,13 @@ fun PreviewCollectionScreenEmptyDark() {
 fun PreviewCollectionSharingSelection() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide =
-            previewGuides
-                .first()
-                .copy(
-                    shareSettings =
-                        MonumentShareSettings(
-                            audience = ShareAudience.SELECTED_FRIENDS,
-                            sharedWithUids = setOf("preview-alice"),
-                        )
-                ),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings =
+            MonumentShareSettings(
+                audience = ShareAudience.SELECTED_FRIENDS,
+                sharedWithUids = setOf("preview-alice"),
+            ),
         friends = previewSharingFriends,
         isLoadingFriends = false,
         friendsError = null,
@@ -1216,7 +1226,9 @@ fun PreviewCollectionSharingSelection() {
 fun PreviewCollectionSharingLoading() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings = previewSelectedSharing,
         friends = emptyList(),
         isLoadingFriends = true,
         friendsError = null,
@@ -1233,7 +1245,9 @@ fun PreviewCollectionSharingLoading() {
 fun PreviewCollectionSharingFriendsError() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings = previewSelectedSharing,
         friends = emptyList(),
         isLoadingFriends = false,
         friendsError = IllegalStateException(),
@@ -1250,7 +1264,9 @@ fun PreviewCollectionSharingFriendsError() {
 fun PreviewCollectionSharingNoFriends() {
   SampleAppTheme {
     GuideSharingDialog(
-        guide = previewGuides.first().copy(shareSettings = previewSelectedSharing),
+        guideId = previewGuides.first().id,
+        monumentName = previewGuides.first().monumentName,
+        shareSettings = previewSelectedSharing,
         friends = emptyList(),
         isLoadingFriends = false,
         friendsError = null,

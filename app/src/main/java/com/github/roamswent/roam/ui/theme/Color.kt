@@ -38,6 +38,9 @@ val CollectionPlaceholder = Color(0xFFD5DDD9)
 val CollectionPlaceholderIcon = Color(0xFF8A9A94)
 val OfflineNoticeBackground = Color(0xFFFFE9E6)
 val OfflineNoticeContent = Color(0xFF7A271A)
+val MonumentShareUnavailableIcon = Color(0xFFE53935)
+val MonumentShareUnavailableTitle = Color(0xFF2D2422)
+val MonumentShareUnavailableText = Color(0xFF6B625F)
 val SignOutContainer = Color(0xFFFFF1F0)
 val SignOutContent = Color(0xFFDB4038)
 /** Light-only colors of the offline Explore base map; use the theme-aware ones below. */
@@ -141,6 +144,18 @@ val MaterialTheme.offlineNoticeContainer: Color
 /** Content of the offline notice card. */
 val MaterialTheme.offlineNoticeContent: Color
   @Composable get() = if (isDark) colorScheme.onSurfaceVariant else OfflineNoticeContent
+
+/** Icon color for the monument sharing unavailable callout. */
+val MaterialTheme.monumentShareUnavailableIcon: Color
+  @Composable get() = if (isDark) colorScheme.error else MonumentShareUnavailableIcon
+
+/** Title color for the monument sharing unavailable callout. */
+val MaterialTheme.monumentShareUnavailableTitle: Color
+  @Composable get() = if (isDark) colorScheme.onSurface else MonumentShareUnavailableTitle
+
+/** Body color for the monument sharing unavailable callout. */
+val MaterialTheme.monumentShareUnavailableText: Color
+  @Composable get() = if (isDark) colorScheme.onSurfaceVariant else MonumentShareUnavailableText
 
 /** Sea of the offline Explore base map, drawn when the map tiles cannot load. */
 val MaterialTheme.offlineMapWater: Color
