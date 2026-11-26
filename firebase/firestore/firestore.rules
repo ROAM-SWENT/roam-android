@@ -2,20 +2,11 @@
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
 // Co-authored-by: Gemini 4 Neon <noreply@google.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /todos/{todo} {
-      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
-      allow create: if request.auth != null
-        && request.resource.data.ownerId == request.auth.uid;
-      allow update: if request.auth != null
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
-    }
-
     function validUsername(username) {
       return username is string
         && username.matches('^[A-Za-z0-9_]{3,20}$');
@@ -193,13 +184,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/follows/$(ownerUid + '~' + viewerUid));
     }
 
+    // A guide without a shareAudience field is private, like NONE.
     function canReadSharedGuide(ownerUid) {
       return request.auth != null
         && !(request.auth.uid in resource.data.get('dismissedByUids', []))
         && (
-          (!('shareAudience' in resource.data)
-            && isAcceptedBidirectionalFriend(ownerUid, request.auth.uid))
-          || (resource.data.get('shareAudience', '') == 'ALL_FRIENDS'
+          (resource.data.get('shareAudience', '') == 'ALL_FRIENDS'
             && isAcceptedBidirectionalFriend(ownerUid, request.auth.uid))
           || (resource.data.get('shareAudience', '') == 'SELECTED_FRIENDS'
             && request.auth.uid in resource.data.get('sharedWithUids', [])
@@ -210,6 +200,14 @@ service cloud.firestore {
         );
     }
 
+    // Accepted limitation, tracked in #305: dismissal hides a guide in the app. It does not
+    // revoke access for a recipient who stays in the owner's ALL_FRIENDS or ALL_FOLLOWERS
+    // audience: direct reads deny them, but they can still list the guide. SELECTED_FRIENDS is
+    // not affected, because dismissal removes the UID from sharedWithUids, which lists require.
+    // Stronger enforcement needs a data-model change. Adding a check here is not enough: rules
+    // are not filters, and a query cannot ask for arrays that exclude a UID. In the emulator,
+    // reading dismissedByUids with get() leaves the guide listed, and reading it directly also
+    // denies other friends' queries.
     function canListSharedGuides(ownerUid) {
       return request.auth != null && (
         (resource.data.shareAudience in ['ALL_FRIENDS', 'ALL_FOLLOWERS']

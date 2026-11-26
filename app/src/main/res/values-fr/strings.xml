@@ -148,6 +148,18 @@
     <string name="collection_photo_description">Photo de %1$s</string>
     <string name="collection_filter_all">Tout</string>
     <string name="collection_filter_favorites">Favoris</string>
+    <string name="collection_filter_wishlist">Liste d\'envies</string>
+    <string name="collection_wishlist_info">De vos amis. Scannez un monument pour l\'ajouter à votre collection.</string>
+    <string name="collection_wishlist_empty">Aucun monument dans votre liste d\'envies pour l\'instant.</string>
+    <string name="collection_wishlist_add">Ajouter à la liste d\'envies</string>
+    <string name="collection_wishlist_remove">Retirer de la liste d\'envies</string>
+    <string name="collection_wishlist_scanned_by">Scanné par %1$s</string>
+    <string name="collection_wishlist_more_friends">+%1$d</string>
+    <plurals name="collection_wishlist_scanned_by_friends">
+        <item quantity="one">Scanné par %1$d ami</item>
+        <item quantity="many">Scanné par %1$d amis</item>
+        <item quantity="other">Scanné par %1$d amis</item>
+    </plurals>
     <string name="collection_favorite_add">Ajouter aux favoris</string>
     <string name="collection_favorite_remove">Retirer des favoris</string>
     <string name="collection_favorites_empty_title">Aucun favori pour l\'instant</string>
@@ -156,6 +168,8 @@
     <string name="collection_favorite_undo">Annuler</string>
     <string name="collection_favorite_error">Impossible de mettre à jour les favoris. Veuillez réessayer.</string>
     <string name="collection_share_button">Gérer le partage</string>
+    <string name="collection_share_unavailable_button">Partage indisponible</string>
+    <string name="collection_share_unavailable_message">Ce guide ne peut pas être partagé, car il a été découvert trop loin du monument.</string>
     <string name="collection_share_private">Non partagé</string>
     <string name="collection_share_status">Partagé avec %1$d amis</string>
     <string name="collection_share_title">Partager %1$s</string>
@@ -171,6 +185,15 @@
     <string name="collection_share_cancel">Annuler</string>
     <string name="collection_share_confirm">Enregistrer</string>
     <string name="collection_share_error">Impossible de mettre à jour le partage. Veuillez réessayer.</string>
+    <string name="collection_share_new_title">Partager avec des amis</string>
+    <string name="collection_share_new_message">Ils verront %1$s sur leur carte Explorer et dans Amis. Seule la ville est affichée.</string>
+    <string name="collection_share_new_none">Personne</string>
+    <string name="collection_share_new_all_friends">Tous mes amis</string>
+    <string name="collection_share_new_confirm">Partager</string>
+    <plurals name="collection_share_selected_friends">
+        <item quantity="one">%1$d ami sélectionné</item>
+        <item quantity="other">%1$d amis sélectionnés</item>
+    </plurals>
     <string name="collection_delete">Supprimer le guide</string>
     <string name="collection_delete_error">Impossible de supprimer ce guide. Veuillez réessayer.</string>
     <string name="camera_permission_title">Autorisation de l\'appareil photo requise</string>

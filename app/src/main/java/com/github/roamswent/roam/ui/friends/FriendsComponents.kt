@@ -585,7 +585,7 @@ internal fun FriendRequestCard(
 }
 
 @Composable
-private fun FriendsSearchField(
+internal fun FriendsSearchField(
     query: String,
     onQueryChanged: (String) -> Unit,
     modifier: Modifier = Modifier,
