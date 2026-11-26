@@ -590,29 +590,33 @@ class ExploreMapIntegrationTest {
         .performClick()
     composeTestRule.onNodeWithContentDescription("Close monument information").performClick()
     composeTestRule.onNodeWithText("Scanned by 2 friends").assertDoesNotExist()
+    val namedAlice = alice.copy(profile = PublicProfile("alice", "Alice"))
     composeTestRule.runOnIdle {
       assertTrue(opened.isEmpty())
       assertTrue(clickListener.onMarkerClick(marker(" Shared Tower  (2 shared guides)").marker))
-      shares.value =
-          otherGroup + listOf(movedBob, alice.copy(profile = PublicProfile("alice", "Alice")))
+      shares.value = otherGroup + listOf(bob, namedAlice)
     }
-    expandFriendPreview(second.name)
+    expandFriendPreview(first.name)
     composeTestRule.onNodeWithText("Alice").performScrollTo().assertIsDisplayed()
-    composeTestRule.runOnIdle { shares.value = otherGroup + bob }
-    composeTestRule.onNodeWithText("Scanned by 2 friends").assertDoesNotExist()
-    composeTestRule.onNodeWithText("Alice").assertIsDisplayed()
+    composeTestRule.runOnIdle { shares.value = otherGroup + listOf(movedBob, namedAlice) }
     composeTestRule.runOnIdle {
       assertEquals(
           LatLng(moved.coordinates.latitude, moved.coordinates.longitude),
           marker("shared tower (2 shared guides)").position,
       )
-      shares.value = otherGroup + movedBob
     }
-    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Alice").performScrollTo().assertIsDisplayed()
+    composeTestRule.runOnIdle { shares.value = otherGroup + movedBob }
+    composeTestRule.onNodeWithText("Scanned by 2 friends").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Alice").assertDoesNotExist()
     composeTestRule.runOnIdle {
       assertEquals(
           setOf(monument.name, second.name, "Old bridge (2 shared guides)"),
           markers.map { it.title }.toSet(),
+      )
+      assertEquals(
+          LatLng(moved.coordinates.latitude, moved.coordinates.longitude),
+          marker(second.name).position,
       )
       assertTrue(clickListener.onMarkerClick(marker(second.name).marker))
     }
