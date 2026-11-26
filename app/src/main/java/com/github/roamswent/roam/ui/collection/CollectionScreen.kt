@@ -794,14 +794,11 @@ internal fun GuideSharingDialog(
                       available: Offset,
                       source: NestedScrollSource,
                   ): Offset {
-                    if (
-                        source == NestedScrollSource.UserInput &&
-                            available.y > 0f &&
-                            !friendListState.canScrollBackward
-                    ) {
-                      return Offset(x = 0f, y = available.y)
-                    }
-                    return Offset.Zero
+                    return consumeFriendListPreScroll(
+                        available = available,
+                        source = source,
+                        canScrollBackward = friendListState.canScrollBackward,
+                    )
                   }
                 }
               }
@@ -895,6 +892,17 @@ internal fun GuideSharingDialog(
     }
   }
 }
+
+internal fun consumeFriendListPreScroll(
+    available: Offset,
+    source: NestedScrollSource,
+    canScrollBackward: Boolean,
+): Offset =
+    if (source == NestedScrollSource.UserInput && available.y > 0f && !canScrollBackward) {
+      Offset(x = 0f, y = available.y)
+    } else {
+      Offset.Zero
+    }
 
 @Composable
 private fun ShareAudienceOption(

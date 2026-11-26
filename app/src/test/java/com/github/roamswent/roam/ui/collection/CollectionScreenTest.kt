@@ -9,9 +9,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.WindowInsets
@@ -647,6 +649,62 @@ class CollectionScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_none).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
+  }
+
+  @Test
+  fun searchWithNoMatchingFriendsShowsNoUsersFound() {
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_search).performTextInput("nobody")
+
+    composeTestRule.onNodeWithText("No users found").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend).assertCountEquals(0)
+  }
+
+  @Test
+  fun friendListPreScrollConsumesDownwardUserInputOnlyAtTheTop() {
+    val downward = Offset(x = 3f, y = 12f)
+
+    assertEquals(
+        Offset(x = 0f, y = 12f),
+        consumeFriendListPreScroll(
+            available = downward,
+            source = NestedScrollSource.UserInput,
+            canScrollBackward = false,
+        ),
+    )
+    assertEquals(
+        Offset.Zero,
+        consumeFriendListPreScroll(
+            available = downward,
+            source = NestedScrollSource.UserInput,
+            canScrollBackward = true,
+        ),
+    )
+    assertEquals(
+        Offset.Zero,
+        consumeFriendListPreScroll(
+            available = Offset(x = 0f, y = -12f),
+            source = NestedScrollSource.UserInput,
+            canScrollBackward = false,
+        ),
+    )
+    assertEquals(
+        Offset.Zero,
+        consumeFriendListPreScroll(
+            available = downward,
+            source = NestedScrollSource.SideEffect,
+            canScrollBackward = false,
+        ),
+    )
   }
 
   @Test
