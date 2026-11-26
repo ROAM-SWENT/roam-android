@@ -15,13 +15,19 @@ import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.model.location.LocationProvider
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.wishlist.WishlistItem
+import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -31,10 +37,14 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.verifyNoMoreInteractions
@@ -197,6 +207,148 @@ class ExploreFriendMonumentsTest {
         assertEquals(listOf(pins("alice", profile, second)), viewModel.friendMonuments.value)
       }
 
+  @Test
+  fun wishlistWritePreservesTheSharedGuideReferenceAndSuppressesDuplicateTaps() =
+      runTest(dispatcher) {
+        val release = CompletableDeferred<Unit>()
+        val items = mutableListOf<WishlistItem>()
+        val backend = mock<WishlistRepository>()
+        val repository =
+            object : WishlistRepository by backend {
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+                items += item
+                release.await()
+                return item
+              }
+            }
+        viewModel = createViewModel(wishlist = repository)
+        val pin = ExploreSharedPin("alice", listOf(first).toExploreMonuments().single())
+        val key = WishlistMonumentKey.fromCoordinates(pin.monument.coordinates)
+
+        viewModel.addToWishlist(pin)
+        runCurrent()
+        assertEquals(
+            ExploreWishlistWrite(key, ExploreWishlistWrite.Status.PENDING),
+            viewModel.wishlistWrite.value,
+        )
+        viewModel.addToWishlist(pin)
+        release.complete(Unit)
+        runCurrent()
+        assertEquals(
+            ExploreWishlistWrite(key, ExploreWishlistWrite.Status.SAVED),
+            viewModel.wishlistWrite.value,
+        )
+        viewModel.addToWishlist(pin)
+        runCurrent()
+
+        val item = items.single()
+        assertEquals(key, item.monumentKey)
+        assertEquals(pin.ownerUid, item.sourceOwnerUid)
+        assertEquals(pin.monument.guideId, item.sourceGuideId)
+        assertEquals(pin.monument.name, item.monumentName)
+        assertNull(item.location)
+      }
+
+  @Test
+  fun rejectedWishlistWriteCanBeRetried() =
+      runTest(dispatcher) {
+        val repository = mock<WishlistRepository>()
+        whenever(repository.addToWishlist(any()))
+            .thenThrow(IllegalStateException("Write rejected"))
+            .thenAnswer { it.getArgument(0) }
+        viewModel = createViewModel(wishlist = repository)
+        val pin = ExploreSharedPin("alice", listOf(first).toExploreMonuments().single())
+        val key = WishlistMonumentKey.fromCoordinates(pin.monument.coordinates)
+        viewModel.addToWishlist(pin)
+        runCurrent()
+        assertEquals(
+            ExploreWishlistWrite(key, ExploreWishlistWrite.Status.FAILED),
+            viewModel.wishlistWrite.value,
+        )
+        viewModel.addToWishlist(pin)
+        runCurrent()
+        assertEquals(
+            ExploreWishlistWrite(key, ExploreWishlistWrite.Status.SAVED),
+            viewModel.wishlistWrite.value,
+        )
+        verify(repository, times(2)).addToWishlist(any())
+      }
+
+  @Test
+  fun wishlistLookupsReturnResultsAndDegradeGracefullyWhenReadsFail() =
+      runTest(dispatcher) {
+        val repository = mock<WishlistRepository>()
+        val key = WishlistMonumentKey.fromCoordinates(checkNotNull(first.location))
+        val alice = PublicProfile("alice", "Alice")
+        whenever(repository.isWishlisted(key))
+            .thenReturn(true)
+            .thenThrow(IllegalStateException("Unavailable"))
+        whenever(repository.getFriendsWhoWishlisted(key))
+            .thenReturn(listOf(alice))
+            .thenThrow(IllegalStateException("Unavailable"))
+        viewModel = createViewModel(wishlist = repository)
+        assertEquals(true, viewModel.isWishlisted(key))
+        assertEquals(listOf(alice), viewModel.friendsWhoWishlisted(key))
+        assertNull(viewModel.isWishlisted(key))
+        assertTrue(viewModel.friendsWhoWishlisted(key).isEmpty())
+      }
+
+  @Test
+  fun cancelledWishlistLookupsPropagateCancellation() =
+      runTest(dispatcher) {
+        val repository = mock<WishlistRepository>()
+        val key = WishlistMonumentKey.fromCoordinates(checkNotNull(first.location))
+        whenever(repository.isWishlisted(key)).thenThrow(CancellationException())
+        whenever(repository.getFriendsWhoWishlisted(key)).thenThrow(CancellationException())
+        viewModel = createViewModel(wishlist = repository)
+        assertThrows(CancellationException::class.java) {
+          runBlocking { viewModel.isWishlisted(key) }
+        }
+        assertThrows(CancellationException::class.java) {
+          runBlocking { viewModel.friendsWhoWishlisted(key) }
+        }
+      }
+
+  @Test
+  fun pendingWishlistWriteIsCancelledWithExplore() =
+      runTest(dispatcher) {
+        val cancelled = CompletableDeferred<Unit>()
+        val backend = mock<WishlistRepository>()
+        val repository =
+            object : WishlistRepository by backend {
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem =
+                  try {
+                    awaitCancellation()
+                  } finally {
+                    cancelled.complete(Unit)
+                  }
+            }
+        viewModel = createViewModel(wishlist = repository)
+        val pin = ExploreSharedPin("alice", listOf(first).toExploreMonuments().single())
+        viewModel.addToWishlist(pin)
+        runCurrent()
+
+        viewModel.viewModelScope.cancel()
+        runCurrent()
+
+        assertTrue(cancelled.isCompleted)
+        assertEquals(ExploreWishlistWrite.Status.PENDING, viewModel.wishlistWrite.value?.status)
+      }
+
+  @Test
+  fun wishlistIsUnavailableWhenExploreHasNoWishlistBackend() =
+      runTest(dispatcher) {
+        viewModel = createViewModel()
+        val pin = ExploreSharedPin("alice", listOf(first).toExploreMonuments().single())
+        val key = WishlistMonumentKey.fromCoordinates(pin.monument.coordinates)
+
+        assertNull(viewModel.isWishlisted(key))
+        assertTrue(viewModel.friendsWhoWishlisted(key).isEmpty())
+        viewModel.addToWishlist(pin)
+        runCurrent()
+        assertNull(viewModel.wishlistWrite.value)
+      }
+
   private suspend fun setFriends(vararg uids: String) {
     whenever(friends.getFriends()).thenReturn(uids.map { Friendship("friendship-$it", it) })
   }
@@ -205,20 +357,32 @@ class ExploreFriendMonumentsTest {
       sharing: MonumentSharingRepository,
       publicProfiles: PublicProfileRepository = profiles,
   ): Job {
-    viewModel =
-        ExploreViewModel(
-            mock<LocationProvider>(),
-            FakeSavedGuideRepository(listOf(first)),
-            FakeOfflineBaseMapRepository(),
-            friends,
-            publicProfiles,
-            sharing,
-        )
+    viewModel = createViewModel(sharing, publicProfiles)
     return backgroundScope.launch { viewModel.friendMonuments.collect {} }.also { runCurrent() }
   }
 
+  private fun createViewModel(
+      sharing: MonumentSharingRepository = FakeMonumentSharingRepository(),
+      publicProfiles: PublicProfileRepository = profiles,
+      wishlist: WishlistRepository? = null,
+  ): ExploreViewModel =
+      ExploreViewModel(
+          mock<LocationProvider>(),
+          FakeSavedGuideRepository(listOf(first)),
+          FakeOfflineBaseMapRepository(),
+          friends,
+          publicProfiles,
+          sharing,
+          wishlist,
+      )
+
   private fun pins(owner: String, profile: PublicProfile?, guide: Guide) =
-      ExploreFriendMonuments(owner, profile, listOf(guide).toExploreMonuments())
+      ExploreFriendMonuments(
+          owner,
+          profile,
+          listOf(guide).toExploreMonuments(),
+          guide.discoveryDate?.let { mapOf(guide.id to it) }.orEmpty(),
+      )
 
   private fun guide(id: String, location: Coordinates?) =
       Guide(
@@ -230,7 +394,7 @@ class ExploreFriendMonumentsTest {
           facts = emptyList(),
           culture = "",
           location = location,
-          discoveryDate = null,
+          discoveryDate = if (id == "first") 1_700_000_000_000L else null,
           shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
       )
 }
