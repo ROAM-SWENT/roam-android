@@ -129,6 +129,7 @@
     <string name="explore_friend_wishlist_add">Ajouter aux envies</string>
     <string name="explore_friend_wishlist_saved">Dans vos envies</string>
     <string name="explore_friend_wishlist_error">Impossible d’ajouter ce monument à vos envies. Réessayez.</string>
+    <string name="explore_friend_wishlist_check_error">Impossible de vérifier vos envies.</string>
     <string name="explore_friend_collection_info">Le scan d’un ami ne peut pas rejoindre votre collection. Scannez vous-même le monument pour le collectionner.</string>
     <string name="explore_friend_city_country">%1$s, %2$s</string>
     <string name="explore_friend_location_unavailable">Lieu indisponible</string>

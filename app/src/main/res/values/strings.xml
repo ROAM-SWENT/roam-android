@@ -129,6 +129,7 @@
     <string name="explore_friend_wishlist_add">Add to wishlist</string>
     <string name="explore_friend_wishlist_saved">On your wishlist</string>
     <string name="explore_friend_wishlist_error">Could not add to your wishlist. Try again.</string>
+    <string name="explore_friend_wishlist_check_error">Could not check your wishlist.</string>
     <string name="explore_friend_collection_info">A friend\'s scan can\'t join your collection. Scan the monument yourself to collect it.</string>
     <string name="explore_friend_city_country">%1$s, %2$s</string>
     <string name="explore_friend_location_unavailable">Location unavailable</string>

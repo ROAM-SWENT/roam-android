@@ -93,16 +93,20 @@ internal fun ExploreFriendPreview(
       }
   val monumentKey =
       remember(monument.coordinates) { WishlistMonumentKey.fromCoordinates(monument.coordinates) }
-  val alreadyWishlisted by
-      produceState<Boolean?>(null, monumentKey) {
-        value = null
-        value = viewModel.isWishlisted(monumentKey)
+  var wishlistCheckAttempt by remember(monumentKey) { mutableStateOf(0) }
+  val wishlistStatus by
+      key(monumentKey, wishlistCheckAttempt) {
+        produceState(ExploreWishlistStatus.LOADING) { value = viewModel.checkWishlist(monumentKey) }
       }
   val write by viewModel.wishlistWrite.collectAsStateWithLifecycle()
   val selectedWriteStatus = write?.takeIf { it.key == monumentKey }?.status
-  val saved = alreadyWishlisted == true || selectedWriteStatus == ExploreWishlistWrite.Status.SAVED
+  val saved =
+      wishlistStatus == ExploreWishlistStatus.SAVED ||
+          selectedWriteStatus == ExploreWishlistWrite.Status.SAVED
   val canAdd =
-      alreadyWishlisted == false && !saved && write?.status != ExploreWishlistWrite.Status.PENDING
+      wishlistStatus == ExploreWishlistStatus.NOT_SAVED &&
+          !saved &&
+          write?.status != ExploreWishlistWrite.Status.PENDING
   val wishlistLabel =
       stringResource(
           if (saved) R.string.explore_friend_wishlist_saved
@@ -195,7 +199,7 @@ internal fun ExploreFriendPreview(
             Text(wishlistLabel, modifier = Modifier.padding(start = PREVIEW_INLINE_GAP))
           }
         }
-        if (wishlistFailed) WishlistError()
+        WishlistFeedback(wishlistStatus, saved, wishlistFailed) { wishlistCheckAttempt++ }
         Row(horizontalArrangement = Arrangement.spacedBy(PREVIEW_INLINE_GAP)) {
           Icon(
               Icons.Outlined.Info,
@@ -257,7 +261,7 @@ internal fun ExploreFriendPreview(
             Icon(if (saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, wishlistLabel)
           }
         }
-        if (wishlistFailed) WishlistError()
+        WishlistFeedback(wishlistStatus, saved, wishlistFailed) { wishlistCheckAttempt++ }
       }
     }
   }
@@ -342,12 +346,33 @@ private fun relativeScanDate(timestamp: Long): String {
 }
 
 @Composable
-private fun WishlistError() {
-  Text(
-      stringResource(R.string.explore_friend_wishlist_error),
-      color = MaterialTheme.colorScheme.error,
-      style = MaterialTheme.typography.bodySmall,
-  )
+private fun WishlistFeedback(
+    status: ExploreWishlistStatus,
+    saved: Boolean,
+    writeFailed: Boolean,
+    onRetry: () -> Unit,
+) {
+  if (!saved && status == ExploreWishlistStatus.CHECK_FAILED) {
+    Column {
+      Text(
+          stringResource(R.string.explore_friend_wishlist_check_error),
+          color = MaterialTheme.colorScheme.error,
+          style = MaterialTheme.typography.bodySmall,
+      )
+      TextButton(
+          onClick = onRetry,
+          colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.accentIcon),
+      ) {
+        Text(stringResource(R.string.explore_retry))
+      }
+    }
+  } else if (writeFailed) {
+    Text(
+        stringResource(R.string.explore_friend_wishlist_error),
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+    )
+  }
 }
 
 @Composable

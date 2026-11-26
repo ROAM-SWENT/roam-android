@@ -785,7 +785,7 @@ class ExploreMapIntegrationTest {
         monument,
         friendPins = shares,
         wishlistWrite = write,
-        alreadyWishlisted = false,
+        wishlistStatus = ExploreWishlistStatus.NOT_SAVED,
         viewModel = viewModel,
     )
     tapSharedMarker(shared.name)
@@ -828,6 +828,43 @@ class ExploreMapIntegrationTest {
   }
 
   @Test
+  fun failedWishlistCheckCanBeRetriedInBothPreviewLayouts() {
+    val shared = monument.copy(guideId = "shared", name = "Shared tower")
+    val shares = MutableStateFlow(listOf(ExploreFriendMonuments("alice", null, listOf(shared))))
+    val viewModel = mock<ExploreViewModel>()
+    val key = WishlistMonumentKey.fromCoordinates(shared.coordinates)
+    showExplore(monument, friendPins = shares, viewModel = viewModel)
+    runBlocking {
+      whenever(viewModel.checkWishlist(key))
+          .thenReturn(
+              ExploreWishlistStatus.CHECK_FAILED,
+              ExploreWishlistStatus.CHECK_FAILED,
+              ExploreWishlistStatus.NOT_SAVED,
+          )
+    }
+    tapSharedMarker(shared.name)
+
+    val lookupError = composeTestRule.onNodeWithText("Could not check your wishlist.")
+    val retry = composeTestRule.onNodeWithText("Retry")
+    lookupError.assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Add to wishlist").assertIsNotEnabled()
+    retry.performClick()
+    composeTestRule.runOnIdle { runBlocking { verify(viewModel, times(2)).checkWishlist(key) } }
+
+    expandFriendPreview(shared.name)
+    lookupError.performScrollTo().assertIsDisplayed()
+    val add = composeTestRule.onNodeWithText("Add to wishlist")
+    add.performScrollTo().assertIsNotEnabled()
+    retry.performScrollTo().performClick()
+
+    lookupError.assertDoesNotExist()
+    retry.assertDoesNotExist()
+    add.performScrollTo().assertIsEnabled()
+    composeTestRule.runOnIdle { runBlocking { verify(viewModel, times(3)).checkWishlist(key) } }
+    verify(viewModel, never()).addToWishlist(any())
+  }
+
+  @Test
   fun expandedPreviewShowsCoarseCityAndRelativeDatesAndOpensPrimaryGuide() {
     ExploreGeocoderShadow.address =
         Address(Locale.ENGLISH).apply {
@@ -865,7 +902,7 @@ class ExploreMapIntegrationTest {
         monument,
         friendPins = shares,
         wishlistingFriends = listOf(PublicProfile("zoe", "Zoe")),
-        alreadyWishlisted = true,
+        wishlistStatus = ExploreWishlistStatus.SAVED,
     ) { owner, guide ->
       opened += owner to guide
     }
@@ -993,14 +1030,14 @@ class ExploreMapIntegrationTest {
       friendPins: MutableStateFlow<List<ExploreFriendMonuments>> = MutableStateFlow(emptyList()),
       wishlistingFriends: List<PublicProfile> = emptyList(),
       wishlistWrite: MutableStateFlow<ExploreWishlistWrite?> = MutableStateFlow(null),
-      alreadyWishlisted: Boolean? = null,
+      wishlistStatus: ExploreWishlistStatus = ExploreWishlistStatus.UNAVAILABLE,
       viewModel: ExploreViewModel = mock(),
       onSharedMonumentClick: (String, String) -> Unit = { _, _ -> },
   ) {
     whenever(viewModel.friendMonuments).thenReturn(friendPins)
     whenever(viewModel.wishlistWrite).thenReturn(wishlistWrite)
     runBlocking {
-      whenever(viewModel.isWishlisted(any())).thenReturn(alreadyWishlisted)
+      whenever(viewModel.checkWishlist(any())).thenReturn(wishlistStatus)
       whenever(viewModel.friendsWhoWishlisted(any())).thenReturn(wishlistingFriends)
     }
     whenever(viewModel.uiState)

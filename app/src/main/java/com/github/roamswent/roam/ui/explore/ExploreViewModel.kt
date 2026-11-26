@@ -40,6 +40,14 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+internal enum class ExploreWishlistStatus {
+  LOADING,
+  SAVED,
+  NOT_SAVED,
+  CHECK_FAILED,
+  UNAVAILABLE,
+}
+
 internal data class ExploreWishlistWrite(val key: String, val status: Status) {
   enum class Status {
     PENDING,
@@ -163,15 +171,18 @@ class ExploreViewModel(
         emit(ExploreFriendMonuments(ownerUid, null, emptyList()))
       }
 
-  internal suspend fun isWishlisted(key: String): Boolean? =
-      try {
-        wishlistRepository?.isWishlisted(key)
-      } catch (exception: CancellationException) {
-        throw exception
-      } catch (exception: Exception) {
-        Log.w(TAG, "Failed to check Explore wishlist", exception)
-        null
-      }
+  internal suspend fun checkWishlist(key: String): ExploreWishlistStatus {
+    val repository = wishlistRepository ?: return ExploreWishlistStatus.UNAVAILABLE
+    return try {
+      if (repository.isWishlisted(key)) ExploreWishlistStatus.SAVED
+      else ExploreWishlistStatus.NOT_SAVED
+    } catch (exception: CancellationException) {
+      throw exception
+    } catch (exception: Exception) {
+      Log.w(TAG, "Failed to check Explore wishlist", exception)
+      ExploreWishlistStatus.CHECK_FAILED
+    }
+  }
 
   private val _wishlistWrite = MutableStateFlow<ExploreWishlistWrite?>(null)
   internal val wishlistWrite = _wishlistWrite.asStateFlow()

@@ -283,13 +283,15 @@ class ExploreFriendMonumentsTest {
         whenever(repository.isWishlisted(key))
             .thenReturn(true)
             .thenThrow(IllegalStateException("Unavailable"))
+            .thenReturn(false)
         whenever(repository.getFriendsWhoWishlisted(key))
             .thenReturn(listOf(alice))
             .thenThrow(IllegalStateException("Unavailable"))
         viewModel = createViewModel(wishlist = repository)
-        assertEquals(true, viewModel.isWishlisted(key))
+        assertEquals(ExploreWishlistStatus.SAVED, viewModel.checkWishlist(key))
         assertEquals(listOf(alice), viewModel.friendsWhoWishlisted(key))
-        assertNull(viewModel.isWishlisted(key))
+        assertEquals(ExploreWishlistStatus.CHECK_FAILED, viewModel.checkWishlist(key))
+        assertEquals(ExploreWishlistStatus.NOT_SAVED, viewModel.checkWishlist(key))
         assertTrue(viewModel.friendsWhoWishlisted(key).isEmpty())
       }
 
@@ -302,7 +304,7 @@ class ExploreFriendMonumentsTest {
         whenever(repository.getFriendsWhoWishlisted(key)).thenThrow(CancellationException())
         viewModel = createViewModel(wishlist = repository)
         assertThrows(CancellationException::class.java) {
-          runBlocking { viewModel.isWishlisted(key) }
+          runBlocking { viewModel.checkWishlist(key) }
         }
         assertThrows(CancellationException::class.java) {
           runBlocking { viewModel.friendsWhoWishlisted(key) }
@@ -342,7 +344,7 @@ class ExploreFriendMonumentsTest {
         val pin = ExploreSharedPin("alice", listOf(first).toExploreMonuments().single())
         val key = WishlistMonumentKey.fromCoordinates(pin.monument.coordinates)
 
-        assertNull(viewModel.isWishlisted(key))
+        assertEquals(ExploreWishlistStatus.UNAVAILABLE, viewModel.checkWishlist(key))
         assertTrue(viewModel.friendsWhoWishlisted(key).isEmpty())
         viewModel.addToWishlist(pin)
         runCurrent()
