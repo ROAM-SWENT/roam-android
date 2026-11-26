@@ -326,6 +326,65 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun readOnlyScreenShowsWishlistButtonOnlyWhenHandlerProvided() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(state = SavedGuidesUiState(guides = listOf(olderGuide)), readOnly = true)
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist).assertDoesNotExist()
+  }
+
+  @Test
+  fun wishlistButtonTogglesGuideAndReflectsState() {
+    var wishlisted by mutableStateOf(false)
+    val toggledGuides = mutableListOf<Guide>()
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            readOnly = true,
+            isGuideWishlisted = { wishlisted },
+            onToggleWishlist = { guide ->
+              toggledGuides.add(guide)
+              wishlisted = !wishlisted
+            },
+        )
+      }
+    }
+    val button = composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist)
+    button.assertContentDescriptionEquals("Add to wishlist")
+    button.performClick()
+    assertEquals(listOf(olderGuide), toggledGuides)
+    button.assertContentDescriptionEquals("Remove from wishlist")
+    button.performClick()
+    assertEquals(listOf(olderGuide, olderGuide), toggledGuides)
+    assertFalse(wishlisted)
+  }
+
+  @Test
+  fun wishlistStateCanMatchGuidesWithDifferentOwnerIds() {
+    val otherOwnersGuide = olderGuide.copy(id = "another-owner")
+    var wishlistedName by mutableStateOf<String?>(null)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide, otherOwnersGuide)),
+            readOnly = true,
+            isGuideWishlisted = { it.monumentName == wishlistedName },
+            onToggleWishlist = { wishlistedName = it.monumentName },
+        )
+      }
+    }
+
+    val buttons = composeTestRule.onAllNodesWithTag(C.Tag.collection_card_wishlist)
+    buttons.assertCountEquals(2)
+    buttons[0].performClick()
+    buttons[0].assertContentDescriptionEquals("Remove from wishlist")
+    buttons[1].assertContentDescriptionEquals("Remove from wishlist")
+  }
+
+  @Test
   fun readOnlyEmptyStateExplainsNothingIsShared() {
     composeTestRule.setContent {
       SampleAppTheme { CollectionScreen(state = SavedGuidesUiState(), readOnly = true) }

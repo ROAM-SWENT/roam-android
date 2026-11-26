@@ -147,6 +147,8 @@ fun CollectionScreen(
     onDeleteGuide: (String) -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
+    isGuideWishlisted: (Guide) -> Boolean = { false },
+    onToggleWishlist: ((Guide) -> Unit)? = null,
     onRestoreFavorite: (String) -> Unit = {},
     onFavoriteErrorShown: () -> Unit = {},
     onShowFavoritesOnlyChange: (Boolean) -> Unit = {},
@@ -330,6 +332,8 @@ fun CollectionScreen(
                   deletingGuideIds = state.deletingGuideIds,
                   onToggleFavorite = toggleFavorite,
                   readOnly = readOnly,
+                  isGuideWishlisted = isGuideWishlisted,
+                  onToggleWishlist = onToggleWishlist,
                   sharingGuideIds = state.sharingGuideIds,
                   friends = friends,
                   isLoadingFriends = isLoadingFriends,
@@ -748,10 +752,11 @@ private fun WishlistButton(
     isWishlisted: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tag: String = C.Tag.collection_wishlist_button,
 ) {
   IconButton(
       onClick = onClick,
-      modifier = modifier.size(36.dp).semantics { testTag = C.Tag.collection_wishlist_button },
+      modifier = modifier.size(36.dp).semantics { testTag = tag },
   ) {
     Icon(
         imageVector = if (isWishlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
@@ -774,6 +779,8 @@ private fun GuideGrid(
     deletingGuideIds: Set<String>,
     onToggleFavorite: (Guide) -> Unit,
     readOnly: Boolean,
+    isGuideWishlisted: (Guide) -> Boolean,
+    onToggleWishlist: ((Guide) -> Unit)?,
     sharingGuideIds: Set<String>,
     friends: List<CollectionFriend>,
     isLoadingFriends: Boolean,
@@ -797,6 +804,8 @@ private fun GuideGrid(
           isDeleting = guide.id in deletingGuideIds,
           onToggleFavorite = { onToggleFavorite(guide) },
           readOnly = readOnly,
+          isWishlisted = isGuideWishlisted(guide),
+          onToggleWishlist = onToggleWishlist?.let { toggle -> { toggle(guide) } },
           isSharing = guide.id in sharingGuideIds,
           friends = friends,
           isLoadingFriends = isLoadingFriends,
@@ -819,6 +828,8 @@ private fun GuideCard(
     isDeleting: Boolean,
     onToggleFavorite: () -> Unit,
     readOnly: Boolean,
+    isWishlisted: Boolean,
+    onToggleWishlist: (() -> Unit)?,
     isSharing: Boolean,
     friends: List<CollectionFriend>,
     isLoadingFriends: Boolean,
@@ -836,6 +847,17 @@ private fun GuideCard(
   ) {
     Box {
       GuidePhoto(guide)
+      if (readOnly && onToggleWishlist != null) {
+        WishlistButton(
+            isWishlisted = isWishlisted,
+            onClick = onToggleWishlist,
+            modifier =
+                Modifier.align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .background(MaterialTheme.photoButtonContainer, CircleShape),
+            tag = C.Tag.collection_card_wishlist,
+        )
+      }
       if (!readOnly) {
         DeleteButton(
             onClick = onDelete,
