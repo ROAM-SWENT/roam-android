@@ -12,11 +12,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
@@ -108,6 +110,11 @@ fun MonumentDetailScreen(
     showSharingControls: Boolean = true,
     showSharingAction: Boolean = true,
     showBackArrow: Boolean = false,
+    isWishlisted: Boolean? = null,
+    isWishlistEnabled: Boolean = true,
+    onWishlistClick: () -> Unit = {},
+    showWishlistError: Boolean = false,
+    onWishlistErrorShown: () -> Unit = {},
 ) {
   val cornerRadius = 24.dp
 
@@ -213,9 +220,25 @@ fun MonumentDetailScreen(
       )
     }
 
+    isWishlisted?.let {
+      MonumentDetailWishlistButton(
+          isWishlisted = it,
+          onClick = onWishlistClick,
+          enabled = isWishlistEnabled,
+          modifier = Modifier.align(Alignment.TopEnd),
+      )
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val favoriteErrorMessage = stringResource(R.string.collection_favorite_error)
     val sharingErrorMessage = stringResource(R.string.collection_share_error)
+    val wishlistErrorMessage = stringResource(R.string.collection_wishlist_update_error)
+    LaunchedEffect(showWishlistError) {
+      if (showWishlistError) {
+        snackbarHostState.showSnackbar(wishlistErrorMessage)
+        onWishlistErrorShown()
+      }
+    }
     LaunchedEffect(showFavoriteError) {
       if (showFavoriteError) {
         snackbarHostState.showSnackbar(favoriteErrorMessage)
@@ -456,6 +479,44 @@ private fun MonumentDetailFavoriteButton(
             stringResource(
                 if (isFavorite) R.string.collection_favorite_remove
                 else R.string.collection_favorite_add
+            ),
+        tint = MaterialTheme.accentIcon,
+    )
+  }
+}
+
+@Composable
+private fun MonumentDetailWishlistButton(
+    isWishlisted: Boolean,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+  IconButton(
+      onClick = onClick,
+      enabled = enabled,
+      modifier =
+          modifier
+              .windowInsetsPadding(
+                  WindowInsets.safeDrawing.only(
+                      WindowInsetsSides.Horizontal + WindowInsetsSides.Top
+                  )
+              )
+              .padding(16.dp)
+              .size(44.dp)
+              .semantics { testTag = C.Tag.monument_detail_wishlist_button },
+      colors =
+          IconButtonDefaults.iconButtonColors(
+              containerColor = MaterialTheme.photoButtonContainer,
+              disabledContainerColor = MaterialTheme.photoButtonContainer,
+          ),
+  ) {
+    Icon(
+        imageVector = if (isWishlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+        contentDescription =
+            stringResource(
+                if (isWishlisted) R.string.collection_wishlist_remove
+                else R.string.collection_wishlist_add
             ),
         tint = MaterialTheme.accentIcon,
     )

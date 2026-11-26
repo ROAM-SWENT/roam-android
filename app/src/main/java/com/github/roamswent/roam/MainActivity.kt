@@ -774,7 +774,8 @@ internal fun RoamApp(
         if (friendUid != null && guideId != null) {
           val showBackArrow =
               remember(backStackEntry) {
-                navController.previousBackStackEntry?.destination?.route == Routes.Collection
+                navController.previousBackStackEntry?.destination?.route in
+                    setOf(Routes.Collection, Routes.FriendCollectionPattern)
               }
           SharedMonumentDetailRoute(
               ownerUid = friendUid,
@@ -782,6 +783,7 @@ internal fun RoamApp(
               repository = monumentSharingRepository,
               onBackClick = { navController.popBackStack() },
               showBackArrow = showBackArrow,
+              wishlistRepository = testOverrides?.wishlistRepository,
           )
         }
       }

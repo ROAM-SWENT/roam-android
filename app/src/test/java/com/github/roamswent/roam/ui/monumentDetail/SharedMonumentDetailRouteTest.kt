@@ -12,7 +12,10 @@ import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.wishlist.WishlistItem
+import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.FakeWishlistRepository
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -78,6 +81,44 @@ class SharedMonumentDetailRouteTest {
     composeTestRule
         .onNodeWithTag(C.Tag.monument_detail_back_button)
         .assertContentDescriptionEquals("Back")
+  }
+
+  @Test
+  fun wishlistButtonAddsAndRemovesTheSharedGuide() {
+    val wishlist = FakeWishlistRepository()
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        wishlist = wishlist,
+    )
+    val button = composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button)
+    button.assertContentDescriptionEquals("Add to wishlist")
+
+    button.performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { wishlist.items.value.size == 1 }
+    val item = wishlist.items.value.single()
+    assertEquals("friend", item.sourceOwnerUid)
+    assertEquals("louvre", item.sourceGuideId)
+    button.assertContentDescriptionEquals("Remove from wishlist")
+
+    button.performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { wishlist.items.value.isEmpty() }
+    button.assertContentDescriptionEquals("Add to wishlist")
+  }
+
+  @Test
+  fun wishlistedGuideShowsFilledButton() {
+    val wishlist = FakeWishlistRepository()
+    val key = WishlistMonumentKey.forSharedGuide("friend", louvre.id)
+    wishlist.items.value = listOf(WishlistItem(key, "friend", louvre.id, louvre.monumentName, 1))
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        wishlist = wishlist,
+    )
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_wishlist_button)
+        .assertContentDescriptionEquals("Remove from wishlist")
   }
 
   @Test
@@ -150,6 +191,7 @@ class SharedMonumentDetailRouteTest {
       guideId: String,
       onBack: () -> Unit = {},
       showBackArrow: Boolean = false,
+      wishlist: FakeWishlistRepository = FakeWishlistRepository(),
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -159,6 +201,7 @@ class SharedMonumentDetailRouteTest {
             repository = repository,
             onBackClick = onBack,
             showBackArrow = showBackArrow,
+            wishlistRepository = wishlist,
         )
       }
     }

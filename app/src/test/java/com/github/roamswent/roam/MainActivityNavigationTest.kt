@@ -2088,6 +2088,7 @@ class MainActivityNavigationTest {
         onNavControllerReady = { navController[0] = it },
         monumentSharingRepository =
             FakeMonumentSharingRepository(mapOf("friend-uid" to listOf(shared))),
+        wishlistRepository = FakeWishlistRepository(),
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
@@ -2106,7 +2107,11 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.monument_detail_title)
     composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Back")
+        .performClick()
     waitAndAssertDisplayed(C.Tag.collection_screen)
     composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_back_button).performClick()

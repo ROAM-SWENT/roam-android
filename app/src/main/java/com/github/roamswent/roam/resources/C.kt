@@ -114,6 +114,7 @@ object C {
     const val monument_detail_confidence = "monument_detail_confidence"
     const val monument_detail_back_button = "monument_detail_back_button"
     const val monument_detail_favorite_button = "monument_detail_favorite_button"
+    const val monument_detail_wishlist_button = "monument_detail_wishlist_button"
     const val monument_detail_overview = "monument_detail_overview"
     const val monument_detail_history = "monument_detail_history"
     const val monument_detail_timeline = "monument_detail_timeline"
