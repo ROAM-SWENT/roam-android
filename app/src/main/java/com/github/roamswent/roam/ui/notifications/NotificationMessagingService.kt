@@ -16,7 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /** Receives notification data pushes and refreshes this installation's registered FID. */
-class FriendRequestMessagingService : FirebaseMessagingService() {
+class NotificationMessagingService : FirebaseMessagingService() {
   /** Persists refreshed FCM installation IDs so future pushes reach this installation. */
   override fun onRegistered(installationId: String) {
     if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
@@ -33,18 +33,27 @@ class FriendRequestMessagingService : FirebaseMessagingService() {
   /** Converts supported data messages into local notifications with request actions. */
   override fun onMessageReceived(message: RemoteMessage) {
     val notification = FriendRequestNotificationData.from(message.data)
-    if (notification == null) {
+    val sharedMonument = MonumentShareNotificationData.from(message.data)
+    if (notification == null && sharedMonument == null) {
       Log.w(TAG, "Ignoring an invalid or unsupported push notification.")
       return
     }
-    if (!notification.isForAccount(FirebaseAuth.getInstance().currentUser?.uid)) {
+    val currentUid = FirebaseAuth.getInstance().currentUser?.uid
+    if (
+        notification != null && !notification.isForAccount(currentUid) ||
+            sharedMonument != null && !sharedMonument.isForAccount(currentUid)
+    ) {
       Log.w(TAG, "Ignoring a notification registered to a different account.")
       return
     }
-    FriendRequestNotifications.showFriendRequest(this, notification)
+    if (notification != null) {
+      FriendRequestNotifications.showFriendRequest(this, notification)
+    } else {
+      MonumentShareNotifications.show(this, checkNotNull(sharedMonument))
+    }
   }
 
   private companion object {
-    const val TAG = "FriendRequestMessaging"
+    const val TAG = "NotificationMessaging"
   }
 }

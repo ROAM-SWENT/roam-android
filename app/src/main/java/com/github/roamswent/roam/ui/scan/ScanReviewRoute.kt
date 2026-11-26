@@ -23,11 +23,24 @@ import com.github.roamswent.roam.model.ai.GuideRepositoryImpl
 import com.github.roamswent.roam.model.ai.ImagePreparer
 import com.github.roamswent.roam.model.ai.MonumentGuide
 import com.github.roamswent.roam.model.ai.MonumentGuideRepository
+import com.github.roamswent.roam.model.friend.FirestoreFriendRepository
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.interests.SharedPreferencesUserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
+import com.github.roamswent.roam.model.leaderboard.FirestoreLeaderboardRepository
+import com.github.roamswent.roam.model.leaderboard.LeaderboardEntry
+import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
+import com.github.roamswent.roam.model.leaderboard.MonumentKey
+import com.github.roamswent.roam.model.leaderboard.VerifiedMonumentResult
 import com.github.roamswent.roam.model.location.AndroidLocationProvider
+import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.repository.CaptureSender
+import com.github.roamswent.roam.ui.collection.CollectionSharingViewModel
 import com.github.roamswent.roam.ui.loading.ContentResolverImageReader
 import com.github.roamswent.roam.ui.loading.LoadingRoute
 import com.github.roamswent.roam.ui.loading.LoadingViewModel
@@ -42,8 +55,12 @@ fun ScanReviewRoute(
     captureSenderOverride: CaptureSender? = null,
     userInterestsRepositoryOverride: UserInterestsRepository? = null,
     savedGuideRepository: SavedGuideRepository,
+    leaderboardRepositoryOverride: LeaderboardRepository? = null,
     isGalleryImage: Boolean = false,
     fromCollection: Boolean = false,
+    friendRepository: FriendRepository? = null,
+    publicProfileRepository: PublicProfileRepository? = null,
+    monumentSharingProvider: MonumentSharingProvider? = null,
     onStartDiscovery: (() -> Unit) -> Unit = { proceed -> proceed() },
 ) {
   val context = LocalContext.current
@@ -85,6 +102,22 @@ fun ScanReviewRoute(
               captureSender.send(uri).getOrThrow()
         }
       }
+  val leaderboardRepository: LeaderboardRepository =
+      remember(leaderboardRepositoryOverride) {
+        leaderboardRepositoryOverride
+            ?: run {
+              // Created on the first verified visit, not with the screen, which often records none.
+              val firestoreRepository by lazy { FirestoreLeaderboardRepository() }
+              object : LeaderboardRepository {
+                override suspend fun recordVerifiedMonument(
+                    monument: MonumentKey
+                ): VerifiedMonumentResult = firestoreRepository.recordVerifiedMonument(monument)
+
+                override suspend fun getFriendsLeaderboard(): List<LeaderboardEntry> =
+                    firestoreRepository.getFriendsLeaderboard()
+              }
+            }
+      }
   val loadingViewModel: LoadingViewModel =
       viewModel(key = uri.toString()) {
         LoadingViewModel(
@@ -94,7 +127,20 @@ fun ScanReviewRoute(
             Locale.getDefault().toLanguageTag(),
             userInterestsRepository,
             savedGuideRepository,
+            leaderboardRepository,
+            sharingRepository =
+                (monumentSharingProvider ?: DefaultMonumentSharingProvider()).repository(),
         )
+      }
+  val resolvedFriendRepository =
+      remember(friendRepository) { friendRepository ?: FirestoreFriendRepository() }
+  val resolvedProfileRepository =
+      remember(publicProfileRepository) {
+        publicProfileRepository ?: FirestorePublicProfileRepository()
+      }
+  val sharingViewModel: CollectionSharingViewModel =
+      viewModel(key = "scan-sharing-$uri") {
+        CollectionSharingViewModel(resolvedFriendRepository, resolvedProfileRepository)
       }
   val showLoading by loadingViewModel.showLoading.collectAsState()
   val showInterestsPrompt by loadingViewModel.showInterestsPrompt.collectAsState()
@@ -104,6 +150,19 @@ fun ScanReviewRoute(
   val favoriteError by loadingViewModel.favoriteError.collectAsState()
   val exploreOptIn by loadingViewModel.exploreOptIn.collectAsState()
   val exploreUnavailableReason by loadingViewModel.exploreUnavailableReason.collectAsState()
+  val shareSettings by loadingViewModel.shareSettings.collectAsState()
+  val savedGuideId by loadingViewModel.savedGuideId.collectAsState()
+  val sharingError by loadingViewModel.sharingError.collectAsState()
+  val isSharing by loadingViewModel.isSharing.collectAsState()
+  val sharingFriends by sharingViewModel.uiState.collectAsState()
+  val sharingRecipients =
+      when (shareSettings.audience) {
+        ShareAudience.ALL_FRIENDS,
+        ShareAudience.ALL_FOLLOWERS -> sharingFriends.friends
+        ShareAudience.SELECTED_FRIENDS ->
+            sharingFriends.friends.filter { it.uid in shareSettings.sharedWithUids }
+        ShareAudience.NONE -> emptyList()
+      }
 
   val returnToGalleryOrigin = {
     navController.popBackStack(
@@ -175,6 +234,18 @@ fun ScanReviewRoute(
           exploreOptIn = exploreOptIn,
           exploreUnavailableReason = exploreUnavailableReason,
           onShowInExploreChange = loadingViewModel::setShownInExplore,
+          shareSettings = shareSettings,
+          sharingRecipients = sharingRecipients,
+          sharingFriends = sharingFriends.friends,
+          savedGuideId = savedGuideId,
+          isSharing = isSharing,
+          isLoadingFriends = sharingFriends.isLoadingFriends,
+          friendsError = sharingFriends.friendsError,
+          onOpenSharing = sharingViewModel::loadFriends,
+          onRetryLoadingFriends = sharingViewModel::retryLoadingFriends,
+          onSetShareAudience = loadingViewModel::setShareAudience,
+          showSharingError = sharingError != null,
+          onSharingErrorShown = loadingViewModel::clearSharingError,
       )
     }
   }

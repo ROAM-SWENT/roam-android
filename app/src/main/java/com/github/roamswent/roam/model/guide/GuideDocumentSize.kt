@@ -85,6 +85,11 @@ internal object GuideDocumentSize {
             GuideFirestoreMapper.SHARE_AUDIENCE_FIELD,
             guide.shareSettings.audience.name.firestoreStringSize(),
         )
+    fieldsSize +=
+        fieldSize(
+            GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD,
+            guide.sharingEligibility.name.firestoreStringSize(),
+        )
     if (guide.shareSettings.sharedWithUids.isNotEmpty()) {
       fieldsSize +=
           fieldSize(

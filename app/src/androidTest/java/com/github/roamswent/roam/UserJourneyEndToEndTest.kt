@@ -3,6 +3,7 @@
  * Co-authored-by: Mistral Vibe <vibe@mistral.ai>
  * Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
  * Co-authored-by: Codex <codex@openai.com>
+ * Co-authored-by: Gemini 4 Neon <noreply@google.com>
  */
 
 package com.github.roamswent.roam
@@ -1027,6 +1028,12 @@ private class FakePublicProfileRepository : PublicProfileRepository {
 
   override suspend fun searchProfiles(prefix: String): List<PublicProfile> =
       listOf(searchUser, requestTarget).filter { it.username.startsWith(prefix, ignoreCase = true) }
+
+  override suspend fun updatePrivacySettings(
+      isPublic: Boolean,
+      allowFriendRequests: Boolean,
+  ): PublicProfile =
+      currentUser.copy(isPublic = isPublic, allowFriendRequests = allowFriendRequests)
 }
 
 private class FakeFriendRepository : FriendRepository {
@@ -1041,7 +1048,7 @@ private class FakeFriendRepository : FriendRepository {
 
   override suspend fun acceptFriendRequest(requestId: String) = Unit
 
-  override suspend fun rejectFriendRequest(requestId: String) = Unit
+  override suspend fun rejectFriendRequest(requestId: String, blacklist: Boolean) = Unit
 
   override suspend fun cancelFriendRequest(requestId: String) {
     outgoingRequests.removeAll { it.id == requestId }
@@ -1055,7 +1062,13 @@ private class FakeFriendRepository : FriendRepository {
   override suspend fun getFriends(): List<Friendship> =
       listOf(Friendship("existing-friendship", "existing-friend"))
 
-  override suspend fun removeFriend(friendUid: String) = Unit
+  override suspend fun removeFriend(friendUid: String, blacklist: Boolean) = Unit
+
+  override suspend fun blockUser(blockedUid: String) = Unit
+
+  override suspend fun unblockUser(blockedUid: String) = Unit
+
+  override suspend fun getBlockedUids(): Set<String> = emptySet()
 }
 
 /** In-memory collection used by the M2 journey instead of Firestore. */

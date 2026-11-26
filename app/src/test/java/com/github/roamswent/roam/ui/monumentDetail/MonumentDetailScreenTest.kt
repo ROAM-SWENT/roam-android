@@ -21,6 +21,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
@@ -43,8 +44,11 @@ import androidx.compose.ui.unit.LayoutDirection
 import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
 import com.github.roamswent.roam.model.ai.MonumentGuide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.location.Coordinates
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.CollectionFriend
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -144,16 +148,17 @@ class MonumentDetailScreenTest {
     }
 
     val panel = composeTestRule.onNodeWithTag(C.Tag.monument_detail_panel)
+    val scrollable = composeTestRule.onNodeWithTag(C.Tag.monument_detail_text)
     val picture = composeTestRule.onNodeWithTag(C.Tag.monument_detail_picture)
     val initialPanel = panel.fetchSemanticsNode().boundsInRoot
     val initialPicture = picture.fetchSemanticsNode().boundsInRoot
     val title = composeTestRule.onNodeWithTag(C.Tag.monument_detail_title)
     val initialTitle = title.fetchSemanticsNode().boundsInRoot
 
-    panel.performTouchInput { swipeDown() }
+    scrollable.performTouchInput { swipeDown() }
     assertEquals(initialTitle, title.fetchSemanticsNode().boundsInRoot)
 
-    panel.performTouchInput { swipeUp() }
+    scrollable.performTouchInput { swipeUp() }
 
     assertEquals(initialPanel, panel.fetchSemanticsNode().boundsInRoot)
     assertEquals(initialPicture, picture.fetchSemanticsNode().boundsInRoot)
@@ -498,6 +503,224 @@ class MonumentDetailScreenTest {
     composeTestRule.mainClock.advanceTimeBy(10_000)
     composeTestRule.waitForIdle()
     assertTrue(errorShown)
+  }
+
+  @Test
+  fun sharingErrorShowsSnackbarAndReportsItShown() {
+    var errorShown = false
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            showSharingError = true,
+            onSharingErrorShown = { errorShown = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Couldn’t update sharing. Please try again.").assertIsDisplayed()
+    composeTestRule.mainClock.advanceTimeBy(10_000)
+    composeTestRule.waitForIdle()
+    assertTrue(errorShown)
+  }
+
+  @Test
+  fun privateGuideShowsShareActionAndPrivateStatus() {
+    var clicked = false
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            onShareClick = { clicked = true },
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Share with friends").assertIsDisplayed().performClick()
+    composeTestRule
+        .onNodeWithText("Not shared yet. Only you can see this monument.")
+        .performScrollTo()
+        .assertIsDisplayed()
+    assertTrue(clicked)
+  }
+
+  @Test
+  fun sharedGuideShowsRecipientNamesAndManageAction() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState =
+                MonumentDetailSharingState(
+                    settings =
+                        MonumentShareSettings(
+                            audience = ShareAudience.SELECTED_FRIENDS,
+                            sharedWithUids = setOf("alice", "grace", "sam"),
+                        ),
+                    recipients =
+                        listOf(
+                            CollectionFriend("alice", "Ada"),
+                            CollectionFriend("grace", "Grace"),
+                            CollectionFriend("sam", "Sam"),
+                        ),
+                ),
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Manage sharing").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText("Shared with Ada, Grace and 1 other")
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_share_avatar + "_0")
+        .assertCountEquals(1)
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.monument_detail_share_avatar + "_1")
+        .assertCountEquals(1)
+  }
+
+  @Test
+  fun sharedGuideFormatsOneAndTwoRecipients() {
+    var recipients by mutableStateOf(listOf(CollectionFriend("alice", "Ada")))
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState =
+                MonumentDetailSharingState(
+                    settings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+                    recipients = recipients,
+                ),
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Shared with Ada").performScrollTo().assertIsDisplayed()
+    recipients = listOf(CollectionFriend("alice", "Ada"), CollectionFriend("grace", "Grace"))
+    composeTestRule.waitForIdle()
+    composeTestRule
+        .onNodeWithText("Shared with Ada and Grace")
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun sharedGuideFormatsMoreThanThreeRecipients() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState =
+                MonumentDetailSharingState(
+                    settings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+                    recipients =
+                        listOf(
+                            CollectionFriend("alice", "Ada"),
+                            CollectionFriend("grace", "Grace"),
+                            CollectionFriend("sam", "Sam"),
+                            CollectionFriend("lee", "Lee"),
+                        ),
+                ),
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithText("Shared with Ada, Grace and 2 others")
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun sharingControlsCoverVisibilityAndSavingStates() {
+    var showControls by mutableStateOf(false)
+    var showAction by mutableStateOf(true)
+    var isSaving by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState = MonumentDetailSharingState(isSaving = isSaving),
+            showSharingControls = showControls,
+            showSharingAction = showAction,
+        )
+      }
+    }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_status).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_button).assertCountEquals(0)
+
+    showControls = true
+    showAction = false
+    composeTestRule.waitForIdle()
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_status).assertCountEquals(1)
+    composeTestRule.onAllNodesWithTag(C.Tag.monument_detail_share_button).assertCountEquals(0)
+
+    showAction = true
+    isSaving = true
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun tooFarGuideShowsContinueAndUnavailableMessage() {
+    var backClicked = false
+    composeTestRule.setContent {
+      SampleAppTheme {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = { backClicked = true },
+            sharingState = MonumentDetailSharingState(unavailableBecauseTooFar = true),
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Continue").assertIsDisplayed().performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_share_unavailable)
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(
+            "This photo was taken too far from Eiffel Tower. The guide stays in your collection, for you only."
+        )
+        .assertIsDisplayed()
+    assertTrue(backClicked)
+  }
+
+  @Test
+  fun tooFarGuideUsesDarkThemeUnavailableColors() {
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        MonumentDetailScreen(
+            image = ColorPainter(Color.LightGray),
+            guide = guide,
+            onBackClick = {},
+            sharingState = MonumentDetailSharingState(unavailableBecauseTooFar = true),
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_share_unavailable)
+        .performScrollTo()
+        .assertIsDisplayed()
   }
 
   private fun containsColor(bitmap: Bitmap, color: Int): Boolean {

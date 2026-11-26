@@ -11,6 +11,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
@@ -39,8 +40,12 @@ import androidx.core.graphics.withClip
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Scale
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.ui.components.profilePictureInitial
+import com.github.roamswent.roam.ui.theme.accentContainer
 import com.github.roamswent.roam.ui.theme.monumentMarkerBody
 import com.github.roamswent.roam.ui.theme.monumentMarkerBorder
+import com.github.roamswent.roam.ui.theme.onAccentContainer
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.maps.android.compose.Marker
@@ -132,6 +137,60 @@ internal fun ExploreMonumentMarker(
   )
 }
 
+@Composable
+internal fun rememberFriendMarkerIcon(profile: PublicProfile?): BitmapDescriptor? {
+  val context = LocalContext.current
+  val density = LocalDensity.current
+  val pinColor = MaterialTheme.accentContainer.toArgb()
+  val borderColor = MaterialTheme.monumentMarkerBorder.toArgb()
+  val initialColor = MaterialTheme.onAccentContainer.toArgb()
+  val initialSize = with(density) { MaterialTheme.typography.titleMedium.fontSize.toPx() }
+  val avatarBytes = profile?.avatarBytes
+  val thumbnailSize = (48 * density.density).toInt().coerceAtLeast(1)
+  var avatar by remember(avatarBytes, thumbnailSize) { mutableStateOf<Bitmap?>(null) }
+  LaunchedEffect(context, avatarBytes, thumbnailSize) {
+    if (avatarBytes == null || avatarBytes.isEmpty()) return@LaunchedEffect
+    avatar =
+        withContext(Dispatchers.IO) {
+          try {
+            val request =
+                ImageRequest.Builder(context)
+                    .data(avatarBytes)
+                    .size(thumbnailSize)
+                    .scale(Scale.FILL)
+                    .allowHardware(false)
+                    .build()
+            context.imageLoader.execute(request).drawable?.toBitmap()
+          } catch (exception: CancellationException) {
+            throw exception
+          } catch (exception: Exception) {
+            Log.w(TAG, "Failed to decode Explore avatar", exception)
+            null
+          }
+        }
+  }
+  val initial = remember(profile?.username) { profilePictureInitial(profile?.username.orEmpty()) }
+  return remember(avatar, initial, initialSize, density, pinColor, borderColor, initialColor) {
+    try {
+      BitmapDescriptorFactory.fromBitmap(
+          createMonumentMarkerBitmap(
+              thumbnail = avatar,
+              placeholderPainter = null,
+              density = density,
+              pinColor = pinColor,
+              borderColor = borderColor,
+              placeholderColor = initialColor,
+              initial = initial,
+              initialSize = initialSize,
+          )
+      )
+    } catch (exception: RuntimeException) {
+      Log.e(TAG, "Failed to create Explore avatar marker", exception)
+      null
+    }
+  }
+}
+
 internal fun createMonumentMarkerBitmapDescriptor(
     thumbnail: Bitmap?,
     placeholderPainter: Painter,
@@ -154,11 +213,13 @@ internal fun createMonumentMarkerBitmapDescriptor(
 
 internal fun createMonumentMarkerBitmap(
     thumbnail: Bitmap?,
-    placeholderPainter: Painter,
+    placeholderPainter: Painter?,
     density: Density,
     pinColor: Int,
     borderColor: Int,
     placeholderColor: Int,
+    initial: String = "",
+    initialSize: Float = 0f,
 ): Bitmap {
   val scale = density.density
   val width = (64 * scale).toInt()
@@ -215,14 +276,26 @@ internal fun createMonumentMarkerBitmap(
     }
   } else {
     canvas.drawCircle(centerX, circleCenterY, thumbnailRadius, pinPaint)
-    drawPainter(
-        canvas = canvas,
-        painter = placeholderPainter,
-        density = density,
-        center = Offset(centerX, circleCenterY),
-        size = 28 * scale,
-        tint = placeholderColor,
-    )
+    if (placeholderPainter != null) {
+      drawPainter(
+          canvas = canvas,
+          painter = placeholderPainter,
+          density = density,
+          center = Offset(centerX, circleCenterY),
+          size = 28 * scale,
+          tint = placeholderColor,
+      )
+    } else {
+      val initialPaint =
+          Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = placeholderColor
+            textAlign = Paint.Align.CENTER
+            textSize = initialSize.coerceAtMost(thumbnailRadius)
+            typeface = Typeface.DEFAULT_BOLD
+          }
+      val baseline = circleCenterY - (initialPaint.ascent() + initialPaint.descent()) / 2
+      canvas.drawText(initial, centerX, baseline, initialPaint)
+    }
   }
   val borderPaint =
       Paint(Paint.ANTI_ALIAS_FLAG).apply {

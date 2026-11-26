@@ -12,6 +12,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.github.roamswent.roam.R
 
@@ -22,6 +24,8 @@ internal fun ProfileBubble(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     avatarBytes: ByteArray? = null,
+    size: Dp = 48.dp,
+    textStyle: TextStyle = MaterialTheme.typography.titleSmall,
 ) {
   val description = stringResource(R.string.home_profile_button_description)
   ProfilePicture(
@@ -29,10 +33,10 @@ internal fun ProfileBubble(
       avatarBytes = avatarBytes,
       onClick = onClick,
       modifier =
-          modifier.size(48.dp).semantics {
+          modifier.size(size).semantics {
             contentDescription = description
             this.testTag = testTag
           },
-      textStyle = MaterialTheme.typography.titleSmall,
+      textStyle = textStyle,
   )
 }

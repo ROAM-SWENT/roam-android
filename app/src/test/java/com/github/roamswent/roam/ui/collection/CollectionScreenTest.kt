@@ -1,5 +1,7 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Google Antigravity <noreply@google.com>
 package com.github.roamswent.roam.ui.collection
 
 import android.graphics.Bitmap
@@ -11,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.DeviceConfigurationOverride
+import androidx.compose.ui.test.WindowInsets
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -22,6 +26,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -30,6 +35,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
 import coil.ImageLoader
@@ -175,6 +182,23 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun deletingGuideDisablesOnlyItsDeleteButton() {
+    val deleted = mutableListOf<String>()
+    setScreen(
+        SavedGuidesUiState(
+            guides = listOf(olderGuide, newerGuide),
+            deletingGuideIds = setOf(olderGuide.id),
+        ),
+        onDeleteGuide = deleted::add,
+    )
+
+    val buttons = composeTestRule.onAllNodesWithTag(C.Tag.collection_card_delete)
+    buttons[1].assertIsNotEnabled()
+    buttons[0].assertIsEnabled().performClick()
+    assertEquals(listOf(newerGuide.id), deleted)
+  }
+
+  @Test
   fun showsEmptyStateWhenCollectionIsEmpty() {
     setScreen(SavedGuidesUiState())
 
@@ -302,6 +326,65 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun readOnlyScreenShowsWishlistButtonOnlyWhenHandlerProvided() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(state = SavedGuidesUiState(guides = listOf(olderGuide)), readOnly = true)
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist).assertDoesNotExist()
+  }
+
+  @Test
+  fun wishlistButtonTogglesGuideAndReflectsState() {
+    var wishlisted by mutableStateOf(false)
+    val toggledGuides = mutableListOf<Guide>()
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            readOnly = true,
+            isGuideWishlisted = { wishlisted },
+            onToggleWishlist = { guide ->
+              toggledGuides.add(guide)
+              wishlisted = !wishlisted
+            },
+        )
+      }
+    }
+    val button = composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist)
+    button.assertContentDescriptionEquals("Add to wishlist")
+    button.performClick()
+    assertEquals(listOf(olderGuide), toggledGuides)
+    button.assertContentDescriptionEquals("Remove from wishlist")
+    button.performClick()
+    assertEquals(listOf(olderGuide, olderGuide), toggledGuides)
+    assertFalse(wishlisted)
+  }
+
+  @Test
+  fun wishlistStateCanMatchGuidesWithDifferentOwnerIds() {
+    val otherOwnersGuide = olderGuide.copy(id = "another-owner")
+    var wishlistedName by mutableStateOf<String?>(null)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide, otherOwnersGuide)),
+            readOnly = true,
+            isGuideWishlisted = { it.monumentName == wishlistedName },
+            onToggleWishlist = { wishlistedName = it.monumentName },
+        )
+      }
+    }
+
+    val buttons = composeTestRule.onAllNodesWithTag(C.Tag.collection_card_wishlist)
+    buttons.assertCountEquals(2)
+    buttons[0].performClick()
+    buttons[0].assertContentDescriptionEquals("Remove from wishlist")
+    buttons[1].assertContentDescriptionEquals("Remove from wishlist")
+  }
+
+  @Test
   fun readOnlyEmptyStateExplainsNothingIsShared() {
     composeTestRule.setContent {
       SampleAppTheme { CollectionScreen(state = SavedGuidesUiState(), readOnly = true) }
@@ -309,6 +392,59 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_gallery_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun emptyFavoritesAndReadOnlyCollectionUseTheirOwnEmptyStatesInDarkTheme() {
+    var readOnly by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) {
+        CollectionScreen(
+            state = SavedGuidesUiState(showFavoritesOnly = true),
+            readOnly = readOnly,
+            onBackClick = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_back_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_favorites_empty).assertIsDisplayed()
+    composeTestRule.runOnIdle { readOnly = true }
+    composeTestRule.onNodeWithText("No shared monuments yet").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_favorites_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun darkThemeShowsCollectionErrorAndPhoto() {
+    var state by mutableStateOf(SavedGuidesUiState(guidesError = IllegalStateException("offline")))
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = true, dynamicColor = false) { CollectionScreen(state = state) }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_error).assertIsDisplayed()
+    composeTestRule.runOnIdle {
+      state = SavedGuidesUiState(guides = listOf(newerGuide.copy(photoBytes = pngBytes())))
+    }
+    waitForTag(C.Tag.collection_card_photo)
+  }
+
+  @Test
+  fun switchingToReadOnlyClosesAnOpenSharingDialog() {
+    var readOnly by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(guides = listOf(olderGuide)),
+            readOnly = readOnly,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+    composeTestRule.runOnIdle { readOnly = true }
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card).assertIsDisplayed()
   }
 
   @Test
@@ -323,6 +459,44 @@ class CollectionScreenTest {
     composeTestRule.setContent { PreviewCollectionScreenEmptyDark() }
     composeTestRule.onNodeWithTag(C.Tag.collection_title).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_empty_state).assertIsDisplayed()
+  }
+
+  @Test
+  fun collectionGridExtendsToBottomWithoutConsumingBottomNavigationBarsInset() {
+    val statusBarTopPx = 72
+    val navBarBottomPx = 144
+    val windowInsets =
+        WindowInsetsCompat.Builder()
+            .setInsets(
+                WindowInsetsCompat.Type.statusBars(),
+                Insets.of(0, statusBarTopPx, 0, 0),
+            )
+            .setInsets(
+                WindowInsetsCompat.Type.navigationBars(),
+                Insets.of(0, 0, 0, navBarBottomPx),
+            )
+            .build()
+
+    composeTestRule.setContent {
+      DeviceConfigurationOverride(DeviceConfigurationOverride.WindowInsets(windowInsets)) {
+        SampleAppTheme {
+          CollectionScreen(
+              state = SavedGuidesUiState(guides = listOf(olderGuide, newerGuide)),
+          )
+        }
+      }
+    }
+
+    val screenBounds = composeTestRule.onNodeWithTag(C.Tag.collection_screen).getBoundsInRoot()
+    val gridBounds = composeTestRule.onNodeWithTag(C.Tag.collection_grid).getBoundsInRoot()
+    val titleBounds = composeTestRule.onNodeWithTag(C.Tag.collection_title).getBoundsInRoot()
+
+    val expectedStatusBarTop = with(composeTestRule.density) { statusBarTopPx.toDp() }
+    assertTrue(
+        "collection_title top (${titleBounds.top}) must reflect status bar inset ($expectedStatusBarTop)",
+        titleBounds.top >= expectedStatusBarTop,
+    )
+    assertEquals(screenBounds.bottom, gridBounds.bottom)
   }
 
   @Test
@@ -802,15 +976,15 @@ class CollectionScreenTest {
   }
 
   @Test
-  fun chipsAreHiddenWhenTheCollectionIsEmptyOrLoading() {
+  fun chipsRemainAvailableWhenTheCollectionIsEmptyOrLoading() {
     var state by mutableStateOf(SavedGuidesUiState())
     composeTestRule.setContent { SampleAppTheme { CollectionScreen(state = state) } }
-    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertIsDisplayed()
 
     state = SavedGuidesUiState(isLoadingGuides = true)
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_favorites).assertIsDisplayed()
   }
 
   @Test

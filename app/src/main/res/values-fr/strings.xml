@@ -75,6 +75,20 @@
     <string name="friend_collection_empty_title">Aucun monument partagé</string>
     <string name="friend_collection_empty_subtitle">Cet ami ne vous a partagé aucun monument.</string>
     <string name="collection_back_description">Retour</string>
+    <string name="friends_tab_friends">Amis</string>
+    <string name="friends_tab_leaderboard">Classement</string>
+    <string name="friends_leaderboard_rank">#%1$d</string>
+    <string name="friends_leaderboard_rank_description">Rang %1$d</string>
+    <plurals name="friends_leaderboard_monument_count">
+        <item quantity="one">%1$d monument</item>
+        <item quantity="many">%1$d monuments</item>
+        <item quantity="other">%1$d monuments</item>
+    </plurals>
+    <string name="friends_leaderboard_you">Vous</string>
+    <string name="friends_leaderboard_empty_title">Explorez ensemble</string>
+    <string name="friends_leaderboard_empty_message">Ajoutez des amis pour voir qui a vérifié le plus de monuments.</string>
+    <string name="friends_leaderboard_add_friends_action">Ajouter des amis</string>
+    <string name="friends_leaderboard_error">Impossible de charger le classement. Tirez vers le bas pour réessayer.</string>
     <string name="home_tab_explore">Explorer</string>
     <string name="home_tab_collection">Collection</string>
     <string name="home_scan_unavailable">Aucun appareil photo détecté sur cet appareil</string>
@@ -83,11 +97,14 @@
     <string name="settings_title">Profil</string>
     <string name="settings_notification_permission">Autorisation des notifications</string>
     <string name="notification_friend_requests_channel">Demandes d’amis</string>
+    <string name="notification_monument_shares_channel">Monuments partagés</string>
     <string name="notification_friend_request_title">Nouvelle demande d’ami</string>
     <string name="notification_friend_request_body">%1$s souhaite devenir votre ami.</string>
     <string name="notification_friend_request_accept">Accepter</string>
     <string name="notification_friend_request_decline">Refuser</string>
     <string name="notification_friend_request_action_failed">Impossible de traiter la demande. Ouvrez Roam pour réessayer.</string>
+    <string name="notification_monument_share_title">Monument partagé avec vous</string>
+    <string name="notification_monument_share_body">%1$s a partagé %2$s avec vous.</string>
     <string name="home_greeting_format">Bonjour %s,</string>
     <string name="home_greeting_no_name">Bonjour,</string>
     <string name="home_greeting_title">Prêt à explorer ?</string>
@@ -114,6 +131,18 @@
     <string name="collection_photo_description">Photo de %1$s</string>
     <string name="collection_filter_all">Tout</string>
     <string name="collection_filter_favorites">Favoris</string>
+    <string name="collection_filter_wishlist">Liste d\'envies</string>
+    <string name="collection_wishlist_info">De vos amis. Scannez un monument pour l\'ajouter à votre collection.</string>
+    <string name="collection_wishlist_empty">Aucun monument dans votre liste d\'envies pour l\'instant.</string>
+    <string name="collection_wishlist_add">Ajouter à la liste d\'envies</string>
+    <string name="collection_wishlist_remove">Retirer de la liste d\'envies</string>
+    <string name="collection_wishlist_scanned_by">Scanné par %1$s</string>
+    <string name="collection_wishlist_more_friends">+%1$d</string>
+    <plurals name="collection_wishlist_scanned_by_friends">
+        <item quantity="one">Scanné par %1$d ami</item>
+        <item quantity="many">Scanné par %1$d amis</item>
+        <item quantity="other">Scanné par %1$d amis</item>
+    </plurals>
     <string name="collection_favorite_add">Ajouter aux favoris</string>
     <string name="collection_favorite_remove">Retirer des favoris</string>
     <string name="collection_favorites_empty_title">Aucun favori pour l\'instant</string>
@@ -254,4 +283,15 @@
     <string name="settings_avatar_remove">Supprimer la photo de profil</string>
     <string name="settings_avatar_error_update">Impossible de modifier votre photo de profil. R&#233;essayez.</string>
     <string name="settings_avatar_error_remove">Impossible de supprimer votre photo de profil. R&#233;essayez.</string>
+    <string name="monument_detail_continue">Continuer</string>
+    <string name="monument_detail_share_with_friends">Partager avec des amis</string>
+    <string name="monument_detail_manage_sharing">Gérer le partage</string>
+    <string name="monument_detail_not_shared">Pas encore partagé. Vous seul pouvez voir ce monument.</string>
+    <string name="monument_detail_shared_with_friends">Partagé avec vos amis</string>
+    <string name="monument_detail_shared_with_one">Partagé avec %1$s</string>
+    <string name="monument_detail_shared_with_two">Partagé avec %1$s et %2$s</string>
+    <string name="monument_detail_shared_with_one_other">Partagé avec %1$s, %2$s et 1 autre</string>
+    <string name="monument_detail_shared_with_others">Partagé avec %1$s, %2$s et %3$d autres</string>
+    <string name="monument_detail_share_unavailable_title">Impossible d’ajouter à Explorer ou de partager</string>
+    <string name="monument_detail_share_unavailable_message">Cette photo a été prise trop loin de %1$s. Le guide reste dans votre collection, pour vous uniquement.</string>
 </resources>

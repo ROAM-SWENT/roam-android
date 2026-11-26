@@ -1,4 +1,5 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+// Co-authored-by: Gemini 4 Neon <noreply@google.com>
 
 package com.github.roamswent.roam.model.friend
 
@@ -44,6 +45,17 @@ sealed class FriendRepositoryException(message: String, cause: Throwable? = null
   class NotRequestSender : FriendRepositoryException("Only the requester can cancel this request.")
 
   class FriendshipNotFound : FriendRepositoryException("The friendship was not found.")
+
+  /** Thrown when the recipient has disabled incoming friend requests. */
+  class FriendRequestsDisabled :
+      FriendRepositoryException("This user is not accepting friend requests.")
+
+  /** Thrown when the recipient has blocked the signed-in user. */
+  class BlockedByUser : FriendRepositoryException("You cannot send a friend request to this user.")
+
+  /** Thrown when the signed-in user has currently blocked the recipient. */
+  class UserBlocked :
+      FriendRepositoryException("Unblock this user before sending a friend request.")
 
   class FirestoreFailure(cause: Throwable) :
       FriendRepositoryException("The friend operation failed in Firestore.", cause)

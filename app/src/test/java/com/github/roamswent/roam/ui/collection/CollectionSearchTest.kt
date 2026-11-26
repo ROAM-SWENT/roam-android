@@ -8,6 +8,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CollectionSearchTest {
+  @Test
+  fun matchesTextToleratesTypos() {
+    assertTrue(matchesText("Eiffel Tower", "Eifel"))
+    assertTrue(matchesText("Colosseum Rome", "Colloseum"))
+    assertTrue(matchesText("Château de Chillon", "chateau"))
+    assertTrue(matchesText("Anything", "  "))
+    assertFalse(matchesText("Eiffel Tower", "Sagrada"))
+  }
+
   private val eiffelTower =
       Guide(
           id = "eiffel",

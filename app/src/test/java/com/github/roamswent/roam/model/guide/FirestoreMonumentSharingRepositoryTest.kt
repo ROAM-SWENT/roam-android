@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.guide
 
@@ -124,6 +125,7 @@ class FirestoreMonumentSharingRepositoryTest {
       targetGuideId: String = guideId,
       exists: Boolean = true,
       existingAudience: String? = null,
+      existingEligibility: String? = null,
   ): io.mockk.CapturingSlot<Map<String, Any>> {
     val guideRef = mockk<DocumentReference>()
     val snapshot = mockk<DocumentSnapshot>()
@@ -132,9 +134,14 @@ class FirestoreMonumentSharingRepositoryTest {
     every { savedGuidesCollection.document(targetGuideId) } returns guideRef
     every { transaction.get(guideRef) } returns snapshot
     every { snapshot.exists() } returns exists
+    every { snapshot.getString(any()) } returns null
     if (existingAudience != null) {
       every { snapshot.getString(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD) } returns
           existingAudience
+    }
+    if (existingEligibility != null) {
+      every { snapshot.getString(GuideFirestoreMapper.SHARING_ELIGIBILITY_FIELD) } returns
+          existingEligibility
     }
 
     val updatesSlot = slot<Map<String, Any>>()
@@ -303,6 +310,40 @@ class FirestoreMonumentSharingRepositoryTest {
     }
   }
 
+  @Test
+  fun setShareAudienceRejectsTooFarGuides() = runTest {
+    setupTransaction(existingEligibility = SharingEligibility.TOO_FAR.name)
+
+    assertThrowsSuspending<MonumentSharingException.GuideTooFar> {
+      repository.setShareAudience(guideId, ShareAudience.ALL_FRIENDS)
+    }
+  }
+
+  @Test
+  fun setShareAudienceAllowsUnsharingTooFarGuides() = runTest {
+    val slot = setupTransaction(existingEligibility = SharingEligibility.TOO_FAR.name)
+
+    repository.setShareAudience(guideId, ShareAudience.NONE)
+
+    assertEquals(ShareAudience.NONE.name, slot.captured[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD])
+    assertEquals(
+        FieldValue.delete(),
+        slot.captured[GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD],
+    )
+  }
+
+  @Test
+  fun grantAccessRejectsTooFarGuides() = runTest {
+    setupTransaction(
+        existingAudience = ShareAudience.NONE.name,
+        existingEligibility = SharingEligibility.TOO_FAR.name,
+    )
+
+    assertThrowsSuspending<MonumentSharingException.GuideTooFar> {
+      repository.grantAccess(guideId, setOf("recipient-uid"))
+    }
+  }
+
   // endregion
 
   // region grantAccess tests
@@ -318,6 +359,16 @@ class FirestoreMonumentSharingRepositoryTest {
     )
     assertTrue(updates[GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD] is FieldValue)
     assertTrue(updates[GuideFirestoreMapper.DISMISSED_BY_UIDS_FIELD] is FieldValue)
+  }
+
+  @Test
+  fun grantAccessPromotesGuideWithoutAudienceToSelectedFriends() = runTest {
+    val slot = setupTransaction(existingAudience = null)
+    repository.grantAccess(guideId, setOf("uid-alice"))
+    assertEquals(
+        ShareAudience.SELECTED_FRIENDS.name,
+        slot.captured[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD],
+    )
   }
 
   @Test

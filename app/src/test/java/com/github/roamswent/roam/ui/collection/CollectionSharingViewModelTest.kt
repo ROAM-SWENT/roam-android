@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -63,6 +64,27 @@ class CollectionSharingViewModelTest {
         assertFalse(viewModel.uiState.value.isLoadingFriends)
         assertEquals(null, viewModel.uiState.value.friendsError)
       }
+
+  @Test
+  fun collectionFriendsCompareAvatarBytesByContent() {
+    val first = CollectionFriend("friend", "Alice", byteArrayOf(1, 2, 3))
+    val second = CollectionFriend("friend", "Alice", byteArrayOf(1, 2, 3))
+    val withoutAvatar = CollectionFriend("friend", "Alice")
+    val anotherWithoutAvatar = CollectionFriend("friend", "Alice")
+
+    assertEquals(first, second)
+    assertEquals(first.hashCode(), second.hashCode())
+    assertNotEquals(first, withoutAvatar)
+    assertEquals(withoutAvatar, anotherWithoutAvatar)
+    assertEquals(withoutAvatar.hashCode(), anotherWithoutAvatar.hashCode())
+    assertNotEquals(first, Any())
+    assertNotEquals(first, CollectionFriend("other", "Alice", byteArrayOf(1, 2, 3)))
+    assertNotEquals(first, CollectionFriend("friend", "Bob", byteArrayOf(1, 2, 3)))
+    assertNotEquals(
+        first,
+        CollectionFriend("friend", "Alice", byteArrayOf(3, 2, 1)),
+    )
+  }
 
   @Test
   fun friendLoadFailureIsExposedAndCanBeRetried() =

@@ -23,14 +23,24 @@ import com.github.roamswent.roam.model.ai.TransientException
 import com.github.roamswent.roam.model.ai.UserPreferences
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.model.interests.UserInterestsRepository
 import com.github.roamswent.roam.model.interests.UserInterestsState
+import com.github.roamswent.roam.model.leaderboard.LeaderboardEntry
+import com.github.roamswent.roam.model.leaderboard.LeaderboardException
+import com.github.roamswent.roam.model.leaderboard.LeaderboardRepository
+import com.github.roamswent.roam.model.leaderboard.MonumentKey
+import com.github.roamswent.roam.model.leaderboard.VerifiedMonumentResult
 import com.github.roamswent.roam.model.location.Coordinates
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,6 +78,8 @@ class LoadingViewModelTest {
   private val request = DiscoveryRequest(image, null, UserPreferences("fr-FR"))
   private var imageReads = 0
   private val savedGuides = FakeSavedGuideRepository()
+  private val sharingRepository = mockk<MonumentSharingRepository>()
+  private val leaderboard = FakeLeaderboardRepository()
   private val preparedPhoto = ImagePayload(byteArrayOf(9, 8, 7), "image/jpeg")
   private val discoveryDate = 1_700_000_000_000L
   private val readImage: suspend (Uri) -> ImagePayload = {
@@ -152,6 +164,7 @@ class LoadingViewModelTest {
                 "fr-FR",
                 userInterestsRepository,
                 savedGuides,
+                leaderboard,
             )
         viewModel.startDiscovery()
 
@@ -385,6 +398,7 @@ class LoadingViewModelTest {
           "fr-FR",
           interestsRepository,
           savedGuides,
+          leaderboard,
           clock = { discoveryDate },
           newGuideId = { GUIDE_ID },
       )
@@ -417,6 +431,310 @@ class LoadingViewModelTest {
         assertNull(viewModel.saveError.value)
         assertEquals(ExploreOptInUiState(scanLocation = scanLocation), viewModel.exploreOptIn.value)
         assertNull(viewModel.exploreUnavailableReason.value)
+      }
+
+  @Test
+  fun savedGuideNearTheMonumentIsShareable() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+
+        viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            SharingEligibility.ALLOWED,
+            savedGuides.guides.value.single().sharingEligibility,
+        )
+      }
+
+  @Test
+  fun savedGuideTooFarFromTheMonumentCannotBeShared() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = farMonumentLocation)
+
+        val viewModel = viewModel()
+        advanceUntilIdle()
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(
+            SharingEligibility.TOO_FAR,
+            savedGuides.guides.value.single().sharingEligibility,
+        )
+        coVerify(exactly = 0) { sharingRepository.setShareAudience(any(), any(), any()) }
+      }
+
+  @Test
+  fun sharingGeneratedGuideWithSelectedFriendsUpdatesAudience() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(
+              GUIDE_ID,
+              ShareAudience.SELECTED_FRIENDS,
+              setOf("friend-a"),
+          )
+        } returns Unit
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                leaderboardRepository = leaderboard,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.SELECTED_FRIENDS, setOf("friend-a"))
+        advanceUntilIdle()
+
+        assertEquals(ShareAudience.SELECTED_FRIENDS, viewModel.shareSettings.value.audience)
+        assertEquals(setOf("friend-a"), viewModel.shareSettings.value.sharedWithUids)
+        assertFalse(viewModel.isSharing.value)
+      }
+
+  @Test
+  fun sharingFailureIsExposedAndCanBeCleared() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("offline")
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        } throws failure
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                leaderboardRepository = leaderboard,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(failure, viewModel.sharingError.value)
+        assertFalse(viewModel.isSharing.value)
+        viewModel.clearSharingError()
+        assertNull(viewModel.sharingError.value)
+      }
+
+  @Test
+  fun sharingCancellationDoesNotBecomeAnError() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        } throws CancellationException("cancelled")
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                leaderboardRepository = leaderboard,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertNull(viewModel.sharingError.value)
+        assertFalse(viewModel.isSharing.value)
+      }
+
+  @Test
+  fun sharingDoesNothingBeforeAGuideIsSaved() =
+      runTest(dispatcher) {
+        val viewModel = newViewModel(userInterestsRepository)
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(MonumentShareSettings(), viewModel.shareSettings.value)
+        coVerify(exactly = 0) { sharingRepository.setShareAudience(any(), any(), any()) }
+      }
+
+  @Test
+  fun sharingCompletionFromPreviousGuideDoesNotUpdateTheCurrentGuide() =
+      runTest(dispatcher) {
+        val savedRepository = mockk<SavedGuideRepository>(relaxed = true)
+        val sharing = mockk<MonumentSharingRepository>()
+        val firstSharingWrite = CompletableDeferred<Unit>()
+        val failure = IllegalStateException("stale sharing failure")
+        val guideIds = listOf("first-guide", "second-guide").iterator()
+        coEvery { repository.guideFor(request) } returns guide() andThen guide()
+        coEvery { savedRepository.addGuide(any()) } coAnswers
+            { call ->
+              call.invocation.args[0] as Guide
+            }
+        coEvery { sharing.setShareAudience(any(), any(), any()) } coAnswers
+            {
+              firstSharingWrite.await()
+              throw failure
+            }
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedRepository,
+                leaderboardRepository = leaderboard,
+                sharingRepository = sharing,
+                clock = { discoveryDate },
+                newGuideId = { guideIds.next() },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        runCurrent()
+        viewModel.startDiscovery()
+        runCurrent()
+        assertEquals(null, viewModel.sharingError.value)
+
+        firstSharingWrite.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(null, viewModel.sharingError.value)
+      }
+
+  @Test
+  fun favoriteCompletionFromPreviousGuideDoesNotUpdateTheCurrentGuide() =
+      runTest(dispatcher) {
+        val savedRepository = mockk<SavedGuideRepository>(relaxed = true)
+        val firstFavoriteWrite = CompletableDeferred<Unit>()
+        val guideIds = listOf("first-guide", "second-guide").iterator()
+        coEvery { repository.guideFor(request) } returns guide() andThen guide()
+        coEvery { savedRepository.addGuide(any()) } coAnswers
+            { call ->
+              call.invocation.args[0] as Guide
+            }
+        coEvery { savedRepository.setFavorite(any(), true) } coAnswers
+            {
+              firstFavoriteWrite.await()
+            }
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedRepository,
+                leaderboardRepository = leaderboard,
+                clock = { discoveryDate },
+                newGuideId = { guideIds.next() },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        runCurrent()
+        viewModel.startDiscovery()
+        runCurrent()
+
+        firstFavoriteWrite.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isFavorite.value)
+        assertNull(viewModel.favoriteError.value)
+      }
+
+  @Test
+  fun favoriteFailureFromPreviousGuideDoesNotReportForTheCurrentGuide() =
+      runTest(dispatcher) {
+        val savedRepository = mockk<SavedGuideRepository>(relaxed = true)
+        val firstFavoriteWrite = CompletableDeferred<Unit>()
+        val failure = IllegalStateException("stale favorite failure")
+        val guideIds = listOf("first-guide", "second-guide").iterator()
+        coEvery { repository.guideFor(request) } returns guide() andThen guide()
+        coEvery { savedRepository.addGuide(any()) } coAnswers
+            { call ->
+              call.invocation.args[0] as Guide
+            }
+        coEvery { savedRepository.setFavorite(any(), true) } coAnswers
+            {
+              firstFavoriteWrite.await()
+              throw failure
+            }
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedRepository,
+                leaderboardRepository = leaderboard,
+                clock = { discoveryDate },
+                newGuideId = { guideIds.next() },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        runCurrent()
+        viewModel.startDiscovery()
+        runCurrent()
+        firstFavoriteWrite.complete(Unit)
+        advanceUntilIdle()
+
+        assertNull(viewModel.favoriteError.value)
+      }
+
+  @Test
+  fun sharingGeneratedGuideUpdatesAudience() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide()
+        coEvery {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        } returns Unit
+        val viewModel =
+            LoadingViewModel(
+                repository = repository,
+                readImage = readImage,
+                imageUri = uri,
+                language = "fr-FR",
+                userInterestsRepository = userInterestsRepository,
+                savedGuideRepository = savedGuides,
+                leaderboardRepository = leaderboard,
+                sharingRepository = sharingRepository,
+                clock = { discoveryDate },
+                newGuideId = { GUIDE_ID },
+            )
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+
+        viewModel.setShareAudience(ShareAudience.ALL_FRIENDS)
+        advanceUntilIdle()
+
+        assertEquals(ShareAudience.ALL_FRIENDS, viewModel.shareSettings.value.audience)
+        coVerify(exactly = 1) {
+          sharingRepository.setShareAudience(GUIDE_ID, ShareAudience.ALL_FRIENDS, emptySet())
+        }
       }
 
   @Test
@@ -559,6 +877,7 @@ class LoadingViewModelTest {
                 "fr-FR",
                 userInterestsRepository,
                 repository,
+                leaderboard,
                 clock = { discoveryDate },
             )
         viewModel.startDiscovery()
@@ -858,6 +1177,7 @@ class LoadingViewModelTest {
                     "fr-FR",
                     userInterestsRepository,
                     gatedRepository,
+                    leaderboard,
                     clock = { discoveryDate },
                     newGuideId = { GUIDE_ID },
                 )
@@ -1047,6 +1367,7 @@ class LoadingViewModelTest {
             "fr-FR",
             userInterestsRepository,
             store.repository,
+            leaderboard,
             clock = { discoveryDate },
             newGuideId = { GUIDE_ID },
         )
@@ -1073,6 +1394,255 @@ class LoadingViewModelTest {
         )
         assertEquals(scanLocation, savedGuides.guides.value.single().location)
       }
+
+  @Test
+  fun verifiedVisitIsRecordedOnceWithTheMonumentsOwnPosition() =
+      runTest(dispatcher) {
+        // Near, but in a different cell from where the user was, so the two keys tell apart.
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = nearMonumentInAnotherCell)
+        val viewModel = viewModel()
+
+        advanceUntilIdle()
+
+        val recorded = leaderboard.recorded.single()
+        assertEquals(MonumentKey.of(nearMonumentInAnotherCell), recorded)
+        assertFalse(recorded.isSameMonumentAs(MonumentKey.of(scanLocation)))
+        assertEquals(1, savedGuides.guides.value.size)
+        assertNull(viewModel.verifiedMonumentError.value)
+      }
+
+  @Test
+  fun verifiedVisitIsRecordedOnlyAfterTheSaveSucceeds() =
+      runTest(dispatcher) {
+        val saveGate = CompletableDeferred<Unit>()
+        val gatedRepository =
+            mockk<SavedGuideRepository>().also { gated ->
+              coEvery { gated.addGuide(any()) } coAnswers
+                  {
+                    saveGate.await()
+                    firstArg<Guide>()
+                  }
+            }
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        LoadingViewModel(
+                repository,
+                readImage,
+                uri,
+                "fr-FR",
+                userInterestsRepository,
+                gatedRepository,
+                leaderboard,
+            )
+            .startDiscovery()
+        advanceUntilIdle()
+
+        assertTrue(leaderboard.recorded.isEmpty())
+
+        saveGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(MonumentKey.of(monumentLocation)), leaderboard.recorded)
+      }
+
+  @Test
+  fun alreadyCountedMonumentKeepsTheSavedGuideAndExplore() =
+      runTest(dispatcher) {
+        leaderboard.result = VerifiedMonumentResult.AlreadyCounted(3)
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        val event = async { viewModel.navigationEvents.first() }
+
+        advanceUntilIdle()
+
+        assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
+        assertEquals(1, leaderboard.recorded.size)
+        assertEquals(GUIDE_ID, savedGuides.guides.value.single().id)
+        assertNull(viewModel.saveError.value)
+        assertNull(viewModel.verifiedMonumentError.value)
+        assertEquals(ExploreOptInUiState(scanLocation = scanLocation), viewModel.exploreOptIn.value)
+      }
+
+  @Test
+  fun tooFarVisitIsSavedButNotRecorded() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = farMonumentLocation)
+        val viewModel = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(1, savedGuides.guides.value.size)
+        assertTrue(leaderboard.recorded.isEmpty())
+        assertEquals(ExploreUnavailableReason.TOO_FAR, viewModel.exploreUnavailableReason.value)
+      }
+
+  @Test
+  fun visitWithoutObservedLocationIsSavedButNotRecorded() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns guide().copy(location = null)
+        val viewModel = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(1, savedGuides.guides.value.size)
+        assertTrue(leaderboard.recorded.isEmpty())
+        assertEquals(
+            ExploreUnavailableReason.NO_OBSERVED_LOCATION,
+            viewModel.exploreUnavailableReason.value,
+        )
+      }
+
+  @Test
+  fun visitWithoutMonumentLocationIsSavedButNotRecorded() =
+      runTest(dispatcher) {
+        coEvery { repository.guideFor(request) } returns
+            guide().copy(location = scanLocation, monumentLocation = null)
+        val viewModel = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(1, savedGuides.guides.value.size)
+        assertTrue(leaderboard.recorded.isEmpty())
+        assertEquals(
+            ExploreUnavailableReason.NO_MONUMENT_LOCATION,
+            viewModel.exploreUnavailableReason.value,
+        )
+      }
+
+  @Test
+  fun failedSaveDoesNotRecordAVerifiedVisit() =
+      runTest(dispatcher) {
+        val failure = IllegalStateException("A signed-in user is required")
+        savedGuides.addError = failure
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(failure, viewModel.saveError.value)
+        assertTrue(leaderboard.recorded.isEmpty())
+        assertNull(viewModel.verifiedMonumentError.value)
+      }
+
+  @Test
+  fun leavingTheScreenBeforeTheSaveIsConfirmedNeitherFailsNorRecords() =
+      runTest(dispatcher) {
+        // The save never confirms, as when offline, so it is still pending when the user leaves.
+        val pendingRepository =
+            mockk<SavedGuideRepository>().also { pending ->
+              coEvery { pending.addGuide(any()) } coAnswers { awaitCancellation() }
+            }
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val store = ViewModelStore()
+        val viewModel = storedViewModel(store, pendingRepository)
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { pendingRepository.addGuide(any()) }
+
+        store.clear()
+        advanceUntilIdle()
+
+        // Cancellation is neither a save failure nor a confirmed save: nothing is recorded.
+        assertNull(viewModel.saveError.value)
+        assertTrue(leaderboard.recorded.isEmpty())
+        assertNull(viewModel.verifiedMonumentError.value)
+      }
+
+  @Test
+  fun leavingTheScreenWhileRecordingIsPendingIsNotALeaderboardFailure() =
+      runTest(dispatcher) {
+        leaderboard.suspendRecording = true
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val store = ViewModelStore()
+        val viewModel = storedViewModel(store, savedGuides)
+        viewModel.startDiscovery()
+        advanceUntilIdle()
+        assertEquals(listOf(MonumentKey.of(monumentLocation)), leaderboard.recorded)
+
+        store.clear()
+        advanceUntilIdle()
+
+        assertNull(viewModel.verifiedMonumentError.value)
+        assertNull(viewModel.saveError.value)
+        assertEquals(GUIDE_ID, savedGuides.guides.value.single().id)
+      }
+
+  /**
+   * A ViewModel held by [store], so that clearing the store clears it as leaving the screen does.
+   */
+  private fun storedViewModel(
+      store: ViewModelStore,
+      savedGuideRepository: SavedGuideRepository,
+  ): LoadingViewModel =
+      ViewModelProvider(
+          store,
+          object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                LoadingViewModel(
+                    repository,
+                    readImage,
+                    uri,
+                    "fr-FR",
+                    userInterestsRepository,
+                    savedGuideRepository,
+                    leaderboard,
+                    clock = { discoveryDate },
+                    newGuideId = { GUIDE_ID },
+                )
+                    as T
+          },
+      )[LoadingViewModel::class.java]
+
+  @Test
+  fun leaderboardFailureKeepsTheSaveExploreAndNavigation() =
+      runTest(dispatcher) {
+        val failure = LeaderboardException.FirestoreFailure(IllegalStateException("offline"))
+        leaderboard.error = failure
+        coEvery { repository.guideFor(request) } returns guide().copy(location = scanLocation)
+        val viewModel = viewModel()
+        val event = async { viewModel.navigationEvents.first() }
+
+        advanceUntilIdle()
+
+        assertTrue(event.await() is LoadingNavigationEvent.NavigateToMonumentDetail)
+        assertEquals(failure, viewModel.verifiedMonumentError.value)
+        assertNull(viewModel.saveError.value)
+        assertEquals(LoadingUiState.Loading, viewModel.uiState.value)
+        assertEquals(GUIDE_ID, savedGuides.guides.value.single().id)
+        assertEquals(ExploreOptInUiState(scanLocation = scanLocation), viewModel.exploreOptIn.value)
+
+        // The saved guide can still be put on Explore and favourited.
+        viewModel.setShownInExplore(true)
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(scanLocation, savedGuides.guides.value.single().location)
+        assertTrue(savedGuides.guides.value.single().isFavorite)
+        assertTrue(viewModel.isFavorite.value)
+      }
+
+  /**
+   * Records every verified monument; [error], when set, makes recording fail after the call, and
+   * [suspendRecording] makes it wait until cancelled.
+   */
+  private class FakeLeaderboardRepository : LeaderboardRepository {
+    val recorded = mutableListOf<MonumentKey>()
+    var result: VerifiedMonumentResult = VerifiedMonumentResult.Counted(1)
+    var error: Exception? = null
+    var suspendRecording = false
+
+    override suspend fun recordVerifiedMonument(monument: MonumentKey): VerifiedMonumentResult {
+      recorded += monument
+      if (suspendRecording) awaitCancellation()
+      error?.let { throw it }
+      return result
+    }
+
+    override suspend fun getFriendsLeaderboard(): List<LeaderboardEntry> =
+        throw UnsupportedOperationException("Not used by the scan flow.")
+  }
 
   private class FakeUserInterestsRepository(
       private var hasBeenAsked: Boolean = true,
@@ -1103,6 +1673,8 @@ class LoadingViewModelTest {
     val monumentLocation = Coordinates(41.8899, 12.4925)
     /** A monument position about 1 400 km from [scanLocation]. */
     val farMonumentLocation = Coordinates(48.8584, 2.2945)
+    /** A monument position about 420 m north of [scanLocation], so near, in a distant cell. */
+    val nearMonumentInAnotherCell = Coordinates(41.8940, 12.4922)
   }
 
   private fun guide() =
