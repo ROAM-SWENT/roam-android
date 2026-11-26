@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Codex <codex@openai.com>
 package com.github.roamswent.roam.ui.explore
 
 import com.github.roamswent.roam.model.basemap.FakeOfflineBaseMapRepository
@@ -20,6 +21,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.mock
 
 /** Tests the saved monuments that [ExploreViewModel] exposes for the map markers. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -234,6 +236,9 @@ class ExploreViewModelMonumentsTest {
               },
           savedGuideRepository = repository,
           offlineBaseMapRepository = FakeOfflineBaseMapRepository(),
+          friendRepository = mock(),
+          publicProfileRepository = mock(),
+          monumentSharingRepository = mock(),
       )
 
   /** Subscribes like the map does and returns every emitted monument list. */

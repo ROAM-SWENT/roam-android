@@ -15,7 +15,27 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class CollectionFriend(val uid: String, val username: String)
+data class CollectionFriend(
+    val uid: String,
+    val username: String,
+    val avatarBytes: ByteArray? = null,
+) {
+  override fun equals(other: Any?): Boolean =
+      other is CollectionFriend &&
+          uid == other.uid &&
+          username == other.username &&
+          ((avatarBytes == null && other.avatarBytes == null) ||
+              (avatarBytes != null &&
+                  other.avatarBytes != null &&
+                  avatarBytes.contentEquals(other.avatarBytes)))
+
+  override fun hashCode(): Int {
+    var result = uid.hashCode()
+    result = 31 * result + username.hashCode()
+    result = 31 * result + (avatarBytes?.contentHashCode() ?: 0)
+    return result
+  }
+}
 
 data class CollectionSharingUiState(
     val friends: List<CollectionFriend> = emptyList(),
@@ -46,6 +66,7 @@ class CollectionSharingViewModel(
                   CollectionFriend(
                       uid = friendship.friendUid,
                       username = profile?.username ?: friendship.friendUid,
+                      avatarBytes = profile?.avatarBytes,
                   )
                 }
               }

@@ -57,11 +57,16 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.github.roamswent.roam.R
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.interests.UserInterestCategories
 import com.github.roamswent.roam.resources.C
+import com.github.roamswent.roam.ui.collection.CollectionFriend
+import com.github.roamswent.roam.ui.collection.GuideSharingDialog
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
 import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailScreen
+import com.github.roamswent.roam.ui.monumentDetail.MonumentDetailSharingState
 import com.github.roamswent.roam.ui.scan.components.ExpressiveFloatingButton
 import com.github.roamswent.roam.ui.theme.CameraOverlayContent
 import com.github.roamswent.roam.ui.theme.CameraOverlayScrim
@@ -92,8 +97,21 @@ fun ScanReviewScreen(
     exploreOptIn: ExploreOptInUiState? = null,
     onShowInExploreChange: (Boolean) -> Unit = {},
     exploreUnavailableReason: ExploreUnavailableReason? = null,
+    shareSettings: MonumentShareSettings = MonumentShareSettings(),
+    sharingRecipients: List<CollectionFriend> = emptyList(),
+    sharingFriends: List<CollectionFriend> = emptyList(),
+    savedGuideId: String? = null,
+    isSharing: Boolean = false,
+    isLoadingFriends: Boolean = false,
+    friendsError: Exception? = null,
+    onOpenSharing: () -> Unit = {},
+    onRetryLoadingFriends: () -> Unit = {},
+    onSetShareAudience: (ShareAudience, Set<String>) -> Unit = { _, _ -> },
+    showSharingError: Boolean = false,
+    onSharingErrorShown: () -> Unit = {},
 ) {
   if (state is ScanReviewUiState.Sent) {
+    var isShareDialogOpen by remember { mutableStateOf(false) }
     MonumentDetailScreen(
         image = rememberAsyncImagePainter(state.uri),
         guide = state.guide,
@@ -106,7 +124,39 @@ fun ScanReviewScreen(
         onShowInExploreChange = onShowInExploreChange,
         exploreUnavailableReason = exploreUnavailableReason,
         isGalleryImage = isGalleryImage,
+        sharingState =
+            MonumentDetailSharingState(
+                settings = shareSettings,
+                recipients = sharingRecipients,
+                unavailableBecauseTooFar =
+                    exploreUnavailableReason == ExploreUnavailableReason.TOO_FAR,
+                isSaving = isSharing,
+            ),
+        onShareClick = {
+          onOpenSharing()
+          isShareDialogOpen = true
+        },
+        showSharingError = showSharingError,
+        onSharingErrorShown = onSharingErrorShown,
+        showSharingControls = savedGuideId != null,
     )
+    if (isShareDialogOpen && savedGuideId != null) {
+      GuideSharingDialog(
+          guideId = savedGuideId,
+          monumentName = state.guide.monumentName,
+          shareSettings = shareSettings,
+          friends = sharingFriends,
+          isLoadingFriends = isLoadingFriends,
+          friendsError = friendsError,
+          isSaving = isSharing,
+          onRetryLoadingFriends = onRetryLoadingFriends,
+          onDismiss = { isShareDialogOpen = false },
+          onConfirm = { audience, friendUids ->
+            onSetShareAudience(audience, friendUids)
+            isShareDialogOpen = false
+          },
+      )
+    }
     return
   }
 

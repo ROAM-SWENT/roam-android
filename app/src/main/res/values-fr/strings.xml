@@ -283,4 +283,15 @@
     <string name="settings_avatar_remove">Supprimer la photo de profil</string>
     <string name="settings_avatar_error_update">Impossible de modifier votre photo de profil. R&#233;essayez.</string>
     <string name="settings_avatar_error_remove">Impossible de supprimer votre photo de profil. R&#233;essayez.</string>
+    <string name="monument_detail_continue">Continuer</string>
+    <string name="monument_detail_share_with_friends">Partager avec des amis</string>
+    <string name="monument_detail_manage_sharing">Gérer le partage</string>
+    <string name="monument_detail_not_shared">Pas encore partagé. Vous seul pouvez voir ce monument.</string>
+    <string name="monument_detail_shared_with_friends">Partagé avec vos amis</string>
+    <string name="monument_detail_shared_with_one">Partagé avec %1$s</string>
+    <string name="monument_detail_shared_with_two">Partagé avec %1$s et %2$s</string>
+    <string name="monument_detail_shared_with_one_other">Partagé avec %1$s, %2$s et 1 autre</string>
+    <string name="monument_detail_shared_with_others">Partagé avec %1$s, %2$s et %3$d autres</string>
+    <string name="monument_detail_share_unavailable_title">Impossible d’ajouter à Explorer ou de partager</string>
+    <string name="monument_detail_share_unavailable_message">Cette photo a été prise trop loin de %1$s. Le guide reste dans votre collection, pour vous uniquement.</string>
 </resources>

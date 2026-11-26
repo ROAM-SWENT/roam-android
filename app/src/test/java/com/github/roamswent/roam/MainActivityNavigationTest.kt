@@ -2297,6 +2297,13 @@ class MainActivityNavigationTest {
   ) {
     val authViewModel = mock<SignInViewModel>()
     whenever(authViewModel.uiState).thenReturn(authState)
+    val friends =
+        friendRepository
+            ?: mockk<FriendRepository>().also { repository ->
+              coEvery { repository.getFriends() } returns emptyList()
+              coEvery { repository.getIncomingRequests() } returns emptyList()
+              coEvery { repository.getOutgoingRequests() } returns emptyList()
+            }
     val privateProfileRepository =
         object : ProfileRepository {
           override suspend fun initializePrivateProfile(): Result<Unit> = Result.success(Unit)
@@ -2340,7 +2347,7 @@ class MainActivityNavigationTest {
                       notificationInstallationRepository =
                           notificationInstallationRepositoryOverride,
                       monumentSharingRepository = monumentSharingRepository,
-                      friendRepository = friendRepository,
+                      friendRepository = friends,
                   ),
               notificationNavigationOnLaunch = notificationNavigationOnLaunch,
               notificationNavigationEvents = notificationNavigationEvents,

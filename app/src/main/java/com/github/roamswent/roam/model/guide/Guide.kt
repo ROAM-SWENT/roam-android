@@ -26,6 +26,8 @@ data class Guide(
     /** Whether the user marked this guide as a favourite. */
     val isFavorite: Boolean = false,
     val shareSettings: MonumentShareSettings = MonumentShareSettings(),
+    /** Whether this guide may be shared, or [SharingEligibility.UNKNOWN] for legacy guides. */
+    val sharingEligibility: SharingEligibility = SharingEligibility.UNKNOWN,
     val overview: String? = null,
     val timeline: List<GuideMilestone> = emptyList(),
 ) {
@@ -44,6 +46,7 @@ data class Guide(
           discoveryDate == other.discoveryDate &&
           isFavorite == other.isFavorite &&
           shareSettings == other.shareSettings &&
+          sharingEligibility == other.sharingEligibility &&
           overview == other.overview &&
           timeline == other.timeline
 
@@ -61,6 +64,7 @@ data class Guide(
     result = 31 * result + (discoveryDate?.hashCode() ?: 0)
     result = 31 * result + isFavorite.hashCode()
     result = 31 * result + shareSettings.hashCode()
+    result = 31 * result + sharingEligibility.hashCode()
     result = 31 * result + (overview?.hashCode() ?: 0)
     result = 31 * result + timeline.hashCode()
     return result

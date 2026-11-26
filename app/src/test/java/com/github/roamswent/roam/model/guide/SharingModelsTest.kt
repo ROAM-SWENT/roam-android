@@ -226,6 +226,17 @@ class SharingModelsTest {
     assertEquals("Custom not found", notFoundCustom.message)
     assertSame(cause, notFoundCustom.cause)
 
+    val tooFarDefault = MonumentSharingException.GuideTooFar()
+    assertEquals(
+        "This guide cannot be shared because it was discovered too far away.",
+        tooFarDefault.message,
+    )
+    assertNull(tooFarDefault.cause)
+
+    val tooFarCustom = MonumentSharingException.GuideTooFar("Custom too far", cause)
+    assertEquals("Custom too far", tooFarCustom.message)
+    assertSame(cause, tooFarCustom.cause)
+
     val notOwnerDefault = MonumentSharingException.NotGuideOwner()
     assertEquals("Only the guide owner can perform this operation.", notOwnerDefault.message)
     assertNull(notOwnerDefault.cause)

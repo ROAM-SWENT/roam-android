@@ -64,6 +64,7 @@ class ExploreScreenTest {
   @Test
   fun displaysExploreTitleAndMapContainerWhenLocationIsAvailable() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -94,6 +95,7 @@ class ExploreScreenTest {
   @Test
   fun offlineBaseMapIsRequestedOnlyWhenOffline() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -124,6 +126,7 @@ class ExploreScreenTest {
   fun profileBubbleShowsInitialAndInvokesCallback() {
     var clicked = false
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -162,6 +165,7 @@ class ExploreScreenTest {
   @Test
   fun readsSavedMonumentsWhenMapIsShown() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -342,6 +346,7 @@ class ExploreScreenTest {
   @Test
   fun showsMapAndMonumentsWithoutLocationPermission() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -371,6 +376,7 @@ class ExploreScreenTest {
   fun mapWaitsForMonumentsBeforeBeingDrawnWithoutLocation() {
     val loaded = MutableStateFlow(false)
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(loaded)
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -399,6 +405,7 @@ class ExploreScreenTest {
   @Test
   fun hidesLocationStatusWhenLocationIsAvailable() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -425,6 +432,7 @@ class ExploreScreenTest {
   @GraphicsMode(GraphicsMode.Mode.NATIVE)
   fun exploreTitleUsesOnSurfaceColorInDarkTheme() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -461,6 +469,7 @@ class ExploreScreenTest {
   fun profileButtonInvokesCallback() {
     var profileClicks = 0
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -490,6 +499,7 @@ class ExploreScreenTest {
   @Test
   fun displaysLoadingState() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -514,6 +524,7 @@ class ExploreScreenTest {
   @Test
   fun displaysPermissionGuidanceWithoutRequestAction() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -544,6 +555,7 @@ class ExploreScreenTest {
   @Test
   fun displaysUnavailableState() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -570,6 +582,7 @@ class ExploreScreenTest {
   @Test
   fun retryButtonRetriesLocation() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))
@@ -596,6 +609,7 @@ class ExploreScreenTest {
   @Test
   fun permissionStateChangesAreForwardedToViewModel() {
     val exploreViewModel = mock<ExploreViewModel>()
+    whenever(exploreViewModel.friendMonuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monuments).thenReturn(MutableStateFlow(emptyList()))
     whenever(exploreViewModel.monumentsLoaded).thenReturn(MutableStateFlow(true))
     whenever(exploreViewModel.offlineBaseMap).thenReturn(MutableStateFlow(emptyList()))

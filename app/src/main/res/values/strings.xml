@@ -281,4 +281,15 @@
     <string name="monument_detail_explore_unavailable_no_photo_location">This photo has no location data, so this monument can\'t be added to Explore.</string>
     <string name="monument_detail_explore_unavailable_photo_too_far">This photo doesn\'t seem to have been taken near this monument, so it can\'t be added to Explore.</string>
     <string name="monument_detail_explore_unavailable_too_far">You don\'t seem to be near this monument, so it can\'t be added to Explore.</string>
+    <string name="monument_detail_continue">Continue</string>
+    <string name="monument_detail_share_with_friends">Share with friends</string>
+    <string name="monument_detail_manage_sharing">Manage sharing</string>
+    <string name="monument_detail_not_shared">Not shared yet. Only you can see this monument.</string>
+    <string name="monument_detail_shared_with_friends">Shared with your friends</string>
+    <string name="monument_detail_shared_with_one">Shared with %1$s</string>
+    <string name="monument_detail_shared_with_two">Shared with %1$s and %2$s</string>
+    <string name="monument_detail_shared_with_one_other">Shared with %1$s, %2$s and 1 other</string>
+    <string name="monument_detail_shared_with_others">Shared with %1$s, %2$s and %3$d others</string>
+    <string name="monument_detail_share_unavailable_title">Can\'t be added to Explore or shared</string>
+    <string name="monument_detail_share_unavailable_message">This photo was taken too far from %1$s. The guide stays in your collection, for you only.</string>
 </resources>

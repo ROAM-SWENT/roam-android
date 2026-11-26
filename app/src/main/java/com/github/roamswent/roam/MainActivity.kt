@@ -52,6 +52,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.github.roamswent.roam.model.basemap.AssetOfflineBaseMapRepository
+import com.github.roamswent.roam.model.friend.FirestoreFriendRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
 import com.github.roamswent.roam.model.guide.FirestoreSavedGuideRepository
@@ -598,6 +599,9 @@ internal fun RoamApp(
               uri,
               testOverrides?.captureSender,
               savedGuideRepository = savedGuideRepository.value,
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
+              monumentSharingProvider = monumentSharingProvider,
               onStartDiscovery = { proceed ->
                 runOfflineAction(OfflineAction.START_DISCOVERY, proceed)
               },
@@ -683,6 +687,9 @@ internal fun RoamApp(
               guideId = guideId,
               repository = savedGuideRepository.value,
               onBackClick = { navController.popBackStack() },
+              friendRepository = testOverrides?.friendRepository,
+              publicProfileRepository = publicProfileRepository,
+              monumentSharingProvider = monumentSharingProvider,
           )
         }
       }
@@ -779,6 +786,9 @@ internal fun RoamApp(
               testOverrides?.exploreLocationProvider ?: AndroidLocationProvider(context),
               savedGuideRepository.value,
               AssetOfflineBaseMapRepository(context),
+              testOverrides?.friendRepository ?: FirestoreFriendRepository(),
+              publicProfileRepository,
+              monumentSharingRepository,
           )
         }
         val explorePermissionController =
@@ -806,6 +816,9 @@ internal fun RoamApp(
                 isOnline = isOnline,
                 exploreViewModel = exploreViewModel,
                 locationPermissionController = explorePermissionController,
+                onSharedMonumentClick = { ownerUid, guideId ->
+                  navController.navigate(Routes.sharedMonumentDetail(ownerUid, guideId))
+                },
             )
           }
         }

@@ -2,20 +2,35 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.github.roamswent.roam.model.ai.GuideMilestone
 import com.github.roamswent.roam.model.ai.GuideSection
+import com.github.roamswent.roam.model.friend.FriendRepository
+import com.github.roamswent.roam.model.friend.Friendship
+import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
+import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
+import com.github.roamswent.roam.model.profile.PublicProfile
+import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -122,6 +137,145 @@ class SavedMonumentDetailRouteTest {
   }
 
   @Test
+  fun tooFarSavedGuideShowsContinueAction() {
+    val tooFarGuide = eiffelTower.copy(sharingEligibility = SharingEligibility.TOO_FAR)
+    setRoute(FakeSavedGuideRepository(listOf(tooFarGuide)), guideId = "eiffel")
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).assertIsDisplayed()
+    composeTestRule.onNodeWithText("Continue").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_share_unavailable)
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun sharedSavedGuideShowsRecipientsAndOpensSharingDialog() {
+    val sharedGuide =
+        eiffelTower.copy(
+            shareSettings =
+                MonumentShareSettings(
+                    audience = ShareAudience.SELECTED_FRIENDS,
+                    sharedWithUids = setOf("alice"),
+                )
+        )
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+
+    setRoute(
+        repository = FakeSavedGuideRepository(listOf(sharedGuide)),
+        guideId = "eiffel",
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+    )
+
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithText("Shared with Alice").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
+  }
+
+  @Test
+  fun allFollowersGuideShowsRecipients() {
+    val sharedGuide =
+        eiffelTower.copy(
+            shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FOLLOWERS)
+        )
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+
+    setRoute(
+        repository = FakeSavedGuideRepository(listOf(sharedGuide)),
+        guideId = "eiffel",
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+    )
+
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithText("Shared with Alice").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun sharingDependencyOverridesCanChangeAcrossRecomposition() {
+    val friendRepository = mutableStateOf<FriendRepository?>(null)
+    val profileRepository = mutableStateOf<PublicProfileRepository?>(null)
+    val sharingProvider = mutableStateOf<MonumentSharingProvider?>(null)
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SavedMonumentDetailRoute(
+            guideId = "eiffel",
+            repository = FakeSavedGuideRepository(listOf(eiffelTower)),
+            onBackClick = {},
+            friendRepository = friendRepository.value,
+            publicProfileRepository = profileRepository.value,
+            monumentSharingProvider = sharingProvider.value,
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertIsDisplayed()
+
+    friendRepository.value = friends
+    profileRepository.value = profiles
+    sharingProvider.value = { FakeMonumentSharingRepository() }
+    composeTestRule.waitForIdle()
+
+    friendRepository.value = null
+    profileRepository.value = null
+    sharingProvider.value = null
+    composeTestRule.waitForIdle()
+  }
+
+  @Test
+  fun routeUsesDefaultSharingDependenciesWhenOverridesAreOmitted() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        SavedMonumentDetailRoute(
+            guideId = "eiffel",
+            repository = FakeSavedGuideRepository(listOf(eiffelTower)),
+            onBackClick = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertIsDisplayed()
+  }
+
+  @Test
+  fun sharingFailureShowsErrorSnackbarAfterConfirmingAllFriends() {
+    val failure = IllegalStateException("offline")
+    val sharing = FakeMonumentSharingRepository().apply { updateError = failure }
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns listOf(Friendship("friendship", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+
+    setRoute(
+        repository = FakeSavedGuideRepository(listOf(eiffelTower)),
+        guideId = "eiffel",
+        friendRepository = friends,
+        publicProfileRepository = profiles,
+        monumentSharingProvider = { sharing },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_share_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_all_friends).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
+
+    composeTestRule.onNodeWithText("Couldn’t update sharing. Please try again.").assertIsDisplayed()
+  }
+
+  @Test
   fun backButtonOnTheErrorMessageCallsOnBackClick() {
     var backClicks = 0
     setRoute(FakeSavedGuideRepository(), guideId = "missing", onBackClick = { backClicks++ })
@@ -135,6 +289,9 @@ class SavedMonumentDetailRouteTest {
       repository: SavedGuideRepository,
       guideId: String,
       onBackClick: () -> Unit = {},
+      friendRepository: FriendRepository? = null,
+      publicProfileRepository: PublicProfileRepository? = null,
+      monumentSharingProvider: MonumentSharingProvider? = null,
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -142,6 +299,9 @@ class SavedMonumentDetailRouteTest {
             guideId = guideId,
             repository = repository,
             onBackClick = onBackClick,
+            friendRepository = friendRepository,
+            publicProfileRepository = publicProfileRepository,
+            monumentSharingProvider = monumentSharingProvider,
         )
       }
     }

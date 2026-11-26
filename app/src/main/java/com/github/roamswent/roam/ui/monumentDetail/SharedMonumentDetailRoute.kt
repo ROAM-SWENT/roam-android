@@ -69,6 +69,7 @@ fun SharedMonumentDetailRoute(
           guide = monumentGuide,
           onBackClick = onBackClick,
           modifier = modifier,
+          showSharingControls = false,
       )
     }
     SharedGuideState.Loading ->
