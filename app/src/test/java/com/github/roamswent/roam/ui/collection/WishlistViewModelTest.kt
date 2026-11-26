@@ -772,6 +772,261 @@ class WishlistViewModelTest {
       }
 
   @Test
+  fun failedAvailabilityCheckKeepsTheCardsAsTheyAre() =
+      runTest(dispatcher) {
+        repository.items.value = listOf(item)
+        repository.guides[key] = guide
+        var fail = false
+        val flaky =
+            object : WishlistRepository by repository {
+              override suspend fun getResolvedWishlist(): List<ResolvedWishlistItem> {
+                if (fail) throw IllegalStateException("offline")
+                return repository.getResolvedWishlist()
+              }
+            }
+        val viewModel = WishlistViewModel(flaky)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        val before = viewModel.uiState.value.monuments
+
+        fail = true
+        viewModel.refreshAvailability()
+        advanceUntilIdle()
+
+        assertEquals(before, viewModel.uiState.value.monuments)
+        assertNull(viewModel.uiState.value.error)
+      }
+
+  @Test
+  fun availabilityCheckIgnoresRemovedAndChangedEntries() =
+      runTest(dispatcher) {
+        repository.items.value = listOf(item)
+        repository.guides[key] = guide
+        var result: ResolvedWishlistItem? = null
+        val custom =
+            object : WishlistRepository by repository {
+              override suspend fun getResolvedWishlist() =
+                  result?.let { listOf(it) } ?: repository.getResolvedWishlist()
+            }
+        val viewModel = WishlistViewModel(custom)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        val before = viewModel.uiState.value.monuments
+
+        result =
+            ResolvedWishlistItem.Unavailable(
+                item.copy(addedAt = 99),
+                WishlistUnavailableReason.GUIDE_DELETED,
+            )
+        viewModel.refreshAvailability()
+        advanceUntilIdle()
+        assertEquals(before, viewModel.uiState.value.monuments)
+
+        viewModel.setWishlisted(key, false)
+        result = ResolvedWishlistItem.Unavailable(item, WishlistUnavailableReason.GUIDE_DELETED)
+        viewModel.refreshAvailability()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.monuments.single().unavailable)
+      }
+
+  @Test
+  fun pendingChangeSurvivesASnapshotThatDoesNotListItYet() =
+      runTest(dispatcher) {
+        repository.guides[key] = guide
+        val never = CompletableDeferred<Unit>()
+        val hanging =
+            object : WishlistRepository by repository {
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+                never.await()
+                return item
+              }
+            }
+        val viewModel = WishlistViewModel(hanging)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        advanceUntilIdle()
+
+        repository.items.value = listOf(WishlistItem("ref_other~x", "other", "x", "Arc", 3))
+        advanceUntilIdle()
+
+        val monuments = viewModel.uiState.value.monuments
+        assertEquals(setOf("Arc", "Louvre"), monuments.map { it.name }.toSet())
+        assertTrue(monuments.first { it.name == "Louvre" }.isWishlisted)
+      }
+
+  @Test
+  fun confirmedWriteIsDroppedOnceTheSnapshotCatchesUp() =
+      runTest(dispatcher) {
+        repository.guides[key] = guide
+        val silent =
+            object : WishlistRepository by repository {
+              override suspend fun addToWishlist(item: WishlistItem) = item
+            }
+        val viewModel = WishlistViewModel(silent)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.wishlistedKeys.size)
+
+        repository.items.value =
+            listOf(item.copy(monumentKey = viewModel.uiState.value.guideKeys.values.single()))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.monuments.single().isWishlisted)
+        repository.items.value = emptyList()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.monuments.single().isWishlisted)
+      }
+
+  @Test
+  fun writeConfirmedAfterTheSnapshotLeavesNothingPending() =
+      runTest(dispatcher) {
+        repository.guides[key] = guide
+        val gate = CompletableDeferred<Unit>()
+        val gated =
+            object : WishlistRepository by repository {
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+                gate.await()
+                return item
+              }
+            }
+        val viewModel = WishlistViewModel(gated)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        val savedKey = viewModel.uiState.value.guideKeys.values.single()
+        repository.items.value = listOf(item.copy(monumentKey = savedKey))
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        repository.items.value = emptyList()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.wishlistedKeys.isEmpty())
+      }
+
+  @Test
+  fun olderWriteConfirmationDoesNotAffectANewerChange() =
+      runTest(dispatcher) {
+        repository.guides[key] = guide
+        val gate = CompletableDeferred<Unit>()
+        val gated =
+            object : WishlistRepository by repository {
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+                gate.await()
+                return item
+              }
+            }
+        val viewModel = WishlistViewModel(gated)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        viewModel.toggleGuide("friend", guide)
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.wishlistedKeys.isEmpty())
+        assertNull(viewModel.uiState.value.mutationError)
+      }
+
+  @Test
+  fun pendingRestoreKeepsTheCardWhenASnapshotCannotResolveIt() =
+      runTest(dispatcher) {
+        repository.items.value = listOf(item)
+        val never = CompletableDeferred<Unit>()
+        val blind =
+            object : WishlistRepository by repository {
+              override suspend fun getResolvedWishlist() = emptyList<ResolvedWishlistItem>()
+
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+                never.await()
+                return item
+              }
+
+              override suspend fun removeFromWishlist(monumentKey: String) = never.await()
+            }
+        val viewModel = WishlistViewModel(blind)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.setWishlisted(key, false)
+        viewModel.setWishlisted(key, true)
+
+        repository.items.value = listOf(item, WishlistItem("ref_o~x", "o", "x", "Arc", 3))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.monuments.first { it.id == key }.isWishlisted)
+      }
+
+  @Test
+  fun staleSuccessConfirmationIsIgnored() =
+      runTest(dispatcher) {
+        repository.items.value = listOf(item)
+        repository.guides[key] = guide
+        val viewModel = WishlistViewModel(repository)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.setWishlisted(key, false)
+        val id = viewModel.uiState.value.mutationSuccess!!.id
+
+        viewModel.clearMutationSuccess(id + 1)
+        assertNotNull(viewModel.uiState.value.mutationSuccess)
+        viewModel.clearMutationSuccess(id)
+        assertNull(viewModel.uiState.value.mutationSuccess)
+      }
+
+  @Test
+  fun cancelledLocationLookupIsNotTreatedAsAName() =
+      runTest(dispatcher) {
+        repository.items.value = listOf(item)
+        repository.guides[key] = guide
+        val viewModel = WishlistViewModel(repository) { throw CancellationException("stop") }
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+
+        assertEquals("", viewModel.uiState.value.monuments.single().city)
+        assertNull(viewModel.uiState.value.error)
+      }
+
+  @Test
+  fun friendWishlistsAreStartedOnlyOnceAndStoppedWithTheScans() =
+      runTest(dispatcher) {
+        var subscriptions = 0
+        val friends = mockk<FriendRepository>()
+        val wishlists = mockk<FriendWishlistRepository>()
+        coEvery { friends.getFriends() } returns listOf(Friendship("a", "alice"))
+        every { wishlists.observeWishlistedMonumentNames("alice") } answers
+            {
+              kotlinx.coroutines.flow.flow {
+                subscriptions++
+                emit(listOf("Louvre"))
+                kotlinx.coroutines.awaitCancellation()
+              }
+            }
+        val viewModel =
+            WishlistViewModel(
+                repository,
+                friendWishlistsSource =
+                    FriendWishlistedMonumentsSource(friends, wishlists, mockk(relaxed = true)),
+            )
+
+        viewModel.startFriendObservation()
+        advanceUntilIdle()
+        viewModel.startFriendObservation()
+        advanceUntilIdle()
+        assertEquals(1, subscriptions)
+
+        viewModel.stopFriendObservation()
+        advanceUntilIdle()
+        viewModel.startFriendObservation()
+        advanceUntilIdle()
+        assertEquals(2, subscriptions)
+      }
+
+  @Test
   fun unknownFailureIsRetryableAndKeepsTheReason() =
       runTest(dispatcher) {
         repository.items.value = listOf(item)

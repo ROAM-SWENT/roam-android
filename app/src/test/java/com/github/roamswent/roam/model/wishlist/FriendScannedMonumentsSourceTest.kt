@@ -187,6 +187,29 @@ class FriendScannedMonumentsSourceTest {
   }
 
   @Test
+  fun profilesAreCachedAcrossObservations() = runTest {
+    friend("a")
+    shares("a", "Louvre")
+    profile("a")
+
+    source.observe().first()
+    source.observe().first()
+
+    coVerify(exactly = 1) { profiles.getProfile("a") }
+  }
+
+  @Test
+  fun cancellationWhileLoadingAProfileIsNotSwallowed() = runTest {
+    friend("a")
+    shares("a", "Louvre")
+    coEvery { profiles.getProfile("a") } throws kotlinx.coroutines.CancellationException("stop")
+    try {
+      source.observe().first()
+      fail("expected cancellation")
+    } catch (_: kotlinx.coroutines.CancellationException) {}
+  }
+
+  @Test
   fun cancellationStopsCollection() =
       runTest(UnconfinedTestDispatcher()) {
         friend("a")
