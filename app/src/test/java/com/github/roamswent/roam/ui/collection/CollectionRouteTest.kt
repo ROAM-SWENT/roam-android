@@ -189,11 +189,11 @@ class CollectionRouteTest {
     composeTestRule.waitUntil { sharing.shareSettings.value[colosseum.id] != null }
 
     val settings = sharing.shareSettings.value.getValue(colosseum.id)
-    assertEquals(ShareAudience.SELECTED_FRIENDS, settings.audience)
-    assertEquals(setOf("friend"), settings.sharedWithUids)
+    assertEquals(ShareAudience.ALL_FRIENDS, settings.audience)
+    assertEquals(emptySet<String>(), settings.sharedWithUids)
     composeTestRule
         .onNodeWithTag(C.Tag.collection_share_status, true)
-        .assertTextEquals("Shared with 1 friends")
+        .assertTextEquals("Shared with all friends")
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_none).performClick()

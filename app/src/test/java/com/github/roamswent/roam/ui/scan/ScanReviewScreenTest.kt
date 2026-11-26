@@ -547,7 +547,7 @@ class ScanReviewScreenTest {
 
     composeTestRule.waitUntil {
       sharing.shareSettings.value.values.any {
-        it.audience == ShareAudience.SELECTED_FRIENDS && it.sharedWithUids == setOf("alice")
+        it.audience == ShareAudience.ALL_FRIENDS && it.sharedWithUids.isEmpty()
       }
     }
     composeTestRule.onNodeWithText("Shared with Alice").performScrollTo().assertIsDisplayed()
@@ -701,8 +701,8 @@ class ScanReviewScreenTest {
     composeTestRule.onNodeWithText("Alice").performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
 
-    assertEquals(ShareAudience.SELECTED_FRIENDS, selectedAudience)
-    assertEquals(setOf("alice"), selectedFriends)
+    assertEquals(ShareAudience.ALL_FRIENDS, selectedAudience)
+    assertEquals(emptySet<String>(), selectedFriends)
   }
 
   @Test

@@ -106,6 +106,7 @@ import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.friends.FriendsSearchField
+import com.github.roamswent.roam.ui.friends.filterByUsernameQuery
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
@@ -702,7 +703,7 @@ internal fun GuideSharingDialog(
   var friendsQuery by remember(guideId) { mutableStateOf("") }
   val filteredFriends =
       remember(friends, friendsQuery) {
-        friends.filter { it.username.contains(friendsQuery.trim(), ignoreCase = true) }
+        filterByUsernameQuery(friends, friendsQuery, CollectionFriend::username)
       }
   val selectedRecipients =
       selectedFriendUids.filter { selectedUid -> friends.any { it.uid == selectedUid } }.toSet()
