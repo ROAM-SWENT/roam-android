@@ -75,6 +75,7 @@ import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.WishlistAvatarBrand
 import com.google.android.gms.maps.CameraUpdate
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -554,10 +555,26 @@ class ExploreMapIntegrationTest {
     val map = composeTestRule.onNodeWithTag(C.Tag.explore_map).getUnclippedBoundsInRoot()
     val card = composeTestRule.onNode(hasScrollAction()).getUnclippedBoundsInRoot()
     assertEquals((card.top - map.top).value, (map.bottom - card.bottom).value, 1f)
-    composeTestRule
-        .onNodeWithText("Wishlisted by Alice, Bob, Cora, Dora")
-        .performScrollTo()
-        .assertIsDisplayed()
+    val wishlist = composeTestRule.onNodeWithText("Wishlisted by Alice, Bob, Cora, Dora")
+    fun assertWishlistAvatarPalette() {
+      wishlist.performScrollTo().assertIsDisplayed()
+      val scrollArea = composeTestRule.onNode(hasScrollAction())
+      val cardBounds = scrollArea.getUnclippedBoundsInRoot()
+      val labelBounds = wishlist.getUnclippedBoundsInRoot()
+      val bitmap = scrollArea.captureToImage().asAndroidBitmap()
+      val right = (labelBounds.left - cardBounds.left).value.toInt()
+      val top = (labelBounds.top - cardBounds.top).value.toInt().coerceAtLeast(0)
+      val bottom = (labelBounds.bottom - cardBounds.top).value.toInt().coerceAtMost(bitmap.height)
+      val rowPixels = IntArray(right * (bottom - top))
+      bitmap.getPixels(rowPixels, 0, right, 0, top, right, bottom - top)
+      val artworkColors = rowPixels.toSet()
+      assertTrue(artworkColors.containsAll(colors.take(3)))
+      assertTrue(Color.White.toArgb() in artworkColors)
+      assertTrue(WishlistAvatarBrand.toArgb() in artworkColors)
+    }
+    assertWishlistAvatarPalette()
+    composeTestRule.runOnIdle { darkTheme.value = false }
+    assertWishlistAvatarPalette()
     composeTestRule.onNodeWithText("Dora").performScrollTo().assertIsDisplayed()
     readFriendGuide(3)
     composeTestRule.onNodeWithText("Scanned by 4 friends").assertDoesNotExist()

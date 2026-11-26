@@ -45,6 +45,8 @@ import coil.size.Scale
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.ui.components.profilePictureInitial
+import com.github.roamswent.roam.ui.theme.OnBrand
+import com.github.roamswent.roam.ui.theme.WishlistAvatarBrand
 import com.github.roamswent.roam.ui.theme.accentContainer
 import com.github.roamswent.roam.ui.theme.monumentMarkerBody
 import com.github.roamswent.roam.ui.theme.monumentMarkerBorder
@@ -223,12 +225,15 @@ internal fun rememberFriendAvatarStack(
     avatars: List<FriendMarkerArtwork>,
     extra: Int,
     size: Dp? = null,
+    useWishlistColors: Boolean = false,
 ): Bitmap? {
   val badge = if (extra > 0) stringResource(R.string.explore_friend_pin_overflow, extra) else ""
   val density = LocalDensity.current
-  val badgeColor = MaterialTheme.onAccentContainer.toArgb()
-  val pinColor = MaterialTheme.accentContainer.toArgb()
-  val borderColor = MaterialTheme.monumentMarkerBorder.toArgb()
+  val badgeColor = (if (useWishlistColors) OnBrand else MaterialTheme.onAccentContainer).toArgb()
+  val pinColor =
+      (if (useWishlistColors) WishlistAvatarBrand else MaterialTheme.accentContainer).toArgb()
+  val borderColor =
+      (if (useWishlistColors) OnBrand else MaterialTheme.monumentMarkerBorder).toArgb()
   val textSize = with(density) { MaterialTheme.typography.labelMedium.fontSize.toPx() }
   val initialSize = with(density) { MaterialTheme.typography.titleMedium.fontSize.toPx() }
   return remember(

@@ -50,6 +50,9 @@ val OfflineMapBorderLight = Color(0xFFB7C2BE)
 
 /** Content on a brand-color container ([HomeAccentGreen], [ScanTeal]), in both themes. */
 val OnBrand = Color.White
+
+/** Brand background for wishlist avatar initials and overflow text in both themes. */
+internal val WishlistAvatarBrand = HomeAccentGreen
 /** Google "G" brand mark: the brand color does not change with the theme. */
 val GoogleBrandBlue = Color(0xFF4285F4)
 /** Path color of a vector icon; the icon is always tinted where it is drawn. */

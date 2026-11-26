@@ -286,7 +286,7 @@ private fun WishlistAttribution(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(PREVIEW_INLINE_GAP),
   ) {
-    PreviewAvatarStack(avatars, friends.size - avatars.size)
+    PreviewAvatarStack(avatars, friends.size - avatars.size, useWishlistColors = true)
     Text(
         stringResource(R.string.explore_friend_wishlisted_by, friends.joinToString { it.username }),
         style = MaterialTheme.typography.bodyMedium,
@@ -428,8 +428,13 @@ private fun PreviewAvatar(
 }
 
 @Composable
-private fun PreviewAvatarStack(avatars: List<FriendMarkerArtwork>, extra: Int) {
-  val bitmap = rememberFriendAvatarStack(avatars, extra, COMPACT_AVATAR_SIZE) ?: return
+private fun PreviewAvatarStack(
+    avatars: List<FriendMarkerArtwork>,
+    extra: Int,
+    useWishlistColors: Boolean = false,
+) {
+  val bitmap =
+      rememberFriendAvatarStack(avatars, extra, COMPACT_AVATAR_SIZE, useWishlistColors) ?: return
   val image = remember(bitmap) { bitmap.asImageBitmap() }
   val width = with(LocalDensity.current) { bitmap.width.toDp() }
   Image(
