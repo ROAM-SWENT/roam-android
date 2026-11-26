@@ -30,6 +30,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -74,10 +75,14 @@ import com.github.roamswent.roam.model.profile.ProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.profile.UserProfile
+import com.github.roamswent.roam.model.wishlist.WishlistItem
+import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
+import com.github.roamswent.roam.ui.collection.FakeWishlistRepository
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.navigation.Routes
 import com.github.roamswent.roam.ui.notifications.FriendRequestNotificationData
@@ -2083,6 +2088,7 @@ class MainActivityNavigationTest {
         onNavControllerReady = { navController[0] = it },
         monumentSharingRepository =
             FakeMonumentSharingRepository(mapOf("friend-uid" to listOf(shared))),
+        wishlistRepository = FakeWishlistRepository(),
     )
     waitAndAssertDisplayed(C.Tag.home_screen_container)
 
@@ -2101,13 +2107,65 @@ class MainActivityNavigationTest {
     waitAndAssertDisplayed(C.Tag.monument_detail_title)
     composeTestRule.onNodeWithTag(C.Tag.dock_container).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
-    composeTestRule.onNodeWithTag(C.Tag.monument_detail_back_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Back")
+        .performClick()
     waitAndAssertDisplayed(C.Tag.collection_screen)
     composeTestRule.onNodeWithTag(C.Tag.dock_container).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_back_button).performClick()
     composeTestRule.waitUntil(timeoutMillis = 10_000) {
       navController[0]?.currentDestination?.route != Routes.FriendCollectionPattern
     }
+  }
+
+  @Test
+  fun wishlistCardOpensSharedGuideAndReturnsToCollection() {
+    locationDecisionRepository.saveDecision(LocationPermissionDecision.DENIED)
+    val shared =
+        Guide(
+            id = "shared-1",
+            photoBytes = ByteArray(0),
+            monumentName = "Louvre",
+            confidence = 0.9,
+            history = "A museum.",
+            facts = emptyList(),
+            culture = "French.",
+            shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+        )
+    val wishlist = FakeWishlistRepository()
+    val key = WishlistMonumentKey.forGuide("friend-uid", shared)
+    wishlist.items.value =
+        listOf(WishlistItem(key, "friend-uid", shared.id, shared.monumentName, 1))
+    wishlist.guides[key] = shared
+    val navController = arrayOfNulls<NavHostController>(1)
+    renderApp(
+        MutableStateFlow(AuthUIState(user = mock())),
+        onNavControllerReady = { navController[0] = it },
+        monumentSharingRepository =
+            FakeMonumentSharingRepository(mapOf("friend-uid" to listOf(shared))),
+        wishlistRepository = wishlist,
+    )
+    waitAndAssertDisplayed(C.Tag.home_screen_container)
+    composeTestRule.runOnIdle { checkNotNull(navController[0]).navigate(Routes.Collection) }
+    waitAndAssertDisplayed(C.Tag.collection_screen)
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).performClick()
+    waitAndAssertDisplayed(C.Tag.collection_wishlist_card)
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).performClick()
+    waitAndAssertDisplayed(C.Tag.monument_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
+    composeTestRule.mainClock.autoAdvance = false
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Back")
+        .performClick()
+    composeTestRule.mainClock.advanceTimeBy(32)
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Back")
+    composeTestRule.mainClock.autoAdvance = true
+    waitAndAssertDisplayed(C.Tag.collection_wishlist_card)
   }
 
   @Test
@@ -2293,6 +2351,7 @@ class MainActivityNavigationTest {
       notificationNavigationEvents: Flow<NotificationNavigationRequest> = emptyFlow(),
       monumentSharingRepository: MonumentSharingRepository? = null,
       friendRepository: FriendRepository? = null,
+      wishlistRepository: WishlistRepository? = null,
       activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
   ) {
     val authViewModel = mock<SignInViewModel>()
@@ -2348,6 +2407,7 @@ class MainActivityNavigationTest {
                           notificationInstallationRepositoryOverride,
                       monumentSharingRepository = monumentSharingRepository,
                       friendRepository = friends,
+                      wishlistRepository = wishlistRepository,
                   ),
               notificationNavigationOnLaunch = notificationNavigationOnLaunch,
               notificationNavigationEvents = notificationNavigationEvents,

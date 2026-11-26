@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -28,6 +29,8 @@ import coil.intercept.Interceptor
 import coil.request.ErrorResult
 import coil.request.SuccessResult
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.location.Coordinates
+import com.github.roamswent.roam.model.wishlist.WishlistUnavailableReason
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -81,6 +84,127 @@ class WishlistScreenTest {
         .onNodeWithText("From friends. Scan one to move it to your collection.")
         .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_empty).assertIsDisplayed()
+  }
+
+  @Test
+  fun sharedFriendsErrorCanBeRetriedWithoutHidingWishlist() {
+    var retries = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    monuments = listOf(monument.copy(scannedBy = emptyList())),
+                    scannedByError = IllegalStateException("offline"),
+                ),
+            initialShowWishlist = true,
+            onRetryWishlistFriends = { retries++ },
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_friends_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_friends_retry).performClick()
+    assertEquals(1, retries)
+  }
+
+  @Test
+  fun wishlistFriendsErrorCanBeRetriedWithoutHidingWishlist() {
+    var retries = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    monuments = listOf(monument),
+                    wishlistedByError = IllegalStateException("offline"),
+                ),
+            initialShowWishlist = true,
+            onRetryWishlistFriends = { retries++ },
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_friends_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_friends_retry).performClick()
+    assertEquals(1, retries)
+  }
+
+  @Test
+  fun temporaryGuideFailureOffersRetryButDeletedGuideDoesNot() {
+    var retries = 0
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(
+                            id = "flaky",
+                            name = "Arc",
+                            unavailable = true,
+                            unavailableReason = WishlistUnavailableReason.UNKNOWN,
+                        ),
+                        monument.copy(
+                            id = "gone",
+                            name = "Louvre",
+                            unavailable = true,
+                            unavailableReason = WishlistUnavailableReason.GUIDE_DELETED,
+                        ),
+                    )
+                ),
+            initialShowWishlist = true,
+            onRetryWishlistGuides = { retries++ },
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("Couldn’t load this shared guide.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("This shared guide is no longer available.").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_wishlist_guide_retry).assertCountEquals(1)
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_guide_retry).performClick()
+    assertEquals(1, retries)
+  }
+
+  @Test
+  fun unavailableGuideShowsMessageAndCannotBeOpenedWithoutLocation() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(listOf(monument.copy(city = "", country = "", unavailable = true))),
+            initialShowWishlist = true,
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("This shared guide is no longer available.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertHasNoClickAction()
+  }
+
+  @Test
+  fun coordinatesAreShownWhenNoLocationNameIsAvailable() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(city = "", country = "", location = Coordinates(48.86, 2.34))
+                    )
+                ),
+            initialShowWishlist = true,
+        )
+      }
+    }
+    composeTestRule
+        .onNodeWithText(
+            java.lang.String.format(java.util.Locale.getDefault(), "%.4f, %.4f", 48.86, 2.34)
+        )
+        .assertIsDisplayed()
   }
 
   @Test
@@ -180,6 +304,86 @@ class WishlistScreenTest {
         .assertContentDescriptionEquals("Add to wishlist")
         .performClick()
     assertEquals(listOf("shared" to false, "shared" to true), changes)
+  }
+
+  @Test
+  fun wishlistedFriendsAreShownBelowScannersOnlyWhenPresent() {
+    var darkTheme by mutableStateOf(false)
+    composeTestRule.setContent {
+      SampleAppTheme(darkTheme = darkTheme) {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(monument.copy(wishlistedBy = listOf(WishlistFriend("Katherine"))))
+                ),
+            initialShowWishlist = true,
+        )
+      }
+    }
+    val scanners = composeTestRule.onNodeWithText("Scanned by 2 friends")
+    val wishlisters = composeTestRule.onNodeWithText("Katherine also has it on their wishlist")
+    scanners.assertIsDisplayed()
+    wishlisters.assertIsDisplayed()
+    assertTrue(
+        scanners.getUnclippedBoundsInRoot().bottom < wishlisters.getUnclippedBoundsInRoot().top
+    )
+    composeTestRule.runOnIdle { darkTheme = true }
+    scanners.assertIsDisplayed()
+    wishlisters.assertIsDisplayed()
+  }
+
+  @Test
+  fun wishlistAttributionIsHiddenWhenNoFriendsWishlisted() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = WishlistUiState(listOf(monument)),
+            initialShowWishlist = true,
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("Scanned by 2 friends").assertIsDisplayed()
+    composeTestRule.onNodeWithText("1 friend also has it on their wishlist").assertDoesNotExist()
+  }
+
+  @Test
+  fun multipleWishlistedFriendsUseTheSameAvatarPresentationAsScanners() {
+    val friends = listOf("Ada", "Grace", "Katherine", "Dorothy").map(::WishlistFriend)
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(monument.copy(scannedBy = emptyList(), wishlistedBy = friends))
+                ),
+            initialShowWishlist = true,
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("4 friends also have it on their wishlists").assertIsDisplayed()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.collection_wishlist_avatar, useUnmergedTree = true)
+        .assertCountEquals(3)
+    composeTestRule.onNodeWithText("+1").assertIsDisplayed()
+  }
+
+  @Test
+  fun confirmedWishlistChangeShowsSuccessAndConsumesEvent() {
+    var consumed: Long? = null
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = WishlistUiState(mutationSuccess = WishlistMutationSuccess(7, false)),
+            onWishlistSuccessShown = { consumed = it },
+        )
+      }
+    }
+    composeTestRule.onNodeWithText("Removed from wishlist").assertIsDisplayed()
+    assertEquals(7L, consumed)
   }
 
   @Test
@@ -292,6 +496,78 @@ class WishlistScreenTest {
         .onAllNodesWithTag(C.Tag.collection_wishlist_avatar, useUnmergedTree = true)
         .assertCountEquals(1)
     composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_more_friends, true).assertDoesNotExist()
+  }
+
+  @Test
+  fun locationShowsOnlyTheAvailablePart() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(id = "a", name = "A", city = "", country = "Spain"),
+                        monument.copy(id = "b", name = "B", city = "Girona", country = ""),
+                    )
+                ),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule.onNodeWithText("Spain").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Girona").assertIsDisplayed()
+  }
+
+  @Test
+  fun emptyOrBlankPhotosFallBackToThePlaceholder() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(id = "a", name = "A", photoBytes = byteArrayOf()),
+                        monument.copy(id = "b", name = "B", photoUrl = " "),
+                    )
+                ),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.collection_card_photo_placeholder, useUnmergedTree = true)
+        .assertCountEquals(2)
+  }
+
+  @Test
+  fun loadErrorWithoutCardsDoesNotShowTheCardRetry() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = WishlistUiState(error = IllegalStateException("offline")),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertDoesNotExist()
+  }
+
+  @Test
+  fun singleFriendWithoutProfileShowsGenericName() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(listOf(monument.copy(scannedBy = listOf(WishlistFriend(""))))),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule.onNodeWithText("Scanned by Friend").assertIsDisplayed()
   }
 
   @Test
@@ -564,15 +840,6 @@ class WishlistScreenTest {
     composeTestRule.runOnIdle { wishlist = WishlistUiState(refreshVersion = 1) }
     composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_empty).assertIsDisplayed()
-  }
-
-  @Test
-  fun backendEntryPointsAreNoOps() {
-    val viewModel = WishlistViewModel()
-    viewModel.loadWishlist()
-    viewModel.setWishlisted("shared", true)
-    viewModel.retryLoadingWishlist()
-    assertEquals(WishlistUiState(), viewModel.uiState.value)
   }
 
   private fun selectWishlist() {

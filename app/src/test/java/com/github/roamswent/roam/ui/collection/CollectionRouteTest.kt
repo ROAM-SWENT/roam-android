@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -17,15 +18,25 @@ import com.github.roamswent.roam.model.friend.Friendship
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.FakeSavedGuideRepository
 import com.github.roamswent.roam.model.guide.Guide
+import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.location.Coordinates
+import com.github.roamswent.roam.model.location.LocationName
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.wishlist.FriendScannedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.FriendWishlistRepository
+import com.github.roamswent.roam.model.wishlist.FriendWishlistedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.WishlistItem
+import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -55,6 +66,153 @@ class CollectionRouteTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.collection_profile_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun wishlistDisplaysPersistedSharedGuideAndRemovesIt() {
+    val wishlist = FakeWishlistRepository()
+    val key = WishlistMonumentKey.forGuide("friend", colosseum)
+    wishlist.items.value =
+        listOf(WishlistItem(key, "friend", colosseum.id, colosseum.monumentName, 1))
+    wishlist.guides[key] = colosseum
+    setRoute(FakeSavedGuideRepository(), wishlist = wishlist)
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).performClick()
+    composeTestRule.onNodeWithText("Colosseum").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_button).performClick()
+    composeTestRule.waitUntil { wishlist.items.value.isEmpty() }
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_wishlist_button)
+        .assertContentDescriptionEquals("Add to wishlist")
+  }
+
+  @Test
+  fun wishlistCardOpensSharedGuideAndBookmarkDoesNotNavigate() {
+    val wishlist = FakeWishlistRepository()
+    val guide = colosseum.copy(location = Coordinates(41.89, 12.49))
+    val key = WishlistMonumentKey.forGuide("friend", guide)
+    wishlist.items.value = listOf(WishlistItem(key, "friend", guide.id, guide.monumentName, 1))
+    wishlist.guides[key] = guide
+    val opened = mutableListOf<Pair<String, String>>()
+    setRoute(
+        FakeSavedGuideRepository(),
+        wishlist = wishlist,
+        onWishlistGuideClick = { owner, id -> opened.add(owner to id) },
+    )
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).performClick()
+    composeTestRule.onNodeWithText("Rome, Italy").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).performClick()
+    assertEquals(listOf("friend" to guide.id), opened)
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_button).performClick()
+    composeTestRule.waitUntil { wishlist.items.value.isEmpty() }
+    assertEquals(1, opened.size)
+  }
+
+  @Test
+  fun bothWishlistedGuidesShowFriendCountAndOpenTheirOwnGuide() {
+    val aliceGuide =
+        colosseum.copy(
+            id = "alice-guide",
+            monumentName = "Eiffel Tower",
+            shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS),
+        )
+    val bobGuide = aliceGuide.copy(id = "bob-guide")
+    val sharing =
+        FakeMonumentSharingRepository(
+            mapOf("alice" to listOf(aliceGuide), "bob" to listOf(bobGuide))
+        )
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    coEvery { friends.getFriends() } returns
+        listOf(Friendship("a", "alice"), Friendship("b", "bob"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+    coEvery { profiles.getProfile("bob") } returns PublicProfile("bob", "Bob")
+    val wishlist = FakeWishlistRepository()
+    val aliceKey = WishlistMonumentKey.forSharedGuide("alice", aliceGuide.id)
+    val bobKey = WishlistMonumentKey.forSharedGuide("bob", bobGuide.id)
+    val aliceItem = WishlistItem(aliceKey, "alice", aliceGuide.id, aliceGuide.monumentName, 1)
+    val bobItem = WishlistItem(bobKey, "bob", bobGuide.id, bobGuide.monumentName, 2)
+    wishlist.items.value = listOf(aliceItem)
+    wishlist.guides[aliceKey] = aliceGuide
+    wishlist.guides[bobKey] = bobGuide
+    val opened = mutableListOf<Pair<String, String>>()
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionRoute(
+            repository = FakeSavedGuideRepository(),
+            friendRepository = friends,
+            publicProfileRepository = profiles,
+            monumentSharingProvider = { sharing },
+            wishlistRepository = wishlist,
+            friendScansSource = FriendScannedMonumentsSource(friends, sharing, profiles),
+            onWishlistGuideClick = { owner, guideId -> opened.add(owner to guideId) },
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule
+          .onAllNodesWithText("Scanned by 2 friends", useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .size == 1
+    }
+    composeTestRule.runOnIdle { wishlist.items.value = listOf(aliceItem, bobItem) }
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule
+          .onAllNodesWithText("Scanned by 2 friends", useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .size == 2
+    }
+    val cards = composeTestRule.onAllNodesWithTag(C.Tag.collection_wishlist_card)
+    cards.assertCountEquals(2)
+    cards[0].performClick()
+    cards[1].performClick()
+    assertEquals(setOf("alice" to "alice-guide", "bob" to "bob-guide"), opened.toSet())
+  }
+
+  @Test
+  fun wishlistShowsLiveFriendAttributionUnderScannedBy() {
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    val friendWishlists = mockk<FriendWishlistRepository>()
+    val liveWishlist = MutableStateFlow(listOf("  COLOSSEUM "))
+    coEvery { friends.getFriends() } returns listOf(Friendship("a", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+    every { friendWishlists.observeWishlistedMonumentNames("alice") } returns liveWishlist
+    val sharedGuide =
+        colosseum.copy(shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS))
+    val sharing = FakeMonumentSharingRepository(mapOf("alice" to listOf(sharedGuide)))
+    val wishlist = FakeWishlistRepository()
+    val key = WishlistMonumentKey.forSharedGuide("alice", colosseum.id)
+    wishlist.items.value =
+        listOf(WishlistItem(key, "alice", colosseum.id, colosseum.monumentName, 1))
+    wishlist.guides[key] = colosseum
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionRoute(
+            repository = FakeSavedGuideRepository(),
+            friendRepository = friends,
+            publicProfileRepository = profiles,
+            monumentSharingProvider = { sharing },
+            wishlistRepository = wishlist,
+            friendScansSource = FriendScannedMonumentsSource(friends, sharing, profiles),
+            friendWishlistsSource =
+                FriendWishlistedMonumentsSource(friends, friendWishlists, profiles),
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule.onAllNodesWithText("Scanned by Alice").fetchSemanticsNodes().isNotEmpty() &&
+          composeTestRule
+              .onAllNodesWithText("Alice also has it on their wishlist")
+              .fetchSemanticsNodes()
+              .isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Scanned by Alice").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alice also has it on their wishlist").assertIsDisplayed()
+    composeTestRule.runOnIdle { liveWishlist.value = emptyList() }
+    composeTestRule.onNodeWithText("Alice also has it on their wishlist").assertDoesNotExist()
   }
 
   @Test
@@ -271,6 +429,7 @@ class CollectionRouteTest {
             friendRepository = friends,
             publicProfileRepository = profiles,
             monumentSharingProvider = { sharing },
+            wishlistRepository = FakeWishlistRepository(),
         )
       }
     }
@@ -280,12 +439,17 @@ class CollectionRouteTest {
       repository: FakeSavedGuideRepository,
       profileName: String = "Traveler",
       profileAvatarBytes: ByteArray? = null,
+      wishlist: FakeWishlistRepository = FakeWishlistRepository(),
+      onWishlistGuideClick: (String, String) -> Unit = { _, _ -> },
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
         CollectionRoute(
             repository = repository,
             monumentSharingProvider = { FakeMonumentSharingRepository() },
+            wishlistRepository = wishlist,
+            locationNameResolver = { LocationName("Rome", "Italy") },
+            onWishlistGuideClick = onWishlistGuideClick,
             profileName = profileName,
             profileAvatarBytes = profileAvatarBytes,
         )

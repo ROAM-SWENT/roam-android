@@ -8,14 +8,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.model.friend.FirestoreFriendRepository
 import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.DefaultMonumentSharingProvider
 import com.github.roamswent.roam.model.guide.MonumentSharingProvider
 import com.github.roamswent.roam.model.guide.SavedGuideRepository
+import com.github.roamswent.roam.model.location.AndroidLocationNameResolver
+import com.github.roamswent.roam.model.location.LocationNameResolver
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.wishlist.FirestoreFriendWishlistRepository
+import com.github.roamswent.roam.model.wishlist.FirestoreWishlistRepository
+import com.github.roamswent.roam.model.wishlist.FriendScannedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.FriendWishlistedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 import com.github.roamswent.roam.ui.home.HomeViewModel
 
@@ -35,6 +43,11 @@ fun CollectionRoute(
     profileAvatarBytes: ByteArray? = null,
     onProfileClicked: () -> Unit = {},
     onPickFromGallery: () -> Unit = {},
+    wishlistRepository: WishlistRepository? = null,
+    locationNameResolver: LocationNameResolver? = null,
+    onWishlistGuideClick: (String, String) -> Unit = { _, _ -> },
+    friendScansSource: FriendScannedMonumentsSource? = null,
+    friendWishlistsSource: FriendWishlistedMonumentsSource? = null,
 ) {
   val resolvedFriendRepository =
       remember(friendRepository) { friendRepository ?: FirestoreFriendRepository() }
@@ -52,7 +65,44 @@ fun CollectionRoute(
   val sharingViewModel: CollectionSharingViewModel = viewModel {
     CollectionSharingViewModel(resolvedFriendRepository, resolvedProfileRepository)
   }
-  val wishlistViewModel: WishlistViewModel = viewModel()
+  val resolvedWishlistRepository =
+      remember(wishlistRepository) { wishlistRepository ?: FirestoreWishlistRepository() }
+  val context = LocalContext.current
+  val resolvedLocationNameResolver =
+      remember(locationNameResolver, context) {
+        locationNameResolver ?: AndroidLocationNameResolver(context)
+      }
+  val resolvedFriendScansSource =
+      remember(
+          friendScansSource,
+          resolvedFriendRepository,
+          sharingRepository,
+          resolvedProfileRepository,
+      ) {
+        friendScansSource
+            ?: FriendScannedMonumentsSource(
+                resolvedFriendRepository,
+                sharingRepository,
+                resolvedProfileRepository,
+            )
+      }
+  val resolvedFriendWishlistsSource =
+      remember(friendWishlistsSource, resolvedFriendRepository, resolvedProfileRepository) {
+        friendWishlistsSource
+            ?: FriendWishlistedMonumentsSource(
+                resolvedFriendRepository,
+                FirestoreFriendWishlistRepository(),
+                resolvedProfileRepository,
+            )
+      }
+  val wishlistViewModel: WishlistViewModel = viewModel {
+    WishlistViewModel(
+        resolvedWishlistRepository,
+        resolvedFriendScansSource,
+        resolvedFriendWishlistsSource,
+        resolvedLocationNameResolver,
+    )
+  }
   val state by viewModel.uiState.collectAsState()
   val sharingState by sharingViewModel.uiState.collectAsState()
   val wishlistState by wishlistViewModel.uiState.collectAsState()
@@ -85,5 +135,12 @@ fun CollectionRoute(
       wishlistState = wishlistState,
       onSetWishlisted = wishlistViewModel::setWishlisted,
       onRetryWishlist = wishlistViewModel::retryLoadingWishlist,
+      onWishlistErrorShown = wishlistViewModel::clearMutationError,
+      onRetryWishlistGuides = wishlistViewModel::refreshAvailability,
+      onWishlistSuccessShown = wishlistViewModel::clearMutationSuccess,
+      onWishlistGuideClick = onWishlistGuideClick,
+      onRetryWishlistFriends = wishlistViewModel::retryLoadingFriends,
+      onWishlistShown = wishlistViewModel::startFriendObservation,
+      onWishlistHidden = wishlistViewModel::stopFriendObservation,
   )
 }

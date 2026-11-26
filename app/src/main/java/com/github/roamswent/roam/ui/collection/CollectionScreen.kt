@@ -5,6 +5,7 @@
 package com.github.roamswent.roam.ui.collection
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,6 +67,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -98,6 +100,7 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.wishlist.WishlistUnavailableReason
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.components.ProfilePicture
@@ -148,6 +151,7 @@ fun CollectionScreen(
     onDeleteErrorShown: () -> Unit = {},
     onToggleFavorite: (String) -> Unit = {},
     isGuideWishlisted: (Guide) -> Boolean = { false },
+    isGuideWishlistEnabled: (Guide) -> Boolean = { true },
     onToggleWishlist: ((Guide) -> Unit)? = null,
     onRestoreFavorite: (String) -> Unit = {},
     onFavoriteErrorShown: () -> Unit = {},
@@ -168,16 +172,31 @@ fun CollectionScreen(
     wishlistState: WishlistUiState = WishlistUiState(),
     onSetWishlisted: (String, Boolean) -> Unit = { _, _ -> },
     onRetryWishlist: () -> Unit = {},
+    onWishlistErrorShown: () -> Unit = {},
+    onWishlistSuccessShown: (Long) -> Unit = {},
+    onWishlistGuideClick: (String, String) -> Unit = { _, _ -> },
+    onRetryWishlistFriends: () -> Unit = {},
+    onRetryWishlistGuides: () -> Unit = {},
+    onWishlistShown: () -> Unit = {},
+    onWishlistHidden: () -> Unit = {},
     initialShowWishlist: Boolean = false,
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   var showWishlist by rememberSaveable { mutableStateOf(initialShowWishlist) }
+  DisposableEffect(showWishlist, readOnly) {
+    val observing = showWishlist && !readOnly
+    if (observing) onWishlistShown()
+    onDispose { if (observing) onWishlistHidden() }
+  }
   val scope = rememberCoroutineScope()
   val removedMessage = stringResource(R.string.collection_favorite_removed)
   val undoLabel = stringResource(R.string.collection_favorite_undo)
   val errorMessage = stringResource(R.string.collection_favorite_error)
   val deleteErrorMessage = stringResource(R.string.collection_delete_error)
   val sharingErrorMessage = stringResource(R.string.collection_share_error)
+  val wishlistErrorMessage = stringResource(R.string.collection_wishlist_update_error)
+  val wishlistAddedMessage = stringResource(R.string.collection_wishlist_added)
+  val wishlistRemovedMessage = stringResource(R.string.collection_wishlist_removed)
 
   // Showing a message replaces the current one, so taps never queue up stale snackbars.
   fun showMessage(message: String, actionLabel: String? = null, onAction: () -> Unit = {}) {
@@ -207,6 +226,20 @@ fun CollectionScreen(
     if (state.sharingError != null) {
       showMessage(sharingErrorMessage)
       onSharingErrorShown()
+    }
+  }
+
+  LaunchedEffect(wishlistState.mutationError) {
+    if (wishlistState.mutationError != null) {
+      showMessage(wishlistErrorMessage)
+      onWishlistErrorShown()
+    }
+  }
+
+  LaunchedEffect(wishlistState.mutationSuccess) {
+    wishlistState.mutationSuccess?.let { success ->
+      showMessage(if (success.added) wishlistAddedMessage else wishlistRemovedMessage)
+      onWishlistSuccessShown(success.id)
     }
   }
 
@@ -303,6 +336,9 @@ fun CollectionScreen(
       if (state.guides.isNotEmpty() && state.guidesError != null && onRetryGuides != null) {
         CollectionRetryError(onRetryGuides, Modifier.padding(horizontal = 20.dp))
       }
+      if (readOnly && wishlistState.error != null) {
+        WishlistRetryError(onRetryWishlist, Modifier.padding(horizontal = 20.dp))
+      }
       when {
         !readOnly && showWishlist -> {
           WishlistContent(
@@ -310,6 +346,9 @@ fun CollectionScreen(
               query = state.searchQuery,
               onSetWishlisted = onSetWishlisted,
               onRetry = onRetryWishlist,
+              onGuideClick = onWishlistGuideClick,
+              onRetryFriends = onRetryWishlistFriends,
+              onRetryGuides = onRetryWishlistGuides,
           )
         }
         state.guides.isNotEmpty() -> {
@@ -333,6 +372,7 @@ fun CollectionScreen(
                   onToggleFavorite = toggleFavorite,
                   readOnly = readOnly,
                   isGuideWishlisted = isGuideWishlisted,
+                  isGuideWishlistEnabled = isGuideWishlistEnabled,
                   onToggleWishlist = onToggleWishlist,
                   sharingGuideIds = state.sharingGuideIds,
                   friends = friends,
@@ -539,6 +579,9 @@ private fun WishlistContent(
     query: String,
     onSetWishlisted: (String, Boolean) -> Unit,
     onRetry: () -> Unit,
+    onGuideClick: (String, String) -> Unit,
+    onRetryFriends: () -> Unit,
+    onRetryGuides: () -> Unit,
 ) {
   val monuments = wishlistState.monuments
   val matches = monuments.filter { monument ->
@@ -567,10 +610,36 @@ private fun WishlistContent(
           color = MaterialTheme.secondaryText,
       )
     }
+    if (monuments.isNotEmpty() && wishlistState.error != null) WishlistRetryError(onRetry)
+    if (
+        monuments.isNotEmpty() &&
+            (wishlistState.scannedByError != null || wishlistState.wishlistedByError != null)
+    ) {
+      Row(
+          modifier =
+              Modifier.fillMaxWidth().padding(horizontal = 20.dp).semantics {
+                testTag = C.Tag.collection_wishlist_friends_error
+              },
+          verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+            text = stringResource(R.string.collection_wishlist_friends_error),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.secondaryText,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = onRetryFriends,
+            modifier = Modifier.semantics { testTag = C.Tag.collection_wishlist_friends_retry },
+        ) {
+          Text(stringResource(R.string.saved_monument_detail_retry))
+        }
+      }
+    }
     if (monuments.isEmpty() && wishlistState.isLoading) {
       CollectionLoading()
     } else if (monuments.isEmpty() && wishlistState.error != null) {
-      CollectionMessage(C.Tag.collection_error) { CollectionRetryError(onRetry) }
+      CollectionMessage(C.Tag.collection_error) { WishlistRetryError(onRetry) }
     } else if (matches.isEmpty()) {
       CollectionMessage(
           if (query.isNotBlank()) C.Tag.collection_search_no_matches
@@ -592,7 +661,18 @@ private fun WishlistContent(
           verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
         items(matches, key = { it.id }) { monument ->
-          WishlistCard(monument, monument.isWishlisted) {
+          val ownerUid = monument.sourceOwnerUid
+          val guideId = monument.sourceGuideId
+          WishlistCard(
+              monument = monument,
+              isWishlisted = monument.isWishlisted,
+              enabled = !wishlistState.isLoading && wishlistState.error == null,
+              onGuideClick =
+                  if (!monument.unavailable && ownerUid != null && guideId != null) {
+                    { onGuideClick(ownerUid, guideId) }
+                  } else null,
+              onRetryGuide = onRetryGuides,
+          ) {
             onSetWishlisted(monument.id, !monument.isWishlisted)
           }
         }
@@ -605,12 +685,20 @@ private fun WishlistContent(
 private fun WishlistCard(
     monument: WishlistMonument,
     isWishlisted: Boolean,
+    enabled: Boolean,
+    onGuideClick: (() -> Unit)?,
+    onRetryGuide: () -> Unit,
     onToggleWishlist: () -> Unit,
 ) {
   Card(
       shape = RoundedCornerShape(16.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.cardContainer),
-      modifier = Modifier.fillMaxWidth().semantics { testTag = C.Tag.collection_wishlist_card },
+      modifier =
+          Modifier.fillMaxWidth()
+              .then(
+                  if (onGuideClick != null) Modifier.clickable(onClick = onGuideClick) else Modifier
+              )
+              .semantics { testTag = C.Tag.collection_wishlist_card },
   ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -627,7 +715,18 @@ private fun WishlistCard(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        val location = monument.locationLabel()
+        val location =
+            monument.locationLabel().ifBlank {
+              monument.location
+                  ?.let {
+                    stringResource(
+                        R.string.collection_wishlist_coordinates,
+                        it.latitude,
+                        it.longitude,
+                    )
+                  }
+                  .orEmpty()
+            }
         if (location.isNotEmpty()) {
           Row(verticalAlignment = Alignment.Top) {
             Icon(
@@ -645,53 +744,79 @@ private fun WishlistCard(
             )
           }
         }
-        if (monument.scannedBy.isNotEmpty()) {
-          val scannedBy =
-              if (monument.scannedBy.size == 1) {
-                stringResource(
-                    R.string.collection_wishlist_scanned_by,
-                    monument.scannedBy.first().name,
-                )
-              } else {
-                pluralStringResource(
-                    R.plurals.collection_wishlist_scanned_by_friends,
-                    monument.scannedBy.size,
-                    monument.scannedBy.size,
-                )
-              }
-          Row(
-              modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {},
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(4.dp),
-          ) {
-            Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
-              monument.scannedBy.take(3).forEach { friend -> WishlistFriendAvatar(friend) }
-            }
-            if (monument.scannedBy.size > 3) {
-              Text(
-                  text =
-                      stringResource(
-                          R.string.collection_wishlist_more_friends,
-                          monument.scannedBy.size - 3,
-                      ),
-                  style = MaterialTheme.typography.labelSmall,
-                  color = MaterialTheme.accentIcon,
-                  modifier =
-                      Modifier.semantics { testTag = C.Tag.collection_wishlist_more_friends },
-              )
-            }
+        if (monument.unavailable) {
+          // Only a temporary failure can be retried: a deleted or unshared guide is gone.
+          if (monument.unavailableReason == WishlistUnavailableReason.UNKNOWN) {
             Text(
-                text = scannedBy,
+                text = stringResource(R.string.collection_wishlist_guide_load_error),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.secondaryText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            )
+            TextButton(
+                onClick = onRetryGuide,
+                modifier = Modifier.semantics { testTag = C.Tag.collection_wishlist_guide_retry },
+            ) {
+              Text(stringResource(R.string.saved_monument_detail_retry))
+            }
+          } else {
+            Text(
+                text = stringResource(R.string.collection_wishlist_unavailable),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.secondaryText,
             )
           }
         }
+        WishlistFriendsRow(monument.scannedBy, wishlisted = false)
+        WishlistFriendsRow(monument.wishlistedBy, wishlisted = true)
       }
-      WishlistButton(isWishlisted, onToggleWishlist, Modifier)
+      WishlistButton(isWishlisted, onToggleWishlist, Modifier, enabled = enabled)
     }
+  }
+}
+
+@Composable
+private fun WishlistFriendsRow(friends: List<WishlistFriend>, wishlisted: Boolean) {
+  if (friends.isEmpty()) return
+  val text =
+      if (friends.size == 1) {
+        stringResource(
+            if (wishlisted) R.string.collection_wishlist_wishlisted_by
+            else R.string.collection_wishlist_scanned_by,
+            friends.first().name.ifBlank {
+              stringResource(R.string.collection_wishlist_unknown_friend)
+            },
+        )
+      } else {
+        pluralStringResource(
+            if (wishlisted) R.plurals.collection_wishlist_wishlisted_by_friends
+            else R.plurals.collection_wishlist_scanned_by_friends,
+            friends.size,
+            friends.size,
+        )
+      }
+  Row(
+      modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {},
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+      friends.take(3).forEach { friend -> WishlistFriendAvatar(friend) }
+    }
+    if (friends.size > 3) {
+      Text(
+          text = stringResource(R.string.collection_wishlist_more_friends, friends.size - 3),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.accentIcon,
+          modifier = Modifier.semantics { testTag = C.Tag.collection_wishlist_more_friends },
+      )
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.secondaryText,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
   }
 }
 
@@ -699,7 +824,8 @@ private fun WishlistCard(
 private fun WishlistFriendAvatar(friend: WishlistFriend) {
   Box(modifier = Modifier.size(24.dp).semantics { testTag = C.Tag.collection_wishlist_avatar }) {
     ProfilePicture(
-        name = friend.name,
+        name = friend.name.ifBlank { stringResource(R.string.collection_wishlist_unknown_friend) },
+        avatarBytes = friend.avatarBytes,
         modifier = Modifier.fillMaxSize(),
         textStyle = MaterialTheme.typography.labelSmall,
     )
@@ -720,16 +846,26 @@ private fun WishlistMonument.locationLabel(): String =
 @Composable
 private fun WishlistPhoto(monument: WishlistMonument) {
   val modifier = Modifier.size(88.dp).clip(RoundedCornerShape(12.dp))
-  val photoUrl = monument.photoUrl
-  if (photoUrl.isNullOrBlank()) {
+  val photo =
+      monument.photoBytes?.takeIf { it.isNotEmpty() }
+          ?: monument.photoUrl?.takeIf { it.isNotBlank() }
+  if (photo == null) {
     PhotoPlaceholder(modifier, C.Tag.collection_card_photo_placeholder)
     return
   }
+  val photoKey =
+      if (photo is ByteArray) remember(photo) { "${monument.id}:${photo.sha256Hex()}" }
+      else monument.photoUrl.orEmpty()
+  val context = LocalContext.current
+  val request =
+      remember(photoKey) {
+        ImageRequest.Builder(context).data(photo).memoryCacheKey(photoKey).build()
+      }
   var photoState by
-      remember(photoUrl) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+      remember(photoKey) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
   Box(modifier = modifier, contentAlignment = Alignment.Center) {
     AsyncImage(
-        model = photoUrl,
+        model = request,
         contentDescription = stringResource(R.string.collection_photo_description, monument.name),
         contentScale = ContentScale.Crop,
         onState = { photoState = it },
@@ -753,9 +889,11 @@ private fun WishlistButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tag: String = C.Tag.collection_wishlist_button,
+    enabled: Boolean = true,
 ) {
   IconButton(
       onClick = onClick,
+      enabled = enabled,
       modifier = modifier.size(36.dp).semantics { testTag = tag },
   ) {
     Icon(
@@ -780,6 +918,7 @@ private fun GuideGrid(
     onToggleFavorite: (Guide) -> Unit,
     readOnly: Boolean,
     isGuideWishlisted: (Guide) -> Boolean,
+    isGuideWishlistEnabled: (Guide) -> Boolean,
     onToggleWishlist: ((Guide) -> Unit)?,
     sharingGuideIds: Set<String>,
     friends: List<CollectionFriend>,
@@ -805,6 +944,7 @@ private fun GuideGrid(
           onToggleFavorite = { onToggleFavorite(guide) },
           readOnly = readOnly,
           isWishlisted = isGuideWishlisted(guide),
+          isWishlistEnabled = isGuideWishlistEnabled(guide),
           onToggleWishlist = onToggleWishlist?.let { toggle -> { toggle(guide) } },
           isSharing = guide.id in sharingGuideIds,
           friends = friends,
@@ -829,6 +969,7 @@ private fun GuideCard(
     onToggleFavorite: () -> Unit,
     readOnly: Boolean,
     isWishlisted: Boolean,
+    isWishlistEnabled: Boolean,
     onToggleWishlist: (() -> Unit)?,
     isSharing: Boolean,
     friends: List<CollectionFriend>,
@@ -856,6 +997,7 @@ private fun GuideCard(
                     .padding(6.dp)
                     .background(MaterialTheme.photoButtonContainer, CircleShape),
             tag = C.Tag.collection_card_wishlist,
+            enabled = isWishlistEnabled,
         )
       }
       if (!readOnly) {
@@ -1375,6 +1517,24 @@ private fun CollectionError(readOnly: Boolean = false) {
       color = if (MaterialTheme.isDark) MaterialTheme.colorScheme.error else LoadingErrorText,
       textAlign = TextAlign.Center,
   )
+}
+
+@Composable
+private fun WishlistRetryError(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+  Column(
+      modifier = modifier.semantics { testTag = C.Tag.collection_retry_error },
+      horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Text(
+        text = stringResource(R.string.collection_wishlist_load_error),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.secondaryText,
+        textAlign = TextAlign.Center,
+    )
+    Button(onClick = onRetry, modifier = Modifier.semantics { testTag = C.Tag.collection_retry }) {
+      Text(stringResource(R.string.saved_monument_detail_retry))
+    }
+  }
 }
 
 @Composable
