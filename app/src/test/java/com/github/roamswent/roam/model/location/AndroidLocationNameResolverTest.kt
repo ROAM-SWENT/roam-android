@@ -71,4 +71,28 @@ class AndroidLocationNameResolverTest {
     every { failingGeocoder.getFromLocation(48.86, 2.34, 1) } throws IOException("offline")
     assertNull(AndroidLocationNameResolver(failingGeocoder).resolve(coordinates))
   }
+
+  @Test
+  fun returnsNullWhenTheGeocoderHasNoResult() = runTest {
+    ShadowGeocoder.setIsPresent(true)
+    val emptyGeocoder = mockk<Geocoder>()
+    every { emptyGeocoder.getFromLocation(48.86, 2.34, 1) } returns null
+    assertNull(AndroidLocationNameResolver(emptyGeocoder).resolve(coordinates))
+  }
+
+  @Test
+  fun returnsNullWhenAddressHasNoUsableName() = runTest {
+    ShadowGeocoder.setIsPresent(true)
+    shadow.setFromLocation(listOf(Address(Locale.ENGLISH).apply { locality = " " }))
+    assertNull(resolver.resolve(coordinates))
+  }
+
+  @Test
+  fun keepsAnAddressWithOnlyACountryOrOnlyACity() = runTest {
+    ShadowGeocoder.setIsPresent(true)
+    shadow.setFromLocation(listOf(Address(Locale.ENGLISH).apply { countryName = "France" }))
+    assertEquals(LocationName("", "France"), resolver.resolve(coordinates))
+    shadow.setFromLocation(listOf(Address(Locale.ENGLISH).apply { locality = "Paris" }))
+    assertEquals(LocationName("Paris", ""), resolver.resolve(coordinates))
+  }
 }

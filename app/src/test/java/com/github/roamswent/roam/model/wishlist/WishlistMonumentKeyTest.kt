@@ -24,6 +24,11 @@ class WishlistMonumentKeyTest {
     assertNotEquals(first, WishlistMonumentKey.forSharedGuide("alice", "guide.with space"))
     assertEquals("ref_alice~guide", WishlistMonumentKey.forSharedGuide("alice", "guide"))
     assertThrowsIllegalArgument("slash") { WishlistMonumentKey.forSharedGuide("alice", "a/b") }
+    assertThrowsIllegalArgument("owner") { WishlistMonumentKey.forSharedGuide("a/b", "guide") }
+    assertThrowsIllegalArgument("blank") { WishlistMonumentKey.forSharedGuide("alice", " ") }
+    assertThrowsIllegalArgument("long") {
+      WishlistMonumentKey.forSharedGuide("alice", "g".repeat(129))
+    }
   }
 
   @Test

@@ -359,6 +359,63 @@ class WishlistScreenTest {
   }
 
   @Test
+  fun locationShowsOnlyTheAvailablePart() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(id = "a", name = "A", city = "", country = "Spain"),
+                        monument.copy(id = "b", name = "B", city = "Girona", country = ""),
+                    )
+                ),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule.onNodeWithText("Spain").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Girona").assertIsDisplayed()
+  }
+
+  @Test
+  fun emptyOrBlankPhotosFallBackToThePlaceholder() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState =
+                WishlistUiState(
+                    listOf(
+                        monument.copy(id = "a", name = "A", photoBytes = byteArrayOf()),
+                        monument.copy(id = "b", name = "B", photoUrl = " "),
+                    )
+                ),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule
+        .onAllNodesWithTag(C.Tag.collection_card_photo_placeholder, useUnmergedTree = true)
+        .assertCountEquals(2)
+  }
+
+  @Test
+  fun loadErrorWithoutCardsDoesNotShowTheCardRetry() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state = SavedGuidesUiState(),
+            wishlistState = WishlistUiState(error = IllegalStateException("offline")),
+        )
+      }
+    }
+    selectWishlist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_wishlist_card).assertDoesNotExist()
+  }
+
+  @Test
   fun singleFriendWithoutProfileShowsGenericName() {
     composeTestRule.setContent {
       SampleAppTheme {

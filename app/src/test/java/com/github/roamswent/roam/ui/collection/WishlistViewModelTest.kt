@@ -213,6 +213,37 @@ class WishlistViewModelTest {
       }
 
   @Test
+  fun retryingScannedFriendsWithoutASourceDoesNothing() =
+      runTest(dispatcher) {
+        val viewModel = WishlistViewModel(repository)
+        viewModel.retryLoadingScannedFriends()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.scannedByError)
+      }
+
+  @Test
+  fun resolvedLocationNamesAreCachedAcrossUpdates() =
+      runTest(dispatcher) {
+        val second = item.copy(monumentKey = "ref_other~guide", sourceOwnerUid = "other")
+        repository.items.value = listOf(item, second)
+        repository.guides[item.monumentKey] = guide
+        repository.guides[second.monumentKey] = guide
+        var calls = 0
+        val viewModel =
+            WishlistViewModel(repository) {
+              calls++
+              LocationName("Paris", "France")
+            }
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        val callsAfterLoad = calls
+        assertEquals(listOf("Paris", "Paris"), viewModel.uiState.value.monuments.map { it.city })
+        repository.items.value = listOf(item, second.copy(addedAt = 99))
+        advanceUntilIdle()
+        assertEquals(callsAfterLoad, calls)
+      }
+
+  @Test
   fun unknownWishlistItemIsReportedAsAnError() =
       runTest(dispatcher) {
         val viewModel = WishlistViewModel(repository)
