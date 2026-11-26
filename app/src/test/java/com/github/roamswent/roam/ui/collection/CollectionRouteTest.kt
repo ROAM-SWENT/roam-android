@@ -25,14 +25,18 @@ import com.github.roamswent.roam.model.location.LocationName
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.wishlist.FriendScannedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.FriendWishlistRepository
+import com.github.roamswent.roam.model.wishlist.FriendWishlistedMonumentsSource
 import com.github.roamswent.roam.model.wishlist.WishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -164,6 +168,51 @@ class CollectionRouteTest {
     cards[0].performClick()
     cards[1].performClick()
     assertEquals(setOf("alice" to "alice-guide", "bob" to "bob-guide"), opened.toSet())
+  }
+
+  @Test
+  fun wishlistShowsLiveFriendAttributionUnderScannedBy() {
+    val friends = mockk<FriendRepository>()
+    val profiles = mockk<PublicProfileRepository>()
+    val friendWishlists = mockk<FriendWishlistRepository>()
+    val liveWishlist = MutableStateFlow(listOf("  COLOSSEUM "))
+    coEvery { friends.getFriends() } returns listOf(Friendship("a", "alice"))
+    coEvery { profiles.getProfile("alice") } returns PublicProfile("alice", "Alice")
+    every { friendWishlists.observeWishlistedMonumentNames("alice") } returns liveWishlist
+    val sharedGuide =
+        colosseum.copy(shareSettings = MonumentShareSettings(audience = ShareAudience.ALL_FRIENDS))
+    val sharing = FakeMonumentSharingRepository(mapOf("alice" to listOf(sharedGuide)))
+    val wishlist = FakeWishlistRepository()
+    val key = WishlistMonumentKey.forSharedGuide("alice", colosseum.id)
+    wishlist.items.value =
+        listOf(WishlistItem(key, "alice", colosseum.id, colosseum.monumentName, 1))
+    wishlist.guides[key] = colosseum
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionRoute(
+            repository = FakeSavedGuideRepository(),
+            friendRepository = friends,
+            publicProfileRepository = profiles,
+            monumentSharingProvider = { sharing },
+            wishlistRepository = wishlist,
+            friendScansSource = FriendScannedMonumentsSource(friends, sharing, profiles),
+            friendWishlistsSource =
+                FriendWishlistedMonumentsSource(friends, friendWishlists, profiles),
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.collection_filter_wishlist).performClick()
+    composeTestRule.waitUntil(timeoutMillis = 10_000) {
+      composeTestRule.onAllNodesWithText("Scanned by Alice").fetchSemanticsNodes().isNotEmpty() &&
+          composeTestRule
+              .onAllNodesWithText("Alice also has it on their wishlist")
+              .fetchSemanticsNodes()
+              .isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("Scanned by Alice").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alice also has it on their wishlist").assertIsDisplayed()
+    composeTestRule.runOnIdle { liveWishlist.value = emptyList() }
+    composeTestRule.onNodeWithText("Alice also has it on their wishlist").assertDoesNotExist()
   }
 
   @Test

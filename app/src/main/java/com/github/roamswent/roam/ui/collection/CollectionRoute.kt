@@ -19,8 +19,10 @@ import com.github.roamswent.roam.model.location.AndroidLocationNameResolver
 import com.github.roamswent.roam.model.location.LocationNameResolver
 import com.github.roamswent.roam.model.profile.FirestorePublicProfileRepository
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.wishlist.FirestoreFriendWishlistRepository
 import com.github.roamswent.roam.model.wishlist.FirestoreWishlistRepository
 import com.github.roamswent.roam.model.wishlist.FriendScannedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.FriendWishlistedMonumentsSource
 import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import com.github.roamswent.roam.ui.guide.SavedGuidesViewModel
 import com.github.roamswent.roam.ui.home.HomeViewModel
@@ -45,6 +47,7 @@ fun CollectionRoute(
     locationNameResolver: LocationNameResolver? = null,
     onWishlistGuideClick: (String, String) -> Unit = { _, _ -> },
     friendScansSource: FriendScannedMonumentsSource? = null,
+    friendWishlistsSource: FriendWishlistedMonumentsSource? = null,
 ) {
   val resolvedFriendRepository =
       remember(friendRepository) { friendRepository ?: FirestoreFriendRepository() }
@@ -83,10 +86,20 @@ fun CollectionRoute(
                 resolvedProfileRepository,
             )
       }
+  val resolvedFriendWishlistsSource =
+      remember(friendWishlistsSource, resolvedFriendRepository, resolvedProfileRepository) {
+        friendWishlistsSource
+            ?: FriendWishlistedMonumentsSource(
+                resolvedFriendRepository,
+                FirestoreFriendWishlistRepository(),
+                resolvedProfileRepository,
+            )
+      }
   val wishlistViewModel: WishlistViewModel = viewModel {
     WishlistViewModel(
         resolvedWishlistRepository,
         resolvedFriendScansSource,
+        resolvedFriendWishlistsSource,
         resolvedLocationNameResolver,
     )
   }
@@ -123,8 +136,11 @@ fun CollectionRoute(
       onSetWishlisted = wishlistViewModel::setWishlisted,
       onRetryWishlist = wishlistViewModel::retryLoadingWishlist,
       onWishlistErrorShown = wishlistViewModel::clearMutationError,
+      onRetryWishlistGuides = wishlistViewModel::refreshAvailability,
+      onWishlistSuccessShown = wishlistViewModel::clearMutationSuccess,
       onWishlistGuideClick = onWishlistGuideClick,
-      onRetryWishlistFriends = wishlistViewModel::retryLoadingScannedFriends,
-      onWishlistShown = wishlistViewModel::retryLoadingScannedFriends,
+      onRetryWishlistFriends = wishlistViewModel::retryLoadingFriends,
+      onWishlistShown = wishlistViewModel::startFriendObservation,
+      onWishlistHidden = wishlistViewModel::stopFriendObservation,
   )
 }

@@ -36,7 +36,7 @@ fun FriendCollectionRoute(
   val wishlistState by wishlistViewModel.uiState.collectAsState()
 
   LaunchedEffect(viewModel) { viewModel.load() }
-  LaunchedEffect(wishlistViewModel) { wishlistViewModel.loadWishlist() }
+  LaunchedEffect(wishlistViewModel) { wishlistViewModel.loadWishlistEntries() }
 
   CollectionScreen(
       state = state,
@@ -50,13 +50,10 @@ fun FriendCollectionRoute(
       onRetryGuides = viewModel::load,
       wishlistState = wishlistState,
       isGuideWishlisted = { guide -> (ownerUid to guide.id) in wishlistState.guideKeys },
-      isGuideWishlistEnabled = { guide ->
-        !wishlistState.isLoading &&
-            wishlistState.error == null &&
-            (ownerUid to guide.id) !in wishlistState.pendingGuides
-      },
+      isGuideWishlistEnabled = { !wishlistState.isLoading && wishlistState.error == null },
       onToggleWishlist = { guide -> wishlistViewModel.toggleGuide(ownerUid, guide) },
       onRetryWishlist = wishlistViewModel::retryLoadingWishlist,
       onWishlistErrorShown = wishlistViewModel::clearMutationError,
+      onWishlistSuccessShown = wishlistViewModel::clearMutationSuccess,
   )
 }

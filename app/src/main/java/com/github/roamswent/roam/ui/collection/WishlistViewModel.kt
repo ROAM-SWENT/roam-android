@@ -9,18 +9,21 @@ import com.github.roamswent.roam.model.location.LocationName
 import com.github.roamswent.roam.model.location.LocationNameResolver
 import com.github.roamswent.roam.model.wishlist.FriendScannedMonument
 import com.github.roamswent.roam.model.wishlist.FriendScannedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.FriendWishlistedMonument
+import com.github.roamswent.roam.model.wishlist.FriendWishlistedMonumentsSource
 import com.github.roamswent.roam.model.wishlist.ResolvedWishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
 import com.github.roamswent.roam.model.wishlist.WishlistRepository
+import com.github.roamswent.roam.model.wishlist.WishlistUnavailableReason
 import com.github.roamswent.roam.model.wishlist.normalizeSharedMonumentName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -31,9 +34,11 @@ data class WishlistMonument(
     val country: String = "",
     val photoUrl: String? = null,
     val scannedBy: List<WishlistFriend> = emptyList(),
+    val wishlistedBy: List<WishlistFriend> = emptyList(),
     val isWishlisted: Boolean = true,
     val photoBytes: ByteArray? = null,
     val unavailable: Boolean = false,
+    val unavailableReason: WishlistUnavailableReason? = null,
     val location: Coordinates? = null,
     val sourceOwnerUid: String? = null,
     val sourceGuideId: String? = null,
@@ -53,92 +58,121 @@ data class WishlistUiState(
     val error: Exception? = null,
     val mutationError: Exception? = null,
     val wishlistedKeys: Set<String> = emptySet(),
-    val pendingKeys: Set<String> = emptySet(),
-    val pendingGuides: Set<Pair<String, String>> = emptySet(),
     val guideKeys: Map<Pair<String, String>, String> = emptyMap(),
     val scannedByError: Exception? = null,
+    val wishlistedByError: Exception? = null,
+    val mutationSuccess: WishlistMutationSuccess? = null,
 )
+
+data class WishlistMutationSuccess(val id: Long, val added: Boolean)
 
 class WishlistViewModel(
     private val repository: WishlistRepository,
     private val friendScansSource: FriendScannedMonumentsSource? = null,
+    private val friendWishlistsSource: FriendWishlistedMonumentsSource? = null,
     private val locationNameResolver: LocationNameResolver = LocationNameResolver { null },
 ) : ViewModel() {
+  /**
+   * A wishlist change shown before the repository confirms it. Firestore writes only complete once
+   * the server answers, so the state must not wait for them.
+   */
+  private class Mutation(
+      val item: WishlistItem,
+      val isWishlisted: Boolean,
+      val previouslyWishlisted: Boolean,
+  ) {
+    var written = false
+  }
+
   private val _uiState = MutableStateFlow(WishlistUiState())
   val uiState: StateFlow<WishlistUiState> = _uiState.asStateFlow()
   private val items = mutableMapOf<String, WishlistItem>()
+  private val mutations = mutableMapOf<String, Mutation>()
+  private var latestSnapshotKeys = emptySet<String>()
+  private var mutationId = 0L
   private val locationNames = mutableMapOf<Coordinates, LocationName>()
+  private val resolvingLocations = mutableSetOf<Coordinates>()
+  private var resolvesGuides = true
   private var loadJob: Job? = null
   private var scansJob: Job? = null
+  private var wishlistsJob: Job? = null
+  private var availabilityJob: Job? = null
   private var friendScans = emptyMap<String, FriendScannedMonument>()
+  private var friendWishlists = emptyMap<String, FriendWishlistedMonument>()
 
-  fun loadWishlist() {
+  /** Observes the wishlist and resolves its guides, photos and place names for display. */
+  fun loadWishlist() = observe(resolveGuides = true)
+
+  /**
+   * Only observes which monuments and guides are saved, for screens that just need a bookmark
+   * state. It resolves and geocodes nothing, and ignores snapshots that changed no entry.
+   */
+  fun loadWishlistEntries() = observe(resolveGuides = false)
+
+  private fun observe(resolveGuides: Boolean) {
+    resolvesGuides = resolveGuides
     loadJob?.cancel()
     _uiState.update { it.copy(isLoading = true, error = null) }
     loadJob = viewModelScope.launch {
       var first = true
       try {
-        repository.observeWishlist().collectLatest { current ->
-          val resolved = if (current.isEmpty()) emptyList() else repository.getResolvedWishlist()
+        val snapshots =
+            if (resolveGuides) repository.observeWishlist()
+            else repository.observeWishlist().distinctUntilChanged()
+        snapshots.collectLatest { current ->
+          latestSnapshotKeys = current.mapTo(mutableSetOf()) { it.monumentKey }
+          val resolved =
+              if (current.isEmpty() || !resolveGuides) emptyList()
+              else repository.getResolvedWishlist()
           val resolvedByKey = resolved.associateBy { it.item.monumentKey }
           current.forEach { items[it.monumentKey] = it }
-          val keys = current.mapTo(mutableSetOf()) { it.monumentKey }
+          mutations.entries.removeAll { (key, mutation) ->
+            mutation.written && (key in latestSnapshotKeys) == mutation.isWishlisted
+          }
           _uiState.update { state ->
-            val previous = if (first) emptyMap() else state.monuments.associateBy { it.id }
+            val effective =
+                current.filterNot { it.monumentKey in mutations } +
+                    mutations.values.filter { it.isWishlisted }.map { it.item }
+            val keys = effective.mapTo(mutableSetOf()) { it.monumentKey }
+            if (!resolveGuides) {
+              return@update state.copy(
+                  wishlistedKeys = keys,
+                  guideKeys =
+                      effective.associate {
+                        (it.sourceOwnerUid to it.sourceGuideId) to it.monumentKey
+                      },
+                  isLoading = false,
+                  error = null,
+              )
+            }
+            val known = state.monuments.associateBy { it.id }
+            val previous = if (first) emptyMap() else known
             val monuments =
-                current.map { item ->
+                effective.map { item ->
                   val result = resolvedByKey[item.monumentKey]?.takeIf { it.item == item }
-                  val guide = (result as? ResolvedWishlistItem.Available)?.guide
-                  val location = guide?.location ?: item.location
-                  val locationName = locationNames[location]
-                  WishlistMonument(
-                      id = item.monumentKey,
-                      name = guide?.monumentName ?: item.monumentName,
-                      photoBytes = guide?.photoBytes,
-                      unavailable = result !is ResolvedWishlistItem.Available,
-                      location = location,
-                      city = locationName?.city.orEmpty(),
-                      country = locationName?.country.orEmpty(),
-                      sourceOwnerUid = item.sourceOwnerUid,
-                      sourceGuideId = if (guide != null) item.sourceGuideId else null,
-                      scannedBy =
-                          friendsFor(guide?.monumentName ?: item.monumentName, item.sourceOwnerUid),
-                  )
+                  val existing = known[item.monumentKey]
+                  val monument =
+                      if (result == null && item.monumentKey in mutations && existing != null) {
+                        existing.copy(isWishlisted = true)
+                      } else {
+                        resolve(WishlistMonument(item.monumentKey, item.monumentName), item, result)
+                      }
+                  decorate(monument)
                 } + previous.values.filter { it.id !in keys }.map { it.copy(isWishlisted = false) }
             state.copy(
                 monuments = monuments.sortedBy { it.name.lowercase() },
                 wishlistedKeys = keys,
                 guideKeys =
-                    current.associate { (it.sourceOwnerUid to it.sourceGuideId) to it.monumentKey },
+                    effective.associate {
+                      (it.sourceOwnerUid to it.sourceGuideId) to it.monumentKey
+                    },
                 refreshVersion = if (first) state.refreshVersion + 1 else state.refreshVersion,
                 isLoading = false,
                 error = null,
             )
           }
           first = false
-          coroutineScope {
-            _uiState.value.monuments
-                .filter { it.id in keys && it.location != null }
-                .forEach { monument ->
-                  val coordinates = monument.location ?: return@forEach
-                  if (coordinates !in locationNames) {
-                    launch {
-                      val name = locationNameResolver.resolve(coordinates) ?: return@launch
-                      locationNames[coordinates] = name
-                      _uiState.update { state ->
-                        state.copy(
-                            monuments =
-                                state.monuments.map {
-                                  if (it.location == coordinates)
-                                      it.copy(city = name.city, country = name.country)
-                                  else it
-                                }
-                        )
-                      }
-                    }
-                  }
-                }
-          }
+          if (resolveGuides) resolveLocationNames()
         }
       } catch (exception: CancellationException) {
         throw exception
@@ -148,7 +182,44 @@ class WishlistViewModel(
     }
   }
 
-  fun retryLoadingWishlist() = loadWishlist()
+  fun retryLoadingWishlist() = observe(resolvesGuides)
+
+  /**
+   * Resolves the referenced guides again, so a guide that was deleted or is no longer shared stops
+   * looking available. It runs when the friends' shared guides change and on demand for a retry.
+   */
+  fun refreshAvailability() {
+    availabilityJob?.cancel()
+    availabilityJob = viewModelScope.launch {
+      val resolved =
+          try {
+            repository.getResolvedWishlist()
+          } catch (exception: CancellationException) {
+            throw exception
+          } catch (_: Exception) {
+            return@launch
+          }
+      val resolvedByKey = resolved.associateBy { it.item.monumentKey }
+      _uiState.update { state ->
+        state.copy(
+            monuments =
+                state.monuments.map { monument ->
+                  val item = items[monument.id]
+                  val result = resolvedByKey[monument.id]
+                  if (
+                      item == null ||
+                          result == null ||
+                          result.item != item ||
+                          !monument.isWishlisted
+                  )
+                      monument
+                  else decorate(resolve(monument, item, result))
+                }
+        )
+      }
+      resolveLocationNames()
+    }
+  }
 
   fun retryLoadingScannedFriends() {
     val source = friendScansSource ?: return
@@ -167,6 +238,7 @@ class WishlistViewModel(
                 scannedByError = null,
             )
           }
+          refreshAvailability()
         }
       } catch (exception: CancellationException) {
         throw exception
@@ -181,6 +253,141 @@ class WishlistViewModel(
       }
     }
   }
+
+  fun retryLoadingWishlistFriends() {
+    val source = friendWishlistsSource ?: return
+    wishlistsJob?.cancel()
+    _uiState.update { it.copy(wishlistedByError = null) }
+    wishlistsJob = viewModelScope.launch {
+      try {
+        source.observe().collect { wishlists ->
+          friendWishlists = wishlists.associateBy { it.key }
+          _uiState.update { state ->
+            state.copy(
+                monuments =
+                    state.monuments.map { monument ->
+                      monument.copy(wishlistedBy = wishlistingFriendsFor(monument.name))
+                    },
+                wishlistedByError = null,
+            )
+          }
+        }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        friendWishlists = emptyMap()
+        _uiState.update {
+          it.copy(
+              monuments =
+                  it.monuments.map { monument -> monument.copy(wishlistedBy = emptyList()) },
+              wishlistedByError = exception,
+          )
+        }
+      }
+    }
+  }
+
+  /** Starts the friend observations unless they already run. */
+  fun startFriendObservation() {
+    if (scansJob?.isActive != true) retryLoadingScannedFriends()
+    if (wishlistsJob?.isActive != true) retryLoadingWishlistFriends()
+  }
+
+  /** Closes the friends' listeners while the wishlist is not shown. */
+  fun stopFriendObservation() {
+    scansJob?.cancel()
+    wishlistsJob?.cancel()
+    availabilityJob?.cancel()
+  }
+
+  fun retryLoadingFriends() {
+    retryLoadingScannedFriends()
+    retryLoadingWishlistFriends()
+  }
+
+  private fun resolve(
+      base: WishlistMonument,
+      item: WishlistItem,
+      result: ResolvedWishlistItem?,
+  ): WishlistMonument =
+      when (result) {
+        is ResolvedWishlistItem.Available ->
+            base.copy(
+                name = result.guide.monumentName,
+                photoBytes = result.guide.photoBytes,
+                unavailable = false,
+                unavailableReason = null,
+                location = result.guide.location ?: item.location,
+                sourceOwnerUid = item.sourceOwnerUid,
+                sourceGuideId = item.sourceGuideId,
+            )
+        // A guide that cannot be read must not keep showing what it used to share.
+        else ->
+            base.copy(
+                name = item.monumentName,
+                photoBytes = null,
+                unavailable = true,
+                unavailableReason =
+                    (result as? ResolvedWishlistItem.Unavailable)?.reason
+                        ?: WishlistUnavailableReason.UNKNOWN,
+                location = item.location,
+                sourceOwnerUid = item.sourceOwnerUid,
+                sourceGuideId = null,
+            )
+      }
+
+  private fun decorate(monument: WishlistMonument): WishlistMonument {
+    val name = monument.location?.let(locationNames::get)
+    return monument.copy(
+        city = name?.city.orEmpty(),
+        country = name?.country.orEmpty(),
+        scannedBy = friendsFor(monument.name, monument.sourceOwnerUid),
+        wishlistedBy = wishlistingFriendsFor(monument.name),
+    )
+  }
+
+  /**
+   * Looks the place names up outside the wishlist collector: a slow or failing lookup must neither
+   * delay nor stop wishlist updates. Without a name, the coordinates stay shown.
+   */
+  private fun resolveLocationNames() {
+    _uiState.value.monuments
+        .filter { it.isWishlisted }
+        .mapNotNull { it.location }
+        .distinct()
+        .filter { it !in locationNames && resolvingLocations.add(it) }
+        .forEach { coordinates ->
+          viewModelScope.launch {
+            try {
+              val name = locationNameResolver.resolve(coordinates)
+              if (name != null) {
+                locationNames[coordinates] = name
+                _uiState.update { state ->
+                  state.copy(
+                      monuments =
+                          state.monuments.map {
+                            if (it.location == coordinates)
+                                it.copy(city = name.city, country = name.country)
+                            else it
+                          }
+                  )
+                }
+              }
+            } catch (exception: CancellationException) {
+              throw exception
+            } catch (_: Exception) {
+              // Treated as "no name".
+            } finally {
+              resolvingLocations.remove(coordinates)
+            }
+          }
+        }
+  }
+
+  private fun wishlistingFriendsFor(name: String): List<WishlistFriend> =
+      friendWishlists[normalizeSharedMonumentName(name)]?.friends.orEmpty().map {
+        WishlistFriend(name = it.profile?.username.orEmpty(), avatarBytes = it.profile?.avatarBytes)
+      }
 
   private fun friendsFor(name: String, ownerUid: String?): List<WishlistFriend> =
       friendScans[normalizeSharedMonumentName(name)]
@@ -229,48 +436,60 @@ class WishlistViewModel(
     _uiState.update { it.copy(mutationError = null) }
   }
 
-  private fun updateWishlist(item: WishlistItem, isWishlisted: Boolean) {
+  fun clearMutationSuccess(id: Long) {
+    _uiState.update { if (it.mutationSuccess?.id == id) it.copy(mutationSuccess = null) else it }
+  }
+
+  private fun applyMembership(item: WishlistItem, isWishlisted: Boolean) {
     val key = item.monumentKey
     val guideKey = item.sourceOwnerUid to item.sourceGuideId
-    if (
-        key in _uiState.value.pendingKeys ||
-            guideKey in _uiState.value.pendingGuides ||
-            _uiState.value.isLoading ||
-            _uiState.value.error != null
-    )
-        return
+    _uiState.update { state ->
+      state.copy(
+          wishlistedKeys =
+              if (isWishlisted) state.wishlistedKeys + key else state.wishlistedKeys - key,
+          guideKeys =
+              if (isWishlisted) state.guideKeys + (guideKey to key) else state.guideKeys - guideKey,
+          monuments =
+              state.monuments.map {
+                if (it.id == key) it.copy(isWishlisted = isWishlisted) else it
+              },
+      )
+    }
+  }
+
+  /**
+   * Shows the change at once and writes it in the background. The button is never locked while the
+   * write is pending, as offline it only completes once the server answers. A failure restores the
+   * previous state, unless a newer change of the same monument has replaced this one.
+   */
+  private fun updateWishlist(item: WishlistItem, isWishlisted: Boolean) {
+    val key = item.monumentKey
+    if (_uiState.value.isLoading || _uiState.value.error != null) return
+    val mutation =
+        Mutation(item, isWishlisted, previouslyWishlisted = key in _uiState.value.wishlistedKeys)
+    mutations[key] = mutation
+    items[key] = item
+    applyMembership(item, isWishlisted)
     _uiState.update {
       it.copy(
-          pendingKeys = it.pendingKeys + key,
-          pendingGuides = it.pendingGuides + guideKey,
           mutationError = null,
+          mutationSuccess = WishlistMutationSuccess(++mutationId, isWishlisted),
       )
     }
     viewModelScope.launch {
       try {
         if (isWishlisted) repository.addToWishlist(item) else repository.removeFromWishlist(key)
-        items[key] = item
-        _uiState.update { state ->
-          state.copy(
-              wishlistedKeys =
-                  if (isWishlisted) state.wishlistedKeys + key else state.wishlistedKeys - key,
-              guideKeys =
-                  if (isWishlisted)
-                      state.guideKeys + ((item.sourceOwnerUid to item.sourceGuideId) to key)
-                  else state.guideKeys - (item.sourceOwnerUid to item.sourceGuideId),
-              monuments =
-                  state.monuments.map {
-                    if (it.id == key) it.copy(isWishlisted = isWishlisted) else it
-                  },
-          )
+        if (mutations[key] === mutation) {
+          if ((key in latestSnapshotKeys) == isWishlisted) mutations.remove(key)
+          else mutation.written = true
         }
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
-        _uiState.update { it.copy(mutationError = exception) }
-      } finally {
-        _uiState.update {
-          it.copy(pendingKeys = it.pendingKeys - key, pendingGuides = it.pendingGuides - guideKey)
+        if (mutations[key] === mutation) {
+          mutations.remove(key)
+          applyMembership(item, mutation.previouslyWishlisted)
+          _uiState.update { it.copy(mutationError = exception, mutationSuccess = null) }
         }
       }
     }

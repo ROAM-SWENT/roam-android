@@ -6,7 +6,9 @@ import com.github.roamswent.roam.model.friend.FriendRepository
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
@@ -44,8 +46,9 @@ class FriendScannedMonumentsSource(
 ) {
   /**
    * Emits the aggregated monuments whenever any friend's shared guides change. Emits an empty list
-   * when there are no friends. Friend, sharing and profile errors are propagated to the collector.
-   * Profiles are loaded once per friend, only when that friend shares a named guide.
+   * when there are no friends. A friend whose guides cannot be observed counts as sharing none, and
+   * a failing profile counts as missing; only a failure to load the friend list is propagated to
+   * the collector. Profiles are loaded once per friend, only when that friend shares a named guide.
    */
   fun observe(): Flow<List<FriendScannedMonument>> = flow {
     val friendUids = friendRepository.getFriends().map { it.friendUid }.distinct().sorted()
@@ -53,11 +56,11 @@ class FriendScannedMonumentsSource(
       emit(emptyList())
       return@flow
     }
-    val profiles = mutableMapOf<String, PublicProfile?>()
     val perFriendNames = friendUids.map { uid ->
-      monumentSharingRepository.observeSharedGuidesFrom(uid).map { guides ->
-        guides.map { it.monumentName.collapse() }.filter { it.isNotEmpty() }
-      }
+      monumentSharingRepository
+          .observeSharedGuidesFrom(uid)
+          .map { guides -> guides.map { it.monumentName.collapse() }.filter { it.isNotEmpty() } }
+          .catch { emit(emptyList()) }
     }
     emitAll(
         combine(perFriendNames) { namesByFriend ->
@@ -76,17 +79,27 @@ class FriendScannedMonumentsSource(
             FriendScannedMonument(
                 key = key,
                 displayName = displayName,
-                friends =
-                    uids.map { uid ->
-                      if (uid !in profiles) profiles[uid] = publicProfileRepository.getProfile(uid)
-                      FriendScanner(uid, profiles[uid])
-                    },
+                friends = uids.map { uid -> FriendScanner(uid, profileOrNull(uid)) },
             )
           }
         }
     )
   }
       .distinctUntilChanged()
+
+  // Kept across observations so reopening the wishlist does not reload every profile.
+  private val profiles = mutableMapOf<String, PublicProfile?>()
+
+  private suspend fun profileOrNull(uid: String): PublicProfile? =
+      if (uid in profiles) profiles[uid]
+      else
+          try {
+            publicProfileRepository.getProfile(uid).also { profiles[uid] = it }
+          } catch (exception: CancellationException) {
+            throw exception
+          } catch (_: Exception) {
+            null
+          }
 
   private fun String.collapse(): String = trim().replace(WHITESPACE, " ")
 

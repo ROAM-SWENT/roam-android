@@ -3,17 +3,20 @@ package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.wishlist.ResolvedWishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
 import com.github.roamswent.roam.model.wishlist.WishlistRepository
@@ -104,6 +107,7 @@ class SharedMonumentDetailRouteTest {
     assertEquals("friend", item.sourceOwnerUid)
     assertEquals("louvre", item.sourceGuideId)
     button.assertContentDescriptionEquals("Remove from wishlist")
+    composeTestRule.onNodeWithText("Added to wishlist").assertIsDisplayed()
 
     button.performClick()
     composeTestRule.waitUntil(timeoutMillis = 5_000) { wishlist.items.value.isEmpty() }
@@ -140,11 +144,54 @@ class SharedMonumentDetailRouteTest {
         wishlist = wishlist,
     )
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button).assertIsNotEnabled()
+    composeTestRule
+        .onNodeWithText("Couldn’t load your wishlist. Please try again.")
+        .assertIsDisplayed()
     assertTrue(wishlist.items.value.isEmpty())
   }
 
   @Test
-  fun wishlistButtonIsDisabledUntilPendingWriteFinishes() {
+  fun retryAfterAFailedWishlistLoadEnablesTheButton() {
+    val wishlist = FakeWishlistRepository().apply { loadError = IllegalStateException("offline") }
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        wishlist = wishlist,
+    )
+    composeTestRule.onNodeWithText("Retry").assertIsDisplayed()
+    wishlist.loadError = null
+    composeTestRule.onNodeWithText("Retry").performClick()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithText("Couldn’t load your wishlist. Please try again.")
+          .fetchSemanticsNodes()
+          .isEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button).assertIsEnabled()
+  }
+
+  @Test
+  fun bookmarkStateIsReadWithoutResolvingGuides() {
+    val wishlist = FakeWishlistRepository()
+    var resolved = 0
+    val counting =
+        object : WishlistRepository by wishlist {
+          override suspend fun getResolvedWishlist(): List<ResolvedWishlistItem> {
+            resolved++
+            return wishlist.getResolvedWishlist()
+          }
+        }
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        wishlist = counting,
+    )
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button).assertIsEnabled()
+    assertEquals(0, resolved)
+  }
+
+  @Test
+  fun wishlistButtonStaysUsableWhileTheWriteIsPending() {
     val wishlist = FakeWishlistRepository()
     val release = CompletableDeferred<Unit>()
     val delayedWishlist =
@@ -161,11 +208,10 @@ class SharedMonumentDetailRouteTest {
     )
     val button = composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button)
     button.performClick()
-    button.assertIsNotEnabled()
+    button.assertIsEnabled()
+    button.assertContentDescriptionEquals("Remove from wishlist")
     assertTrue(wishlist.items.value.isEmpty())
     release.complete(Unit)
-    composeTestRule.waitUntil(timeoutMillis = 5_000) { wishlist.items.value.size == 1 }
-    button.assertContentDescriptionEquals("Remove from wishlist")
   }
 
   @Test

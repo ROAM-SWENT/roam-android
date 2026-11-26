@@ -179,6 +179,7 @@ object C {
     const val collection_wishlist_more_friends = "collection_wishlist_more_friends"
     const val collection_wishlist_friends_error = "collection_wishlist_friends_error"
     const val collection_wishlist_friends_retry = "collection_wishlist_friends_retry"
+    const val collection_wishlist_guide_retry = "collection_wishlist_guide_retry"
     const val collection_gallery_button = "collection_gallery_button"
     const val collection_favorites_empty = "collection_favorites_empty"
     const val collection_empty_state = "collection_empty_state"

@@ -54,7 +54,7 @@ fun SharedMonumentDetailRoute(
     WishlistViewModel(resolvedWishlistRepository)
   }
   val wishlistState by wishlistViewModel.uiState.collectAsState()
-  LaunchedEffect(wishlistViewModel) { wishlistViewModel.loadWishlist() }
+  LaunchedEffect(wishlistViewModel) { wishlistViewModel.loadWishlistEntries() }
   var attempt by remember(ownerUid, guideId, repository) { mutableIntStateOf(0) }
   val state by
       produceState<SharedGuideState>(
@@ -87,13 +87,14 @@ fun SharedMonumentDetailRoute(
           showSharingControls = false,
           showBackArrow = showBackArrow,
           isWishlisted = (ownerUid to current.guide.id) in wishlistState.guideKeys,
-          isWishlistEnabled =
-              !wishlistState.isLoading &&
-                  wishlistState.error == null &&
-                  (ownerUid to current.guide.id) !in wishlistState.pendingGuides,
+          isWishlistEnabled = !wishlistState.isLoading && wishlistState.error == null,
           onWishlistClick = { wishlistViewModel.toggleGuide(ownerUid, current.guide) },
           showWishlistError = wishlistState.mutationError != null,
           onWishlistErrorShown = wishlistViewModel::clearMutationError,
+          wishlistSuccess = wishlistState.mutationSuccess,
+          onWishlistSuccessShown = wishlistViewModel::clearMutationSuccess,
+          showWishlistLoadError = wishlistState.error != null,
+          onWishlistRetry = wishlistViewModel::retryLoadingWishlist,
       )
     }
     SharedGuideState.Loading ->

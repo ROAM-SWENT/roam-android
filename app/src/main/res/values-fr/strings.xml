@@ -138,16 +138,25 @@
     <string name="collection_wishlist_remove">Retirer de la liste d\'envies</string>
     <string name="collection_wishlist_load_error">Impossible de charger votre liste d\'envies. Veuillez réessayer.</string>
     <string name="collection_wishlist_update_error">Impossible de modifier votre liste d\'envies. Veuillez réessayer.</string>
+    <string name="collection_wishlist_guide_load_error">Impossible de charger ce guide partagé.</string>
+    <string name="collection_wishlist_added">Ajouté à la liste d\'envies</string>
+    <string name="collection_wishlist_removed">Retiré de la liste d\'envies</string>
     <string name="collection_wishlist_unavailable">Ce guide partagé n\'est plus disponible.</string>
     <string name="collection_wishlist_coordinates">%1$.4f, %2$.4f</string>
     <string name="collection_wishlist_scanned_by">Scanné par %1$s</string>
-    <string name="collection_wishlist_friends_error">Impossible de charger les amis ayant partagé ces monuments.</string>
+    <string name="collection_wishlist_wishlisted_by">Également dans la liste d\'envies de %1$s</string>
+    <string name="collection_wishlist_friends_error">Impossible de charger l\'activité des amis pour ces monuments.</string>
     <string name="collection_wishlist_unknown_friend">Ami</string>
     <string name="collection_wishlist_more_friends">+%1$d</string>
     <plurals name="collection_wishlist_scanned_by_friends">
         <item quantity="one">Scanné par %1$d ami</item>
         <item quantity="many">Scanné par %1$d amis</item>
         <item quantity="other">Scanné par %1$d amis</item>
+    </plurals>
+    <plurals name="collection_wishlist_wishlisted_by_friends">
+        <item quantity="one">Également dans la liste d\'envies de %1$d ami</item>
+        <item quantity="many">Également dans la liste d\'envies de %1$d amis</item>
+        <item quantity="other">Également dans la liste d\'envies de %1$d amis</item>
     </plurals>
     <string name="collection_favorite_add">Ajouter aux favoris</string>
     <string name="collection_favorite_remove">Retirer des favoris</string>

@@ -140,15 +140,23 @@
     <string name="collection_wishlist_remove">Remove from wishlist</string>
     <string name="collection_wishlist_load_error">Couldn’t load your wishlist. Please try again.</string>
     <string name="collection_wishlist_update_error">Couldn’t update your wishlist. Please try again.</string>
+    <string name="collection_wishlist_guide_load_error">Couldn’t load this shared guide.</string>
+    <string name="collection_wishlist_added">Added to wishlist</string>
+    <string name="collection_wishlist_removed">Removed from wishlist</string>
     <string name="collection_wishlist_unavailable">This shared guide is no longer available.</string>
     <string name="collection_wishlist_coordinates">%1$.4f, %2$.4f</string>
     <string name="collection_wishlist_scanned_by">Scanned by %1$s</string>
-    <string name="collection_wishlist_friends_error">Couldn’t load friends who shared these monuments.</string>
+    <string name="collection_wishlist_wishlisted_by">%1$s also has it on their wishlist</string>
+    <string name="collection_wishlist_friends_error">Couldn’t load friends’ monument activity.</string>
     <string name="collection_wishlist_unknown_friend">Friend</string>
     <string name="collection_wishlist_more_friends">+%1$d</string>
     <plurals name="collection_wishlist_scanned_by_friends">
         <item quantity="one">Scanned by %1$d friend</item>
         <item quantity="other">Scanned by %1$d friends</item>
+    </plurals>
+    <plurals name="collection_wishlist_wishlisted_by_friends">
+        <item quantity="one">%1$d friend also has it on their wishlist</item>
+        <item quantity="other">%1$d friends also have it on their wishlists</item>
     </plurals>
     <string name="collection_favorite_add">Add to favourites</string>
     <string name="collection_favorite_remove">Remove from favourites</string>

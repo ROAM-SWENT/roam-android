@@ -160,28 +160,30 @@ class FriendScannedMonumentsSourceTest {
   }
 
   @Test
-  fun sharedGuidesErrorIsPropagated() = runTest {
-    friend("a")
+  fun failingFriendDoesNotHideWorkingFriend() = runTest {
+    friend("a", "b")
     every("a", flow { throw IllegalStateException("shared") })
-    try {
-      source.observe().toList()
-      fail("expected exception")
-    } catch (e: IllegalStateException) {
-      assertEquals("shared", e.message)
-    }
+    shares("b", "Louvre")
+    profile("b")
+
+    val result = source.observe().first().single()
+
+    assertEquals(listOf("b"), result.friends.map { it.uid })
   }
 
   @Test
-  fun profileErrorIsPropagated() = runTest {
-    friend("a")
+  fun failingProfileKeepsFriendWithNullProfile() = runTest {
+    friend("a", "b")
     shares("a", "Louvre")
+    shares("b", "Louvre")
     coEvery { profiles.getProfile("a") } throws IllegalStateException("profile")
-    try {
-      source.observe().first()
-      fail("expected exception")
-    } catch (e: IllegalStateException) {
-      assertEquals("profile", e.message)
-    }
+    profile("b")
+
+    val result = source.observe().first().single()
+
+    assertEquals(listOf("a", "b"), result.friends.map { it.uid })
+    assertEquals(null, result.friends[0].profile)
+    assertEquals("user_b", result.friends[1].profile?.username)
   }
 
   @Test

@@ -27,8 +27,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -51,6 +53,7 @@ import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.collection.CollectionFriend
+import com.github.roamswent.roam.ui.collection.WishlistMutationSuccess
 import com.github.roamswent.roam.ui.components.ProfilePicture
 import com.github.roamswent.roam.ui.loading.ExploreOptInUiState
 import com.github.roamswent.roam.ui.loading.ExploreUnavailableReason
@@ -67,6 +70,7 @@ import com.github.roamswent.roam.ui.theme.offlineNoticeContainer
 import com.github.roamswent.roam.ui.theme.onAccentContainer
 import com.github.roamswent.roam.ui.theme.photoButtonContainer
 import com.github.roamswent.roam.ui.theme.secondaryText
+import kotlinx.coroutines.launch
 
 /** Sharing data rendered below a monument guide. */
 data class MonumentDetailSharingState(
@@ -115,6 +119,10 @@ fun MonumentDetailScreen(
     onWishlistClick: () -> Unit = {},
     showWishlistError: Boolean = false,
     onWishlistErrorShown: () -> Unit = {},
+    wishlistSuccess: WishlistMutationSuccess? = null,
+    onWishlistSuccessShown: (Long) -> Unit = {},
+    showWishlistLoadError: Boolean = false,
+    onWishlistRetry: () -> Unit = {},
 ) {
   val cornerRadius = 24.dp
 
@@ -233,8 +241,38 @@ fun MonumentDetailScreen(
     val favoriteErrorMessage = stringResource(R.string.collection_favorite_error)
     val sharingErrorMessage = stringResource(R.string.collection_share_error)
     val wishlistErrorMessage = stringResource(R.string.collection_wishlist_update_error)
+    val wishlistAddedMessage = stringResource(R.string.collection_wishlist_added)
+    val wishlistRemovedMessage = stringResource(R.string.collection_wishlist_removed)
+    val snackbarScope = rememberCoroutineScope()
+    LaunchedEffect(wishlistSuccess) {
+      wishlistSuccess?.let { success ->
+        onWishlistSuccessShown(success.id)
+        snackbarScope.launch {
+          snackbarHostState.currentSnackbarData?.dismiss()
+          snackbarHostState.showSnackbar(
+              if (success.added) wishlistAddedMessage else wishlistRemovedMessage
+          )
+        }
+      }
+    }
+    val wishlistLoadErrorMessage = stringResource(R.string.collection_wishlist_load_error)
+    val wishlistRetryLabel = stringResource(R.string.saved_monument_detail_retry)
+    LaunchedEffect(showWishlistLoadError) {
+      if (showWishlistLoadError) {
+        val result =
+            snackbarHostState.showSnackbar(
+                message = wishlistLoadErrorMessage,
+                actionLabel = wishlistRetryLabel,
+                duration = SnackbarDuration.Indefinite,
+            )
+        if (result == SnackbarResult.ActionPerformed) onWishlistRetry()
+      } else {
+        snackbarHostState.currentSnackbarData?.dismiss()
+      }
+    }
     LaunchedEffect(showWishlistError) {
       if (showWishlistError) {
+        snackbarHostState.currentSnackbarData?.dismiss()
         snackbarHostState.showSnackbar(wishlistErrorMessage)
         onWishlistErrorShown()
       }
