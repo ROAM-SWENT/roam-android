@@ -1,3 +1,4 @@
+# Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 name: Roam CI
 
 on:
@@ -170,13 +171,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          # These next lines are useful to optimize Firestore security Rules tests by caching
-          # npm dependencies and using 'npm ci' instead of 'npm install'.
-          # This is ~2x faster in local tests, but requires a package-lock.json.
-          # Uncomment and use 'npm ci' in the test step once the file is present.
-
-          # cache: npm
-          # cache-dependency-path: firebase/firestore/test/package-lock.json
 
       - name: Cache Firebase emulators
         uses: actions/cache@v4
@@ -220,17 +214,8 @@ jobs:
             export JAVA_HOME="$JAVA_HOME_21_X64"
             export PATH="$JAVA_HOME/bin:$PATH"
           
-            if [ -d "firebase/firestore/test" ]; then
-              cd firebase/firestore/test
-          
-              # Use 'npm ci' and enable npm caching once package-lock.json is added. 
-              # See Setup NodeJS step for more details.
-              npm install
-              npm test
-          
-            else
-              echo "No Firestore rules tests found, skipping."
-            fi
+            firebase emulators:exec --project demo-roam-rules --only auth,firestore \
+              "node firebase/firestore/test-rules.mjs"
           else
             echo "Warning: Firestore rules file not found in firebase/firestore."
           fi
