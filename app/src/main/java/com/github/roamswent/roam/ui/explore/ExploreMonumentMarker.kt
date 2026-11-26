@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Density
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -40,6 +41,7 @@ import androidx.core.graphics.withClip
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.size.Scale
+import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.ui.components.profilePictureInitial
 import com.github.roamswent.roam.ui.theme.accentContainer
@@ -50,6 +52,7 @@ import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
+import kotlin.math.ceil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -137,8 +140,16 @@ internal fun ExploreMonumentMarker(
   )
 }
 
+internal class FriendMarkerArtwork(
+    val avatar: Bitmap?,
+    val initial: String,
+    createIcon: () -> BitmapDescriptor?,
+) {
+  val icon by lazy(LazyThreadSafetyMode.NONE, createIcon)
+}
+
 @Composable
-internal fun rememberFriendMarkerIcon(profile: PublicProfile?): BitmapDescriptor? {
+internal fun rememberFriendMarkerArtwork(profile: PublicProfile?): FriendMarkerArtwork {
   val context = LocalContext.current
   val density = LocalDensity.current
   val pinColor = MaterialTheme.accentContainer.toArgb()
@@ -146,7 +157,7 @@ internal fun rememberFriendMarkerIcon(profile: PublicProfile?): BitmapDescriptor
   val initialColor = MaterialTheme.onAccentContainer.toArgb()
   val initialSize = with(density) { MaterialTheme.typography.titleMedium.fontSize.toPx() }
   val avatarBytes = profile?.avatarBytes
-  val thumbnailSize = (48 * density.density).toInt().coerceAtLeast(1)
+  val thumbnailSize = (AVATAR_DIAMETER_DP * density.density).toInt().coerceAtLeast(1)
   var avatar by remember(avatarBytes, thumbnailSize) { mutableStateOf<Bitmap?>(null) }
   LaunchedEffect(context, avatarBytes, thumbnailSize) {
     if (avatarBytes == null || avatarBytes.isEmpty()) return@LaunchedEffect
@@ -170,26 +181,143 @@ internal fun rememberFriendMarkerIcon(profile: PublicProfile?): BitmapDescriptor
         }
   }
   val initial = remember(profile?.username) { profilePictureInitial(profile?.username.orEmpty()) }
-  return remember(avatar, initial, initialSize, density, pinColor, borderColor, initialColor) {
+  val loadedAvatar = avatar
+  return remember(
+      loadedAvatar,
+      initial,
+      initialSize,
+      density,
+      pinColor,
+      borderColor,
+      initialColor,
+  ) {
+    FriendMarkerArtwork(loadedAvatar, initial) {
+      friendBitmapDescriptor {
+        createMonumentMarkerBitmap(
+            thumbnail = loadedAvatar,
+            placeholderPainter = null,
+            density = density,
+            pinColor = pinColor,
+            borderColor = borderColor,
+            placeholderColor = initialColor,
+            initial = initial,
+            initialSize = initialSize,
+        )
+      }
+    }
+  }
+}
+
+@Composable
+internal fun rememberFriendGroupIcon(
+    avatars: List<FriendMarkerArtwork>,
+    extra: Int,
+): BitmapDescriptor? {
+  val badge = if (extra > 0) stringResource(R.string.explore_friend_pin_overflow, extra) else ""
+  val density = LocalDensity.current
+  val badgeColor = MaterialTheme.onAccentContainer.toArgb()
+  val pinColor = MaterialTheme.accentContainer.toArgb()
+  val borderColor = MaterialTheme.monumentMarkerBorder.toArgb()
+  val textSize = with(density) { MaterialTheme.typography.labelMedium.fontSize.toPx() }
+  val initialSize = with(density) { MaterialTheme.typography.titleMedium.fontSize.toPx() }
+  return remember(
+      avatars,
+      badge,
+      density,
+      badgeColor,
+      pinColor,
+      borderColor,
+      textSize,
+      initialSize,
+  ) {
+    friendBitmapDescriptor {
+      val scale = density.density
+      val diameter = AVATAR_DIAMETER_DP * scale
+      val radius = diameter / 2
+      val top = AVATAR_TOP_DP * scale
+      val step = STACK_STEP_DP * scale
+      val avatarsWidth = diameter + step * (avatars.size - 1)
+      val textPaint =
+          Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = pinColor
+            this.textSize = minOf(textSize, diameter / 2)
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+          }
+      val badgeWidth =
+          maxOf(diameter / 2, textPaint.measureText(badge) + BADGE_PADDING_DP * scale * 2)
+      val badgeLeft = avatarsWidth - BADGE_OVERLAP_DP * scale
+      val width = if (badge.isEmpty()) avatarsWidth else badgeLeft + badgeWidth
+      val bitmap = createBitmap(ceil(width).toInt(), (MARKER_HEIGHT_DP * scale).toInt())
+      val canvas = Canvas(bitmap)
+      val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+      val centerX = bitmap.width / 2f
+      val centerY = top + radius
+      paint.color = pinColor
+      canvas.drawPath(monumentPinPath(centerX, bitmap.height.toFloat(), scale), paint)
+      val bottom = top + diameter
+      val borderWidth = MARKER_BORDER_DP * scale
+      val inset = borderWidth / 2
+      val borderPaint =
+          Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = borderWidth
+            color = borderColor
+          }
+      // Connect the outer borders behind the circular avatars.
+      canvas.drawRoundRect(0f, top, avatarsWidth, bottom, radius, radius, paint)
+      canvas.drawLine(radius, top + inset, avatarsWidth - radius, top + inset, borderPaint)
+      canvas.drawLine(radius, bottom - inset, avatarsWidth - radius, bottom - inset, borderPaint)
+      val initialPaint =
+          Paint(textPaint).apply {
+            color = badgeColor
+            this.textSize = initialSize.coerceAtMost(radius - borderWidth)
+          }
+      for (index in avatars.indices.reversed()) {
+        val artwork = avatars[index]
+        val left = step * index
+        val avatarCenterX = left + radius
+        canvas.drawCircle(avatarCenterX, centerY, radius, paint)
+        val avatar = artwork.avatar
+        if (avatar != null) {
+          val circle =
+              Path().apply { addCircle(avatarCenterX, centerY, radius - inset, Path.Direction.CW) }
+          canvas.withClip(circle) {
+            drawSquareThumbnail(avatar, RectF(left, top, left + diameter, bottom), paint)
+          }
+        } else {
+          val baseline = centerY - (initialPaint.ascent() + initialPaint.descent()) / 2
+          canvas.drawText(artwork.initial, avatarCenterX, baseline, initialPaint)
+        }
+        canvas.drawCircle(avatarCenterX, centerY, radius - inset, borderPaint)
+      }
+      if (badge.isNotEmpty()) {
+        val badgeRadius = diameter * BADGE_RADIUS_FRACTION
+        paint.color = badgeColor
+        canvas.drawRoundRect(
+            badgeLeft,
+            centerY - badgeRadius,
+            width,
+            centerY + badgeRadius,
+            badgeRadius,
+            badgeRadius,
+            paint,
+        )
+        val baseline = centerY - (textPaint.ascent() + textPaint.descent()) / 2
+        canvas.drawText(badge, badgeLeft + badgeWidth / 2, baseline, textPaint)
+      }
+      bitmap
+    }
+  }
+}
+
+private inline fun friendBitmapDescriptor(render: () -> Bitmap): BitmapDescriptor? =
     try {
-      BitmapDescriptorFactory.fromBitmap(
-          createMonumentMarkerBitmap(
-              thumbnail = avatar,
-              placeholderPainter = null,
-              density = density,
-              pinColor = pinColor,
-              borderColor = borderColor,
-              placeholderColor = initialColor,
-              initial = initial,
-              initialSize = initialSize,
-          )
-      )
+      BitmapDescriptorFactory.fromBitmap(render())
     } catch (exception: RuntimeException) {
       Log.e(TAG, "Failed to create Explore avatar marker", exception)
       null
     }
-  }
-}
 
 internal fun createMonumentMarkerBitmapDescriptor(
     thumbnail: Bitmap?,
@@ -223,48 +351,24 @@ internal fun createMonumentMarkerBitmap(
 ): Bitmap {
   val scale = density.density
   val width = (64 * scale).toInt()
-  val height = (70 * scale).toInt()
+  val height = (MARKER_HEIGHT_DP * scale).toInt()
   val bitmap = createBitmap(width, height)
   val canvas = Canvas(bitmap)
   val centerX = width / 2f
-  val circleRadius = 24 * scale
-  val circleCenterY = circleRadius + 4 * scale
-  val pinPath =
-      Path().apply {
-        moveTo(centerX, height.toFloat())
-        cubicTo(
-            centerX - 20 * scale,
-            height - 18 * scale,
-            centerX - 23 * scale,
-            26 * scale,
-            centerX,
-            4 * scale,
-        )
-        cubicTo(
-            centerX + 23 * scale,
-            26 * scale,
-            centerX + 20 * scale,
-            height - 18 * scale,
-            centerX,
-            height.toFloat(),
-        )
-        close()
-      }
+  val circleRadius = AVATAR_DIAMETER_DP * scale / 2
+  val circleCenterY = circleRadius + AVATAR_TOP_DP * scale
   val pinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pinColor }
-  canvas.drawPath(pinPath, pinPaint)
+  canvas.drawPath(monumentPinPath(centerX, height.toFloat(), scale), pinPaint)
 
-  val thumbnailRadius = circleRadius - 3 * scale
+  val borderWidth = MARKER_BORDER_DP * scale
+  val thumbnailRadius = circleRadius - borderWidth
   if (thumbnail != null) {
-    val sourceSize = minOf(thumbnail.width, thumbnail.height)
-    val sourceLeft = (thumbnail.width - sourceSize) / 2
-    val sourceTop = (thumbnail.height - sourceSize) / 2
     val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     val thumbnailPath =
         Path().apply { addCircle(centerX, circleCenterY, thumbnailRadius, Path.Direction.CW) }
     canvas.withClip(thumbnailPath) {
-      drawBitmap(
+      drawSquareThumbnail(
           thumbnail,
-          Rect(sourceLeft, sourceTop, sourceLeft + sourceSize, sourceTop + sourceSize),
           RectF(
               centerX - thumbnailRadius,
               circleCenterY - thumbnailRadius,
@@ -300,12 +404,41 @@ internal fun createMonumentMarkerBitmap(
   val borderPaint =
       Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 3 * scale
+        strokeWidth = borderWidth
         color = borderColor
       }
-  canvas.drawCircle(centerX, circleCenterY, circleRadius - 1.5f * scale, borderPaint)
+  canvas.drawCircle(centerX, circleCenterY, circleRadius - borderWidth / 2, borderPaint)
   return bitmap
 }
+
+private fun Canvas.drawSquareThumbnail(thumbnail: Bitmap, destination: RectF, paint: Paint) {
+  val size = minOf(thumbnail.width, thumbnail.height)
+  val left = (thumbnail.width - size) / 2
+  val top = (thumbnail.height - size) / 2
+  drawBitmap(thumbnail, Rect(left, top, left + size, top + size), destination, paint)
+}
+
+private fun monumentPinPath(centerX: Float, height: Float, scale: Float): Path =
+    Path().apply {
+      moveTo(centerX, height)
+      cubicTo(
+          centerX - 20 * scale,
+          height - 18 * scale,
+          centerX - 23 * scale,
+          26 * scale,
+          centerX,
+          AVATAR_TOP_DP * scale,
+      )
+      cubicTo(
+          centerX + 23 * scale,
+          26 * scale,
+          centerX + 20 * scale,
+          height - 18 * scale,
+          centerX,
+          height,
+      )
+      close()
+    }
 
 private fun drawPainter(
     canvas: Canvas,
@@ -333,3 +466,11 @@ private fun drawPainter(
 }
 
 private const val TAG = "ExploreMonumentMarker"
+private const val AVATAR_DIAMETER_DP = 48
+private const val AVATAR_TOP_DP = 4
+private const val MARKER_HEIGHT_DP = 70
+private const val MARKER_BORDER_DP = 3
+private const val STACK_STEP_DP = 26
+private const val BADGE_OVERLAP_DP = 8
+private const val BADGE_PADDING_DP = 6
+private const val BADGE_RADIUS_FRACTION = 0.32f

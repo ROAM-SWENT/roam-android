@@ -121,6 +121,10 @@
     <string name="explore_permission_required">Activez l\'autorisation de localisation pour voir où vous êtes sur la carte.</string>
     <string name="explore_location_unavailable">Impossible de déterminer votre position.</string>
     <string name="explore_retry">Réessayer</string>
+    <string name="explore_friend_pin_group_title">Monuments partagés</string>
+    <string name="explore_friend_pin_group_marker">%1$s (%2$d guides partagés)</string>
+    <string name="explore_friend_pin_unknown_owner">Ami %1$d</string>
+    <string name="explore_friend_pin_done">Terminé</string>
     <string name="offline_action_required_title">Connexion Internet requise</string>
     <string name="offline_action_required_message">Une connexion Internet est requise pour effectuer cette action.</string>
     <string name="offline_action_required_dismiss">OK</string>
