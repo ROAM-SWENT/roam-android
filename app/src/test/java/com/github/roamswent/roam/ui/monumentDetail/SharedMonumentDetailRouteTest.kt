@@ -3,6 +3,7 @@ package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -15,6 +16,7 @@ import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.wishlist.WishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.collection.FakeWishlistRepository
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -130,6 +132,43 @@ class SharedMonumentDetailRouteTest {
   }
 
   @Test
+  fun wishlistButtonIsDisabledWhenLoadingFails() {
+    val wishlist = FakeWishlistRepository().apply { loadError = IllegalStateException("offline") }
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        wishlist = wishlist,
+    )
+    composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button).assertIsNotEnabled()
+    assertTrue(wishlist.items.value.isEmpty())
+  }
+
+  @Test
+  fun wishlistButtonIsDisabledUntilPendingWriteFinishes() {
+    val wishlist = FakeWishlistRepository()
+    val release = CompletableDeferred<Unit>()
+    val delayedWishlist =
+        object : WishlistRepository by wishlist {
+          override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+            release.await()
+            return wishlist.addToWishlist(item)
+          }
+        }
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        wishlist = delayedWishlist,
+    )
+    val button = composeTestRule.onNodeWithTag(C.Tag.monument_detail_wishlist_button)
+    button.performClick()
+    button.assertIsNotEnabled()
+    assertTrue(wishlist.items.value.isEmpty())
+    release.complete(Unit)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { wishlist.items.value.size == 1 }
+    button.assertContentDescriptionEquals("Remove from wishlist")
+  }
+
+  @Test
   fun wishlistedGuideShowsFilledButton() {
     val wishlist = FakeWishlistRepository()
     val key = WishlistMonumentKey.forSharedGuide("friend", louvre.id)
@@ -214,7 +253,7 @@ class SharedMonumentDetailRouteTest {
       guideId: String,
       onBack: () -> Unit = {},
       showBackArrow: Boolean = false,
-      wishlist: FakeWishlistRepository = FakeWishlistRepository(),
+      wishlist: WishlistRepository = FakeWishlistRepository(),
   ) {
     composeTestRule.setContent {
       SampleAppTheme {

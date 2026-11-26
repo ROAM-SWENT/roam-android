@@ -10,11 +10,14 @@ import com.github.roamswent.roam.model.location.LocationName
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.wishlist.FriendScannedMonumentsSource
+import com.github.roamswent.roam.model.wishlist.ResolvedWishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistItem
 import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -372,5 +375,126 @@ class WishlistViewModelTest {
         advanceUntilIdle()
         assertNull(viewModel.uiState.value.error)
         assertEquals(listOf("Louvre"), viewModel.uiState.value.monuments.map { it.name })
+      }
+
+  @Test
+  fun mutationsAreBlockedWhileLoadingOrAfterLoadFailure() =
+      runTest(dispatcher) {
+        val viewModel = WishlistViewModel(repository)
+        viewModel.loadWishlist()
+        viewModel.toggleGuide("friend", guide)
+        assertTrue(viewModel.uiState.value.pendingKeys.isEmpty())
+        advanceUntilIdle()
+        assertTrue(repository.items.value.isEmpty())
+
+        repository.loadError = IllegalStateException("offline")
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.error)
+        assertTrue(repository.items.value.isEmpty())
+        assertTrue(viewModel.uiState.value.pendingKeys.isEmpty())
+      }
+
+  @Test
+  fun duplicateMutationIsBlockedWhileTheSameKeyIsPending() =
+      runTest(dispatcher) {
+        val release = CompletableDeferred<Unit>()
+        var writes = 0
+        val delayedRepository =
+            object : WishlistRepository by repository {
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+                writes++
+                release.await()
+                return repository.addToWishlist(item)
+              }
+            }
+        val viewModel = WishlistViewModel(delayedRepository)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        advanceUntilIdle()
+        assertEquals(1, writes)
+        assertEquals(1, viewModel.uiState.value.pendingKeys.size)
+        release.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1, repository.items.value.size)
+        assertTrue(viewModel.uiState.value.pendingKeys.isEmpty())
+      }
+
+  @Test
+  fun cancelledMutationClearsPendingStateWithoutReportingFailure() =
+      runTest(dispatcher) {
+        val cancelledRepository =
+            object : WishlistRepository by repository {
+              override suspend fun addToWishlist(item: WishlistItem): WishlistItem {
+                throw CancellationException("cancelled")
+              }
+            }
+        val viewModel = WishlistViewModel(cancelledRepository)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        viewModel.toggleGuide("friend", guide)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.pendingKeys.isEmpty())
+        assertTrue(viewModel.uiState.value.pendingGuides.isEmpty())
+        assertNull(viewModel.uiState.value.mutationError)
+        assertTrue(repository.items.value.isEmpty())
+      }
+
+  @Test
+  fun staleResolvedGuideIsNotUsedForUpdatedWishlistItem() =
+      runTest(dispatcher) {
+        val updated = item.copy(monumentName = "Updated Louvre")
+        repository.items.value = listOf(updated)
+        val staleRepository =
+            object : WishlistRepository by repository {
+              override suspend fun getResolvedWishlist(): List<ResolvedWishlistItem> =
+                  listOf(ResolvedWishlistItem.Available(item, guide))
+            }
+        val viewModel = WishlistViewModel(staleRepository)
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        val monument = viewModel.uiState.value.monuments.single()
+        assertEquals("Updated Louvre", monument.name)
+        assertTrue(monument.unavailable)
+        assertNull(monument.sourceGuideId)
+      }
+
+  @Test
+  fun missingFriendProfileStillAppearsInScannedBy() =
+      runTest(dispatcher) {
+        val friends = mockk<FriendRepository>()
+        val sharing = mockk<MonumentSharingRepository>()
+        val profiles = mockk<PublicProfileRepository>()
+        coEvery { friends.getFriends() } returns listOf(Friendship("a", "friend"))
+        every { sharing.observeSharedGuidesFrom("friend") } returns MutableStateFlow(listOf(guide))
+        coEvery { profiles.getProfile("friend") } returns null
+        repository.items.value = listOf(item)
+        repository.guides[key] = guide
+        val viewModel =
+            WishlistViewModel(repository, FriendScannedMonumentsSource(friends, sharing, profiles))
+        viewModel.loadWishlist()
+        viewModel.retryLoadingScannedFriends()
+        advanceUntilIdle()
+        val friend = viewModel.uiState.value.monuments.single().scannedBy.single()
+        assertEquals("", friend.name)
+        assertNull(friend.avatarBytes)
+      }
+
+  @Test
+  fun resolvingOneLocationDoesNotChangeOtherMonuments() =
+      runTest(dispatcher) {
+        val second = item.copy(monumentKey = "ref_other~guide", location = null)
+        repository.items.value = listOf(item, second)
+        val viewModel = WishlistViewModel(repository) { LocationName("Paris", "France") }
+        viewModel.loadWishlist()
+        advanceUntilIdle()
+        val monuments = viewModel.uiState.value.monuments.associateBy { it.id }
+        assertEquals("Paris", monuments.getValue(item.monumentKey).city)
+        assertEquals("", monuments.getValue(second.monumentKey).city)
       }
 }
