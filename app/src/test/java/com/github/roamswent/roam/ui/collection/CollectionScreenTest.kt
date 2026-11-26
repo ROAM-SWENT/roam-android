@@ -9,9 +9,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.WindowInsets
@@ -44,6 +46,7 @@ import coil.intercept.Interceptor
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
@@ -395,6 +398,32 @@ class CollectionScreenTest {
   }
 
   @Test
+  fun tooFarGuideShowsUnavailableShareActionAndExplanation() {
+    composeTestRule.setContent {
+      SampleAppTheme {
+        CollectionScreen(
+            state =
+                SavedGuidesUiState(
+                    guides =
+                        listOf(olderGuide.copy(sharingEligibility = SharingEligibility.TOO_FAR))
+                )
+        )
+      }
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.collection_card_share)
+        .assertIsDisplayed()
+        .assertContentDescriptionEquals("Sharing unavailable")
+        .performClick()
+    composeTestRule
+        .onNodeWithText(
+            "This guide cannot be shared because it was discovered too far from the monument."
+        )
+        .assertIsDisplayed()
+  }
+
+  @Test
   fun emptyFavoritesAndReadOnlyCollectionUseTheirOwnEmptyStatesInDarkTheme() {
     var readOnly by mutableStateOf(false)
     composeTestRule.setContent {
@@ -621,24 +650,41 @@ class CollectionScreenTest {
     val selectedUids = mutableListOf<List<String>>()
     setScreen(
         SavedGuidesUiState(guides = listOf(olderGuide)),
-        friends = listOf(CollectionFriend("friend-a", "Alice")),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
         onSetShareAudience = { _, _, uids -> selectedUids += uids.toList() },
     )
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
 
     assertEquals(listOf(listOf("friend-a")), selectedUids)
     composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertDoesNotExist()
+  }
+
+  @Test
+  fun deselectingTheLastFriendSelectsNoOne() {
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friends = listOf(CollectionFriend("friend-a", "Alice")),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_none).assertIsSelected()
   }
 
   @Test
@@ -647,20 +693,24 @@ class CollectionScreenTest {
     var openedSharing = 0
     setScreen(
         SavedGuidesUiState(guides = listOf(olderGuide, newerGuide)),
-        friends = listOf(CollectionFriend("friend-a", "Alice")),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
         onOpenSharing = { openedSharing++ },
         onSetShareAudience = { guideId, _, uids -> updates += guideId to uids.toList() },
     )
 
     composeTestRule.onAllNodesWithTag(C.Tag.collection_card_share)[0].performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
-    composeTestRule.onNodeWithText("Share Eiffel Tower").assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
+    composeTestRule.onNodeWithText("Share with friends").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText(
+            "They will see Eiffel Tower on their Explore map and in Friends. Only the city is shown."
+        )
+        .assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
 
     assertEquals(1, openedSharing)
@@ -678,7 +728,6 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_cancel).performClick()
 
@@ -687,12 +736,11 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).assertIsOff()
   }
 
   @Test
-  fun loadingFriendsShowsProgressAndDisablesSaving() {
+  fun loadingFriendsShowsProgressAndAllowsNonSpecificSharing() {
     setScreen(
         SavedGuidesUiState(guides = listOf(olderGuide)),
         isLoadingFriends = true,
@@ -700,13 +748,11 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
-
     composeTestRule.onNodeWithTag(C.Tag.collection_share_dialog).assertIsDisplayed()
     composeTestRule
         .onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
         .assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
   }
 
   @Test
@@ -720,11 +766,10 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule
         .onNodeWithText("Couldn’t load your friends. Please try again.")
         .assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
     composeTestRule.onNodeWithText("Retry").performClick()
 
     assertEquals(1, retries)
@@ -737,13 +782,67 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
-
     composeTestRule.onNodeWithText("Add friends before sharing a guide.").assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend).assertCountEquals(0)
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_none).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).assertIsEnabled()
+  }
+
+  @Test
+  fun searchWithNoMatchingFriendsShowsNoUsersFound() {
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.friends_search).performTextInput("nobody")
+
+    composeTestRule.onNodeWithText("No users found").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend).assertCountEquals(0)
+  }
+
+  @Test
+  fun friendListPreScrollConsumesDownwardUserInputOnlyAtTheTop() {
+    val downward = Offset(x = 3f, y = 12f)
+
+    assertEquals(
+        Offset(x = 0f, y = 12f),
+        consumeFriendListPreScroll(
+            available = downward,
+            source = NestedScrollSource.UserInput,
+            canScrollBackward = false,
+        ),
+    )
+    assertEquals(
+        Offset.Zero,
+        consumeFriendListPreScroll(
+            available = downward,
+            source = NestedScrollSource.UserInput,
+            canScrollBackward = true,
+        ),
+    )
+    assertEquals(
+        Offset.Zero,
+        consumeFriendListPreScroll(
+            available = Offset(x = 0f, y = -12f),
+            source = NestedScrollSource.UserInput,
+            canScrollBackward = false,
+        ),
+    )
+    assertEquals(
+        Offset.Zero,
+        consumeFriendListPreScroll(
+            available = downward,
+            source = NestedScrollSource.SideEffect,
+            canScrollBackward = false,
+        ),
+    )
   }
 
   @Test
@@ -782,7 +881,6 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].assertIsOn()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[1].assertIsOff()
     composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].performClick()
@@ -808,7 +906,6 @@ class CollectionScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_selected).performClick()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_friend).performClick()
     composeTestRule.runOnIdle { state = state.copy(sharingGuideIds = setOf(olderGuide.id)) }
 
@@ -847,11 +944,32 @@ class CollectionScreenTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
-    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend).assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend).assertCountEquals(1)
     composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_all_friends).performClick()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].assertIsOn()
     composeTestRule.onNodeWithTag(C.Tag.collection_share_confirm).performClick()
 
     assertEquals(listOf(ShareAudience.ALL_FRIENDS to emptySet<String>()), updates)
+  }
+
+  @Test
+  fun selectingEveryFriendIndividuallySelectsAllFriends() {
+    setScreen(
+        SavedGuidesUiState(guides = listOf(olderGuide)),
+        friends =
+            listOf(
+                CollectionFriend("friend-a", "Alice"),
+                CollectionFriend("friend-b", "Bob"),
+            ),
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_share).performClick()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].performClick()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[1].performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.collection_share_audience_all_friends).assertIsSelected()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[0].assertIsOn()
+    composeTestRule.onAllNodesWithTag(C.Tag.collection_share_friend)[1].assertIsOn()
   }
 
   @Test

@@ -4,6 +4,7 @@
 // Co-authored-by: Google Antigravity <noreply@google.com>
 package com.github.roamswent.roam.ui.collection
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,19 +26,22 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.BookmarkBorder
@@ -44,27 +49,35 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,8 +90,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -98,9 +115,12 @@ import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.guide.SharingEligibility
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.components.ProfileBubble
 import com.github.roamswent.roam.ui.components.ProfilePicture
+import com.github.roamswent.roam.ui.friends.FriendsSearchField
+import com.github.roamswent.roam.ui.friends.filterByUsernameQuery
 import com.github.roamswent.roam.ui.guide.SavedGuidesUiState
 import com.github.roamswent.roam.ui.home.HomeViewModel
 import com.github.roamswent.roam.ui.theme.CollectionPlaceholder
@@ -869,14 +889,20 @@ private fun GuideCard(
             onClick = onToggleFavorite,
             modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
         )
-        ShareButton(
-            isSharing = isSharing,
-            onClick = {
-              isShareDialogOpen = true
-              onOpenSharing()
-            },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-        )
+        if (guide.sharingEligibility == SharingEligibility.TOO_FAR) {
+          UnavailableShareButton(
+              modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+          )
+        } else {
+          ShareButton(
+              isSharing = isSharing,
+              onClick = {
+                isShareDialogOpen = true
+                onOpenSharing()
+              },
+              modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+          )
+        }
       }
     }
     Column(modifier = Modifier.padding(12.dp)) {
@@ -965,6 +991,41 @@ private fun ShareButton(isSharing: Boolean, onClick: () -> Unit, modifier: Modif
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UnavailableShareButton(modifier: Modifier = Modifier) {
+  val tooltipState = rememberTooltipState()
+  val scope = rememberCoroutineScope()
+  Box(modifier = modifier) {
+    TooltipBox(
+        positionProvider =
+            TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = {
+          PlainTooltip { Text(stringResource(R.string.collection_share_unavailable_message)) }
+        },
+        state = tooltipState,
+    ) {
+      IconButton(
+          onClick = { scope.launch { tooltipState.show() } },
+          modifier =
+              Modifier.size(36.dp)
+                  .background(MaterialTheme.photoButtonContainer, CircleShape)
+                  .semantics { testTag = C.Tag.collection_card_share },
+      ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(20.dp)) {
+          Icon(
+              imageVector = Icons.Filled.Share,
+              contentDescription = stringResource(R.string.collection_share_unavailable_button),
+              tint = MaterialTheme.accentIcon.copy(alpha = 0.45f),
+              modifier = Modifier.size(20.dp),
+          )
+        }
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun GuideSharingDialog(
     guideId: String,
@@ -983,143 +1044,280 @@ internal fun GuideSharingDialog(
       remember(guideId) {
         mutableStateSetOf<String>().apply { addAll(shareSettings.sharedWithUids) }
       }
-  val needsFriends = audience == ShareAudience.SELECTED_FRIENDS
-  val recipients =
-      if (needsFriends) {
-        selectedFriendUids.filter { selectedUid -> friends.any { it.uid == selectedUid } }.toSet()
-      } else {
-        emptySet()
+  var friendsQuery by remember(guideId) { mutableStateOf("") }
+  val filteredFriends =
+      remember(friends, friendsQuery) {
+        filterByUsernameQuery(friends, friendsQuery, CollectionFriend::username)
       }
-  AlertDialog(
-      modifier = Modifier.semantics { testTag = C.Tag.collection_share_dialog },
+  val selectedRecipients =
+      selectedFriendUids.filter { selectedUid -> friends.any { it.uid == selectedUid } }.toSet()
+  val selectedCount =
+      if (audience == ShareAudience.ALL_FRIENDS) friends.size else selectedRecipients.size
+  val canShare =
+      !isSaving &&
+          (audience != ShareAudience.SELECTED_FRIENDS ||
+              (!isLoadingFriends && friendsError == null && selectedRecipients.isNotEmpty()))
+  val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+  ModalBottomSheet(
       onDismissRequest = onDismiss,
-      title = { Text(stringResource(R.string.collection_share_title, monumentName)) },
-      text = {
-        Column {
+      sheetState = sheetState,
+      modifier = Modifier.semantics { testTag = C.Tag.collection_share_dialog },
+  ) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Text(
+          text = stringResource(R.string.collection_share_new_title),
+          style = MaterialTheme.typography.headlineSmall,
+          fontWeight = FontWeight.Bold,
+      )
+      Text(
+          text = stringResource(R.string.collection_share_new_message, monumentName),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.secondaryText,
+      )
+      ShareAudienceOption(
+          label = stringResource(R.string.collection_share_new_none),
+          icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+          selected = audience == ShareAudience.NONE,
+          tag = C.Tag.collection_share_audience_none,
+          onSelect = {
+            audience = ShareAudience.NONE
+            selectedFriendUids.clear()
+          },
+      )
+      ShareAudienceOption(
+          label = stringResource(R.string.collection_share_new_all_friends),
+          icon = { Icon(Icons.Default.Group, contentDescription = null) },
+          selected = audience == ShareAudience.ALL_FRIENDS,
+          tag = C.Tag.collection_share_audience_all_friends,
+          onSelect = {
+            audience = ShareAudience.ALL_FRIENDS
+            selectedFriendUids.clear()
+            selectedFriendUids.addAll(friends.map(CollectionFriend::uid))
+          },
+      )
+      FriendsSearchField(
+          query = friendsQuery,
+          onQueryChanged = { friendsQuery = it },
+          modifier = Modifier.fillMaxWidth(),
+      )
+      when {
+        isLoadingFriends -> {
+          CircularProgressIndicator(
+              modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp)
+          )
+        }
+        friendsError != null -> {
+          Column {
+            Text(stringResource(R.string.collection_share_friends_error))
+            TextButton(onClick = onRetryLoadingFriends) {
+              Text(stringResource(R.string.collection_share_retry))
+            }
+          }
+        }
+        filteredFriends.isEmpty() -> {
           Text(
-              text = stringResource(R.string.collection_share_message),
-              style = MaterialTheme.typography.bodyMedium,
+              text =
+                  if (friends.isEmpty()) {
+                    stringResource(R.string.collection_share_no_friends)
+                  } else {
+                    stringResource(R.string.friends_no_users_found)
+                  },
+              modifier = Modifier.padding(vertical = 12.dp),
           )
-          ShareAudienceOption(
-              label = stringResource(R.string.collection_share_audience_none),
-              selected = audience == ShareAudience.NONE,
-              tag = C.Tag.collection_share_audience_none,
-              onSelect = { audience = ShareAudience.NONE },
-          )
-          ShareAudienceOption(
-              label = stringResource(R.string.collection_share_audience_all_friends),
-              selected = audience == ShareAudience.ALL_FRIENDS,
-              tag = C.Tag.collection_share_audience_all_friends,
-              onSelect = { audience = ShareAudience.ALL_FRIENDS },
-          )
-          ShareAudienceOption(
-              label = stringResource(R.string.collection_share_audience_selected),
-              selected = needsFriends,
-              tag = C.Tag.collection_share_audience_selected,
-              onSelect = { audience = ShareAudience.SELECTED_FRIENDS },
-          )
-          when {
-            !needsFriends -> Unit
-            isLoadingFriends -> {
-              CircularProgressIndicator(
-                  modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp)
-              )
-            }
-            friendsError != null -> {
-              Column {
-                Text(stringResource(R.string.collection_share_friends_error))
-                TextButton(onClick = onRetryLoadingFriends) {
-                  Text(stringResource(R.string.collection_share_retry))
-                }
-              }
-            }
-            friends.isEmpty() -> {
-              Text(
-                  text = stringResource(R.string.collection_share_no_friends),
-                  modifier = Modifier.padding(top = 12.dp),
-              )
-            }
-            else -> {
-              Column(
-                  modifier =
-                      Modifier.padding(top = 8.dp)
-                          .heightIn(max = 280.dp)
-                          .verticalScroll(rememberScrollState()),
-              ) {
-                friends.forEach { friend ->
-                  Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      modifier =
-                          Modifier.fillMaxWidth()
-                              .toggleable(
-                                  value = friend.uid in selectedFriendUids,
-                                  role = Role.Checkbox,
-                                  onValueChange = { checked ->
-                                    if (checked) selectedFriendUids.add(friend.uid)
-                                    else selectedFriendUids.remove(friend.uid)
-                                  },
-                              )
-                              .semantics { testTag = C.Tag.collection_share_friend },
-                  ) {
-                    Checkbox(
-                        checked = friend.uid in selectedFriendUids,
-                        onCheckedChange = null,
-                    )
-                    Text(
-                        text = friend.username,
-                        style = MaterialTheme.typography.bodyMedium,
+        }
+        else -> {
+          val friendListState = rememberLazyListState()
+          val friendListNestedScrollConnection =
+              remember(friendListState) {
+                object : NestedScrollConnection {
+                  override fun onPreScroll(
+                      available: Offset,
+                      source: NestedScrollSource,
+                  ): Offset {
+                    return consumeFriendListPreScroll(
+                        available = available,
+                        source = source,
+                        canScrollBackward = friendListState.canScrollBackward,
                     )
                   }
                 }
               }
+          LazyColumn(
+              modifier =
+                  Modifier.fillMaxWidth()
+                      .heightIn(max = 280.dp)
+                      .nestedScroll(friendListNestedScrollConnection),
+              state = friendListState,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            items(filteredFriends, key = CollectionFriend::uid) { friend ->
+              ShareFriendRow(
+                  friend = friend,
+                  selected =
+                      audience == ShareAudience.ALL_FRIENDS || friend.uid in selectedFriendUids,
+                  onSelectedChange = { checked ->
+                    if (checked) {
+                      selectedFriendUids.add(friend.uid)
+                      audience =
+                          if (friends.all { it.uid in selectedFriendUids }) {
+                            ShareAudience.ALL_FRIENDS
+                          } else {
+                            ShareAudience.SELECTED_FRIENDS
+                          }
+                    } else {
+                      if (audience == ShareAudience.ALL_FRIENDS) {
+                        selectedFriendUids.clear()
+                        selectedFriendUids.addAll(friends.map(CollectionFriend::uid))
+                      }
+                      selectedFriendUids.remove(friend.uid)
+                      if (selectedFriendUids.none { uid -> friends.any { it.uid == uid } }) {
+                        audience = ShareAudience.NONE
+                      } else {
+                        audience = ShareAudience.SELECTED_FRIENDS
+                      }
+                    }
+                  },
+              )
             }
           }
         }
-      },
-      confirmButton = {
-        TextButton(
-            onClick = { onConfirm(audience, recipients) },
-            enabled =
-                !isSaving &&
-                    (!needsFriends ||
-                        (!isLoadingFriends && friendsError == null && recipients.isNotEmpty())),
-            modifier = Modifier.semantics { testTag = C.Tag.collection_share_confirm },
-        ) {
-          Text(stringResource(R.string.collection_share_confirm))
-        }
-      },
-      dismissButton = {
-        TextButton(
+      }
+      Spacer(Modifier.weight(1f, fill = false))
+      Text(
+          text =
+              pluralStringResource(
+                  R.plurals.collection_share_selected_friends,
+                  selectedCount,
+                  selectedCount,
+              ),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.secondaryText,
+          modifier = Modifier.align(Alignment.End),
+      )
+      Row(
+          modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        Button(
             onClick = onDismiss,
             enabled = !isSaving,
-            modifier = Modifier.semantics { testTag = C.Tag.collection_share_cancel },
+            modifier = Modifier.weight(1f).semantics { testTag = C.Tag.collection_share_cancel },
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.cardContainer,
+                    contentColor = MaterialTheme.accentIcon,
+                ),
         ) {
           Text(stringResource(R.string.collection_share_cancel))
         }
-      },
-  )
+        Button(
+            onClick = {
+              onConfirm(
+                  audience,
+                  if (audience == ShareAudience.SELECTED_FRIENDS) selectedRecipients
+                  else emptySet(),
+              )
+            },
+            enabled = canShare,
+            modifier = Modifier.weight(1f).semantics { testTag = C.Tag.collection_share_confirm },
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.accentContainer,
+                    contentColor = MaterialTheme.onAccentContainer,
+                ),
+        ) {
+          Text(stringResource(R.string.collection_share_new_confirm))
+        }
+      }
+    }
+  }
 }
+
+internal fun consumeFriendListPreScroll(
+    available: Offset,
+    source: NestedScrollSource,
+    canScrollBackward: Boolean,
+): Offset =
+    if (source == NestedScrollSource.UserInput && available.y > 0f && !canScrollBackward) {
+      Offset(x = 0f, y = available.y)
+    } else {
+      Offset.Zero
+    }
 
 @Composable
 private fun ShareAudienceOption(
     label: String,
+    icon: @Composable () -> Unit,
     selected: Boolean,
     tag: String,
     onSelect: () -> Unit,
 ) {
-  Row(
-      verticalAlignment = Alignment.CenterVertically,
+  Surface(
       modifier =
           Modifier.fillMaxWidth()
               .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
               .semantics { testTag = tag },
+      shape = RoundedCornerShape(16.dp),
+      color = MaterialTheme.cardContainer,
   ) {
-    RadioButton(selected = selected, onClick = null)
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.padding(start = 8.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      icon()
+      Text(
+          text = label,
+          style = MaterialTheme.typography.bodyLarge,
+          modifier = Modifier.weight(1f).padding(start = 12.dp),
+      )
+      RadioButton(selected = selected, onClick = null)
+    }
+  }
+}
+
+@Composable
+private fun ShareFriendRow(
+    friend: CollectionFriend,
+    selected: Boolean,
+    onSelectedChange: (Boolean) -> Unit,
+) {
+  Row(
+      modifier =
+          Modifier.fillMaxWidth()
+              .toggleable(
+                  value = selected,
+                  role = Role.Checkbox,
+                  onValueChange = onSelectedChange,
+              )
+              .semantics { testTag = C.Tag.collection_share_friend },
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
+    ProfilePicture(
+        name = friend.username,
+        avatarBytes = friend.avatarBytes,
+        modifier = Modifier.size(48.dp),
     )
+    Text(
+        text = friend.username,
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = Modifier.weight(1f).padding(start = 12.dp),
+    )
+    Surface(
+        modifier = Modifier.size(24.dp),
+        shape = CircleShape,
+        color = if (selected) MaterialTheme.accentContainer else MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.onAccentContainer,
+        border =
+            if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+      if (selected) {
+        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+      }
+    }
   }
 }
 

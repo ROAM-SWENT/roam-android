@@ -109,7 +109,7 @@ fun FriendsScreen(
       }
   val filteredFriends =
       remember(friends, friendsQuery) {
-        friends.filter { it.username.contains(friendsQuery.trim(), ignoreCase = true) }
+        filterByUsernameQuery(friends, friendsQuery, FriendUser::username)
       }
 
   Box(
