@@ -39,6 +39,7 @@ fun SharedMonumentDetailRoute(
     repository: MonumentSharingRepository,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showBackArrow: Boolean = false,
 ) {
   var attempt by remember(ownerUid, guideId, repository) { mutableIntStateOf(0) }
   val state by
@@ -70,6 +71,7 @@ fun SharedMonumentDetailRoute(
           onBackClick = onBackClick,
           modifier = modifier,
           showSharingControls = false,
+          showBackArrow = showBackArrow,
       )
     }
     SharedGuideState.Loading ->
@@ -84,6 +86,7 @@ fun SharedMonumentDetailRoute(
             onRetry = { attempt++ },
             modifier = modifier,
             retryTag = C.Tag.shared_monument_detail_retry,
+            showBackArrow = showBackArrow,
         )
     SharedGuideState.Missing ->
         SavedMonumentDetailMessage(
@@ -92,6 +95,7 @@ fun SharedMonumentDetailRoute(
             onBackClick = onBackClick,
             onRetry = null,
             modifier = modifier,
+            showBackArrow = showBackArrow,
         )
   }
 }

@@ -1,5 +1,6 @@
 // Co-authored-by: Codex <codex@openai.com>
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
 import androidx.compose.foundation.Image
@@ -10,6 +11,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
@@ -105,6 +107,7 @@ fun MonumentDetailScreen(
     onSharingErrorShown: () -> Unit = {},
     showSharingControls: Boolean = true,
     showSharingAction: Boolean = true,
+    showBackArrow: Boolean = false,
 ) {
   val cornerRadius = 24.dp
 
@@ -199,6 +202,7 @@ fun MonumentDetailScreen(
     MonumentDetailBackButton(
         onClick = onBackClick,
         modifier = Modifier.align(Alignment.TopStart),
+        showBackArrow = showBackArrow,
     )
 
     isFavorite?.let {
@@ -543,7 +547,11 @@ private fun ExploreUnavailableMessage(
 }
 
 @Composable
-fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun MonumentDetailBackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    showBackArrow: Boolean = false,
+) {
   IconButton(
       onClick = onClick,
       modifier =
@@ -563,8 +571,12 @@ fun MonumentDetailBackButton(onClick: () -> Unit, modifier: Modifier = Modifier)
           ),
   ) {
     Icon(
-        imageVector = Icons.Filled.Home,
-        contentDescription = stringResource(R.string.monument_detail_home_description),
+        imageVector = if (showBackArrow) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Home,
+        contentDescription =
+            stringResource(
+                if (showBackArrow) R.string.collection_back_description
+                else R.string.monument_detail_home_description
+            ),
     )
   }
 }

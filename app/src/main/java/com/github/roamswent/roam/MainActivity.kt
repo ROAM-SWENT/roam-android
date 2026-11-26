@@ -73,6 +73,7 @@ import com.github.roamswent.roam.model.profile.ProfileRepositoryFirebase
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
 import com.github.roamswent.roam.model.theme.DataStoreThemePreferencesRepository
 import com.github.roamswent.roam.model.theme.ThemeMode
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 import com.github.roamswent.roam.repository.CaptureSender
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.EmailVerificationScreen
@@ -213,6 +214,7 @@ internal data class RoamAppTestOverrides(
     val exploreLocationPermissionController: LocationPermissionController? = null,
     val notificationInstallationRepository: NotificationInstallationRepository? = null,
     val privateProfileRepository: ProfileRepository? = null,
+    val wishlistRepository: WishlistRepository? = null,
 )
 
 @Composable
@@ -666,6 +668,10 @@ internal fun RoamApp(
                       bottom = dockClearance,
                   ),
               onGuideClick = { guideId -> navController.navigate(Routes.monumentDetail(guideId)) },
+              onWishlistGuideClick = { ownerUid, guideId ->
+                navController.navigate(Routes.sharedMonumentDetail(ownerUid, guideId))
+              },
+              wishlistRepository = testOverrides?.wishlistRepository,
               friendRepository = testOverrides?.friendRepository,
               publicProfileRepository = publicProfileRepository,
               monumentSharingProvider = monumentSharingProvider,
@@ -750,6 +756,7 @@ internal fun RoamApp(
                 onGuideClick = { guideId ->
                   navController.navigate(Routes.sharedMonumentDetail(friendUid, guideId))
                 },
+                wishlistRepository = testOverrides?.wishlistRepository,
             )
           }
         }
@@ -765,11 +772,16 @@ internal fun RoamApp(
         val friendUid = backStackEntry.arguments?.getString(Routes.FriendUidArg)
         val guideId = backStackEntry.arguments?.getString(Routes.MonumentDetailGuideIdArg)
         if (friendUid != null && guideId != null) {
+          val showBackArrow =
+              remember(backStackEntry) {
+                navController.previousBackStackEntry?.destination?.route == Routes.Collection
+              }
           SharedMonumentDetailRoute(
               ownerUid = friendUid,
               guideId = guideId,
               repository = monumentSharingRepository,
               onBackClick = { navController.popBackStack() },
+              showBackArrow = showBackArrow,
           )
         }
       }

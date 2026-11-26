@@ -5,11 +5,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.roamswent.roam.R
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
+import com.github.roamswent.roam.model.wishlist.FirestoreWishlistRepository
+import com.github.roamswent.roam.model.wishlist.WishlistRepository
 
 /** Shows the monuments [ownerUid] shares with the user, in a read-only [CollectionScreen]. */
 @Composable
@@ -20,14 +23,21 @@ fun FriendCollectionRoute(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     onGuideClick: (String) -> Unit = {},
+    wishlistRepository: WishlistRepository? = null,
 ) {
   val viewModel: FriendCollectionViewModel =
       viewModel(key = ownerUid) { FriendCollectionViewModel(repository, ownerUid) }
   val state by viewModel.uiState.collectAsState()
+  val resolvedWishlistRepository =
+      remember(wishlistRepository) { wishlistRepository ?: FirestoreWishlistRepository() }
+  val wishlistViewModel: WishlistViewModel = viewModel {
+    WishlistViewModel(resolvedWishlistRepository)
+  }
+  val wishlistState by wishlistViewModel.uiState.collectAsState()
 
   LaunchedEffect(viewModel) { viewModel.load() }
+  LaunchedEffect(wishlistViewModel) { wishlistViewModel.loadWishlist() }
 
-  // Leave the wishlist handler unset until a persistent, shared repository is available.
   CollectionScreen(
       state = state,
       modifier = modifier,
@@ -38,5 +48,15 @@ fun FriendCollectionRoute(
       readOnly = true,
       onBackClick = onBackClick,
       onRetryGuides = viewModel::load,
+      wishlistState = wishlistState,
+      isGuideWishlisted = { guide -> (ownerUid to guide.id) in wishlistState.guideKeys },
+      isGuideWishlistEnabled = { guide ->
+        !wishlistState.isLoading &&
+            wishlistState.error == null &&
+            (ownerUid to guide.id) !in wishlistState.pendingGuides
+      },
+      onToggleWishlist = { guide -> wishlistViewModel.toggleGuide(ownerUid, guide) },
+      onRetryWishlist = wishlistViewModel::retryLoadingWishlist,
+      onWishlistErrorShown = wishlistViewModel::clearMutationError,
   )
 }

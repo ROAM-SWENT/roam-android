@@ -1,18 +1,21 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.collection
 
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.github.roamswent.roam.model.guide.FakeMonumentSharingRepository
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.MonumentSharingRepository
 import com.github.roamswent.roam.model.guide.ShareAudience
+import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
 import io.mockk.every
@@ -50,8 +53,38 @@ class FriendCollectionRouteTest {
     composeTestRule.onNodeWithTag(C.Tag.collection_card_delete).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_card_favorite).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.collection_card_share).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.collection_filter_all).assertDoesNotExist()
+  }
+
+  @Test
+  fun wishlistButtonPersistsAndReflectsChanges() {
+    val wishlist = FakeWishlistRepository()
+    setRoute(FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))), wishlist = wishlist)
+    val button = composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist)
+    button.assertContentDescriptionEquals("Add to wishlist")
+    button.performClick()
+    composeTestRule.waitUntil { wishlist.items.value.size == 1 }
+    assertEquals(
+        WishlistMonumentKey.forGuide("friend", louvre),
+        wishlist.items.value.single().monumentKey,
+    )
+    button.assertContentDescriptionEquals("Remove from wishlist")
+    button.performClick()
+    composeTestRule.waitUntil { wishlist.items.value.isEmpty() }
+    button.assertContentDescriptionEquals("Add to wishlist")
+  }
+
+  @Test
+  fun wishlistWriteFailureShowsErrorAndKeepsButtonUnselected() {
+    val wishlist = FakeWishlistRepository().apply { writeError = IllegalStateException("offline") }
+    setRoute(FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))), wishlist = wishlist)
+    val button = composeTestRule.onNodeWithTag(C.Tag.collection_card_wishlist)
+    button.performClick()
+    composeTestRule
+        .onNodeWithText("Couldn’t update your wishlist. Please try again.")
+        .assertIsDisplayed()
+    button.assertContentDescriptionEquals("Add to wishlist")
   }
 
   @Test
@@ -144,6 +177,7 @@ class FriendCollectionRouteTest {
       repository: MonumentSharingRepository,
       onBack: () -> Unit = {},
       onGuideClick: (String) -> Unit = {},
+      wishlist: FakeWishlistRepository = FakeWishlistRepository(),
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -153,6 +187,7 @@ class FriendCollectionRouteTest {
             repository = repository,
             onBackClick = onBack,
             onGuideClick = onGuideClick,
+            wishlistRepository = wishlist,
         )
       }
     }

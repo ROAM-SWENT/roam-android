@@ -164,6 +164,7 @@ internal fun SavedMonumentDetailMessage(
     onRetry: (() -> Unit)?,
     modifier: Modifier = Modifier,
     retryTag: String = C.Tag.saved_monument_detail_retry,
+    showBackArrow: Boolean = false,
 ) {
   Box(modifier.fillMaxSize()) {
     Column(
@@ -183,6 +184,10 @@ internal fun SavedMonumentDetailMessage(
         }
       }
     }
-    MonumentDetailBackButton(onClick = onBackClick, modifier = Modifier.align(Alignment.TopStart))
+    MonumentDetailBackButton(
+        onClick = onBackClick,
+        modifier = Modifier.align(Alignment.TopStart),
+        showBackArrow = showBackArrow,
+    )
   }
 }

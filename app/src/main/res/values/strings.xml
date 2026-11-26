@@ -138,7 +138,13 @@
     <string name="collection_wishlist_empty">No monuments in your wishlist yet.</string>
     <string name="collection_wishlist_add">Add to wishlist</string>
     <string name="collection_wishlist_remove">Remove from wishlist</string>
+    <string name="collection_wishlist_load_error">Couldn’t load your wishlist. Please try again.</string>
+    <string name="collection_wishlist_update_error">Couldn’t update your wishlist. Please try again.</string>
+    <string name="collection_wishlist_unavailable">This shared guide is no longer available.</string>
+    <string name="collection_wishlist_coordinates">%1$.4f, %2$.4f</string>
     <string name="collection_wishlist_scanned_by">Scanned by %1$s</string>
+    <string name="collection_wishlist_friends_error">Couldn’t load friends who shared these monuments.</string>
+    <string name="collection_wishlist_unknown_friend">Friend</string>
     <string name="collection_wishlist_more_friends">+%1$d</string>
     <plurals name="collection_wishlist_scanned_by_friends">
         <item quantity="one">Scanned by %1$d friend</item>

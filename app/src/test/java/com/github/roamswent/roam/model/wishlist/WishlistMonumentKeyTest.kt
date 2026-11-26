@@ -1,4 +1,5 @@
 // Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 package com.github.roamswent.roam.model.wishlist
 
@@ -13,6 +14,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WishlistMonumentKeyTest {
+
+  @Test
+  fun sharedGuideKeysDistinguishOwnersAndSupportFirestoreIds() {
+    val first = WishlistMonumentKey.forSharedGuide("alice", "guide.with spaces")
+    assertTrue(WishlistMonumentKey.isValidKey(first))
+    assertEquals(first, WishlistMonumentKey.forSharedGuide("alice", "guide.with spaces"))
+    assertNotEquals(first, WishlistMonumentKey.forSharedGuide("bob", "guide.with spaces"))
+    assertNotEquals(first, WishlistMonumentKey.forSharedGuide("alice", "guide.with space"))
+    assertEquals("ref_alice~guide", WishlistMonumentKey.forSharedGuide("alice", "guide"))
+    assertThrowsIllegalArgument("slash") { WishlistMonumentKey.forSharedGuide("alice", "a/b") }
+  }
 
   @Test
   fun fromCoordinates_coarsensWithinSameCellAndDistinguishesDistinctCells() {

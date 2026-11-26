@@ -1,9 +1,11 @@
 // Co-authored-by: Gemini 4 Neon <noreply@google.com>
+// Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 package com.github.roamswent.roam.model.wishlist
 
 import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.location.Coordinates
+import java.security.MessageDigest
 import kotlin.math.roundToInt
 
 /**
@@ -49,10 +51,25 @@ object WishlistMonumentKey {
     require(SEGMENT_REGEX.matches(sourceOwnerUid)) {
       "Invalid sourceOwnerUid for fallback monument key: $sourceOwnerUid"
     }
+
     require(SEGMENT_REGEX.matches(sourceGuideId)) {
       "Invalid sourceGuideId for fallback monument key: $sourceGuideId"
     }
     return "ref_${sourceOwnerUid}~$sourceGuideId"
+  }
+
+  /**
+   * Identifies an individual shared guide independently of its monument's coordinates, allowing
+   * guides from different owners to coexist in a wishlist.
+   */
+  fun forSharedGuide(sourceOwnerUid: String, sourceGuideId: String): String {
+    require(SEGMENT_REGEX.matches(sourceOwnerUid))
+    require(sourceGuideId.isNotBlank() && sourceGuideId.length <= 128 && '/' !in sourceGuideId)
+    if (SEGMENT_REGEX.matches(sourceGuideId)) return fromFallback(sourceOwnerUid, sourceGuideId)
+    val digest =
+        MessageDigest.getInstance("SHA-256")
+            .digest("$sourceOwnerUid\u0000$sourceGuideId".toByteArray(Charsets.UTF_8))
+    return "guide_" + digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
   }
 
   /**

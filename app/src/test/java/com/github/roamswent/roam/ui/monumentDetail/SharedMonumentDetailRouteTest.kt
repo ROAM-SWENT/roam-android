@@ -1,6 +1,7 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 package com.github.roamswent.roam.ui.monumentDetail
 
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -41,6 +42,42 @@ class SharedMonumentDetailRouteTest {
     setRoute(FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))), "louvre")
 
     composeTestRule.onNodeWithTag(C.Tag.monument_detail_title).assertTextEquals("Louvre")
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Home")
+  }
+
+  @Test
+  fun wishlistGuideUsesBackArrow() {
+    var backs = 0
+    setRoute(
+        FakeMonumentSharingRepository(mapOf("friend" to listOf(louvre))),
+        "louvre",
+        onBack = { backs++ },
+        showBackArrow = true,
+    )
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Back")
+        .performClick()
+    assertEquals(1, backs)
+  }
+
+  @Test
+  fun wishlistGuideErrorAndMissingStatesUseBackArrow() {
+    val repository = FakeMonumentSharingRepository()
+    repository.loadError = IllegalStateException("offline")
+    setRoute(repository, "louvre", showBackArrow = true)
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_error).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Back")
+    composeTestRule.runOnIdle { repository.loadError = null }
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_retry).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.shared_monument_detail_not_found).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.monument_detail_back_button)
+        .assertContentDescriptionEquals("Back")
   }
 
   @Test
@@ -112,6 +149,7 @@ class SharedMonumentDetailRouteTest {
       repository: MonumentSharingRepository,
       guideId: String,
       onBack: () -> Unit = {},
+      showBackArrow: Boolean = false,
   ) {
     composeTestRule.setContent {
       SampleAppTheme {
@@ -120,6 +158,7 @@ class SharedMonumentDetailRouteTest {
             guideId = guideId,
             repository = repository,
             onBackClick = onBack,
+            showBackArrow = showBackArrow,
         )
       }
     }
