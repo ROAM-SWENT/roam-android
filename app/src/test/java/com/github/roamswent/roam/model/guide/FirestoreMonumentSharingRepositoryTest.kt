@@ -1,5 +1,6 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.guide
 
@@ -358,6 +359,16 @@ class FirestoreMonumentSharingRepositoryTest {
     )
     assertTrue(updates[GuideFirestoreMapper.SHARED_WITH_UIDS_FIELD] is FieldValue)
     assertTrue(updates[GuideFirestoreMapper.DISMISSED_BY_UIDS_FIELD] is FieldValue)
+  }
+
+  @Test
+  fun grantAccessPromotesGuideWithoutAudienceToSelectedFriends() = runTest {
+    val slot = setupTransaction(existingAudience = null)
+    repository.grantAccess(guideId, setOf("uid-alice"))
+    assertEquals(
+        ShareAudience.SELECTED_FRIENDS.name,
+        slot.captured[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD],
+    )
   }
 
   @Test

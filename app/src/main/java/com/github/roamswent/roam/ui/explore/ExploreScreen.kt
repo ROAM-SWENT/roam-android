@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +68,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
@@ -96,6 +99,7 @@ import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.rememberCameraPositionState
@@ -250,6 +254,7 @@ fun ExploreScreen(
     exploreViewModel: ExploreViewModel,
     locationPermissionController: LocationPermissionController,
     isOnline: Boolean = true,
+    onSharedMonumentClick: (ownerUid: String, guideId: String) -> Unit = { _, _ -> },
 ) {
   val uiState by exploreViewModel.uiState.collectAsState()
   val offlineBaseMap by exploreViewModel.offlineBaseMap.collectAsState()
@@ -350,6 +355,33 @@ fun ExploreScreen(
                     true
                   },
               )
+            }
+          }
+          val friendMonuments by
+              exploreViewModel.friendMonuments.collectAsStateWithLifecycle(
+                  minActiveState = Lifecycle.State.RESUMED
+              )
+          friendMonuments.forEach { friend ->
+            key(friend.ownerUid) {
+              val avatarIcon = rememberFriendMarkerIcon(friend.profile)
+              friend.monuments.forEach { monument ->
+                key(monument.guideId) {
+                  val position = remember(monument.coordinates) { monument.coordinates.toLatLng() }
+                  val markerState = remember { MarkerState(position = position) }
+                  markerState.position = position
+                  Marker(
+                      state = markerState,
+                      title = monument.name,
+                      icon = avatarIcon,
+                      anchor = Offset(0.5f, 1f),
+                      onClick = {
+                        selectedMonumentId = null
+                        onSharedMonumentClick(friend.ownerUid, monument.guideId)
+                        true
+                      },
+                  )
+                }
+              }
             }
           }
         }

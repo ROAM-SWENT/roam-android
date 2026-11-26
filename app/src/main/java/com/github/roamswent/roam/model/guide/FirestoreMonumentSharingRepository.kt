@@ -1,6 +1,7 @@
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 // Co-authored-by: Gemini 3.8 Flash <noreply@google.com>
+// Co-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>
 
 package com.github.roamswent.roam.model.guide
 
@@ -97,7 +98,7 @@ class FirestoreMonumentSharingRepository(
 
             val rawAudience = snapshot.getString(GuideFirestoreMapper.SHARE_AUDIENCE_FIELD)
             val updates = mutableMapOf<String, Any>()
-            if (rawAudience == ShareAudience.NONE.name) {
+            if (rawAudience == null || rawAudience == ShareAudience.NONE.name) {
               updates[GuideFirestoreMapper.SHARE_AUDIENCE_FIELD] =
                   ShareAudience.SELECTED_FRIENDS.name
             }

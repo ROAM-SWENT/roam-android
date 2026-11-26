@@ -1,4 +1,5 @@
 // Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+// Co-authored-by: Codex <codex@openai.com>
 package com.github.roamswent.roam.ui.explore
 
 import com.github.roamswent.roam.model.basemap.BaseMapPolygon
@@ -18,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.mock
 
 /** Tests when Explore loads the offline base map and what it keeps on failure. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -52,6 +54,9 @@ class ExploreViewModelOfflineBaseMapTest {
               },
           savedGuideRepository = FakeSavedGuideRepository(),
           offlineBaseMapRepository = repository,
+          friendRepository = mock(),
+          publicProfileRepository = mock(),
+          monumentSharingRepository = mock(),
       )
 
   @Test

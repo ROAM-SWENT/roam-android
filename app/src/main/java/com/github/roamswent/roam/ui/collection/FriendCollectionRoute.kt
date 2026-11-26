@@ -27,6 +27,7 @@ fun FriendCollectionRoute(
 
   LaunchedEffect(viewModel) { viewModel.load() }
 
+  // Leave the wishlist handler unset until a persistent, shared repository is available.
   CollectionScreen(
       state = state,
       modifier = modifier,
