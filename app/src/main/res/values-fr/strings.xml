@@ -121,10 +121,23 @@
     <string name="explore_permission_required">Activez l\'autorisation de localisation pour voir où vous êtes sur la carte.</string>
     <string name="explore_location_unavailable">Impossible de déterminer votre position.</string>
     <string name="explore_retry">Réessayer</string>
-    <string name="explore_friend_pin_group_title">Monuments partagés</string>
     <string name="explore_friend_pin_group_marker">%1$s (%2$d guides partagés)</string>
     <string name="explore_friend_pin_unknown_owner">Ami %1$d</string>
-    <string name="explore_friend_pin_done">Terminé</string>
+    <string name="explore_friend_scanned_by">Scanné par %1$s</string>
+    <string name="explore_friend_view_guide">Voir le guide</string>
+    <string name="explore_friend_read_guide">Lire son guide</string>
+    <string name="explore_friend_wishlist_add">Ajouter aux envies</string>
+    <string name="explore_friend_wishlist_saved">Dans vos envies</string>
+    <string name="explore_friend_wishlist_error">Impossible d’ajouter ce monument à vos envies. Réessayez.</string>
+    <string name="explore_friend_wishlist_check_error">Impossible de vérifier vos envies.</string>
+    <string name="explore_friend_collection_info">Le scan d’un ami ne peut pas rejoindre votre collection. Scannez vous-même le monument pour le collectionner.</string>
+    <string name="explore_friend_city_country">%1$s, %2$s</string>
+    <string name="explore_friend_location_unavailable">Lieu indisponible</string>
+    <string name="explore_friend_wishlisted_by">Dans les envies de %1$s</string>
+    <plurals name="explore_friend_scanned_count">
+        <item quantity="one">Scanné par %1$d ami</item>
+        <item quantity="other">Scanné par %1$d amis</item>
+    </plurals>
     <string name="offline_action_required_title">Connexion Internet requise</string>
     <string name="offline_action_required_message">Une connexion Internet est requise pour effectuer cette action.</string>
     <string name="offline_action_required_dismiss">OK</string>

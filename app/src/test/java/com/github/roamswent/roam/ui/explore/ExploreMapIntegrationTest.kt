@@ -4,6 +4,8 @@ package com.github.roamswent.roam.ui.explore
 import android.Manifest
 import android.app.Application
 import android.graphics.Bitmap
+import android.location.Address
+import android.location.Geocoder
 import android.os.Bundle
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,20 +18,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
@@ -50,12 +58,14 @@ import com.github.roamswent.roam.model.guide.Guide
 import com.github.roamswent.roam.model.guide.MonumentShareSettings
 import com.github.roamswent.roam.model.guide.ShareAudience
 import com.github.roamswent.roam.model.location.Coordinates
+import com.github.roamswent.roam.model.location.resolveMonumentLocality
 import com.github.roamswent.roam.model.permission.LocationPermissionDecision
 import com.github.roamswent.roam.model.permission.NotificationPermissionDecision
 import com.github.roamswent.roam.model.permission.SharedPreferencesLocationPermissionDecisionRepository
 import com.github.roamswent.roam.model.permission.SharedPreferencesNotificationPermissionDecisionRepository
 import com.github.roamswent.roam.model.profile.PublicProfile
 import com.github.roamswent.roam.model.profile.PublicProfileRepository
+import com.github.roamswent.roam.model.wishlist.WishlistMonumentKey
 import com.github.roamswent.roam.resources.C
 import com.github.roamswent.roam.ui.authentication.AuthUIState
 import com.github.roamswent.roam.ui.authentication.SignInViewModel
@@ -65,6 +75,7 @@ import com.github.roamswent.roam.ui.components.bottomdock.dockContentClearance
 import com.github.roamswent.roam.ui.permission.LocationPermissionController
 import com.github.roamswent.roam.ui.permission.LocationPermissionState
 import com.github.roamswent.roam.ui.theme.SampleAppTheme
+import com.github.roamswent.roam.ui.theme.WishlistAvatarBrand
 import com.google.android.gms.maps.CameraUpdate
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -78,6 +89,10 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CompletableDeferred
@@ -99,6 +114,7 @@ import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
@@ -118,6 +134,7 @@ import org.robolectric.shadows.ShadowViewGroup
             ExploreMapViewShadow::class,
             ExploreCameraUpdateShadow::class,
             ExploreBitmapDescriptorShadow::class,
+            ExploreGeocoderShadow::class,
         ]
 )
 class ExploreMapIntegrationTest {
@@ -135,6 +152,7 @@ class ExploreMapIntegrationTest {
 
   @Before
   fun connectMap() {
+    ExploreGeocoderShadow.reset()
     val map = mock<GoogleMap>()
     val uiSettings = mock<UiSettings>()
     whenever(map.uiSettings).thenReturn(uiSettings)
@@ -330,7 +348,7 @@ class ExploreMapIntegrationTest {
   }
 
   @Test
-  fun tappingSharedPinOpensItsDetailThroughAppNavigation() {
+  fun sharedPinPreviewOpensItsDetailThroughAppNavigation() {
     val guide =
         Guide(
             id = "shared-guide",
@@ -386,6 +404,7 @@ class ExploreMapIntegrationTest {
     composeTestRule.runOnIdle {
       assertTrue(clickListener.onMarkerClick(marker(guide.monumentName).marker))
     }
+    composeTestRule.onNodeWithText("View guide").performClick()
     val title = composeTestRule.onNodeWithTag(C.Tag.monument_detail_title)
     waitForTag(C.Tag.monument_detail_title)
     title.assertTextEquals(guide.monumentName)
@@ -433,9 +452,13 @@ class ExploreMapIntegrationTest {
       assertTrue(clickListener.onMarkerClick(monumentMarker().marker))
     }
     composeTestRule.onNodeWithText(monument.name).assertIsDisplayed()
+    composeTestRule.runOnIdle { assertTrue(clickListener.onMarkerClick(marker(first.name).marker)) }
+    composeTestRule.onNodeWithText("View guide").performClick()
     composeTestRule.runOnIdle {
-      assertTrue(clickListener.onMarkerClick(marker(first.name).marker))
       assertTrue(clickListener.onMarkerClick(marker(otherOwner.name).marker))
+    }
+    composeTestRule.onNodeWithText("View guide").performClick()
+    composeTestRule.runOnIdle {
       assertEquals(listOf("alice" to first.guideId, "bob" to first.guideId), opened)
       shares.value =
           listOf(
@@ -472,11 +495,18 @@ class ExploreMapIntegrationTest {
               name,
               PublicProfile(name, name, avatarBytes = avatar),
               listOf(shared),
+              scanDates = mapOf(shared.guideId to 1_700_000_000_000L),
           )
         }
     val shares = MutableStateFlow(friends.take(3))
     val opened = mutableListOf<Pair<String, String>>()
-    showExplore(monument, friendPins = shares) { owner, guide -> opened += owner to guide }
+    showExplore(
+        monument,
+        friendPins = shares,
+        wishlistingFriends = friends.mapNotNull { it.profile },
+    ) { owner, guide ->
+      opened += owner to guide
+    }
     val trioTitle = "Shared tower (3 shared guides)"
     val overflowTitle = "Shared tower (4 shared guides)"
     val avatarCenters = listOf(24, 50, 76)
@@ -509,14 +539,50 @@ class ExploreMapIntegrationTest {
       assertTrue(clickListener.onMarkerClick(marker(overflowTitle).marker))
       assertTrue(opened.isEmpty())
     }
-    composeTestRule.onNodeWithText("Shared monuments").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Dora").performClick()
-    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Scanned by 4 friends").assertIsDisplayed()
+    val preview =
+        composeTestRule
+            .onNode(hasText("Shared tower") and hasClickAction())
+            .captureToImage()
+            .asAndroidBitmap()
+    val previewPixels = IntArray(preview.width * preview.height)
+    preview.getPixels(previewPixels, 0, preview.width, 0, 0, preview.width, preview.height)
+    val renderedColors = previewPixels.toSet()
+    assertTrue(renderedColors.containsAll(colors.take(3)))
+    assertTrue(colors.last() !in renderedColors)
+    assertTrue(darkColorScheme().onPrimary.toArgb() in renderedColors)
+    expandFriendPreview("Shared tower")
+    val map = composeTestRule.onNodeWithTag(C.Tag.explore_map).getUnclippedBoundsInRoot()
+    val card = composeTestRule.onNode(hasScrollAction()).getUnclippedBoundsInRoot()
+    assertEquals((card.top - map.top).value, (map.bottom - card.bottom).value, 1f)
+    val wishlist = composeTestRule.onNodeWithText("Wishlisted by Alice, Bob, Cora, Dora")
+    fun assertWishlistAvatarPalette() {
+      wishlist.performScrollTo().assertIsDisplayed()
+      val scrollArea = composeTestRule.onNode(hasScrollAction())
+      val cardBounds = scrollArea.getUnclippedBoundsInRoot()
+      val labelBounds = wishlist.getUnclippedBoundsInRoot()
+      val bitmap = scrollArea.captureToImage().asAndroidBitmap()
+      val right = (labelBounds.left - cardBounds.left).value.toInt()
+      val top = (labelBounds.top - cardBounds.top).value.toInt().coerceAtLeast(0)
+      val bottom = (labelBounds.bottom - cardBounds.top).value.toInt().coerceAtMost(bitmap.height)
+      val rowPixels = IntArray(right * (bottom - top))
+      bitmap.getPixels(rowPixels, 0, right, 0, top, right, bottom - top)
+      val artworkColors = rowPixels.toSet()
+      assertTrue(artworkColors.containsAll(colors.take(3)))
+      assertTrue(Color.White.toArgb() in artworkColors)
+      assertTrue(WishlistAvatarBrand.toArgb() in artworkColors)
+    }
+    assertWishlistAvatarPalette()
+    composeTestRule.runOnIdle { darkTheme.value = false }
+    assertWishlistAvatarPalette()
+    composeTestRule.onNodeWithText("Dora").performScrollTo().assertIsDisplayed()
+    readFriendGuide(3)
+    composeTestRule.onNodeWithText("Scanned by 4 friends").assertDoesNotExist()
     composeTestRule.runOnIdle { assertEquals(listOf("Dora" to monument.guideId), opened) }
   }
 
   @Test
-  fun groupChooserSurvivesAnchorChangeAndClosesWhenSharesAreRemoved() {
+  fun groupPreviewSurvivesAnchorChangeAndClosesWhenSharesAreRemoved() {
     val first = monument.copy(name = " Shared Tower ")
     val second = first.copy(name = "shared tower", coordinates = Coordinates(48.85850, 2.29448))
     val alice = ExploreFriendMonuments("alice", null, listOf(first))
@@ -532,33 +598,47 @@ class ExploreMapIntegrationTest {
     composeTestRule.runOnIdle {
       assertTrue(clickListener.onMarkerClick(marker(" Shared Tower  (2 shared guides)").marker))
     }
-    composeTestRule.onNodeWithText("Friend 1").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Friend 2").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Done").performClick()
-    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
+    expandFriendPreview(" Shared Tower ")
+    composeTestRule.onNodeWithText("Friend 1").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("Friend 2").performScrollTo().assertIsDisplayed()
+    composeTestRule
+        .onNodeWithContentDescription("Minimize monument information")
+        .performScrollTo()
+        .performClick()
+    composeTestRule.onNodeWithContentDescription("Close monument information").performClick()
+    composeTestRule.onNodeWithText("Scanned by 2 friends").assertDoesNotExist()
+    val namedAlice = alice.copy(profile = PublicProfile("alice", "Alice"))
     composeTestRule.runOnIdle {
       assertTrue(opened.isEmpty())
       assertTrue(clickListener.onMarkerClick(marker(" Shared Tower  (2 shared guides)").marker))
-      shares.value =
-          otherGroup + listOf(movedBob, alice.copy(profile = PublicProfile("alice", "Alice")))
+      shares.value = otherGroup + listOf(bob, namedAlice)
     }
-    composeTestRule.onNodeWithText("Alice").assertIsDisplayed()
+    expandFriendPreview(first.name)
+    composeTestRule.onNodeWithText("Alice").performScrollTo().assertIsDisplayed()
+    composeTestRule.runOnIdle { shares.value = otherGroup + listOf(movedBob, namedAlice) }
     composeTestRule.runOnIdle {
       assertEquals(
           LatLng(moved.coordinates.latitude, moved.coordinates.longitude),
           marker("shared tower (2 shared guides)").position,
       )
-      shares.value = otherGroup + movedBob
     }
-    composeTestRule.onNodeWithText("Shared monuments").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Alice").performScrollTo().assertIsDisplayed()
+    composeTestRule.runOnIdle { shares.value = otherGroup + movedBob }
+    composeTestRule.onNodeWithText("Scanned by 2 friends").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Alice").assertDoesNotExist()
     composeTestRule.runOnIdle {
       assertEquals(
           setOf(monument.name, second.name, "Old bridge (2 shared guides)"),
           markers.map { it.title }.toSet(),
       )
+      assertEquals(
+          LatLng(moved.coordinates.latitude, moved.coordinates.longitude),
+          marker(second.name).position,
+      )
       assertTrue(clickListener.onMarkerClick(marker(second.name).marker))
-      assertEquals(listOf("bob" to second.guideId), opened)
     }
+    composeTestRule.onNodeWithText("View guide").performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf("bob" to second.guideId), opened) }
   }
 
   @Test
@@ -578,7 +658,9 @@ class ExploreMapIntegrationTest {
       assertNull(group.icon)
       assertTrue(clickListener.onMarkerClick(group.marker))
     }
-    composeTestRule.onNodeWithText("Bob").performClick()
+    expandFriendPreview(shared.name)
+    composeTestRule.onNodeWithText("Bob").performScrollTo().assertIsDisplayed()
+    readFriendGuide(1)
     composeTestRule.runOnIdle { assertEquals(listOf("Bob" to shared.guideId), opened) }
   }
 
@@ -647,8 +729,9 @@ class ExploreMapIntegrationTest {
     composeTestRule.runOnIdle {
       assertHasInitial(bitmap(shared.name))
       assertTrue(clickListener.onMarkerClick(marker(shared.name).marker))
-      assertEquals(listOf("alice" to shared.guideId), opened)
     }
+    composeTestRule.onNodeWithText("View guide").performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf("alice" to shared.guideId), opened) }
   }
 
   @Test
@@ -662,8 +745,9 @@ class ExploreMapIntegrationTest {
     composeTestRule.runOnIdle {
       assertNull(marker(shared.name).icon)
       assertTrue(clickListener.onMarkerClick(marker(shared.name).marker))
-      assertEquals(listOf("alice" to shared.guideId), opened)
     }
+    composeTestRule.onNodeWithText("View guide").performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf("alice" to shared.guideId), opened) }
   }
 
   @Test
@@ -702,15 +786,277 @@ class ExploreMapIntegrationTest {
     composeTestRule.runOnIdle { assertEquals(listOf(monument.name), markers.map { it.title }) }
   }
 
+  @Test
+  fun wishlistFailureCanBeRetriedFromEitherLayoutAndSavedStateSurvivesMinimizing() {
+    val shared = monument.copy(guideId = "alice-guide", name = "Shared tower")
+    val alice = PublicProfile("alice", "Alice")
+    val shares = MutableStateFlow(listOf(ExploreFriendMonuments(alice.uid, alice, listOf(shared))))
+    val key = WishlistMonumentKey.fromCoordinates(shared.coordinates)
+    val previousKey = WishlistMonumentKey.fromCoordinates(Coordinates(46.0, 7.0))
+    val write =
+        MutableStateFlow<ExploreWishlistWrite?>(
+            ExploreWishlistWrite(previousKey, ExploreWishlistWrite.Status.FAILED)
+        )
+    val viewModel = mock<ExploreViewModel>()
+    showExplore(
+        monument,
+        friendPins = shares,
+        wishlistWrite = write,
+        wishlistStatus = ExploreWishlistStatus.NOT_SAVED,
+        viewModel = viewModel,
+    )
+    tapSharedMarker(shared.name)
+
+    composeTestRule.onNodeWithText("Scanned by Alice").assertIsDisplayed()
+    val error = composeTestRule.onNodeWithText("Could not add to your wishlist. Try again.")
+    error.assertDoesNotExist()
+    val bookmark = composeTestRule.onNodeWithContentDescription("Add to wishlist")
+    bookmark.assertIsEnabled().performClick()
+    val pin = ExploreSharedPin(alice.uid, shared)
+    verify(viewModel).addToWishlist(pin)
+
+    composeTestRule.runOnIdle {
+      write.value = ExploreWishlistWrite(key, ExploreWishlistWrite.Status.PENDING)
+    }
+    bookmark.assertIsNotEnabled()
+    composeTestRule.runOnIdle {
+      write.value = ExploreWishlistWrite(key, ExploreWishlistWrite.Status.FAILED)
+    }
+    error.assertIsDisplayed()
+    expandFriendPreview(shared.name)
+    error.performScrollTo().assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText("Add to wishlist")
+        .performScrollTo()
+        .assertIsEnabled()
+        .performClick()
+    verify(viewModel, times(2)).addToWishlist(pin)
+
+    composeTestRule.runOnIdle {
+      write.value = ExploreWishlistWrite(key, ExploreWishlistWrite.Status.SAVED)
+    }
+    composeTestRule.onNodeWithText("On your wishlist").performScrollTo().assertIsNotEnabled()
+    error.assertDoesNotExist()
+    composeTestRule
+        .onNodeWithContentDescription("Minimize monument information")
+        .performScrollTo()
+        .performClick()
+    composeTestRule.onNodeWithContentDescription("On your wishlist").assertIsNotEnabled()
+  }
+
+  @Test
+  fun failedWishlistCheckCanBeRetriedInBothPreviewLayouts() {
+    val shared = monument.copy(guideId = "shared", name = "Shared tower")
+    val shares = MutableStateFlow(listOf(ExploreFriendMonuments("alice", null, listOf(shared))))
+    val viewModel = mock<ExploreViewModel>()
+    val key = WishlistMonumentKey.fromCoordinates(shared.coordinates)
+    showExplore(monument, friendPins = shares, viewModel = viewModel)
+    runBlocking {
+      whenever(viewModel.checkWishlist(key))
+          .thenReturn(
+              ExploreWishlistStatus.CHECK_FAILED,
+              ExploreWishlistStatus.CHECK_FAILED,
+              ExploreWishlistStatus.NOT_SAVED,
+          )
+    }
+    tapSharedMarker(shared.name)
+
+    val lookupError = composeTestRule.onNodeWithText("Could not check your wishlist.")
+    val retry = composeTestRule.onNodeWithText("Retry")
+    lookupError.assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Add to wishlist").assertIsNotEnabled()
+    retry.performClick()
+    composeTestRule.runOnIdle { runBlocking { verify(viewModel, times(2)).checkWishlist(key) } }
+
+    expandFriendPreview(shared.name)
+    lookupError.performScrollTo().assertIsDisplayed()
+    val add = composeTestRule.onNodeWithText("Add to wishlist")
+    add.performScrollTo().assertIsNotEnabled()
+    retry.performScrollTo().performClick()
+
+    lookupError.assertDoesNotExist()
+    retry.assertDoesNotExist()
+    add.performScrollTo().assertIsEnabled()
+    composeTestRule.runOnIdle { runBlocking { verify(viewModel, times(3)).checkWishlist(key) } }
+    verify(viewModel, never()).addToWishlist(any())
+  }
+
+  @Test
+  fun expandedPreviewShowsCoarseCityAndRelativeDatesAndOpensPrimaryGuide() {
+    ExploreGeocoderShadow.address =
+        Address(Locale.ENGLISH).apply {
+          locality = "Paris"
+          countryName = "France"
+          thoroughfare = "Private street"
+        }
+    val tower = monument.copy(guideId = "first", name = "Shared tower")
+    val owners = listOf("Alice", "Bob", "Cora", "Dora", "Eve")
+    val today = LocalDate.now()
+    val dates =
+        listOf(
+            today.minusDays(1),
+            today.minusWeeks(1),
+            today.minusMonths(1),
+            today.minusYears(1),
+            null,
+        )
+    val shares =
+        MutableStateFlow(
+            owners.zip(dates).map { (name, date) ->
+              val scan = tower.copy(guideId = name.lowercase(Locale.ROOT))
+              val timestamp =
+                  date?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+              ExploreFriendMonuments(
+                  name,
+                  PublicProfile(name, name),
+                  listOf(scan),
+                  timestamp?.let { mapOf(scan.guideId to it) }.orEmpty(),
+              )
+            }
+        )
+    val opened = mutableListOf<Pair<String, String>>()
+    showExplore(
+        monument,
+        friendPins = shares,
+        wishlistingFriends = listOf(PublicProfile("zoe", "Zoe")),
+        wishlistStatus = ExploreWishlistStatus.SAVED,
+    ) { owner, guide ->
+      opened += owner to guide
+    }
+    tapSharedMarker("Shared tower (5 shared guides)")
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule.onAllNodesWithText("Paris, France").fetchSemanticsNodes().isNotEmpty()
+    }
+    assertEquals(coordinates.coarsened(), ExploreGeocoderShadow.requested)
+    composeTestRule.onNodeWithText("Private street", substring = true).assertDoesNotExist()
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_placeholder, useUnmergedTree = true)
+        .assertIsDisplayed()
+    expandFriendPreview(tower.name)
+    listOf("yesterday", "last week", "last month", "last year", "Eve").forEach { label ->
+      composeTestRule.onNodeWithText(label, ignoreCase = true).performScrollTo().assertIsDisplayed()
+    }
+    composeTestRule.onNodeWithText("Wishlisted by Zoe").performScrollTo().assertIsDisplayed()
+    composeTestRule
+        .onNodeWithText("A friend's scan can't join your collection.", substring = true)
+        .performScrollTo()
+        .assertIsDisplayed()
+    composeTestRule.onNodeWithText("On your wishlist").performScrollTo().assertIsNotEnabled()
+    composeTestRule.onNodeWithText("View guide").performScrollTo().performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf("Alice" to "alice"), opened) }
+  }
+
+  @Test
+  fun previewWithMissingProfileAndFailedGeocoderKeepsGuideAvailable() {
+    ExploreGeocoderShadow.failure = IOException("Reverse geocoder unavailable")
+    val shared = monument.copy(guideId = "shared", name = "Shared tower")
+    val shares = MutableStateFlow(listOf(ExploreFriendMonuments("alice", null, listOf(shared))))
+    val opened = mutableListOf<Pair<String, String>>()
+    showExplore(monument, friendPins = shares) { owner, guide -> opened += owner to guide }
+    tapSharedMarker(shared.name)
+    composeTestRule.onNodeWithText("Scanned by Friend 1").assertIsDisplayed()
+    composeTestRule.waitUntil(5_000) { ExploreGeocoderShadow.requested != null }
+    composeTestRule.onNodeWithText("Location unavailable").assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Add to wishlist").assertIsNotEnabled()
+    composeTestRule.onNodeWithText("View guide").performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf("alice" to "shared"), opened) }
+  }
+
+  @Test
+  fun previewDisplaysCountryWhenGeocoderHasNoCity() {
+    ExploreGeocoderShadow.address = Address(Locale.ENGLISH).apply { countryName = "France" }
+    val shared = monument.copy(guideId = "shared", name = "Shared tower")
+    val shares = MutableStateFlow(listOf(ExploreFriendMonuments("alice", null, listOf(shared))))
+    showExplore(monument, friendPins = shares)
+    tapSharedMarker(shared.name)
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule.onAllNodesWithText("France").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText("France").assertIsDisplayed()
+  }
+
+  @Test
+  fun groupedPreviewUsesAnAvailablePhotoWithoutChangingGuideOwnership() {
+    val primary = monument.copy(guideId = "first", name = "Shared tower")
+    val photo = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+    photo.eraseColor(0xff238f67.toInt())
+    val bytes =
+        ByteArrayOutputStream()
+            .apply { photo.compress(Bitmap.CompressFormat.PNG, 100, this) }
+            .toByteArray()
+    val secondary = primary.copy(guideId = "second", photoBytes = bytes)
+    val shares =
+        MutableStateFlow(
+            listOf(
+                ExploreFriendMonuments("alice", PublicProfile("alice", "Alice"), listOf(primary)),
+                ExploreFriendMonuments("bob", PublicProfile("bob", "Bob"), listOf(secondary)),
+            )
+        )
+    val opened = mutableListOf<Pair<String, String>>()
+    showExplore(monument, friendPins = shares) { owner, guide -> opened += owner to guide }
+
+    tapSharedMarker("Shared tower (2 shared guides)")
+    val thumbnail =
+        composeTestRule.onNodeWithTag(C.Tag.explore_monument_photo, useUnmergedTree = true)
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.explore_monument_photo_loading, useUnmergedTree = true)
+          .fetchSemanticsNodes()
+          .isEmpty()
+    }
+    thumbnail.assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.explore_monument_photo_error, useUnmergedTree = true)
+        .assertDoesNotExist()
+    composeTestRule.onNodeWithText("View guide").performClick()
+    composeTestRule.runOnIdle { assertEquals(listOf("alice" to primary.guideId), opened) }
+  }
+
+  @Test
+  fun unavailableGeocoderDoesNotRequestAddress() = runBlocking {
+    ExploreGeocoderShadow.present = false
+
+    assertNull(resolveMonumentLocality(ApplicationProvider.getApplicationContext(), coordinates))
+    assertNull(ExploreGeocoderShadow.requested)
+  }
+
+  @Test
+  fun geocoderRejectingAValidRequestReturnsNoLocality() = runBlocking {
+    ExploreGeocoderShadow.failure = IllegalArgumentException("Unsupported address request")
+
+    assertNull(resolveMonumentLocality(ApplicationProvider.getApplicationContext(), coordinates))
+    assertEquals(coordinates.coarsened(), ExploreGeocoderShadow.requested)
+  }
+
+  private fun tapSharedMarker(title: String) {
+    composeTestRule.runOnIdle { assertTrue(clickListener.onMarkerClick(marker(title).marker)) }
+  }
+
+  private fun expandFriendPreview(name: String) {
+    composeTestRule.onNode(hasText(name) and hasClickAction()).performClick()
+  }
+
+  private fun readFriendGuide(index: Int) {
+    composeTestRule.onAllNodesWithText("Read their guide")[index].performScrollTo().performClick()
+  }
+
   private fun showExplore(
       monument: ExploreMonument,
       permissionState: MutableStateFlow<LocationPermissionState> =
           MutableStateFlow(grantedLocationPermission),
       friendPins: MutableStateFlow<List<ExploreFriendMonuments>> = MutableStateFlow(emptyList()),
+      wishlistingFriends: List<PublicProfile> = emptyList(),
+      wishlistWrite: MutableStateFlow<ExploreWishlistWrite?> = MutableStateFlow(null),
+      wishlistStatus: ExploreWishlistStatus = ExploreWishlistStatus.UNAVAILABLE,
+      viewModel: ExploreViewModel = mock(),
       onSharedMonumentClick: (String, String) -> Unit = { _, _ -> },
   ) {
-    val viewModel = mock<ExploreViewModel>()
     whenever(viewModel.friendMonuments).thenReturn(friendPins)
+    whenever(viewModel.wishlistWrite).thenReturn(wishlistWrite)
+    runBlocking {
+      whenever(viewModel.checkWishlist(any())).thenReturn(wishlistStatus)
+      whenever(viewModel.friendsWhoWishlisted(any())).thenReturn(wishlistingFriends)
+    }
     whenever(viewModel.uiState)
         .thenReturn(MutableStateFlow(ExploreUiState.LocationAvailable(coordinates)))
     whenever(viewModel.monuments).thenReturn(MutableStateFlow(listOf(monument)))
@@ -822,6 +1168,32 @@ class ExploreBitmapDescriptorShadow {
     fun fromBitmap(bitmap: Bitmap): BitmapDescriptor {
       check(!failDescriptorCreation)
       return mock<BitmapDescriptor>().also { bitmaps[it] = bitmap }
+    }
+  }
+}
+
+@Implements(Geocoder::class)
+class ExploreGeocoderShadow {
+  @Implementation
+  fun getFromLocation(latitude: Double, longitude: Double, maxResults: Int): List<Address> {
+    requested = Coordinates(latitude, longitude)
+    failure?.let { throw it }
+    return listOfNotNull(address).take(maxResults)
+  }
+
+  companion object {
+    var present = true
+    var address: Address? = null
+    var failure: Exception? = null
+    @Volatile var requested: Coordinates? = null
+
+    @JvmStatic @Implementation fun isPresent(): Boolean = present
+
+    fun reset() {
+      present = true
+      address = null
+      failure = null
+      requested = null
     }
   }
 }

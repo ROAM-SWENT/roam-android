@@ -121,10 +121,23 @@
     <string name="explore_location_unavailable">We could not determine your location.</string>
     <string name="explore_retry">Retry</string>
     <string name="explore_friend_pin_overflow" translatable="false">+%1$d</string>
-    <string name="explore_friend_pin_group_title">Shared monuments</string>
     <string name="explore_friend_pin_group_marker">%1$s (%2$d shared guides)</string>
     <string name="explore_friend_pin_unknown_owner">Friend %1$d</string>
-    <string name="explore_friend_pin_done">Done</string>
+    <string name="explore_friend_scanned_by">Scanned by %1$s</string>
+    <string name="explore_friend_view_guide">View guide</string>
+    <string name="explore_friend_read_guide">Read their guide</string>
+    <string name="explore_friend_wishlist_add">Add to wishlist</string>
+    <string name="explore_friend_wishlist_saved">On your wishlist</string>
+    <string name="explore_friend_wishlist_error">Could not add to your wishlist. Try again.</string>
+    <string name="explore_friend_wishlist_check_error">Could not check your wishlist.</string>
+    <string name="explore_friend_collection_info">A friend\'s scan can\'t join your collection. Scan the monument yourself to collect it.</string>
+    <string name="explore_friend_city_country">%1$s, %2$s</string>
+    <string name="explore_friend_location_unavailable">Location unavailable</string>
+    <string name="explore_friend_wishlisted_by">Wishlisted by %1$s</string>
+    <plurals name="explore_friend_scanned_count">
+        <item quantity="one">Scanned by %1$d friend</item>
+        <item quantity="other">Scanned by %1$d friends</item>
+    </plurals>
     <string name="explore_monument_photo_description">Photo of %1$s</string>
     <string name="explore_close_monument_description">Close monument information</string>
     <string name="explore_minimize_monument_description">Minimize monument information</string>
